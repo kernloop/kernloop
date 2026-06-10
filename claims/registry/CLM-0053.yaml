@@ -1,7 +1,13 @@
 id: CLM-0053
 statement: >-
   Workshop tools live under the workshop namespace, cannot import kernel or faculty internals, and are capped at twelve per overlay — at cap, forging requires retiring.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-toolsmith/src/workshop.test.ts::rejects path-traversal tool names'
+  - 'test:packages/faculty-toolsmith/src/forge.docker.test.ts::a tool importing @kernloop/kernel fails its sandbox test — physical isolation'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses to forge at the 12-tool cap and names retire() as the way forward'
+  - 'test:packages/faculty-toolsmith/src/workshop.test.ts::requires human ratification: missing ratifiedBy refuses'
+  - 'test:packages/faculty-toolsmith/src/workshop.test.ts::retire moves the tool to workshop/.retired preserving history'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0

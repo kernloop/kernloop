@@ -1,7 +1,13 @@
 id: CLM-0054
 statement: >-
   Workshop tools are born at suggest, reach advisory only after N clean audited runs, reach enforce only with human ratification, and decay toward removal when unused.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-toolsmith/src/lifecycle.test.ts::registers a tool born at suggest'
+  - 'test:packages/faculty-toolsmith/src/lifecycle.test.ts::promotes to advisory automatically after five consecutive clean runs'
+  - 'test:packages/faculty-toolsmith/src/lifecycle.test.ts::an unclean run anywhere in the streak restarts the count to advisory'
+  - 'test:packages/faculty-toolsmith/src/lifecycle.test.ts::promotes to enforce only with human ratification'
+  - 'test:packages/faculty-toolsmith/src/lifecycle.test.ts::decays an unused tool one tier per window and proposes removal at suggest'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0
