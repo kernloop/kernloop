@@ -1,10 +1,23 @@
 /**
  * The per-repo overlay (spec §7): `.kernloop/` holds the repo's kernloop
- * identity as data. P1 layout — `overlay.yaml` (config), `audit.jsonl`
- * (append-only chain), `memory.sqlite` (episodic + semantic stores). The
- * sqlite file is gitignored per the spec §12.4 recommendation (privacy over
- * portability); claims/, skills/, workshop/, priors.yaml arrive with the
- * faculties that own them (P2/P3) — absent here by design, not stubbed.
+ * identity as data. P2 layout — `overlay.yaml` (id, budgets, brief token
+ * cap, gate thresholds, the K vote-iterate bound, node overrides),
+ * `audit.jsonl` (append-only chain), `memory.sqlite` (episodic + semantic
+ * stores). The sqlite file is gitignored per the spec §12.4 recommendation
+ * (privacy over portability); claims/, skills/, workshop/, priors.yaml
+ * arrive with the faculties that own them (P3) — absent from the schema by
+ * design, not stubbed.
+ *
+ * Precedence contract: values in `overlay.yaml` win over schema defaults;
+ * defaults are applied at parse time, so a loaded {@link Overlay} is always
+ * fully populated. Node overrides win over a node's declared configuration —
+ * resolved only through {@link gateForNode} / {@link specialistsForNode},
+ * never by consumers reading `nodeOverrides` raw.
+ *
+ * Strictness: every object is `strictObject` — unknown keys are rejected.
+ * A typo'd knob that parses silently would let the file lie about behavior
+ * (prime directive); P3 keys (priors, skills, workshop config) are rejected
+ * until the faculty that reads them exists.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +37,7 @@ export interface OverlayPaths {
   readonly audit: string;
   /** Repo-local SQLite memory database (spec §3.3, §7). */
   readonly memory: string;
-  /** Overlay configuration: id, budgets, brief token cap. */
+  /** Overlay configuration: id, budgets, gate thresholds, K, overrides. */
   readonly config: string;
 }
 
@@ -40,41 +53,98 @@ export function overlayPaths(overlayDir: string): OverlayPaths {
   };
 }
 
+/** Consensus strategies in use for the P2 vote gate (spec §12.3 proposal). */
+export const VOTE_STRATEGIES = ['simple_majority', 'supermajority', 'unanimous'] as const;
+
+/** Legal vote panel sizes: 3 by default, 7 at plan ratification (spec §8.6). */
+export const VOTE_PANEL_SIZES = [3, 7] as const;
+
+/** Task budgets — each a positive ceiling; a 0-budget is a lie, not a cap. */
+const BudgetsSchema = z.strictObject({
+  tokens: z.number().int().positive().default(100_000),
+  usd: z.number().positive().default(1),
+  wallClockMin: z.number().positive().default(30),
+});
+
+/** Vote-gate thresholds (spec §5.3, §8.6): strategy is data, panel 3 or 7. */
+const VoteGateSchema = z.strictObject({
+  strategy: z.enum(VOTE_STRATEGIES).default('simple_majority'),
+  panel: z.union([z.literal(3), z.literal(7)]).default(3),
+});
+
+/** Quality-gate knobs; the per-check timeout has no honest overlay default — the gate owns it. */
+const QualityGateSchema = z.strictObject({
+  timeoutMsPerCheck: z.number().int().positive().optional(),
+});
+
+/** Gate thresholds, keyed by gate. Review-gate knobs are P3 — absent. */
+const GatesSchema = z.strictObject({
+  vote: VoteGateSchema.prefault({}),
+  quality: QualityGateSchema.prefault({}),
+});
+
+/**
+ * One node override (spec §6: "Overlays may override nodes (swap a gate,
+ * add a specialist) — never duplicate the graph"). P2 scopes this narrowly:
+ *
+ * - `gate` — swap which registered gate a gate node runs (e.g. point the
+ *   loop's quality node at a repo-specific gate name).
+ * - `specialists` — workforce template names added to the fan-out node's
+ *   children.
+ *
+ * Deliberately absent: `skip` (a node you can turn off is a fail-closed
+ * path), edge rewiring, and node duplication — the graph itself is not
+ * overlay data. An empty override is rejected: it hides intent.
+ */
+export const NodeOverrideSchema = z
+  .strictObject({
+    gate: z.string().min(1).optional(),
+    specialists: z.array(z.string().min(1)).optional(),
+  })
+  .refine((o) => o.gate !== undefined || o.specialists !== undefined, {
+    message: 'a node override must set gate and/or specialists — an empty override hides intent',
+  });
+export type NodeOverride = z.infer<typeof NodeOverrideSchema>;
+
 /**
  * overlay.yaml schema (spec §7: "gate thresholds, K, budgets, node
- * overrides" — the P1 subset is the overlay id, default task budgets, and
- * the brief token cap; gate/loop knobs arrive with the P2 loop).
+ * overrides"). K is the vote-iterate bound — rejected plans loop at most K
+ * times before escalating to the human (spec §6; default 3 adopted per
+ * §12.2). Every field except `id` defaults, so a minimal overlay is just an
+ * id; file values win over defaults (precedence, see module docs).
  */
-export const OverlayConfigSchema = z.object({
+export const OverlaySchema = z.strictObject({
   id: z.string().min(1),
-  budgets: z
-    .object({
-      tokens: z.number().int().nonnegative().default(100_000),
-      usd: z.number().nonnegative().default(1),
-      wallClockMin: z.number().nonnegative().default(30),
-    })
-    .default({ tokens: 100_000, usd: 1, wallClockMin: 30 }),
-  briefTokens: z.number().int().nonnegative().default(4_000),
+  budgets: BudgetsSchema.prefault({}),
+  briefTokens: z.number().int().positive().default(4_000),
+  K: z.number().int().min(1).default(3),
+  gates: GatesSchema.prefault({}),
+  nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
 });
-export type OverlayConfig = z.infer<typeof OverlayConfigSchema>;
+export type Overlay = z.infer<typeof OverlaySchema>;
 
-/** Typed failure loading or validating an overlay. */
+/** Typed failure loading or validating an overlay; schema failures carry the zod issues. */
 export class OverlayError extends Error {
-  constructor(message: string) {
+  /** Structured zod issues (empty for YAML-level failures) — doctor surfaces these. */
+  readonly issues: readonly z.core.$ZodIssue[];
+  constructor(message: string, issues: readonly z.core.$ZodIssue[] = []) {
     super(message);
     this.name = 'OverlayError';
+    this.issues = issues;
   }
 }
 
 /**
- * Load and validate `overlay.yaml`. A missing file yields the defaults with
- * the overlay id derived from the repo directory name — `kernloop init`
- * writes the file; until then the derived identity is reported, never
- * fabricated as committed config.
+ * Load and validate `overlay.yaml` under `overlayDir`, applying defaults
+ * (file values win). A missing file yields the defaults with the overlay id
+ * derived from the repo directory name — `kernloop init` writes the file;
+ * until then the derived identity is reported, never fabricated as committed
+ * config. Malformed YAML or a schema violation throws {@link OverlayError}.
  */
-export function loadOverlayConfig(paths: OverlayPaths): OverlayConfig {
+export function loadOverlay(overlayDir: string): Overlay {
+  const paths = overlayPaths(overlayDir);
   if (!existsSync(paths.config)) {
-    return OverlayConfigSchema.parse({ id: path.basename(paths.repoRoot) });
+    return OverlaySchema.parse({ id: path.basename(paths.repoRoot) });
   }
   let raw: unknown;
   try {
@@ -84,11 +154,28 @@ export function loadOverlayConfig(paths: OverlayPaths): OverlayConfig {
       `overlay.yaml is not valid YAML: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  const result = OverlayConfigSchema.safeParse(raw);
+  const result = OverlaySchema.safeParse(raw);
   if (!result.success) {
-    throw new OverlayError(`overlay.yaml is invalid: ${z.prettifyError(result.error)}`);
+    throw new OverlayError(
+      `overlay.yaml is invalid: ${z.prettifyError(result.error)}`,
+      result.error.issues,
+    );
   }
   return result.data;
+}
+
+/**
+ * The gate a loop node runs: a node override's `gate` wins over the node's
+ * declared gate (spec §6 "swap a gate"). Pure precedence — the loop engine
+ * validates the resolved name against registered gates at wiring time.
+ */
+export function gateForNode(overlay: Overlay, node: string, declaredGate: string): string {
+  return overlay.nodeOverrides[node]?.gate ?? declaredGate;
+}
+
+/** Specialist templates the overlay adds to a fan-out node (spec §6 "add a specialist"). */
+export function specialistsForNode(overlay: Overlay, node: string): readonly string[] {
+  return overlay.nodeOverrides[node]?.specialists ?? [];
 }
 
 /** What `initOverlay` did, file by file. */
@@ -96,6 +183,31 @@ export interface InitResult {
   readonly overlayDir: string;
   readonly created: string[];
   readonly skipped: string[];
+}
+
+/** Render the overlay.yaml template `kernloop init` writes (spec-true defaults, commented). */
+function overlayTemplate(defaults: Overlay): string {
+  return [
+    '# kernloop overlay (spec §7) — per-repo identity as data',
+    `id: ${defaults.id}`,
+    'budgets:',
+    `  tokens: ${String(defaults.budgets.tokens)}`,
+    `  usd: ${String(defaults.budgets.usd)}`,
+    `  wallClockMin: ${String(defaults.budgets.wallClockMin)}`,
+    `briefTokens: ${String(defaults.briefTokens)}`,
+    '# vote-iterate bound: rejected plans loop at most K times, then escalate to the human (spec §6)',
+    `K: ${String(defaults.K)}`,
+    'gates:',
+    '  vote:',
+    `    strategy: ${defaults.gates.vote.strategy} # simple_majority | supermajority | unanimous`,
+    `    panel: ${String(defaults.gates.vote.panel)} # 3 default; 7 at plan ratification (spec §8.6)`,
+    '#  quality:',
+    '#    timeoutMsPerCheck: 120000',
+    "# nodeOverrides:  # swap a gate node's gate / add fan-out specialists (spec §6) — never duplicate the graph",
+    '#   review: { gate: security-review }',
+    '#   fan-out: { specialists: [api-designer] }',
+    '',
+  ].join('\n');
 }
 
 /**
@@ -110,21 +222,9 @@ export function initOverlay(repoRoot: string): InitResult {
   const created: string[] = [];
   const skipped: string[] = [];
   mkdirSync(paths.dir, { recursive: true });
-  const defaults = OverlayConfigSchema.parse({ id: path.basename(paths.repoRoot) });
+  const defaults = OverlaySchema.parse({ id: path.basename(paths.repoRoot) });
   const files: Array<[string, string]> = [
-    [
-      paths.config,
-      [
-        '# kernloop overlay (spec §7) — per-repo identity as data',
-        `id: ${defaults.id}`,
-        'budgets:',
-        `  tokens: ${String(defaults.budgets.tokens)}`,
-        `  usd: ${String(defaults.budgets.usd)}`,
-        `  wallClockMin: ${String(defaults.budgets.wallClockMin)}`,
-        `briefTokens: ${String(defaults.briefTokens)}`,
-        '',
-      ].join('\n'),
-    ],
+    [paths.config, overlayTemplate(defaults)],
     [
       path.join(paths.dir, '.gitignore'),
       '# spec §12.4: gitignore the memory database (privacy over portability)\nmemory.sqlite\n',

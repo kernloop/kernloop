@@ -77,6 +77,9 @@ describe('kernloop CLI', () => {
       await runCli(['audit', '--op', 'query', '--type', 'kernel.registry.register'], query.io),
     ).toBe(0);
     expect((query.json() as { events: unknown[] }).events.length).toBeGreaterThan(0);
+    const ranged = capture(repo);
+    expect(await runCli(['audit', '--op', 'query', '--from', '1', '--to', '2'], ranged.io)).toBe(0);
+    expect((ranged.json() as { events: unknown[] }).events.length).toBeLessThanOrEqual(2);
   });
 
   it('run --plan returns the routing decision as JSON', async () => {

@@ -68,4 +68,15 @@ describe('createKernloop', () => {
     if (result.ok) expect(result.length).toBeGreaterThan(0);
     kern.close();
   });
+
+  it('threads an injected clock into every audit envelope', () => {
+    const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-kernel-'));
+    dirs.push(repo);
+    const frozen = new Date('2026-01-02T03:04:05.000Z');
+    const kern = createKernloop({ overlayDir: path.join(repo, '.kernloop'), clock: () => frozen });
+    const envelopes = readEnvelopes(kern.paths.audit);
+    expect(envelopes.length).toBeGreaterThan(0);
+    expect(envelopes.every((e) => e.ts === frozen.toISOString())).toBe(true);
+    kern.close();
+  });
 });
