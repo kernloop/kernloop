@@ -78,9 +78,15 @@ importers:
       '@kernloop/faculty-memory':
         specifier: workspace:*
         version: link:../faculty-memory
+      '@kernloop/faculty-workforce':
+        specifier: workspace:*
+        version: link:../faculty-workforce
       '@kernloop/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@kernloop/workflows':
+        specifier: workspace:*
+        version: link:../workflows
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
