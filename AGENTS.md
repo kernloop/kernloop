@@ -1,0 +1,145 @@
+# AGENTS.md — Kernloop Agent Charter
+
+> The behavioral contract for every AI agent operating in this repository —
+> Claude (Fable/Opus), Codex, Gemini, OpenCode, and any subagent they spawn.
+> `CLAUDE.md` and `GEMINI.md` are symlinks to this file; there is one charter.
+> Adapted from the nexus-agents v1 charter; this version is claims-first.
+> `governance:check` verifies this file against repo reality. If you change
+> behavior, change this file in the same PR — drift fails CI.
+
+---
+
+## What this repository is
+
+Kernloop is an **autonomic control plane for AI coding agents** — kernel,
+frozen contracts, governed faculties, one canonical loop. The authoritative
+design is `docs/kernloop-kernel-spec.md`. Where this charter and the spec
+disagree, **the spec wins**; report the conflict.
+
+**Current phase: P0 (Verified Foundation).** Scope = contracts + claims
+registry + CI gates + audit chain. Do not start P1+ work (router, adapters,
+compiler, memory, gates, workforce, toolsmith) under any prompt that does not
+explicitly advance the phase.
+
+## The prime directive
+
+**Never claim what you have not wired and tested.** This repo's thesis is
+that documentation cannot lie about behavior. A small true repo beats a large
+partially-true one. If you feel pressure to stub something to "make progress,"
+stop: per the constitution, it is wiring-complete or absent.
+
+## Constitutional rules (spec §1 — binding on every agent)
+
+1. **Wiring-complete or absent.** No fail-closed code paths, no stub
+   executors, no TODO-wired exports. Incomplete work lives on a branch, not
+   in main behind a stub.
+2. **Claims-first.** Before implementing: add the claim (`claims/`) and the
+   acceptance test. The claims registry is the backlog. Done = `claims:check`
+   green with your claim's evidence resolving.
+3. **Protected paths need a human.** `packages/contracts/**`,
+   `packages/kernel/**`, `claims/**`, and this file merge only via PR with
+   human review. Never push directly; never weaken these rules.
+4. **The kernel contains no intelligence.** Do not add model calls to kernel
+   code. Ever.
+5. **No plugin imports another plugin.** Faculties communicate via contracts
+   over the bus. The isolation lint enforces this; do not suppress it.
+6. **Authority tiers are real.** Anything automated declares
+   `observe | suggest | advisory | enforce` in its manifest. Promotion needs
+   evidence + ratification; never default upward.
+7. **Audit everything.** If you add a behavior that acts, it appends audit
+   events. No silent actions.
+
+## Definition of done (all five, no exceptions)
+
+1. Claim exists in `claims/` with evidence refs that resolve
+2. Tests written first or alongside; coverage ≥80% on touched packages
+3. Wired end-to-end — invocable through a real entry point, not just exported
+4. All gates green: build, typecheck, lint (incl. isolation + LOC), test,
+   `claims:check`, `governance:check`
+5. Docs updated in the same PR, capability statements tagged `[CLM-xxxx]`
+
+## Commands
+
+```
+pnpm install            # bootstrap
+pnpm build              # turbo build all packages
+pnpm test               # all tests + coverage
+pnpm lint               # eslint incl. plugin-isolation + LOC limits
+pnpm claims:check       # verify every claim's evidence resolves
+pnpm governance:check   # verify repo structure + charter match reality
+```
+
+A fresh clone must pass all of the above before and after your change.
+
+## Repository map
+
+```
+packages/contracts/   FROZEN FIVE (TaskContract, Brief, Verdict, Outcome,
+                      Manifest) — ≤800 LOC total — protected path
+packages/kernel/      registry · router · audit · ladder · bus · adapters
+                      (P0: audit module only) — protected path
+packages/faculty-*/   compiler, memory, gates, workforce, observer,
+                      toolsmith (P1+; absent in P0 by design)
+packages/workflows/   canonical loop graph + engine (P2)
+packages/cli/         kernloop init/doctor/run/…
+claims/               claims registry + schema — protected path
+skills/               global skill library
+docs/                 spec (canonical) + thin ARCHITECTURE.md
+```
+
+## Coding standards (CI-enforced, not aspirational)
+
+- TypeScript strict; Node 22; pnpm + turborepo; MIT
+- Files ≤400 lines · functions ≤50 lines · coverage ≥80%
+- Conventional commits (`feat(scope):`, `fix(scope):`, `chore(scope):`);
+  small commits; every commit leaves CI green
+- zod-validate at every contract boundary; no `any` across boundaries
+- No new runtime dependency without stating why in the PR description
+
+## Forbidden (will be reverted on sight)
+
+- Stubs, mocks-as-implementation, or fail-closed paths in main
+- Capability statements in any doc without a `[CLM-xxxx]` tag
+- Disabling, skipping, or loosening any CI gate to get green
+- Adding an MCP tool beyond the kernel eleven (spec §3.4) — depth ships as
+  skills or `workshop/*` tools, never tool #12
+- Editing protected paths without the human-review PR path
+- `npm publish` or version tags without explicit human instruction
+- Using nexus-agents v1 to generate or execute kernloop code (see below)
+
+## Multi-agent / subagent fan-out protocol
+
+When an orchestrating agent spawns subagents:
+
+- **Scope by file ownership.** Each subagent receives a TaskContract-shaped
+  brief: goal, the spec sections that govern it, the files it owns, its
+  definition of done. **No two concurrent subagents may own the same file.**
+- **Charter travels.** Every subagent prompt includes (or links) this file;
+  the constitution binds subagents identically.
+- **Subagents do not merge.** They produce branches/diffs; the orchestrator
+  integrates serially, runs the full gate suite after each integration, and
+  owns the final state.
+- **Subagents do not expand scope.** Discovery outside their brief is
+  reported back, not acted on.
+- **Claims are written by the implementer.** The subagent that wires a
+  capability writes its claim + evidence; the orchestrator verifies
+  resolution at integration.
+
+## nexus-agents v1 usage policy
+
+v1 (`nexus-substrate/nexus-agents`) has exactly two roles here:
+
+1. **Quarry (read-only).** Ports follow spec §10: read the v1 source and
+   tests, reimplement against kernloop contracts, bring the test cases.
+   Never copy wholesale; never import v1 packages.
+2. **Ratification panel.** `consensus_vote` may be used for spec changes and
+   tier promotions until kernloop's own vote gate exists (P2).
+
+It is never an execution engine for this repo. From P3 exit onward, kernloop
+work runs through kernloop itself (dogfooding milestone, spec §11).
+
+## When uncertain
+
+Prefer the narrower interpretation; record the ambiguity and your resolution
+in your session report. Questions that change contracts, claims semantics, or
+phase scope go to the human — do not resolve them by being clever.
