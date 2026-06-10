@@ -127,7 +127,9 @@ function decomposePrompt(parent: TaskContract, planText: string): string {
       '"assignTo":"pm|coder|reviewer|documenter|researcher"}]}. Subtask budgets must sum ' +
       'within the parent budget on every dimension. Every subtask must be implementable as ' +
       'concrete file changes in the workspace — no review-only, research-only, or process ' +
-      'subtasks.',
+      'subtasks. Do NOT create verification, test-running, or QA subtasks: an automatic ' +
+      'quality gate (typecheck, lint, tests) already runs after every subtask. Create the ' +
+      'FEWEST subtasks that produce the file changes — usually one or two.',
   ].join('\n\n');
 }
 
