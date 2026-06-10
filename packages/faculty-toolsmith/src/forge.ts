@@ -159,8 +159,13 @@ export async function forge(options: ForgeOptions): Promise<ForgeResult> {
   const invoke = options.invoke as InvokeToolGenerator;
   const source = await invoke(spec);
   const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-forge-'));
-  fs.writeFileSync(path.join(scratchDir, 'tool.mjs'), source, 'utf8');
-  fs.writeFileSync(path.join(scratchDir, 'test.mjs'), spec.acceptanceTest, 'utf8');
+  // mkdtemp creates 0700 dirs; the sandbox runs as the in-container `node`
+  // user, whose uid need not match the host uid (e.g. CI runners). The
+  // scratch dir is private temp space, so opening it to the container user
+  // is the sandbox-true permission, not a weakening.
+  fs.chmodSync(scratchDir, 0o777);
+  fs.writeFileSync(path.join(scratchDir, 'tool.mjs'), source, { mode: 0o644 });
+  fs.writeFileSync(path.join(scratchDir, 'test.mjs'), spec.acceptanceTest, { mode: 0o644 });
   const sandbox = await runInSandbox({
     scratchDir,
     command: ['node', '--test', 'test.mjs'],

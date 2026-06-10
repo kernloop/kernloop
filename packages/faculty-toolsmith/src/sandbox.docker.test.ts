@@ -14,6 +14,9 @@ import { runInSandbox } from './sandbox.js';
 const tmpDirs: string[] = [];
 function tmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'toolsmith-docker-test-'));
+  // container `node` uid may differ from the host uid (CI runners): the
+  // 0700 mkdtemp default would hide mounted files from the sandbox user.
+  fs.chmodSync(dir, 0o777);
   tmpDirs.push(dir);
   return dir;
 }
