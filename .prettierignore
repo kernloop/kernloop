@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.turbo
+pnpm-lock.yaml
+docs/kernloop-kernel-spec.md
+docs/kernloop-p0-seed-prompt.md
+CLAUDE.md
+GEMINI.md
+.nexus-agents

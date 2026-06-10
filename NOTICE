@@ -1,0 +1,8 @@
+Kernloop
+Copyright (c) 2026 William Zujkowski and Kernloop contributors
+
+Portions of the test suites (audit hash-chain tamper-detection cases) are
+reimplemented from nexus-agents v1 (github.com/nexus-substrate/nexus-agents),
+MIT License, Copyright (c) 2026 William Zujkowski. nexus-agents serves as a
+read-only quarry per docs/kernloop-kernel-spec.md §10; no v1 code is imported
+or executed by this repository.

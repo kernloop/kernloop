@@ -1,0 +1,6 @@
+# Governance-of-the-governor: protected paths require human review (spec §9).
+/packages/contracts/ @williamzujkowski
+/packages/kernel/    @williamzujkowski
+/claims/             @williamzujkowski
+/AGENTS.md           @williamzujkowski
+/.github/            @williamzujkowski
