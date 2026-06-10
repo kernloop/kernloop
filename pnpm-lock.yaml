@@ -79,6 +79,19 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
+  packages/faculty-gates:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.11
+        version: 22.19.20
+
   packages/faculty-memory:
     dependencies:
       '@kernloop/contracts':
