@@ -36,6 +36,20 @@ Tamper evidence is property-tested across seeded random chains [CLM-0013].
 The documentation gate enforces itself: claims:check fails on dangling evidence [CLM-0007].
 A claim marked verified without test evidence fails the gate [CLM-0008].
 
+The event bus carries only the five contracts, rejects malformed messages at the boundary [CLM-0014], and applies backpressure instead of dropping events silently [CLM-0018].
+The manifest registry is the single source of capability truth and rejects invalid manifests at registration [CLM-0015].
+The authority ladder blocks any action above its manifest's tier or the task's ceiling [CLM-0016], and every tier transition is audited, with automatic demotion on threshold breach [CLM-0017].
+Adapter subprocess calls capture all output, enforce wall-clock timeouts [CLM-0019], and meter every call honestly — measured duration always, tokens and dollars only when the CLI reports them [CLM-0020].
+An unavailable model CLI is reported as unavailable, never stubbed [CLM-0021].
+Semantic memory rejects writes without provenance [CLM-0022] and ranks recall by provenance and recency with a decay clock [CLM-0023].
+Episodic memory persists each Outcome as a summary plus trace pointer, retrievable by task id [CLM-0024], in repo-local SQLite that functions empty if deleted [CLM-0025].
+The router matches tasks to manifests by capability and budget [CLM-0026], never routes above the task's authority ceiling [CLM-0027], and guarantees demoted capabilities an exploration floor [CLM-0028].
+The context compiler is deterministic — identical inputs produce byte-identical Briefs [CLM-0029] — with hard per-section token budgets, priority-ordered drop, and provenance on every section [CLM-0030].
+The quality gate runs typecheck, lint, test, and coverage and emits structured, severity-tagged Verdicts [CLM-0031], every one appended to the audit chain [CLM-0032].
+The MCP surface exposes exactly nine kernel tools in P1 — run, status, brief, gate, recall, remember, manifest, audit, observe — and nothing else [CLM-0033].
+The run entry point routes a TaskContract via manifests and returns an Outcome with every routing decision audited [CLM-0034]; the audit tool queries and verifies the chain on demand [CLM-0035].
+One real task has run end-to-end through the quality gate — Verdict, Outcome, and verifiable audit chain included [CLM-0036].
+
 <!-- claims:end -->
 
 ## The claims registry
