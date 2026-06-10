@@ -1,7 +1,11 @@
 id: CLM-0032
 statement: >-
   Every quality-gate Verdict appends to the audit chain.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/cli/src/tools/gate.test.ts::appends every quality-gate Verdict to the audit chain, and the chain verifies'
+  - 'test:packages/cli/src/tools/gate.test.ts::emits a fail Verdict (also audited) when a check fails'
+  - 'test:packages/cli/src/tools/gate.test.ts::rejects unknown gates with a typed error — vote and review are absent, not stubbed'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.2.0

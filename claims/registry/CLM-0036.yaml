@@ -1,7 +1,10 @@
 id: CLM-0036
 statement: >-
   One real task runs end-to-end through the quality gate, producing a Verdict, an Outcome, and a verifiable audit chain.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/cli/src/e2e.test.ts::runs a real task through routing, the real quality gate, audit, and memory — and passes'
+  - 'test:packages/cli/src/e2e.test.ts::fails honestly on a workspace with a type error: fail Verdict, failure Outcome, verified chain'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.2.0

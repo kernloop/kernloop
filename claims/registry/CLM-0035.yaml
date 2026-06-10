@@ -1,7 +1,12 @@
 id: CLM-0035
 statement: >-
   The audit tool queries events and verifies the chain on demand.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/cli/src/tools/audit.test.ts::verifies the chain on demand'
+  - 'test:packages/cli/src/tools/audit.test.ts::detects tampering when the log is modified'
+  - 'test:packages/cli/src/tools/audit.test.ts::queries events filtered by type'
+  - 'test:packages/cli/src/tools/audit.test.ts::queries events filtered by sequence range'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.2.0
