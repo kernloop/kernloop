@@ -1,0 +1,7 @@
+id: CLM-0049
+statement: >-
+  Distill proposes a SKILL.md from an episodic trace, entering the ladder at suggest tier.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

@@ -1,0 +1,7 @@
+id: CLM-0053
+statement: >-
+  Workshop tools live under the workshop namespace, cannot import kernel or faculty internals, and are capped at twelve per overlay — at cap, forging requires retiring.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

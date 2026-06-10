@@ -1,0 +1,7 @@
+id: CLM-0054
+statement: >-
+  Workshop tools are born at suggest, reach advisory only after N clean audited runs, reach enforce only with human ratification, and decay toward removal when unused.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

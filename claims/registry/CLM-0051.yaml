@@ -1,0 +1,7 @@
+id: CLM-0051
+statement: >-
+  Forge refuses to build a workshop tool unless its spec carries a claim entry, an acceptance test, and a manifest first.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

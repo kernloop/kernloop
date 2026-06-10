@@ -1,0 +1,7 @@
+id: CLM-0056
+statement: >-
+  The Observer files issues about the system itself at suggest tier, and self-filed issues re-enter the canonical loop with no privileged path.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

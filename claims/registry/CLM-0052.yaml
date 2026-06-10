@@ -1,0 +1,7 @@
+id: CLM-0052
+statement: >-
+  Workshop tools are generated and tested only inside the sandbox profile — no network by default, filesystem scoped to a scratch directory.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

@@ -1,0 +1,7 @@
+id: CLM-0050
+statement: >-
+  Skills enter the procedural library only through the distill ratification path.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

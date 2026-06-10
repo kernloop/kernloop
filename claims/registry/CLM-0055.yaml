@@ -1,0 +1,7 @@
+id: CLM-0055
+statement: >-
+  The Observer maintains the fitness ledger — invocations, success correlation, cost, recency — and the per-voter precision series.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

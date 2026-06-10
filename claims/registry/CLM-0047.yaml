@@ -1,0 +1,7 @@
+id: CLM-0047
+statement: >-
+  The review gate performs adversarial diff review at advisory tier, and every voter's precision is recorded into the fitness ledger.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0

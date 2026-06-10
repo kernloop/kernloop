@@ -1,0 +1,7 @@
+id: CLM-0048
+statement: >-
+  Review-gate calibration is measured against the labeled n=10 eval set ported from v1.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.4.0
