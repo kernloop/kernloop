@@ -1,0 +1,7 @@
+id: CLM-0043
+statement: >-
+  The vote-iterate cycle is bounded at K iterations (default 3) before escalating to the human.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

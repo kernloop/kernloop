@@ -1,0 +1,7 @@
+id: CLM-0037
+statement: >-
+  The vote gate aggregates a panel of voters into one Verdict under simple-majority, super-majority, or unanimous strategies — three voters by default, seven at plan ratification.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

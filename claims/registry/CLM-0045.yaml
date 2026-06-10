@@ -1,0 +1,7 @@
+id: CLM-0045
+statement: >-
+  A repo overlay overrides gate thresholds, K, budgets, and loop nodes as data — never by duplicating the graph.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

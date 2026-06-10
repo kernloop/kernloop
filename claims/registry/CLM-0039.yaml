@@ -1,0 +1,7 @@
+id: CLM-0039
+statement: >-
+  Voters on one gate panel share a single compiled Brief — one compile, n voters.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

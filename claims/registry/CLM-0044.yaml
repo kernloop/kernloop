@@ -1,0 +1,7 @@
+id: CLM-0044
+statement: >-
+  Per-node checkpoints make any run resumable: a run killed mid-loop resumes from its last checkpoint and completes.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

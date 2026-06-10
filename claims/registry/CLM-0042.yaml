@@ -1,0 +1,7 @@
+id: CLM-0042
+statement: >-
+  The canonical loop is declared as data: every edge carries a contract and every gate node emits a Verdict.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

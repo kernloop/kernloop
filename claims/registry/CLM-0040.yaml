@@ -1,0 +1,7 @@
+id: CLM-0040
+statement: >-
+  Workforce agents are configuration, not generation: PM, Coder, Reviewer, Documenter, and Researcher templates instantiate as manifests, and new templates enter at suggest tier.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

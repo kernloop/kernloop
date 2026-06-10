@@ -1,0 +1,7 @@
+id: CLM-0038
+statement: >-
+  Every voter's vote and reasoning is recorded as a VoterRecord, feeding the per-voter precision series.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

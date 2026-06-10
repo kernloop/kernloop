@@ -1,0 +1,7 @@
+id: CLM-0046
+statement: >-
+  The full canonical loop has run on a real feature in a real repository, end to end through vote and quality gates.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0

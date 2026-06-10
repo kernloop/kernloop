@@ -1,0 +1,7 @@
+id: CLM-0041
+statement: >-
+  The PM decomposes a ratified plan into child TaskContracts whose budgets must sum within the parent's budget.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.3.0
