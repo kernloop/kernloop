@@ -1,7 +1,14 @@
 id: CLM-0057
 statement: >-
   A distilled skill and a forged workshop tool have both been born through gates.
-evidence: []
-status: planned
+evidence:
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::loc-probe carries its full birth certificate'
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::the model-generated tool still passes its acceptance test'
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::the skill is live with its proposal provenance intact'
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::the committed exit audit chain contains the birth events'
+  - 'eval:.kernloop/workshop/loc-probe/tool.mjs'
+  - 'eval:skills/run-quality-gate-via-kernel/SKILL.md'
+  - 'eval:evals/p3-exit/audit.jsonl'
+status: verified
 owner: williamzujkowski
 since: 0.4.0

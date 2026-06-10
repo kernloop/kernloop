@@ -1,0 +1,3 @@
+id: WS-0001
+statement: loc-probe reports non-blank line counts per file and in total for a
+  directory tree, skipping node_modules and dist.
