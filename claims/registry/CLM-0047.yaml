@@ -1,7 +1,13 @@
 id: CLM-0047
 statement: >-
   The review gate performs adversarial diff review at advisory tier, and every voter's precision is recorded into the fitness ledger.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-gates/src/review/run.test.ts::rejects when any reviewer files an error finding (advisory verdict stays honest)'
+  - 'test:packages/faculty-gates/src/review/run.test.ts::records one VoterRecord per reviewer with their summary as reasoning'
+  - 'test:packages/faculty-gates/src/review/run.test.ts::records a throwing reviewer as abstain with reviewer_error reasoning'
+  - 'test:packages/faculty-gates/src/review/run.test.ts::deduplicates same-path same-prefix findings and attributes both reviewers'
+  - 'test:packages/faculty-gates/src/review/manifest.test.ts::declares advisory tier with the Epic-E promotion criterion'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0

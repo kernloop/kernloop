@@ -1,7 +1,13 @@
 id: CLM-0048
 statement: >-
   Review-gate calibration is measured against the labeled n=10 eval set ported from v1.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-gates/src/review/eval-set.test.ts::ports exactly ten labeled cases from the v1 eval set'
+  - 'test:packages/faculty-gates/src/review/eval-set.test.ts::keeps the v1 label split: seven should-flag, three clean'
+  - 'test:packages/faculty-gates/src/review/calibrate.test.ts::a perfect reviewer scores precision 1 and recall 1 over the eval set'
+  - 'test:packages/faculty-gates/src/review/calibrate.test.ts::a noisy reviewer scores lower precision than a perfect one'
+  - 'test:packages/faculty-gates/src/review/calibrate.test.ts::an empty-finding reviewer scores recall 0 on should-flag cases'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0
