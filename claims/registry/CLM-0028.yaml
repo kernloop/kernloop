@@ -1,7 +1,9 @@
 id: CLM-0028
 statement: >-
   A floor of exploration traffic guarantees demoted-but-registered capabilities still receive routing consideration.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/kernel/src/router/exploration.test.ts::a demoted manifest with rock-bottom fitness is still selectable via the exploration floor'
+  - 'test:packages/kernel/src/router/exploration.test.ts::exploration selects uniformly among ceiling-allowed candidates including over-budget ones'
+status: verified
 owner: williamzujkowski
 since: 0.2.0

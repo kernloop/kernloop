@@ -1,7 +1,9 @@
 id: CLM-0027
 statement: >-
   The router never routes to a manifest whose tier exceeds the task's authorityCeiling.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/kernel/src/router/router.test.ts::never routes to a manifest whose tier exceeds the task authorityCeiling'
+  - 'test:packages/kernel/src/router/exploration.test.ts::never exceeds the authorityCeiling even under exploration (seeded rng sweep)'
+status: verified
 owner: williamzujkowski
 since: 0.2.0

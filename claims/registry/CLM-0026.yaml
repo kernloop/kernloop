@@ -1,7 +1,12 @@
 id: CLM-0026
 statement: >-
   The router matches a TaskContract to manifests by capability and budget, and returns the routing decision without executing when asked to plan only.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/kernel/src/router/router.test.ts::matches a task to a manifest by capability and returns the routing decision without executing'
+  - 'test:packages/kernel/src/router/router.test.ts::filters out a manifest whose expected token cost exceeds the task token budget'
+  - 'test:packages/kernel/src/router/router.test.ts::filters out a manifest whose expected usd cost exceeds the task usd budget'
+  - 'test:packages/kernel/src/router/router.test.ts::plan-only routing mutates no kernel state: only the audit log grows'
+  - 'test:packages/kernel/src/router/router.test.ts::appends a route audit event with identity facts only, and the chain verifies'
+status: verified
 owner: williamzujkowski
 since: 0.2.0
