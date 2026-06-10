@@ -1,7 +1,12 @@
 id: CLM-0030
 statement: >-
   Brief sections respect hard token budgets with priority-ordered drop, and every section carries provenance.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-compiler/src/budget.test.ts::sections drop in reverse priority order as the total budget shrinks'
+  - 'test:packages/faculty-compiler/src/budget.test.ts::per-section caps drop whole items from the end and record the drop in the section'
+  - 'test:packages/faculty-compiler/src/budget.test.ts::truncation is item-granular: kept lines are whole rendered items, never chopped'
+  - 'test:packages/faculty-compiler/src/compile.test.ts::every compiled section carries at least one provenance source'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.2.0

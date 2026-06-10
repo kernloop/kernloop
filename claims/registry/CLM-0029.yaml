@@ -1,7 +1,11 @@
 id: CLM-0029
 statement: >-
   The context compiler is deterministic: identical inputs produce byte-identical Briefs under a pinned compiler version.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-compiler/src/compile.test.ts::identical inputs produce byte-identical briefs across repeated compiles'
+  - 'test:packages/faculty-compiler/src/compile.test.ts::permuted input object key order produces a byte-identical brief'
+  - 'test:packages/faculty-compiler/src/compile.test.ts::brief.compilerVersion is the pinned COMPILER_VERSION constant'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.2.0
