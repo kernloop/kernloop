@@ -164,6 +164,19 @@ importers:
         specifier: ^22.19.11
         version: 22.19.20
 
+  packages/workflows:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.11
+        version: 22.19.20
+
 packages:
 
   '@babel/code-frame@7.29.7':

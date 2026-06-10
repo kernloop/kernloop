@@ -11,6 +11,9 @@ export const BUDGETS = [
   { pattern: /^contracts$/, budget: 800 },
   { pattern: /^kernel$/, budget: 5000 },
   { pattern: /^faculty-/, budget: 4000 },
+  // Spec §2 gives workflows no explicit budget; held to the faculty ceiling
+  // so no package in the tree grows unbounded.
+  { pattern: /^workflows$/, budget: 4000 },
 ];
 
 function isSourceFile(file) {
