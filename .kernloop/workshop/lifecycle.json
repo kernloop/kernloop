@@ -1,0 +1,20 @@
+{
+  "tools": {
+    "loc-probe": {
+      "name": "loc-probe",
+      "tier": "suggest",
+      "cleanRuns": 0,
+      "lastUsedAt": 1781122395295,
+      "born": 1781122395295,
+      "status": "live"
+    }
+  },
+  "history": [
+    {
+      "at": 1781122395295,
+      "tool": "loc-probe",
+      "event": "born",
+      "to": "suggest"
+    }
+  ]
+}

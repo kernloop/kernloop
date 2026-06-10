@@ -81,9 +81,12 @@ function firstBodyLine(markdown: string): string | null {
 }
 
 /**
- * Skills index: every `skills/<name>/SKILL.md`, as name + one-liner only
- * (spec §5.1 — bodies load on demand). Empty until `distill` (P3) populates
- * the library; an empty index is the honest index.
+ * Skills index: every committed `skills/<name>/SKILL.md`, as name +
+ * one-liner only (spec §5.1 — bodies load on demand). `skills/proposed/**`
+ * is EXCLUDED: distill writes proposals there at suggest tier, and a skill
+ * enters the live library only through the human-reviewed git ratification
+ * path [CLM-0050] — the index never serves an unratified proposal. An empty
+ * index is the honest index.
  */
 export function gatherSkillsIndex(repoRoot: string): NonNullable<BriefSources['skillsIndex']> {
   const dir = path.join(repoRoot, 'skills');
@@ -91,6 +94,7 @@ export function gatherSkillsIndex(repoRoot: string): NonNullable<BriefSources['s
   const index: NonNullable<BriefSources['skillsIndex']> = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
+    if (entry.name === 'proposed') continue; // unratified proposals are not the library [CLM-0050]
     const skillFile = path.join(dir, entry.name, 'SKILL.md');
     if (!existsSync(skillFile)) continue;
     const oneLiner = firstBodyLine(readFileSync(skillFile, 'utf8'));

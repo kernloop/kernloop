@@ -4,7 +4,7 @@ statement: >-
 evidence:
   - 'test:packages/cli/src/tools/gate.test.ts::appends every quality-gate Verdict to the audit chain, and the chain verifies'
   - 'test:packages/cli/src/tools/gate.test.ts::emits a fail Verdict (also audited) when a check fails'
-  - 'test:packages/cli/src/tools/gate.test.ts::rejects unknown gates with a typed error — vote and review are absent, not stubbed'
+  - 'test:packages/cli/src/tools/gate.test.ts::rejects unknown gates with a typed error naming the three that exist'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

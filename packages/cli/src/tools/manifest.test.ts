@@ -37,7 +37,7 @@ describe('manifestTool', () => {
     const kern = freshKernloop();
     const result = manifestTool(kern, { op: 'list' });
     if (result.op !== 'list') throw new Error('expected list');
-    expect(result.manifests).toHaveLength(5);
+    expect(result.manifests).toHaveLength(8);
     kern.close();
   });
 

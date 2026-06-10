@@ -1,10 +1,11 @@
+# revised in P3: nine → eleven (ratified by the P3 exit PR merge)
 id: CLM-0033
 statement: >-
-  The P1 MCP surface exposes exactly nine kernel tools — run, status, brief, gate, recall, remember, manifest, audit, observe — and nothing else.
+  The MCP surface exposes exactly the kernel eleven — run, status, brief, gate, recall, remember, distill, forge, manifest, audit, observe — and nothing else.
 evidence:
-  - 'test:packages/cli/src/mcp.test.ts::exposes exactly nine kernel tools: run, status, brief, gate, recall, remember, manifest, audit, observe — and nothing else'
+  - 'test:packages/cli/src/mcp.test.ts::exposes exactly the kernel eleven: run, status, brief, gate, recall, remember, distill, forge, manifest, audit, observe — and nothing else'
   - 'test:packages/cli/src/mcp.test.ts::advertises a JSON Schema for every tool input'
-  - 'test:packages/cli/src/mcp.test.ts::rejects a tool name outside the nine with the surface listed'
+  - 'test:packages/cli/src/mcp.test.ts::rejects a tool name outside the eleven with the surface listed'
   - 'test:packages/cli/src/mcp.test.ts::serves every read-side tool over MCP: status, manifest, audit, observe, brief, run plan-only'
   - 'ci:test'
 status: verified

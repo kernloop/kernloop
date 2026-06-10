@@ -1,0 +1,14 @@
+id: CLM-0051
+statement: >-
+  Forge refuses to build a workshop tool unless its spec carries a claim entry, an acceptance test, and a manifest first.
+evidence:
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses a spec missing its claim entry before any generation or docker call'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses a spec missing its acceptance test'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses a spec missing its manifest'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses a manifest whose kind is not workshopTool'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses a manifest born above suggest'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses a manifest name outside the workshop namespace'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

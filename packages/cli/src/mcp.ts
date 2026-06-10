@@ -1,10 +1,13 @@
 /**
  * MCP server — the resident process per session (spec §3.3). Exposes
- * EXACTLY the nine P1 kernel tools (spec §3.4, §11 P1 row) [CLM-0033];
- * `distill` and `forge` are P3 and absent, not stubbed. Tool inputs are
- * zod-validated by the same schemas the typed tool functions use; input
- * JSON Schemas advertised over `tools/list` are generated from those same
- * zod schemas, so the wire contract cannot drift from the implementation.
+ * EXACTLY the kernel eleven (spec §3.4) [CLM-0033]: run, status, brief,
+ * gate, recall, remember, distill, forge, manifest, audit, observe — and
+ * nothing else [CLM-0058]. Workshop creations register under the
+ * `workshop/*` manifest namespace and never extend this surface. Tool
+ * inputs are zod-validated by the same schemas the typed tool functions
+ * use; input JSON Schemas advertised over `tools/list` are generated from
+ * those same zod schemas, so the wire contract cannot drift from the
+ * implementation.
  */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -14,6 +17,8 @@ import type { Kernloop } from './kernel.js';
 import {
   AuditInputSchema,
   BriefInputSchema,
+  DistillInputSchema,
+  ForgeInputSchema,
   GateInputSchema,
   ManifestInputSchema,
   ObserveInputSchema,
@@ -23,6 +28,8 @@ import {
   StatusInputSchema,
   auditTool,
   briefTool,
+  distillTool,
+  forgeTool,
   gateTool,
   manifestTool,
   observeTool,
@@ -30,7 +37,7 @@ import {
   rememberTool,
   runTool,
   statusTool,
-  type P1ToolName,
+  type KernelToolName,
 } from './tools/index.js';
 
 /** One MCP-exposed tool: description, input schema, and dispatcher. */
@@ -40,8 +47,8 @@ interface ToolEntry {
   readonly handler: (kern: Kernloop, args: unknown) => Promise<unknown> | unknown;
 }
 
-/** The nine-tool dispatch table — the complete P1 MCP surface [CLM-0033]. */
-export const TOOL_TABLE: Readonly<Record<P1ToolName, ToolEntry>> = {
+/** The eleven-tool dispatch table — the complete MCP surface [CLM-0033]. */
+export const TOOL_TABLE: Readonly<Record<KernelToolName, ToolEntry>> = {
   run: {
     description:
       'The entry point: route a goal/TaskContract via manifests and execute the selected capability, returning an Outcome. execute:false returns the routing decision only.',
@@ -61,7 +68,7 @@ export const TOOL_TABLE: Readonly<Record<P1ToolName, ToolEntry>> = {
   },
   gate: {
     description:
-      'Invoke a gate uniformly and get a Verdict. P1 ships the quality gate (typecheck/lint/test over a workspace).',
+      'Invoke any gate uniformly and get a Verdict: quality (typecheck/lint/test over a workspace), vote (voter panel over one shared compiled Brief), or review (adversarial reviewer panel over a diff).',
     schema: GateInputSchema,
     handler: (kern, args) => gateTool(kern, GateInputSchema.parse(args)),
   },
@@ -74,6 +81,18 @@ export const TOOL_TABLE: Readonly<Record<P1ToolName, ToolEntry>> = {
     description: 'Memory write: store a typed fact. Provenance is mandatory.',
     schema: RememberInputSchema,
     handler: (kern, args) => rememberTool(kern, RememberInputSchema.parse(args)),
+  },
+  distill: {
+    description:
+      'Propose a SKILL.md from a recorded episodic trace, at suggest tier: the proposal lands under skills/proposed/ and goes live only through the human-reviewed ratification path.',
+    schema: DistillInputSchema,
+    handler: (kern, args) => distillTool(kern, DistillInputSchema.parse(args)),
+  },
+  forge: {
+    description:
+      'Toolsmith entry: birth a workshop/* tool from a spec (claim + acceptance test + manifest required), generated via the chosen adapter and proven inside the ratified Docker sandbox before install.',
+    schema: ForgeInputSchema,
+    handler: (kern, args) => forgeTool(kern, ForgeInputSchema.parse(args)),
   },
   manifest: {
     description: 'Registry ops: list, get, or register capability manifests.',
@@ -109,8 +128,8 @@ function textResult(
 
 /**
  * Build the MCP server over one assembled kernloop. Registers exactly the
- * nine P1 tools [CLM-0033]; tool calls zod-validate their inputs and report
- * failures as typed MCP error results, never silent ones.
+ * kernel eleven [CLM-0033, CLM-0058]; tool calls zod-validate their inputs
+ * and report failures as typed MCP error results, never silent ones.
  */
 export function createMcpServer(kern: Kernloop): Server {
   const server = new Server(
@@ -136,7 +155,7 @@ export function createMcpServer(kern: Kernloop): Server {
       return textResult(
         {
           error: 'unknown_tool',
-          message: `no tool named "${request.params.name}" — the P1 surface is exactly: ${Object.keys(TOOL_TABLE).join(', ')}`,
+          message: `no tool named "${request.params.name}" — the kernel surface is exactly: ${Object.keys(TOOL_TABLE).join(', ')}`,
         },
         true,
       );

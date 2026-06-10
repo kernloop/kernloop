@@ -12,10 +12,18 @@
  * call models, but only through the injected `invokeVoter` dependency
  * bound by the composition root — the faculty stays model-free.
  *
- * The review gate (P3) arrives in a later phase; absent here by design,
- * not stubbed (constitutional rule 1). Auditing of emitted Verdicts
- * happens kernel-side at the bus boundary. This faculty imports only
- * @kernloop/contracts, zod, and node builtins (constitutional rule 5).
+ * P3 surface: the review gate — adversarial diff review by a reviewer
+ * panel (3 lenses default, 5 in full), findings merged/deduplicated with
+ * per-reviewer attribution, per-voter records for the fitness ledger's
+ * precision series, plus the ported v1 n=10 labeled eval set and the
+ * calibration that measures a reviewer against it (CLM-0047, CLM-0048).
+ * Advisory tier until the ported Epic-E promotion criterion is met
+ * (spec §5.3); reviewers call models only through the injected
+ * `invokeReviewer`.
+ *
+ * Auditing of emitted Verdicts happens kernel-side at the bus boundary.
+ * This faculty imports only @kernloop/contracts, zod, and node builtins
+ * (constitutional rule 5).
  */
 export { DEFAULT_TIMEOUT_MS, defaultQualityChecks, type QualityCheck } from './checks.js';
 export { runQualityGate, type RunQualityGateOptions } from './run.js';
@@ -48,3 +56,40 @@ export {
   type VoterBallot,
 } from './vote/run.js';
 export { voteGateManifest } from './vote/manifest.js';
+export {
+  REVIEWER_CORRECTNESS,
+  REVIEWER_SECURITY,
+  REVIEWER_MAINTAINABILITY,
+  REVIEWER_CONTRARIAN,
+  REVIEWER_SCOPE_STEWARD,
+  REVIEW_PANEL_DEFAULT,
+  REVIEW_PANEL_FULL,
+  type ReviewerTemplate,
+} from './review/reviewers.js';
+export {
+  DEDUP_PREFIX_LENGTH,
+  ReviewFindingSchema,
+  ReviewerReportSchema,
+  mergeFindings,
+  runReviewGate,
+  type InvokeReviewer,
+  type ReviewFinding,
+  type ReviewerReport,
+  type RunReviewGateOptions,
+} from './review/run.js';
+export {
+  ExpectedFindingSchema,
+  REVIEW_EVAL_SET,
+  ReviewEvalCaseSchema,
+  type ExpectedFinding,
+  type ReviewEvalCase,
+} from './review/eval-set.js';
+export {
+  PROMOTION_CRITERION,
+  evaluateReviewer,
+  findingMatches,
+  type EvaluateReviewerOptions,
+  type ReviewCaseScore,
+  type ReviewerCalibration,
+} from './review/calibrate.js';
+export { reviewGateManifest } from './review/manifest.js';

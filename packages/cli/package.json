@@ -1,7 +1,7 @@
 {
   "name": "@kernloop/cli",
   "version": "0.1.0",
-  "description": "Kernloop composition root (spec §9): the `kernloop` CLI and MCP server. Assembles kernel + faculties over a per-repo overlay (spec §7) and exposes the nine P1 kernel tools — run, status, brief, gate, recall, remember, manifest, audit, observe (spec §3.4). distill and forge are P3; absent here by design, not stubbed.",
+  "description": "Kernloop composition root (spec §9): the `kernloop` CLI and MCP server. Assembles kernel + faculties over a per-repo overlay (spec §7) and exposes exactly the kernel eleven — run, status, brief, gate, recall, remember, distill, forge, manifest, audit, observe (spec §3.4). Workshop creations register under the workshop/* manifest namespace, never as tool #12.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,6 +28,8 @@
     "@kernloop/faculty-compiler": "workspace:*",
     "@kernloop/faculty-gates": "workspace:*",
     "@kernloop/faculty-memory": "workspace:*",
+    "@kernloop/faculty-observer": "workspace:*",
+    "@kernloop/faculty-toolsmith": "workspace:*",
     "@kernloop/faculty-workforce": "workspace:*",
     "@kernloop/kernel": "workspace:*",
     "@kernloop/workflows": "workspace:*",

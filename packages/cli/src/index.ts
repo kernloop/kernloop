@@ -1,11 +1,25 @@
 /**
  * @kernloop/cli — the composition root (spec §9). Assembles kernel +
- * faculties over a per-repo overlay (spec §7) and exposes the nine P1
- * kernel tools (spec §3.4) as typed functions, CLI subcommands, and an MCP
- * server. `distill` and `forge` are P3; absent by design, not stubbed.
+ * faculties (memory, compiler, gates, workforce, observer, toolsmith,
+ * workflows) over a per-repo overlay (spec §7) and exposes THE KERNEL
+ * ELEVEN (spec §3.4) — run, status, brief, gate, recall, remember,
+ * distill, forge, manifest, audit, observe — as typed functions, CLI
+ * subcommands, and an MCP server [CLM-0033, CLM-0058]. Workshop creations
+ * register under the `workshop/*` manifest namespace and never extend the
+ * tool surface.
  */
-export { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS } from './kernel.js';
+export { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS, P3_MANIFESTS } from './kernel.js';
 export type { Kernloop, CreateKernloopOptions } from './kernel.js';
+export {
+  SKILL_NAME_MAX,
+  SkillNameError,
+  SkillProposalEmissionSchema,
+  TraceNotFoundError,
+  distillFromTrace,
+  proposedSkillsRoot,
+  resolveProposalDir,
+} from './distill.js';
+export type { DistillRequest, SkillProposal } from './distill.js';
 export {
   LoopParseError,
   LoopResumeError,
@@ -14,6 +28,8 @@ export {
   loadCheckpointTask,
 } from './loop/index.js';
 export type { LoopInvoke, LoopReport, LoopRequest } from './loop/index.js';
+export { ballotInvoker, briefText, reviewerInvoker, ReviewEmissionSchema } from './loop/seams.js';
+export type { SeamBindings } from './loop/seams.js';
 export {
   OVERLAY_DIR_NAME,
   NodeOverrideSchema,
@@ -30,7 +46,7 @@ export {
 export type { InitResult, NodeOverride, Overlay, OverlayPaths } from './overlay.js';
 export { doctor } from './doctor.js';
 export type { DoctorCheck, DoctorResult } from './doctor.js';
-export { buildExecutors, executeQualityGate, ExecutionError } from './executors.js';
+export { buildExecutors, executeQualityGate, publishVerdict, ExecutionError } from './executors.js';
 export type {
   CapabilityExecutor,
   ExecutionContext,

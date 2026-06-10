@@ -50,6 +50,9 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@25.9.2)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.22.4)(yaml@2.9.0))
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   claims:
     dependencies:
@@ -78,6 +81,12 @@ importers:
       '@kernloop/faculty-memory':
         specifier: workspace:*
         version: link:../faculty-memory
+      '@kernloop/faculty-observer':
+        specifier: workspace:*
+        version: link:../faculty-observer
+      '@kernloop/faculty-toolsmith':
+        specifier: workspace:*
+        version: link:../faculty-toolsmith
       '@kernloop/faculty-workforce':
         specifier: workspace:*
         version: link:../faculty-workforce
@@ -144,6 +153,41 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      '@types/node':
+        specifier: ^22.19.11
+        version: 22.19.20
+
+  packages/faculty-observer:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      better-sqlite3:
+        specifier: ^12.10.0
+        version: 12.10.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      '@types/node':
+        specifier: ^22.19.11
+        version: 22.19.20
+
+  packages/faculty-toolsmith:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      yaml:
+        specifier: ^2.8.2
+        version: 2.9.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
       '@types/node':
         specifier: ^22.19.11
         version: 22.19.20

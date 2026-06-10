@@ -5,3 +5,6 @@ budgets:
   usd: 1
   wallClockMin: 30
 briefTokens: 4000
+gates:
+  quality:
+    timeoutMsPerCheck: 600000

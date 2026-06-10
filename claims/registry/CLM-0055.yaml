@@ -1,0 +1,12 @@
+id: CLM-0055
+statement: >-
+  The Observer maintains the fitness ledger — invocations, success correlation, cost, recency — and the per-voter precision series.
+evidence:
+  - 'test:packages/faculty-observer/src/ledger.test.ts::accumulates invocations, successes, cost, and lastUsedAt per subject'
+  - 'test:packages/faculty-observer/src/ledger.test.ts::flags subjects whose recent window drops below lifetime success rate'
+  - 'test:packages/faculty-observer/src/voters.test.ts::appends one series row per voter record and computes sliding-window precision over labeled votes'
+  - 'test:packages/faculty-observer/src/voters.test.ts::reports mean verdict cost per governed decision for a gate'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

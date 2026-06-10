@@ -1,0 +1,15 @@
+id: CLM-0052
+statement: >-
+  Workshop tools are generated and tested only inside the sandbox profile — no network by default, filesystem scoped to a scratch directory.
+evidence:
+  - 'test:packages/faculty-toolsmith/src/sandbox.docker.test.ts::denies network inside the sandbox: fetch to example.com fails'
+  - 'test:packages/faculty-toolsmith/src/sandbox.docker.test.ts::scopes the filesystem: host repo paths are not visible in the container'
+  - 'test:packages/faculty-toolsmith/src/sandbox.test.ts::refuses to run when the docker binary is absent instead of running unsandboxed'
+  - 'test:packages/faculty-toolsmith/src/sandbox.test.ts::refuses when the docker daemon is unreachable'
+  - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses an active profile whose hash differs from the ratified hash'
+  - 'test:packages/faculty-toolsmith/src/forge.docker.test.ts::installs a tool only after its acceptance test passes inside the sandbox'
+  - 'test:packages/faculty-toolsmith/src/forge.docker.test.ts::a failing acceptance test installs nothing and preserves scratch for diagnosis'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

@@ -46,7 +46,7 @@ Episodic memory persists each Outcome as a summary plus trace pointer, retrievab
 The router matches tasks to manifests by capability and budget [CLM-0026], never routes above the task's authority ceiling [CLM-0027], and guarantees demoted capabilities an exploration floor [CLM-0028].
 The context compiler is deterministic — identical inputs produce byte-identical Briefs [CLM-0029] — with hard per-section token budgets, priority-ordered drop, and provenance on every section [CLM-0030].
 The quality gate runs typecheck, lint, test, and coverage and emits structured, severity-tagged Verdicts [CLM-0031], every one appended to the audit chain [CLM-0032].
-The MCP surface exposes exactly nine kernel tools in P1 — run, status, brief, gate, recall, remember, manifest, audit, observe — and nothing else [CLM-0033].
+The MCP surface exposes exactly the kernel eleven — run, status, brief, gate, recall, remember, distill, forge, manifest, audit, observe — and nothing else [CLM-0033].
 The run entry point routes a TaskContract via manifests and returns an Outcome with every routing decision audited [CLM-0034]; the audit tool queries and verifies the chain on demand [CLM-0035].
 One real task has run end-to-end through the quality gate — Verdict, Outcome, and verifiable audit chain included [CLM-0036].
 
@@ -59,6 +59,14 @@ The vote-iterate cycle is bounded at K iterations before escalating to the human
 Per-node checkpoints make any run resumable: a run killed mid-loop resumes and completes without re-running finished nodes [CLM-0044].
 A repo overlay overrides gate thresholds, K, budgets, and loop nodes as data — never by duplicating the graph [CLM-0045].
 The full canonical loop has run on a real feature in a real repository, end to end through vote and quality gates [CLM-0046].
+
+The review gate performs adversarial diff review at advisory tier, recording every reviewer's vote for precision tracking [CLM-0047], calibrated against the labeled eval set ported from v1 [CLM-0048].
+Distill proposes a skill document from an episodic trace at suggest tier [CLM-0049], and skills go live only through the distill ratification path — a human-reviewed move from proposed to live [CLM-0050].
+Forge refuses to build a workshop tool without a claim, an acceptance test, and a manifest first [CLM-0051].
+Workshop tools are generated and tested only inside the ratified sandbox — no network, scratch-dir filesystem [CLM-0052] — live under the workshop namespace with a hard cap of twelve [CLM-0053], and climb the ladder only by evidence: suggest at birth, advisory after clean audited runs, enforce only with human ratification, decay when unused [CLM-0054].
+The Observer maintains the fitness ledger and per-voter precision series [CLM-0055] and files self-issues at suggest tier that re-enter the canonical loop with no privileged path [CLM-0056].
+A distilled skill and a forged workshop tool have both been born through gates [CLM-0057].
+Distill and forge complete the MCP surface at exactly the kernel eleven [CLM-0058].
 
 <!-- claims:end -->
 

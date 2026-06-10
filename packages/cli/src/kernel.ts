@@ -1,8 +1,11 @@
 /**
  * Kernel assembly — the composition root (spec §9 `packages/cli`). Builds
  * the L0 kernel (audit store, event bus, manifest registry, ladder, router)
- * over one overlay (spec §7), opens the memory faculty's database, registers
- * the three P1 faculty manifests, and seeds their ladder tiers.
+ * over one overlay (spec §7), opens the memory faculty's database, opens the
+ * observer over the same overlay database (spec §3.3: one DB per overlay;
+ * spec §5.5 — every Outcome and gate Verdict the acting tools produce is
+ * ingested into its fitness ledger and voter series), registers the P1–P3
+ * faculty manifests, and seeds their ladder tiers.
  *
  * Tier seeding is MECHANICAL, not a ratified promotion: each faculty enters
  * the ladder at its manifest-declared tier (memory `suggest`, quality gate
@@ -27,7 +30,9 @@ import {
 } from '@kernloop/kernel';
 import { createMemory, memoryManifest, type Memory } from '@kernloop/faculty-memory';
 import { compilerManifest } from '@kernloop/faculty-compiler';
-import { qualityGateManifest, voteGateManifest } from '@kernloop/faculty-gates';
+import { qualityGateManifest, reviewGateManifest, voteGateManifest } from '@kernloop/faculty-gates';
+import { createObserver, observerManifest, type Observer } from '@kernloop/faculty-observer';
+import { toolsmithManifest } from '@kernloop/faculty-toolsmith';
 import { workflowsManifest } from '@kernloop/workflows';
 import type { Manifest } from '@kernloop/contracts';
 import { loadOverlay, overlayPaths, type Overlay, type OverlayPaths } from './overlay.js';
@@ -44,6 +49,15 @@ export const P1_FACULTY_MANIFESTS: readonly Manifest[] = [
  * canonical loop engine (spec §6, tier `suggest`) [CLM-0046]. */
 export const P2_MANIFESTS: readonly Manifest[] = [voteGateManifest, workflowsManifest];
 
+/** The P3 manifests: the review gate (spec §5.3, tier `advisory`), the
+ * observer (spec §5.5, tier `suggest`), and the toolsmith (spec §5.6, tier
+ * `suggest`). */
+export const P3_MANIFESTS: readonly Manifest[] = [
+  reviewGateManifest,
+  observerManifest,
+  toolsmithManifest,
+];
+
 /** The assembled system every tool operates on. */
 export interface Kernloop {
   readonly paths: OverlayPaths;
@@ -54,9 +68,12 @@ export interface Kernloop {
   readonly ladder: Ladder;
   readonly router: Router;
   readonly memory: Memory;
+  /** The observer faculty over the same overlay database file (spec §3.3,
+   * §5.5) — table-prefix ownership keeps it out of memory's tables. */
+  readonly observer: Observer;
   /** Capability name → executor, for capabilities `run` can execute. */
   readonly executors: ReadonlyMap<string, CapabilityExecutor>;
-  /** Close held resources (the memory database handle). */
+  /** Close held resources (the memory and observer database handles). */
   close(): void;
 }
 
@@ -99,7 +116,13 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
     paths.memory,
     clock === undefined ? {} : { clock: () => clock().getTime() },
   );
-  for (const manifest of [...P1_FACULTY_MANIFESTS, ...P2_MANIFESTS]) {
+  // Observer shares the overlay DB file; `observer_*` table prefix is the
+  // ownership boundary (proven safe in faculty-observer's store tests).
+  const observer = createObserver(
+    paths.memory,
+    clock === undefined ? {} : { clock: () => clock().getTime() },
+  );
+  for (const manifest of [...P1_FACULTY_MANIFESTS, ...P2_MANIFESTS, ...P3_MANIFESTS]) {
     registry.register(manifest);
     seedTier(ladder, manifest);
   }
@@ -112,8 +135,12 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
     ladder,
     router,
     memory,
+    observer,
     executors: new Map(),
-    close: () => memory.close(),
+    close: () => {
+      memory.close();
+      observer.close();
+    },
   };
   // The executor map closes over the assembled system; build it last.
   return { ...kernloop, executors: buildExecutors(kernloop) };

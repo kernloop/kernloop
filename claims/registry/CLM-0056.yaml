@@ -1,0 +1,11 @@
+id: CLM-0056
+statement: >-
+  The Observer files issues about the system itself at suggest tier, and self-filed issues re-enter the canonical loop with no privileged path.
+evidence:
+  - 'test:packages/faculty-observer/src/issues.test.ts::persists a proposal at suggest tier and files it through a real gh subprocess, storing the issue url'
+  - 'test:packages/faculty-observer/src/issues.test.ts::throws ObserverTrackerUnavailableError when gh is absent'
+  - 'test:packages/faculty-observer/src/index.test.ts::exposes no privileged observer-to-engine path — the task-shaped payload re-enters via the ordinary run entry'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

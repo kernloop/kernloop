@@ -3,11 +3,14 @@
  * figure is DERIVED from real data: event counts and routing/verdict/outcome
  * statistics come from the audit chain (the `cli.gate.verdict` and
  * `cli.run.outcome` telemetry events the acting tools append), memory counts
- * come from the episodic store, and adapter availability is a live PATH
- * probe. Nothing is estimated, sampled, or fabricated.
+ * come from the episodic store, adapter availability is a live PATH probe,
+ * and the observer section (fitness ledger, cost per governed decision,
+ * drift signals, voter series — spec §5.5) reads the rows the composition
+ * root actually ingested. Nothing is estimated, sampled, or fabricated.
  */
 import { z } from 'zod';
 import { ADAPTER_NAMES, detectAdapter, verifyChain } from '@kernloop/kernel';
+import type { DriftSignal, FitnessRecord, GateDecisionCost } from '@kernloop/faculty-observer';
 import type { Kernloop } from '../kernel.js';
 import { readEnvelopes } from './audit.js';
 
@@ -30,6 +33,18 @@ export interface ObserveResult {
   outcomes: { total: number; byStatus: Record<string, number>; totalWallClockMs: number };
   memory: { episodicTraces: number };
   adapters: Array<{ adapter: string; available: boolean; experimental: boolean }>;
+  /** Observer faculty figures (spec §5.5) — read from the real ingested
+   * ledger; an empty ledger reports empty arrays, never invented rows. */
+  observer: {
+    /** The fitness ledger, most recently used subject first. */
+    fitnessLedger: FitnessRecord[];
+    /** Mean verdict cost per gate, for every gate seen on the chain. */
+    costPerGovernedDecision: GateDecisionCost[];
+    /** Subjects whose recent window underperforms lifetime. */
+    driftSignals: DriftSignal[];
+    /** Per-voter series presence: every voter seen and their vote count. */
+    voterSeries: Array<{ voter: string; votes: number }>;
+  };
 }
 
 /** Narrow an envelope payload to a record for field reads. */
@@ -52,6 +67,40 @@ function tallyRouting(payloads: Record<string, unknown>[]): ObserveResult['routi
   return routing;
 }
 
+/**
+ * Observer figures (spec §5.5, §8 item 7). The gates and voters whose
+ * series are reported come from the chain's `cli.gate.verdict` telemetry —
+ * the same events the acting tools appended — so every reported series is
+ * grounded in something that demonstrably happened; the figures themselves
+ * read from the observer's ingested ledger.
+ */
+function observerReport(
+  kern: Kernloop,
+  gateVerdicts: ReadonlyArray<Record<string, unknown>>,
+): ObserveResult['observer'] {
+  const gates = new Set<string>();
+  const voters = new Set<string>();
+  for (const payload of gateVerdicts) {
+    if (typeof payload.gate === 'string') gates.add(payload.gate);
+    if (Array.isArray(payload.voters)) {
+      for (const voter of payload.voters) {
+        if (typeof voter === 'string') voters.add(voter);
+      }
+    }
+  }
+  return {
+    fitnessLedger: kern.observer.fitnessLedger(),
+    costPerGovernedDecision: [...gates]
+      .sort()
+      .map((gate) => kern.observer.costPerGovernedDecision(gate))
+      .filter((cost): cost is GateDecisionCost => cost !== undefined),
+    driftSignals: kern.observer.driftSignals(),
+    voterSeries: [...voters]
+      .sort()
+      .map((voter) => ({ voter, votes: kern.observer.voterSeries(voter).length })),
+  };
+}
+
 /** The `observe` tool. See module docs. */
 export function observeTool(kern: Kernloop, input: ObserveInput = {}): ObserveResult {
   ObserveInputSchema.parse(input);
@@ -60,11 +109,13 @@ export function observeTool(kern: Kernloop, input: ObserveInput = {}): ObserveRe
   const verdicts = { total: 0, pass: 0, fail: 0 };
   const outcomes: ObserveResult['outcomes'] = { total: 0, byStatus: {}, totalWallClockMs: 0 };
   const routePayloads: Record<string, unknown>[] = [];
+  const gateVerdictPayloads: Record<string, unknown>[] = [];
   for (const envelope of envelopes) {
     eventCounts[envelope.type] = (eventCounts[envelope.type] ?? 0) + 1;
     const payload = payloadOf(envelope.payload);
     if (envelope.type === 'kernel.router.route') routePayloads.push(payload);
     if (envelope.type === 'cli.gate.verdict') {
+      gateVerdictPayloads.push(payload);
       verdicts.total += 1;
       if (payload.result === 'pass') verdicts.pass += 1;
       if (payload.result === 'fail') verdicts.fail += 1;
@@ -87,5 +138,6 @@ export function observeTool(kern: Kernloop, input: ObserveInput = {}): ObserveRe
       const probe = detectAdapter(adapter);
       return { adapter, available: probe.available, experimental: adapter === 'ollama' };
     }),
+    observer: observerReport(kern, gateVerdictPayloads),
   };
 }

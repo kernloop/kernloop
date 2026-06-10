@@ -1,0 +1,23 @@
+{
+  "name": "workshop/loc-probe",
+  "version": "0.1.0",
+  "kind": "workshopTool",
+  "capabilities": [
+    {
+      "name": "workshop.loc-probe",
+      "description": "non-blank LOC counts for a directory tree"
+    }
+  ],
+  "contracts": {
+    "consumes": [],
+    "emits": []
+  },
+  "cost": {
+    "tokens": 0,
+    "usd": 0,
+    "latencyMs": 2000
+  },
+  "tier": "suggest",
+  "claims": [],
+  "maturity": "experimental"
+}
