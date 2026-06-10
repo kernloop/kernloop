@@ -101,10 +101,20 @@ export async function forgeTool(
 ): Promise<ForgeResult> {
   const parsed = ForgeInputSchema.parse(input);
   const spec: unknown = parsed.spec ?? JSON.parse(readFileSync(parsed.specFile as string, 'utf8'));
+  // Validate-first (spec §5.6 birth order): adapter availability is a
+  // generation-time concern, probed lazily on the first invoke so a birth
+  // defect in the spec is reported even where no model CLI exists.
   let invoke = options.invoke;
   if (invoke === undefined) {
-    ensureAdapterAvailable(parsed.adapter);
-    invoke = adapterInvoke(parsed.adapter);
+    const adapter = parsed.adapter;
+    let bound: LoopInvoke | undefined;
+    invoke = (prompt, opts) => {
+      if (bound === undefined) {
+        ensureAdapterAvailable(adapter);
+        bound = adapterInvoke(adapter);
+      }
+      return bound(prompt, opts);
+    };
   }
   const result = await forge({
     overlayDir: kern.paths.dir,
