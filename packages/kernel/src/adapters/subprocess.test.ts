@@ -1,0 +1,170 @@
+/**
+ * Subprocess engine acceptance tests (CLM-0019): capture of stdout, stderr,
+ * and exit code, plus wall-clock timeout enforcement with process-tree kill.
+ *
+ * All tests run REAL child processes via `process.execPath` (the running
+ * Node binary) — never a real model CLI. Timing assertions are monotonic
+ * bounds only (a killed call settles well before its child's natural
+ * lifetime), never exact wall-clock values.
+ */
+
+import { describe, expect, it } from 'vitest';
+import { runSubprocess } from './subprocess.js';
+
+/** Run an inline Node script as a real subprocess. */
+function runNode(
+  script: string,
+  overrides: Partial<{ stdin: string; timeoutMs: number; maxCaptureBytes: number }> = {},
+): ReturnType<typeof runSubprocess> {
+  return runSubprocess({
+    command: process.execPath,
+    args: ['-e', script],
+    timeoutMs: overrides.timeoutMs ?? 10_000,
+    ...(overrides.stdin === undefined ? {} : { stdin: overrides.stdin }),
+    ...(overrides.maxCaptureBytes === undefined
+      ? {}
+      : { maxCaptureBytes: overrides.maxCaptureBytes }),
+  });
+}
+
+/** Poll until `pid` no longer exists (ESRCH), or fail after ~2s. */
+async function waitForProcessGone(pid: number): Promise<boolean> {
+  for (let i = 0; i < 200; i += 1) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true; // ESRCH — process is gone
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return false;
+}
+
+describe('runSubprocess', () => {
+  it('captures stdout, stderr, and exit code from a real child', async () => {
+    const result = await runNode(
+      'console.log("to stdout"); console.error("to stderr"); process.exit(3);',
+    );
+    expect(result.stdout).toBe('to stdout\n');
+    expect(result.stderr).toBe('to stderr\n');
+    expect(result.exitCode).toBe(3);
+    expect(result.signal).toBeNull();
+    expect(result.timedOut).toBe(false);
+  });
+
+  it('reports exit code 0 for a clean exit', async () => {
+    const result = await runNode('process.stdout.write("ok");');
+    expect(result).toMatchObject({ stdout: 'ok', exitCode: 0, timedOut: false });
+  });
+
+  it('pipes stdin content to the child and closes stdin', async () => {
+    const result = await runNode(
+      'let d = ""; process.stdin.on("data", (c) => (d += c)); ' +
+        'process.stdin.on("end", () => process.stdout.write("got:" + d));',
+      { stdin: 'prompt payload' },
+    );
+    expect(result.stdout).toBe('got:prompt payload');
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('closes stdin even when no stdin content is provided', async () => {
+    // A child that waits for stdin EOF must still terminate.
+    const result = await runNode(
+      'process.stdin.on("data", () => {}); process.stdin.on("end", () => process.exit(0));',
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('survives a child that never reads its stdin (EPIPE swallowed)', async () => {
+    const result = await runNode('process.stdout.write("ignored stdin");', {
+      stdin: 'x'.repeat(1024),
+    });
+    expect(result.stdout).toBe('ignored stdin');
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('always measures a finite non-negative durationMs', async () => {
+    const result = await runNode('process.exit(0);');
+    expect(Number.isFinite(result.durationMs)).toBe(true);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('kills a hung child on wall-clock timeout and flags timedOut', async () => {
+    // Child would live 30s; the 100ms budget must cut it down. Monotonic
+    // bound: the call settles in far less than the child's natural lifetime.
+    const result = await runNode('setTimeout(() => {}, 30_000);', { timeoutMs: 100 });
+    expect(result.timedOut).toBe(true);
+    expect(result.exitCode).toBeNull();
+    expect(result.signal).toBe('SIGKILL');
+    expect(result.durationMs).toBeLessThan(30_000);
+  });
+
+  it('keeps output produced before the timeout kill', async () => {
+    const result = await runNode('process.stdout.write("partial"); setTimeout(() => {}, 30_000);', {
+      timeoutMs: 150,
+    });
+    expect(result.timedOut).toBe(true);
+    expect(result.stdout).toBe('partial');
+  });
+
+  it('kills the whole process tree on timeout (CLM-0019)', async () => {
+    // The child spawns a grandchild that would live 30s, prints its pid,
+    // then hangs. After the timeout kill of the process GROUP, the
+    // grandchild must be gone too — v1 killed only the direct child.
+    const script =
+      'const { spawn } = require("node:child_process");' +
+      'const g = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);' +
+      'process.stdout.write(String(g.pid));' +
+      'setTimeout(() => {}, 30_000);';
+    const result = await runNode(script, { timeoutMs: 300 });
+    expect(result.timedOut).toBe(true);
+    const grandchildPid = Number.parseInt(result.stdout, 10);
+    expect(Number.isInteger(grandchildPid)).toBe(true);
+    expect(await waitForProcessGone(grandchildPid)).toBe(true);
+  });
+
+  it('does not flag timedOut when the child finishes inside the budget', async () => {
+    const result = await runNode('process.stdout.write("fast");', { timeoutMs: 10_000 });
+    expect(result.timedOut).toBe(false);
+    expect(result.stdout).toBe('fast');
+  });
+
+  it('rejects when the command cannot be spawned at all', async () => {
+    await expect(
+      runSubprocess({
+        command: '/nonexistent/kernloop-no-such-binary',
+        args: [],
+        timeoutMs: 1_000,
+      }),
+    ).rejects.toThrow(/ENOENT/);
+  });
+
+  it('truncates stdout at the capture cap and flags it', async () => {
+    const result = await runNode('process.stdout.write("a".repeat(1000));', {
+      maxCaptureBytes: 64,
+    });
+    expect(result.stdoutTruncated).toBe(true);
+    expect(result.stdout.length).toBeLessThanOrEqual(64);
+    expect(result.stderrTruncated).toBe(false);
+  });
+
+  it('truncates stderr at the capture cap independently of stdout', async () => {
+    const result = await runNode(
+      'process.stderr.write("e".repeat(1000)); process.stdout.write("ok");',
+      { maxCaptureBytes: 64 },
+    );
+    expect(result.stderrTruncated).toBe(true);
+    expect(result.stdout).toBe('ok');
+    expect(result.stdoutTruncated).toBe(false);
+  });
+
+  it('passes a custom environment through to the child', async () => {
+    const result = await runSubprocess({
+      command: process.execPath,
+      args: ['-e', 'process.stdout.write(process.env.KERNLOOP_TEST_VAR ?? "missing");'],
+      timeoutMs: 10_000,
+      env: { ...process.env, KERNLOOP_TEST_VAR: 'injected' },
+    });
+    expect(result.stdout).toBe('injected');
+  });
+});
