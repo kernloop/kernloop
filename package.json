@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && vitest run --coverage --config vitest.root.config.mjs",
     "lint": "eslint . --max-warnings 0 && node scripts/loc-check.mjs",
+    "claims:check": "tsx claims/src/check.ts",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "prepare": "husky"
