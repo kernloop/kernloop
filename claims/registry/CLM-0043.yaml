@@ -1,7 +1,13 @@
 id: CLM-0043
 statement: >-
   The vote-iterate cycle is bounded at K iterations (default 3) before escalating to the human.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/workflows/src/engine.test.ts::a rejected vote re-enters plan with findings and an incremented iteration, then completes on approval'
+  - 'test:packages/workflows/src/engine.test.ts::escalates after exhausting K=1 with the accumulated findings'
+  - 'test:packages/workflows/src/engine.test.ts::escalates after exhausting K=3 re-entries (the spec §6 default)'
+  - 'test:packages/workflows/src/engine.test.ts::an abstaining panel does not approve — the rejected edge is taken'
+  - 'test:packages/workflows/src/resume.test.ts::resume after escalation continues from plan with a fresh iteration budget'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.3.0

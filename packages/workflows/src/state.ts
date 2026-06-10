@@ -1,0 +1,146 @@
+/**
+ * Run state, checkpoint record shape, and typed engine errors. The state is
+ * deliberately a plain JSON-serializable object validated by zod: a resume
+ * trusts nothing it reads back from storage [CLM-0044] — a checkpoint that
+ * does not parse is a typed failure, never a silent partial resume.
+ */
+import { z } from 'zod';
+import {
+  FindingSchema,
+  TaskContractSchema,
+  VerdictSchema,
+  type Finding,
+  type Outcome,
+} from '@kernloop/contracts';
+
+/**
+ * Where the run is. `main` points at the NEXT main-chain node to execute;
+ * `fanout` points at the next (child, sub-node) pair; `done` is terminal.
+ * The cursor always names work not yet performed, so resuming from a
+ * checkpoint never re-runs a completed node [CLM-0044].
+ */
+export const CursorSchema = z.discriminatedUnion('phase', [
+  z.strictObject({ phase: z.literal('main'), node: z.string().min(1) }),
+  z.strictObject({
+    phase: z.literal('fanout'),
+    childIndex: z.number().int().nonnegative(),
+    sub: z.number().int().nonnegative(),
+  }),
+  z.strictObject({ phase: z.literal('done') }),
+]);
+export type Cursor = z.infer<typeof CursorSchema>;
+
+/**
+ * One fan-out child's honest result. A child that fails mid-implement gets
+ * `error` and no verdict; a child whose quality gate ran gets its Verdict
+ * (pass or fail — a failing verdict is a result, not an engine error). Both
+ * shapes aggregate into integrate's input unfiltered.
+ */
+export const ChildResultSchema = z.strictObject({
+  child: TaskContractSchema,
+  output: z.unknown().optional(),
+  verdict: VerdictSchema.optional(),
+  error: z.string().min(1).optional(),
+});
+export type ChildResult = z.infer<typeof ChildResultSchema>;
+
+/** One executed node in the run's trace (deterministic order, child-tagged). */
+export const TraceEntrySchema = z.strictObject({
+  seq: z.number().int().positive(),
+  node: z.string().min(1),
+  iteration: z.number().int().nonnegative(),
+  childId: z.string().min(1).optional(),
+});
+export type TraceEntry = z.infer<typeof TraceEntrySchema>;
+
+/**
+ * The complete serializable state of one run. Self-contained: a checkpoint's
+ * state plus the injected executors is everything a resume needs.
+ */
+export const RunStateSchema = z.strictObject({
+  task: TaskContractSchema,
+  status: z.enum(['running', 'escalated', 'completed']),
+  cursor: CursorSchema,
+  /** Vote-iterate count: how many times the rejected edge re-entered plan. */
+  iteration: z.number().int().nonnegative(),
+  /** Last emission per node name — the values that flow along edges. */
+  values: z.record(z.string(), z.unknown()),
+  /** Findings accumulated from rejecting vote Verdicts, fed back to plan. */
+  findings: z.array(FindingSchema),
+  /** Decomposed (plus overlay-added specialist) children, set at fan-out. */
+  children: z.array(TaskContractSchema),
+  /** Per-child results accumulated as the fan-out progresses. */
+  childResults: z.array(ChildResultSchema),
+  trace: z.array(TraceEntrySchema),
+});
+export type RunState = z.infer<typeof RunStateSchema>;
+
+/**
+ * One checkpoint row, persisted through the injected store after EVERY node
+ * completion [CLM-0044]: `{runId, seq, node, iteration, state}` where `node`
+ * is the node that just completed and `state` already points past it.
+ */
+export const CheckpointRecordSchema = z.strictObject({
+  runId: z.string().min(1),
+  seq: z.number().int().positive(),
+  node: z.string().min(1),
+  iteration: z.number().int().nonnegative(),
+  state: RunStateSchema,
+  createdAt: z.string().min(1),
+});
+export type CheckpointRecord = z.infer<typeof CheckpointRecordSchema>;
+
+/** Why a run stopped without completing (or could not start/resume). */
+export type WorkflowErrorCode =
+  | 'unwired_node' // createEngine: a graph node has no executor — wiring-complete or absent
+  | 'invalid_task' // run(): the input is not a valid TaskContract
+  | 'edge_contract' // a node emitted something that fails its declared contract
+  | 'executor_failed' // a node executor threw (non-abort)
+  | 'aborted' // AbortError thrown or the injected signal fired mid-node
+  | 'checkpoint_failed' // the injected store failed to persist — resumability would be a lie
+  | 'no_checkpoint' // resume() found nothing for the runId
+  | 'corrupt_checkpoint'; // resume() read state that fails RunStateSchema
+
+/**
+ * Typed engine failure. Edge-contract failures name the node and the
+ * contract the emission violated [CLM-0042].
+ */
+export class WorkflowError extends Error {
+  readonly code: WorkflowErrorCode;
+  /** Node involved, when one is. */
+  readonly node?: string;
+  /** Contract violated, for `edge_contract`. */
+  readonly contract?: string;
+  constructor(
+    code: WorkflowErrorCode,
+    message: string,
+    details: { node?: string; contract?: string; cause?: unknown } = {},
+  ) {
+    super(message, details.cause === undefined ? undefined : { cause: details.cause });
+    this.name = 'WorkflowError';
+    this.code = code;
+    if (details.node !== undefined) this.node = details.node;
+    if (details.contract !== undefined) this.contract = details.contract;
+  }
+}
+
+/** Terminal report of a run (or of a resumed continuation of one). */
+export interface RunResult {
+  readonly runId: string;
+  /**
+   * `completed` — retrospect emitted the final Outcome;
+   * `escalated` — the vote-iterate bound K was exhausted; the run HALTED
+   *   with its findings and resumes from plan after the human edits
+   *   [CLM-0043];
+   * `failed` — a typed error stopped the run; the last checkpoint is
+   *   intact and `resume(runId)` re-attempts from it [CLM-0044].
+   */
+  readonly status: 'completed' | 'escalated' | 'failed';
+  readonly nodeTrace: readonly TraceEntry[];
+  /** The final Outcome, on completion. */
+  readonly outcome?: Outcome;
+  /** Accumulated rejecting-vote findings, on escalation. */
+  readonly findings?: readonly Finding[];
+  /** The typed error, on failure. */
+  readonly error?: WorkflowError;
+}

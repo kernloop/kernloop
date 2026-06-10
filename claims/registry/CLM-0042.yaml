@@ -1,7 +1,15 @@
 id: CLM-0042
 statement: >-
   The canonical loop is declared as data: every edge carries a contract and every gate node emits a Verdict.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/workflows/src/graph.test.ts::the canonical loop is frozen data — mutation throws'
+  - 'test:packages/workflows/src/graph.test.ts::every edge declares one of the frozen five as its crossing contract'
+  - 'test:packages/workflows/src/graph.test.ts::gate nodes declare their gate and emit a Verdict'
+  - 'test:packages/workflows/src/graph.test.ts::declares the spec §6 shape: the chain, the vote branch, and the child sub-chain'
+  - 'test:packages/workflows/src/overrides.test.ts::rejects a malformed Verdict at the vote edge with a typed error naming node and contract'
+  - 'test:packages/workflows/src/overrides.test.ts::rejects a malformed child TaskContract at the decompose edge'
+  - 'test:packages/workflows/src/overrides.test.ts::rejects a malformed quality Verdict inside the fan-out as a run failure, not a child failure'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.3.0

@@ -1,7 +1,17 @@
 id: CLM-0045
 statement: >-
   A repo overlay overrides gate thresholds, K, budgets, and loop nodes as data — never by duplicating the graph.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/workflows/src/overrides.test.ts::a gate override changes the executed gate against the same canonical graph'
+  - 'test:packages/workflows/src/overrides.test.ts::a specialists override adds fan-out children against the same canonical graph'
+  - 'test:packages/workflows/src/overrides.test.ts::the same engine without overrides produces the shorter trace (no graph duplication, config-only delta)'
+  - 'test:packages/workflows/src/overrides.test.ts::EngineConfigSchema mirrors the overlay: K defaults to 3, vote gate defaults, strict keys'
+  - 'test:packages/workflows/src/overrides.test.ts::vote gate config reaches the gate executor through NodeContext.config'
+  - 'test:packages/cli/src/overlay.test.ts::loads a fully specified overlay: gates, K, and node overrides'
+  - 'test:packages/cli/src/overlay.test.ts::file values win over defaults; unset knobs still default (precedence)'
+  - 'test:packages/cli/src/overlay.test.ts::gateForNode: the override wins over the declared gate'
+  - 'test:packages/cli/src/overlay.test.ts::specialistsForNode: returns the added templates, or empty without an override'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.3.0
