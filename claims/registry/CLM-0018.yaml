@@ -1,0 +1,10 @@
+id: CLM-0018
+statement: >-
+  The event bus applies backpressure when a subscriber's queue is full rather than dropping events silently.
+evidence:
+  - 'test:packages/kernel/src/bus/event-bus.test.ts::applies backpressure when a subscriber queue is full instead of dropping events'
+  - 'test:packages/kernel/src/bus/event-bus.test.ts::delivers every message in publish order under sustained backpressure'
+  - 'test:packages/kernel/src/bus/event-bus.test.ts::unsubscribing releases a publisher blocked on that subscriber'
+status: verified
+owner: williamzujkowski
+since: 0.2.0

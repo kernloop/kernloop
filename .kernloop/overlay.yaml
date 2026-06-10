@@ -1,0 +1,7 @@
+# kernloop overlay (spec §7) — per-repo identity as data
+id: kernloop
+budgets:
+  tokens: 100000
+  usd: 1
+  wallClockMin: 30
+briefTokens: 4000

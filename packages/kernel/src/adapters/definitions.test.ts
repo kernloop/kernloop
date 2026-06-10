@@ -1,0 +1,250 @@
+/**
+ * Adapter definition acceptance tests (CLM-0020, CLM-0021): the five CLI
+ * definitions expose one uniform data shape, and each parser reads token /
+ * cost usage out of that CLI's recorded output format — or reports null,
+ * never a fabricated number.
+ *
+ * Fixtures are derived from the output formats the v1 quarry verified
+ * against the real CLIs (nexus-agents `cli-adapters/parsers/*` tests).
+ */
+
+import { describe, expect, it } from 'vitest';
+import { ADAPTER_NAMES, adapterDefinitions } from './definitions.js';
+
+/** Recorded claude 2.0.x `--output-format json` response (v1 evidence). */
+const claudeFixture = JSON.stringify({
+  type: 'result',
+  subtype: 'success',
+  is_error: false,
+  duration_ms: 1500,
+  result: 'Hello, world!',
+  session_id: 'sess_123',
+  total_cost_usd: 0.0015,
+  usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 20 },
+});
+
+/** Recorded codex 0.7x `exec --json` NDJSON stream (v1 evidence). */
+const codexFixture = [
+  '{"type":"thread.started","thread_id":"thr_1"}',
+  '{"type":"turn.started"}',
+  '{"type":"item.completed","item":{"id":"i1","type":"reasoning","text":"thinking…"}}',
+  '{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"First part."}}',
+  '{"type":"item.completed","item":{"id":"i3","type":"agent_message","text":"Second part."}}',
+  '{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":10,"output_tokens":100}}',
+].join('\n');
+
+/** Recorded gemini 0.2x `-o json` response (v1 evidence). */
+const geminiFixture = JSON.stringify({
+  session_id: 'gem_1',
+  response: 'The answer is 42',
+  stats: {
+    models: {
+      'gemini-2.5-pro': { tokens: { input: 120, candidates: 40, total: 160, cached: 5 } },
+      'gemini-2.5-flash': { tokens: { input: 30, candidates: 10, total: 40 } },
+    },
+  },
+});
+
+/** Recorded opencode 1.2.x `run --format json` NDJSON stream (v1 evidence). */
+const opencodeFixture = [
+  '{"type":"step_start","sessionID":"ses_35f0a92f","part":{"type":"step-start"}}',
+  '{"type":"text","sessionID":"ses_35f0a92f","part":{"type":"text","text":"Hel"}}',
+  '{"type":"text","sessionID":"ses_35f0a92f","part":{"type":"text","text":"lo!"}}',
+  '{"type":"step_finish","sessionID":"ses_35f0a92f","part":{"type":"step-finish","reason":"stop","cost":0.002,"tokens":{"total":18080,"input":78,"output":23,"reasoning":0,"cache":{"read":17979,"write":0}}}}',
+].join('\n');
+
+describe('uniform adapter interface (CLM-0021)', () => {
+  it('defines exactly the five spec §3.1 adapters', () => {
+    expect([...ADAPTER_NAMES]).toEqual(['claude', 'codex', 'gemini', 'opencode', 'ollama']);
+    expect(Object.keys(adapterDefinitions).sort()).toEqual([...ADAPTER_NAMES].sort());
+  });
+
+  it('gives every definition the same shape: command, flags, builder, parser', () => {
+    for (const name of ADAPTER_NAMES) {
+      const definition = adapterDefinitions[name];
+      expect(definition.name).toBe(name);
+      expect(definition.command.length).toBeGreaterThan(0);
+      expect(typeof definition.experimental).toBe('boolean');
+      expect(typeof definition.requiresModel).toBe('boolean');
+      expect(typeof definition.buildCommand).toBe('function');
+      expect(typeof definition.parseOutput).toBe('function');
+    }
+  });
+
+  it('marks only ollama experimental (spec §5.7)', () => {
+    for (const name of ADAPTER_NAMES) {
+      expect(adapterDefinitions[name].experimental).toBe(name === 'ollama');
+    }
+  });
+
+  it('passes the prompt through verbatim — no prompt assembly (spec §3.1)', () => {
+    const prompt = 'verbatim prompt\nwith newline';
+    for (const name of ADAPTER_NAMES) {
+      const command = adapterDefinitions[name].buildCommand({ prompt, model: 'm' });
+      const delivered = command.stdin ?? command.args.find((a) => a === prompt);
+      expect(delivered).toBe(prompt);
+    }
+  });
+
+  it('passes the model through verbatim only when the caller chose one', () => {
+    for (const name of ADAPTER_NAMES) {
+      const definition = adapterDefinitions[name];
+      const withModel = definition.buildCommand({ prompt: 'p', model: 'chosen-model' });
+      expect(withModel.args).toContain('chosen-model');
+      const withoutModel = definition.buildCommand({ prompt: 'p' });
+      expect(withoutModel.args).not.toContain('chosen-model');
+    }
+  });
+});
+
+describe('claude definition', () => {
+  const definition = adapterDefinitions.claude;
+
+  it('shapes argv for non-interactive JSON output with stdin prompt', () => {
+    const command = definition.buildCommand({ prompt: 'hi', model: 'claude-sonnet-4-5' });
+    expect(command.args).toEqual(['-p', '--output-format', 'json', '--model', 'claude-sonnet-4-5']);
+    expect(command.stdin).toBe('hi');
+  });
+
+  it('parses response text, tokens, and usd from recorded output (CLM-0020)', () => {
+    const parsed = definition.parseOutput(claudeFixture);
+    expect(parsed.output).toBe('Hello, world!');
+    expect(parsed.usage).toEqual({ inputTokens: 100, outputTokens: 50, usd: 0.0015 });
+  });
+
+  it('returns null output when the CLI flags is_error', () => {
+    const parsed = definition.parseOutput(
+      JSON.stringify({ type: 'result', is_error: true, result: 'API error occurred' }),
+    );
+    expect(parsed.output).toBeNull();
+  });
+
+  it('returns null usage when usage is absent — never fabricated', () => {
+    const parsed = definition.parseOutput(JSON.stringify({ is_error: false, result: 'ok' }));
+    expect(parsed.output).toBe('ok');
+    expect(parsed.usage).toBeNull();
+  });
+
+  it('returns nulls for non-JSON output', () => {
+    expect(definition.parseOutput('not json at all')).toEqual({ output: null, usage: null });
+  });
+});
+
+describe('codex definition', () => {
+  const definition = adapterDefinitions.codex;
+
+  it('shapes argv for exec --json with a positional prompt', () => {
+    const command = definition.buildCommand({ prompt: 'do it', model: 'gpt-5.2-codex' });
+    expect(command.args).toEqual([
+      'exec',
+      '--json',
+      '-s',
+      'read-only',
+      '--skip-git-repo-check',
+      '-m',
+      'gpt-5.2-codex',
+      'do it',
+    ]);
+    expect(command.stdin).toBeUndefined();
+  });
+
+  it('joins agent_message items and reads turn.completed usage (CLM-0020)', () => {
+    const parsed = definition.parseOutput(codexFixture);
+    expect(parsed.output).toBe('First part.\nSecond part.');
+    expect(parsed.usage).toEqual({ inputTokens: 200, outputTokens: 100, usd: null });
+  });
+
+  it('skips malformed NDJSON lines without losing valid ones', () => {
+    const parsed = definition.parseOutput(
+      '{{{broken\n{"type":"item.completed","item":{"id":"i","type":"agent_message","text":"ok"}}',
+    );
+    expect(parsed.output).toBe('ok');
+    expect(parsed.usage).toBeNull();
+  });
+
+  it('returns null output when no agent_message ever arrives', () => {
+    const parsed = definition.parseOutput('{"type":"turn.started"}');
+    expect(parsed).toEqual({ output: null, usage: null });
+  });
+});
+
+describe('gemini definition', () => {
+  const definition = adapterDefinitions.gemini;
+
+  it('shapes argv with a positional prompt and -o json', () => {
+    const command = definition.buildCommand({ prompt: 'ask', model: 'gemini-2.5-pro' });
+    expect(command.args).toEqual(['ask', '-o', 'json', '-m', 'gemini-2.5-pro']);
+    expect(command.stdin).toBeUndefined();
+  });
+
+  it('aggregates per-model token stats into one usage (CLM-0020)', () => {
+    const parsed = definition.parseOutput(geminiFixture);
+    expect(parsed.output).toBe('The answer is 42');
+    expect(parsed.usage).toEqual({ inputTokens: 150, outputTokens: 50, usd: null });
+  });
+
+  it('returns null usage when stats are absent — never fabricated', () => {
+    const parsed = definition.parseOutput(JSON.stringify({ response: 'bare' }));
+    expect(parsed.output).toBe('bare');
+    expect(parsed.usage).toBeNull();
+  });
+
+  it('returns null output when the response field is missing', () => {
+    const parsed = definition.parseOutput(JSON.stringify({ stats: {} }));
+    expect(parsed.output).toBeNull();
+  });
+});
+
+describe('opencode definition', () => {
+  const definition = adapterDefinitions.opencode;
+
+  it('shapes argv for run --format json with stdin prompt', () => {
+    const command = definition.buildCommand({ prompt: 'go', model: 'anthropic/claude-sonnet-4-5' });
+    expect(command.args).toEqual(['run', '--format', 'json', '-m', 'anthropic/claude-sonnet-4-5']);
+    expect(command.stdin).toBe('go');
+  });
+
+  it('concatenates text parts and reads step_finish tokens + cost (CLM-0020)', () => {
+    const parsed = definition.parseOutput(opencodeFixture);
+    expect(parsed.output).toBe('Hello!');
+    expect(parsed.usage).toEqual({ inputTokens: 78, outputTokens: 23, usd: 0.002 });
+  });
+
+  it('voids the response when an error event appears in the stream', () => {
+    const parsed = definition.parseOutput(
+      '{"type":"text","part":{"type":"text","text":"partial"}}\n' +
+        '{"type":"error","error":{"message":"boom"}}',
+    );
+    expect(parsed.output).toBeNull();
+  });
+
+  it('returns null usage when step_finish carries no tokens', () => {
+    const parsed = definition.parseOutput(
+      '{"type":"text","part":{"type":"text","text":"hi"}}\n' +
+        '{"type":"step_finish","part":{"type":"step-finish"}}',
+    );
+    expect(parsed.output).toBe('hi');
+    expect(parsed.usage).toBeNull();
+  });
+});
+
+describe('ollama definition (experimental, spec §5.7)', () => {
+  const definition = adapterDefinitions.ollama;
+
+  it('requires an explicit model — no default exists', () => {
+    expect(definition.requiresModel).toBe(true);
+    const command = definition.buildCommand({ prompt: 'p', model: 'llama3.3' });
+    expect(command.args).toEqual(['run', 'llama3.3']);
+    expect(command.stdin).toBe('p');
+  });
+
+  it('treats stdout as plain text and NEVER reports usage', () => {
+    const parsed = definition.parseOutput('A plain text answer.\n');
+    expect(parsed.output).toBe('A plain text answer.');
+    expect(parsed.usage).toBeNull();
+  });
+
+  it('returns null output for empty stdout', () => {
+    expect(definition.parseOutput('  \n')).toEqual({ output: null, usage: null });
+  });
+});

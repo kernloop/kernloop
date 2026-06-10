@@ -1,0 +1,13 @@
+id: CLM-0034
+statement: >-
+  The run entry point routes a TaskContract via manifests and returns an Outcome, with every routing decision audited.
+evidence:
+  - 'test:packages/cli/src/tools/run.test.ts::routes a TaskContract via manifests and returns an Outcome, with the routing decision audited'
+  - 'test:packages/cli/src/tools/run.test.ts::records the Outcome to episodic memory so status survives the session'
+  - 'test:packages/cli/src/tools/run.test.ts::execute:false returns the routing decision only — no outcome, no memory write'
+  - 'test:packages/cli/src/tools/run.test.ts::returns the no-candidate decision honestly when no manifest declares the capability'
+  - 'test:packages/cli/src/tools/run.test.ts::returns no_eligible_candidate with per-candidate reasons when nothing fits'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.2.0

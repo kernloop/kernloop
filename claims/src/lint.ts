@@ -2,12 +2,18 @@
  * Capability-statement lint (seed Step 3b, conservative form): inside a
  * `<!-- claims:begin -->` … `<!-- claims:end -->` block, every sentence must
  * carry at least one `[CLM-NNNN]` tag, and every tag in the document must
- * reference a claim that exists in the registry. Documentation cannot lie
- * about behavior: a capability sentence without a verifiable claim is a
- * lint failure, not prose style.
+ * reference a claim that exists in the registry AND is `verified` —
+ * documentation may only state verified capability, so citing a `planned` or
+ * `experimental` claim is a failure. Documentation cannot lie about
+ * behavior: a capability sentence without a verifiable claim is a lint
+ * failure, not prose style.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Claim } from './schema.js';
+
+/** Registry view the lint needs: claim id → its status. */
+export type ClaimStatuses = ReadonlyMap<string, Claim['status']>;
 
 const BEGIN = '<!-- claims:begin -->';
 const END = '<!-- claims:end -->';
@@ -88,7 +94,7 @@ function lintBlock(block: string, file: string, errors: string[]): void {
   }
 }
 
-function lintDoc(repoRoot: string, spec: DocSpec, knownIds: ReadonlySet<string>): string[] {
+function lintDoc(repoRoot: string, spec: DocSpec, statuses: ClaimStatuses): string[] {
   const full = path.resolve(repoRoot, spec.file);
   if (!fs.existsSync(full)) return [];
   const source = fs.readFileSync(full, 'utf8');
@@ -103,14 +109,20 @@ function lintDoc(repoRoot: string, spec: DocSpec, knownIds: ReadonlySet<string>)
   }
   for (const m of source.matchAll(TAG_GLOBAL)) {
     const id = m[1];
-    if (id !== undefined && !knownIds.has(id)) {
+    if (id === undefined) continue;
+    const status = statuses.get(id);
+    if (status === undefined) {
       errors.push(`${spec.file}: tag [${id}] does not reference an existing registry claim`);
+    } else if (status !== 'verified') {
+      errors.push(
+        `${spec.file}: tag [${id}] cites a "${status}" claim — documentation may only state verified capability`,
+      );
     }
   }
   return errors;
 }
 
-/** Lint README.md and ARCHITECTURE.md against the registry's known claim ids. */
-export function lintCapabilityDocs(repoRoot: string, knownIds: ReadonlySet<string>): string[] {
-  return DOCS.flatMap((spec) => lintDoc(repoRoot, spec, knownIds));
+/** Lint README.md and ARCHITECTURE.md against the registry's claim statuses. */
+export function lintCapabilityDocs(repoRoot: string, statuses: ClaimStatuses): string[] {
+  return DOCS.flatMap((spec) => lintDoc(repoRoot, spec, statuses));
 }

@@ -87,6 +87,20 @@ describe('ClaimSchema', () => {
 
   it('rejects an empty evidence array', () => {
     expect(ClaimSchema.safeParse({ ...validClaim, evidence: [] }).success).toBe(false);
+    expect(
+      ClaimSchema.safeParse({ ...validClaim, status: 'experimental', evidence: [] }).success,
+    ).toBe(false);
+  });
+
+  it('accepts a planned claim with an empty evidence array', () => {
+    const claim = ClaimSchema.parse({ ...validClaim, status: 'planned', evidence: [] });
+    expect(claim.status).toBe('planned');
+    expect(claim.evidence).toEqual([]);
+  });
+
+  it('still parses evidence refs present on a planned claim', () => {
+    const claim = ClaimSchema.parse({ ...validClaim, status: 'planned' });
+    expect(claim.evidence[0]?.kind).toBe('test');
   });
 
   it('rejects an unknown status value', () => {

@@ -20,14 +20,15 @@ contracts ≤800, each faculty ≤4,000, any file ≤400, any function ≤50.
 
 ## What exists per phase
 
-| Layer                                              | Package                                         | Status                                        |
-| -------------------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
-| L1 Contracts                                       | [`packages/contracts`](packages/contracts/)     | **P0 — built** (spec §4)                      |
-| L0 Kernel: audit chain                             | [`packages/kernel`](packages/kernel/src/audit/) | **P0 — built** (spec §3.1, §3.3, §10.1)       |
-| L0 Kernel: registry, router, ladder, bus, adapters | `packages/kernel`                               | P1 (spec §3)                                  |
-| L2 Faculties                                       | `packages/faculty-*`                            | P1–P3 (spec §5) — absent by design until then |
-| L3 Workflows                                       | `packages/workflows`                            | P2 (spec §6)                                  |
-| CLI / MCP server                                   | `packages/cli`                                  | P1 (spec §3.4 — the kernel eleven)            |
+| Layer                                                | Package                                         | Status                                        |
+| ---------------------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
+| L1 Contracts                                         | [`packages/contracts`](packages/contracts/)     | **P0 — built** (spec §4)                      |
+| L0 Kernel: audit chain                               | [`packages/kernel`](packages/kernel/src/audit/) | **P0 — built** (spec §3.1, §3.3, §10.1)       |
+| L0 Kernel: registry, router, ladder, bus, adapters   | `packages/kernel`                               | **P1 — built** (spec §3)                      |
+| L2 Compiler, Memory, Quality gate                    | `packages/faculty-{compiler,memory,gates}`      | **P1 — built** (spec §5.1–5.3)                |
+| L2 Workforce, Observer, Toolsmith; vote/review gates | `packages/faculty-*`                            | P2–P3 (spec §5) — absent by design until then |
+| L3 Workflows                                         | `packages/workflows`                            | P2 (spec §6)                                  |
+| CLI / MCP server (nine P1 tools)                     | `packages/cli`                                  | **P1 — built** (spec §3.4)                    |
 
 Cross-cutting, already live: the claims registry and `claims:check` gate
 ([`claims/`](claims/)), `governance:check`

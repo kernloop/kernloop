@@ -1,0 +1,32 @@
+{
+  "name": "@kernloop/faculty-memory",
+  "version": "0.1.0",
+  "description": "Kernloop Layer 2 — the memory faculty (spec §5.2). P1 scope: episodic and semantic stores over repo-local SQLite (one DB file per overlay, spec §3.3, §7). Procedural memory (SKILL.md distillation) arrives in P3; absent here by design.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@kernloop/contracts": "workspace:*",
+    "better-sqlite3": "^12.10.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.19.11"
+  }
+}

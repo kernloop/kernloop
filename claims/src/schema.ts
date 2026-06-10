@@ -108,13 +108,28 @@ const SemverSchema = z
  * One registry claim. `verified` additionally requires at least one `test`
  * evidence ref — that cross-field rule lives in `claims:check` (check.ts)
  * rather than here so the checker can report it as its own failure class.
+ *
+ * Status lifecycle (ratified 7-0): `planned` (backlog entry, non-citable in
+ * docs) → `verified` (evidence lands in the same PR as the implementation).
+ * Only `planned` claims may have an empty evidence array; any refs that ARE
+ * present on a planned claim must still resolve.
  */
-export const ClaimSchema = z.strictObject({
-  id: z.string().regex(CLAIM_ID_PATTERN, 'id must match CLM-NNNN'),
-  statement: StatementSchema,
-  evidence: z.array(EvidenceRefSchema).min(1, 'evidence must be a non-empty array'),
-  status: z.enum(['verified', 'experimental']),
-  owner: OwnerSchema,
-  since: SemverSchema,
-});
+export const ClaimSchema = z
+  .strictObject({
+    id: z.string().regex(CLAIM_ID_PATTERN, 'id must match CLM-NNNN'),
+    statement: StatementSchema,
+    evidence: z.array(EvidenceRefSchema),
+    status: z.enum(['verified', 'experimental', 'planned']),
+    owner: OwnerSchema,
+    since: SemverSchema,
+  })
+  .superRefine((claim, ctx) => {
+    if (claim.status !== 'planned' && claim.evidence.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['evidence'],
+        message: 'evidence must be a non-empty array (only "planned" claims may have none)',
+      });
+    }
+  });
 export type Claim = z.infer<typeof ClaimSchema>;

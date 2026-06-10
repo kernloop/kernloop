@@ -3,3 +3,4 @@ packages:
   - 'claims'
 onlyBuiltDependencies:
   - esbuild
+  - better-sqlite3

@@ -1,0 +1,30 @@
+{
+  "name": "@kernloop/faculty-gates",
+  "version": "0.1.0",
+  "description": "Kernloop Layer 2 — the gates faculty (spec §5.3). P1 scope: the mechanical quality gate (typecheck/lint/test/coverage over a workspace) emitting uniform Verdicts. The vote gate (P2) and review gate (P3) arrive in later phases; absent here by design, not stubbed.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@kernloop/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.11"
+  }
+}

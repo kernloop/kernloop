@@ -16,7 +16,7 @@ statement: One README-quotable sentence about verified behavior.
 evidence:
   - 'test:packages/foo/src/bar.test.ts::exact test name'
   - 'ci:test'
-status: verified # or experimental
+status: verified # or experimental, or planned
 owner: williamzujkowski
 since: 0.1.0
 ```
@@ -25,10 +25,34 @@ Fields (`claims/src/schema.ts` is authoritative):
 
 - `id` — stable, `CLM-` + four digits
 - `statement` — one sentence, single line, terminal punctuation
-- `evidence` — non-empty array of typed refs (grammar below)
-- `status` — `verified` requires at least one `test` evidence ref
+- `evidence` — array of typed refs (grammar below); non-empty for every
+  status except `planned`
+- `status` — `verified` | `experimental` | `planned`; `verified` requires at
+  least one `test` evidence ref
 - `owner` — github handle
-- `since` — semver of the release the claim has held since
+- `since` — semver of the release the claim has held since (required for
+  every status, including `planned`)
+
+## Claim lifecycle: planned → verified
+
+The registry IS the backlog (constitution rule 2), and `planned` is how the
+backlog is expressed: a planned claim states a capability the repo intends to
+have, before any code exists.
+
+- `planned` claims MAY have an empty `evidence` array — they are the only
+  status allowed to. Any evidence refs that ARE present must still resolve.
+- `planned` claims are **non-citable**: a `[CLM-NNNN]` tag in README.md /
+  ARCHITECTURE.md claims blocks may only cite a `verified` claim
+  (documentation may only state verified capability; `experimental` is
+  non-citable too).
+- Promotion to `verified` happens in the same PR as the implementation: the
+  evidence (including at least one `test` ref) lands alongside the code, and
+  `claims:check` proves it resolves.
+- There is no demotion-by-edit guard in code; `claims/**` is a protected path,
+  so any status change is reviewed by a human (process-level guard).
+
+`claims:check` prints planned claims in a separate backlog section, never in
+the verified summary table.
 
 ## Evidence ref grammar
 
@@ -60,13 +84,18 @@ referenced tests also ran green.
 
 - a registry file fails schema validation, ids are duplicated, or a filename
   does not equal its claim id;
-- any evidence ref does not resolve (per the grammar above);
+- a non-`planned` claim has an empty evidence array;
+- any evidence ref does not resolve (per the grammar above — this applies to
+  `planned` claims too when they carry refs);
 - a claim is `verified` with zero test evidence;
 - a sentence inside a claims block in README.md / ARCHITECTURE.md lacks a
-  `[CLM-NNNN]` tag, any tag references a claim that does not exist, or
-  README.md exists without a claims block (absent files are OK in P0;
-  ARCHITECTURE.md without markers is OK).
+  `[CLM-NNNN]` tag, any tag references a claim that does not exist, any tag
+  cites a `planned` or `experimental` claim (documentation may only state
+  verified capability), or README.md exists without a claims block (absent
+  files are OK in P0; ARCHITECTURE.md without markers is OK).
 
-On success it prints the summary table: id → statement → evidence count.
-Deliberate-failure proofs for every failure class live in
+On success it prints the verified summary table (id → statement → evidence
+count), then an `experimental (N)` section and a `backlog (N planned)`
+section when such claims exist — planned claims never appear in the verified
+table. Deliberate-failure proofs for every failure class live in
 `claims/src/check.test.ts` and `claims/src/lint.test.ts`.

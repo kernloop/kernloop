@@ -1,0 +1,11 @@
+id: CLM-0017
+statement: >-
+  Every tier transition (promotion, demotion) is recorded to the audit chain; demotion on threshold breach is automatic.
+evidence:
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::records a ratified promotion and audits the transition'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::audits a human-decided demotion with direction demotion and automatic false'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::demotes one tier automatically when the window mean breaches the threshold, and audits it'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::rejects promotion to enforce without ratifiedBy with a typed error (constitution rule 6)'
+status: verified
+owner: williamzujkowski
+since: 0.2.0

@@ -1,0 +1,3 @@
+# spec §12.4: gitignore the memory database (privacy over portability)
+memory.sqlite
+audit.jsonl

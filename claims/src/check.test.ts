@@ -73,6 +73,132 @@ describe('runClaimsCheck — happy path', () => {
     });
     expect(runClaimsCheck({ repoRoot: root }).ok).toBe(true);
   });
+
+  it('passes a planned claim with an empty evidence array', () => {
+    const root = repoWith({
+      'CLM-0001.yaml': claimYaml(),
+      'CLM-0002.yaml': claimYaml({ id: 'CLM-0002', status: 'planned', evidence: [] }),
+    });
+    const result = runClaimsCheck({ repoRoot: root });
+    expect(result.errors).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it('resolves evidence refs that ARE present on a planned claim', () => {
+    const root = repoWith({
+      'CLM-0001.yaml': claimYaml({
+        status: 'planned',
+        evidence: ['test:src/cap.test.ts::proves the capability'],
+      }),
+    });
+    expect(runClaimsCheck({ repoRoot: root }).ok).toBe(true);
+  });
+});
+
+describe('runClaimsCheck — planned claims', () => {
+  it('fails a planned claim whose evidence ref dangles', () => {
+    const root = repoWith({
+      'CLM-0001.yaml': claimYaml({
+        status: 'planned',
+        evidence: ['test:src/cap.test.ts::a test that is not there'],
+      }),
+    });
+    const result = runClaimsCheck({ repoRoot: root });
+    expect(result.ok).toBe(false);
+    expect(result.errors.join('\n')).toContain('unresolved evidence');
+  });
+
+  it('fails when a README claims block cites a planned claim', () => {
+    const root = repoWith(
+      {
+        'CLM-0001.yaml': claimYaml(),
+        'CLM-0002.yaml': claimYaml({ id: 'CLM-0002', status: 'planned', evidence: [] }),
+      },
+      {
+        'README.md':
+          '# Fixture\n\n<!-- claims:begin -->\nVerified thing. [CLM-0001]\nFuture thing. [CLM-0002]\n<!-- claims:end -->\n',
+      },
+    );
+    const result = runClaimsCheck({ repoRoot: root });
+    expect(result.ok).toBe(false);
+    expect(result.errors.join('\n')).toContain('documentation may only state verified capability');
+  });
+
+  it('fails when a README claims block cites an experimental claim', () => {
+    const root = repoWith(
+      {
+        'CLM-0001.yaml': claimYaml(),
+        'CLM-0002.yaml': claimYaml({
+          id: 'CLM-0002',
+          status: 'experimental',
+          evidence: ['ci:test'],
+        }),
+      },
+      {
+        'README.md':
+          '# Fixture\n\n<!-- claims:begin -->\nVerified thing. [CLM-0001]\nExperimental thing. [CLM-0002]\n<!-- claims:end -->\n',
+      },
+    );
+    const result = runClaimsCheck({ repoRoot: root });
+    expect(result.ok).toBe(false);
+    expect(result.errors.join('\n')).toContain('documentation may only state verified capability');
+  });
+
+  it('passes when a README claims block cites only verified claims', () => {
+    const root = repoWith(
+      { 'CLM-0001.yaml': claimYaml() },
+      {
+        'README.md':
+          '# Fixture\n\n<!-- claims:begin -->\nVerified thing. [CLM-0001]\n<!-- claims:end -->\n',
+      },
+    );
+    expect(runClaimsCheck({ repoRoot: root }).ok).toBe(true);
+  });
+});
+
+describe('summaryTable — sections', () => {
+  it('renders planned claims in a backlog section, never in the verified table', () => {
+    const root = repoWith({
+      'CLM-0001.yaml': claimYaml(),
+      'CLM-0002.yaml': claimYaml({
+        id: 'CLM-0002',
+        statement: 'A planned capability lives in the backlog.',
+        status: 'planned',
+        evidence: [],
+      }),
+    });
+    const result = runClaimsCheck({ repoRoot: root });
+    expect(result.ok).toBe(true);
+    const summary = summaryTable(result.claims);
+    expect(summary).toContain('verified (1):');
+    expect(summary).toContain('backlog (1 planned) — not citable in docs:');
+    expect(summary).toContain('CLM-0002  A planned capability lives in the backlog.');
+    const verifiedSection = summary.split('backlog (')[0] ?? '';
+    expect(verifiedSection).not.toContain('CLM-0002');
+  });
+
+  it('renders experimental claims in their own section when present', () => {
+    const root = repoWith({
+      'CLM-0001.yaml': claimYaml(),
+      'CLM-0002.yaml': claimYaml({
+        id: 'CLM-0002',
+        statement: 'An experimental capability exists behind a flag.',
+        status: 'experimental',
+        evidence: ['ci:test'],
+      }),
+    });
+    const result = runClaimsCheck({ repoRoot: root });
+    const summary = summaryTable(result.claims);
+    expect(summary).toContain('experimental (1) — not citable in docs:');
+    expect(summary).toContain('CLM-0002  An experimental capability exists behind a flag.');
+  });
+
+  it('omits the experimental and backlog sections when all claims are verified', () => {
+    const root = repoWith({ 'CLM-0001.yaml': claimYaml() });
+    const summary = summaryTable(runClaimsCheck({ repoRoot: root }).claims);
+    expect(summary).not.toContain('experimental (');
+    expect(summary).not.toContain('backlog (');
+  });
 });
 
 describe('runClaimsCheck — dangling evidence (CLM-0007 proofs)', () => {

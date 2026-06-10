@@ -1,0 +1,11 @@
+id: CLM-0022
+statement: >-
+  Semantic memory rejects writes without provenance.
+evidence:
+  - 'test:packages/faculty-memory/src/semantic.test.ts::rejects a fact write with missing provenance'
+  - 'test:packages/faculty-memory/src/semantic.test.ts::rejects a fact write with empty provenance'
+  - 'test:packages/faculty-memory/src/semantic.test.ts::rejects a fact write with whitespace-only provenance'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.2.0

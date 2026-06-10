@@ -1,0 +1,11 @@
+id: CLM-0024
+statement: >-
+  Episodic memory persists each Outcome as a summary plus a pointer to the full trace, retrievable by task id.
+evidence:
+  - 'test:packages/faculty-memory/src/episodic.test.ts::persists an outcome as summary plus traceRef pointer, retrievable by task id'
+  - 'test:packages/faculty-memory/src/episodic.test.ts::lists summaries newest-first'
+  - 'test:packages/faculty-memory/src/episodic.test.ts::rejects an invalid outcome at the boundary'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.2.0

@@ -1,0 +1,14 @@
+id: CLM-0019
+statement: >-
+  Adapter subprocess calls capture stdout, stderr, and exit code, and enforce wall-clock timeouts.
+evidence:
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::captures stdout, stderr, and exit code from a real child'
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::pipes stdin content to the child and closes stdin'
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::kills a hung child on wall-clock timeout and flags timedOut'
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::kills the whole process tree on timeout (CLM-0019)'
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::keeps output produced before the timeout kill'
+  - 'test:packages/kernel/src/adapters/invoke.test.ts::throws AdapterTimeoutError and kills the CLI on wall-clock breach (CLM-0019)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.2.0

@@ -14,7 +14,13 @@ Org `kernloop` and repo `kernloop/kernloop` (public) already exist with
 gh repo view kernloop/kernloop --json name,visibility,defaultBranchRef
 ```
 
-## 2. npm scope claim — HUMAN (do this the same day; scope squatting is real)
+## 2. npm scope claim — DONE (human, 2026-06-10)
+
+npm org `kernloop` created (owns the `@kernloop/*` scope);
+`@kernloop/contracts@0.0.0` and unscoped `kernloop@0.0.0` placeholders
+published. Verify: `npm view @kernloop/contracts version && npm view
+kernloop version` → `0.0.0`. Original instructions kept below for the
+record. Real packages publish over these as `0.1.0+` when ratified.
 
 Publish a `@kernloop/contracts@0.0.0` placeholder to claim the scope:
 
