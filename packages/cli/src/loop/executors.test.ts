@@ -5,12 +5,20 @@
  * resume guards, and the REAL default adapter invoke against a scripted
  * executable on PATH [CLM-0046 support].
  */
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { BriefSchema, TaskContractSchema, type Cost, type Verdict } from '@kernloop/contracts';
-import type { QualityCheck } from '@kernloop/faculty-gates';
+import { PANEL_DEFAULT, type QualityCheck } from '@kernloop/faculty-gates';
 import { JsonlCheckpointStore, type ChildResult, type NodeContext } from '@kernloop/workflows';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { buildLoopExecutors, type LoopBindings, type LoopRefs } from './executors.js';
@@ -166,6 +174,69 @@ describe('integrate executor', () => {
       { name: 'child:task-unit.1', passed: false, detail: 'implement blew up' },
       { name: 'child:task-unit.2', passed: false, detail: 'implement missing; quality pass' },
     ]);
+    kern.close();
+  });
+});
+
+describe('output-contract violations (diagnosability, one honest attempt)', () => {
+  it('implement fails on an empty files array and preserves the raw output under checkpoints/', async () => {
+    const kern = kernloopFor('implement-violation');
+    const raw = 'Nothing to write for this "files" task.\n```json\n{"files":[],"notes":"n/a"}\n```';
+    const invoke: LoopInvoke = () => Promise.resolve({ output: raw, cost: COST });
+    const executors = buildLoopExecutors({ ...bindingsFor(kern), invoke });
+    const child = { ...task, id: 'task-unit.1' };
+    await expect(executors['implement']?.(child, ctxFor(3))).rejects.toThrow(
+      'raw model output preserved at',
+    );
+    const file = path.join(
+      kern.paths.dir,
+      'checkpoints',
+      'run-unit-implement-task-unit.1-violation.txt',
+    );
+    expect(readFileSync(file, 'utf8')).toBe(raw);
+    kern.close();
+  });
+
+  it('vote records honest abstains on malformed ballots and preserves each voter raw output', async () => {
+    const kern = kernloopFor('vote-violation');
+    const raw = 'I refuse to emit JSON.';
+    const invoke: LoopInvoke = (prompt) =>
+      Promise.resolve({
+        output: prompt.includes('Proposal under vote') ? raw : 'unused',
+        cost: COST,
+      });
+    const executors = buildLoopExecutors({ ...bindingsFor(kern), invoke });
+    const verdict = (await executors['vote']?.(planBrief, ctxFor(3))) as Verdict;
+    expect(verdict.result).not.toBe('approve'); // abstains never become approval
+    for (const voter of PANEL_DEFAULT) {
+      const file = path.join(
+        kern.paths.dir,
+        'checkpoints',
+        `run-unit-vote-${voter.name}-violation.txt`,
+      );
+      expect(readFileSync(file, 'utf8')).toBe(raw);
+    }
+    kern.close();
+  });
+});
+
+describe('hardened prompts (data, diff-reviewable)', () => {
+  it('the coder and decompose prompts demand one raw JSON object and concrete file changes', async () => {
+    const kern = kernloopFor('prompt-harden');
+    const prompts: string[] = [];
+    const invoke: LoopInvoke = (prompt) => {
+      prompts.push(prompt);
+      return scripted(prompt);
+    };
+    const refs: LoopRefs = { framedTask: task, planBrief };
+    const executors = buildLoopExecutors({ ...bindingsFor(kern, refs), invoke });
+    await executors['decompose']?.({}, ctxFor(3));
+    await executors['implement']?.({ ...task, id: 'task-unit.1' }, ctxFor(3));
+    const [decompose, implement] = prompts;
+    expect(decompose).toContain('ONLY one raw JSON object');
+    expect(decompose).toContain('concrete file changes');
+    expect(implement).toContain('no markdown fences');
+    expect(implement).toContain('"files" MUST contain at least one entry');
     kern.close();
   });
 });

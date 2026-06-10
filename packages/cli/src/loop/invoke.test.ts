@@ -4,7 +4,15 @@
  * availability as a typed error, and the path-traversal guard on the
  * coder's emitted files [CLM-0046 support].
  */
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -19,6 +27,7 @@ import {
   extractJsonObject,
   meteredInvoke,
   parseEmission,
+  persistViolation,
   type LoopInvoke,
 } from './invoke.js';
 import { writeWorkspaceFiles } from './executors.js';
@@ -50,6 +59,32 @@ describe('extractJsonObject', () => {
     expect(() => extractJsonObject('{"open": "forever', 'files')).toThrow('unterminated');
     expect(() => extractJsonObject('{bad}', 'files')).toThrow('invalid JSON');
   });
+
+  it('parses the WHOLE trimmed output first: TS file content with braces and escaped quotes', () => {
+    const content = 'export function f(): string {\n  return "{\\"nested\\": true}";\n}\n';
+    const raw = `\n${JSON.stringify({ files: [{ path: 'src/f.ts', content }], notes: '' })}\n`;
+    expect(extractJsonObject(raw, 'files')).toEqual({
+      files: [{ path: 'src/f.ts', content }],
+      notes: '',
+    });
+  });
+
+  it('prefers the fenced block when prose around it carries braces and quotes (live-failure shape)', () => {
+    const raw =
+      'I wrote `greet() { return "hi"; }` as asked.\n' +
+      '```json\n{"vote":"approve","reasoning":"ok"}\n```\nDone.';
+    expect(extractJsonObject(raw, 'ballot')).toEqual({ vote: 'approve', reasoning: 'ok' });
+  });
+
+  it('falls back to the raw scan when the fenced block carries no object', () => {
+    const raw = '```\nplain text, no object\n```\n{"vote":"reject","reasoning":"no"}';
+    expect(extractJsonObject(raw, 'ballot')).toEqual({ vote: 'reject', reasoning: 'no' });
+  });
+
+  it('still fails honestly on truncated JSON inside an unterminated fence', () => {
+    const raw = '```json\n{"files":[{"path":"a.ts","content":"cut off mid-str';
+    expect(() => extractJsonObject(raw, 'files')).toThrow('unterminated');
+  });
 });
 
 describe('parseEmission (the strict output contracts)', () => {
@@ -74,6 +109,46 @@ describe('parseEmission (the strict output contracts)', () => {
       'files',
     );
     expect(parsed.notes).toBe('');
+  });
+});
+
+describe('parseEmission violation capture (diagnosability, no retry)', () => {
+  it('persists the raw output under <overlay>/checkpoints and names the path in the error', () => {
+    const overlayDir = path.join(scratch, 'overlay-violation');
+    const raw = 'Sure! Here you go: {"files":[],"notes":"nothing to write"}';
+    const sink = { overlayDir, runId: 'run-9', node: 'implement-task.1' };
+    let caught: unknown;
+    try {
+      // The empty files array stays a violation — validation is unweakened.
+      parseEmission(raw, FilesEmissionSchema, 'files', sink);
+    } catch (error) {
+      caught = error;
+    }
+    const file = path.join(overlayDir, 'checkpoints', 'run-9-implement-task.1-violation.txt');
+    expect(caught).toBeInstanceOf(LoopParseError);
+    expect((caught as LoopParseError).message).toContain('>=1');
+    expect((caught as LoopParseError).message).toContain(file);
+    expect(readFileSync(file, 'utf8')).toBe(raw);
+  });
+
+  it('sanitizes unsafe characters out of the violation file name', () => {
+    const overlayDir = path.join(scratch, 'overlay-sanitize');
+    expect(persistViolation({ overlayDir, runId: 'run/x', node: 'vote architect' }, 'raw')).toBe(
+      path.join(overlayDir, 'checkpoints', 'run_x-vote_architect-violation.txt'),
+    );
+  });
+
+  it('writes nothing when the emission satisfies its contract', () => {
+    const overlayDir = path.join(scratch, 'overlay-clean');
+    const sink = { overlayDir, runId: 'run-ok', node: 'implement-x' };
+    const parsed = parseEmission(
+      '{"files":[{"path":"a.ts","content":"x"}]}',
+      FilesEmissionSchema,
+      'files',
+      sink,
+    );
+    expect(parsed.files).toHaveLength(1);
+    expect(existsSync(path.join(overlayDir, 'checkpoints'))).toBe(false);
   });
 });
 

@@ -8,12 +8,16 @@
  * invoke: an honest double for the external model CLI, with everything
  * downstream of the seam real.
  *
- * Model outputs cross back into the system under a STRICT contract: the
- * first balanced JSON object is extracted from the raw text and zod-parsed;
- * anything malformed throws a typed {@link LoopParseError} — the loop never
- * coerces model prose into data (prime directive: what is recorded is what
- * happened).
+ * Model outputs cross back into the system under a STRICT contract: one
+ * JSON object is extracted from the raw text (whole output first, then the
+ * first fenced block, then the first balanced object — string-aware) and
+ * zod-parsed; anything malformed throws a typed {@link LoopParseError} and
+ * the raw output is preserved under `<overlay>/checkpoints/` for diagnosis —
+ * the loop never coerces model prose into data (prime directive: what is
+ * recorded is what happened).
  */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import type { Cost } from '@kernloop/contracts';
 import {
@@ -40,10 +44,13 @@ export class LoopParseError extends Error {
   readonly code = 'loop_parse';
   /** Which output contract was violated (ballot, subtasks, files). */
   readonly contract: string;
+  /** The violation detail without the message prefix (re-thrown augmented). */
+  readonly detail: string;
   constructor(contract: string, detail: string) {
     super(`model output violates the "${contract}" contract: ${detail}`);
     this.name = 'LoopParseError';
     this.contract = contract;
+    this.detail = detail;
   }
 }
 
@@ -103,21 +110,44 @@ export function meteredInvoke(base: LoopInvoke, totals: { tokens: number; usd: n
   return wrapped;
 }
 
+/** The first fenced code block (``` or ```json) in model output. */
+const FENCE = /```(?:json)?\s*\n([\s\S]*?)```/;
+
 /**
- * Extract the FIRST balanced JSON object from raw model text (models wrap
- * JSON in prose and code fences; the contract is "a single JSON object",
- * extracted, not trusted). Returns the parsed value or throws
- * {@link LoopParseError} naming the contract. String-aware brace matching:
- * braces inside JSON strings do not count.
+ * Extract ONE JSON object from raw model text (models wrap JSON in prose
+ * and code fences; the contract is "a single JSON object", extracted, not
+ * trusted). Preference order, most honest reading first:
+ * 1. the WHOLE trimmed output parsed as JSON (the contract's happy path);
+ * 2. the first fenced code block, when it contains an object;
+ * 3. the first balanced `{…}` in the text, string-aware (braces and quotes
+ *    inside JSON strings do not count; backslash escapes are honored).
+ * Returns the parsed value or throws {@link LoopParseError} naming the
+ * contract — truncated output stays an unterminated-object failure.
  */
 export function extractJsonObject(raw: string, contract: string): unknown {
-  const start = raw.indexOf('{');
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      // Prose/fences around the object, or truncation — the scan below
+      // extracts or reports which.
+    }
+  }
+  const fenced = FENCE.exec(trimmed)?.[1];
+  const candidate = fenced !== undefined && fenced.includes('{') ? fenced : trimmed;
+  return firstBalancedObject(candidate, contract);
+}
+
+/** The first balanced `{…}` in `text`, string-aware, parsed as JSON. */
+function firstBalancedObject(text: string, contract: string): unknown {
+  const start = text.indexOf('{');
   if (start === -1) throw new LoopParseError(contract, 'no JSON object found in the output');
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let i = start; i < raw.length; i += 1) {
-    const ch = raw[i];
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
     if (escaped) {
       escaped = false;
     } else if (inString) {
@@ -129,7 +159,7 @@ export function extractJsonObject(raw: string, contract: string): unknown {
       depth += 1;
     } else if (ch === '}') {
       depth -= 1;
-      if (depth === 0) return parseJson(raw.slice(start, i + 1), contract);
+      if (depth === 0) return parseJson(text.slice(start, i + 1), contract);
     }
   }
   throw new LoopParseError(contract, 'unterminated JSON object in the output');
@@ -168,13 +198,54 @@ export const FilesEmissionSchema = z.strictObject({
   notes: z.string().default(''),
 });
 
-/** Extract + zod-parse one model emission under a named contract. */
+/**
+ * Where a contract violation's raw model output is preserved for diagnosis:
+ * `<overlayDir>/checkpoints/<runId>-<node>-violation.txt` (machine-local —
+ * `kernloop init` gitignores `checkpoints/`).
+ */
+export interface ViolationSink {
+  /** Overlay directory; the file lands under its `checkpoints/`. */
+  readonly overlayDir: string;
+  readonly runId: string;
+  /** Node label for the file name, e.g. `implement-task-1.2`. */
+  readonly node: string;
+}
+
+/** Persist one violating raw output; returns the file path written. */
+export function persistViolation(sink: ViolationSink, raw: string): string {
+  const safe = (part: string): string => part.replace(/[^A-Za-z0-9._-]/g, '_');
+  const file = path.join(
+    sink.overlayDir,
+    'checkpoints',
+    `${safe(sink.runId)}-${safe(sink.node)}-violation.txt`,
+  );
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, raw, 'utf8');
+  return file;
+}
+
+/**
+ * Extract + zod-parse one model emission under a named contract. With a
+ * `sink`, a violation's raw output is persisted (honest diagnosability —
+ * no retry, no coercion; the failure stays a failure) and the re-thrown
+ * error names where it was preserved.
+ */
 export function parseEmission<T extends z.ZodType>(
   raw: string,
   schema: T,
   contract: string,
+  sink?: ViolationSink,
 ): z.output<T> {
-  const result = schema.safeParse(extractJsonObject(raw, contract));
-  if (!result.success) throw new LoopParseError(contract, z.prettifyError(result.error));
-  return result.data as z.output<T>;
+  try {
+    const result = schema.safeParse(extractJsonObject(raw, contract));
+    if (!result.success) throw new LoopParseError(contract, z.prettifyError(result.error));
+    return result.data as z.output<T>;
+  } catch (error) {
+    if (sink === undefined || !(error instanceof LoopParseError)) throw error;
+    const file = persistViolation(sink, raw);
+    throw new LoopParseError(
+      error.contract,
+      `${error.detail} (raw model output preserved at ${file})`,
+    );
+  }
 }

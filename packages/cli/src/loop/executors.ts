@@ -44,6 +44,7 @@ import {
   SubtasksEmissionSchema,
   parseEmission,
   type LoopInvoke,
+  type ViolationSink,
 } from './invoke.js';
 
 /** Cross-node values the composition root carries between executors —
@@ -103,8 +104,8 @@ function voterPrompt(rolePrompt: string, brief: Brief, proposal: string): string
     briefText(brief),
     '## Proposal under vote',
     proposal,
-    'Output contract (STRICT): respond with a single JSON object and nothing else: ' +
-      '{"vote":"approve"|"reject"|"abstain","reasoning":"<why>"}',
+    'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
+      'commentary before or after: {"vote":"approve"|"reject"|"abstain","reasoning":"<why>"}',
   ].join('\n\n');
 }
 
@@ -120,10 +121,13 @@ function decomposePrompt(parent: TaskContract, planText: string): string {
     ),
     '## Ratified plan',
     planText,
-    'Output contract (STRICT): respond with a single JSON object and nothing else: ' +
+    'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
+      'commentary before or after. Exact shape: ' +
       '{"subtasks":[{"goal":"…","budget":{"tokens":N,"usd":N,"wallClockMin":N},' +
-      '"assignTo":"pm|coder|reviewer|documenter|researcher"}]} — subtask budgets must sum ' +
-      'within the parent budget on every dimension.',
+      '"assignTo":"pm|coder|reviewer|documenter|researcher"}]}. Subtask budgets must sum ' +
+      'within the parent budget on every dimension. Every subtask must be implementable as ' +
+      'concrete file changes in the workspace — no review-only, research-only, or process ' +
+      'subtasks.',
   ].join('\n\n');
 }
 
@@ -133,9 +137,11 @@ function coderPrompt(child: TaskContract): string {
     shippedTemplate('coder').rolePrompt,
     '## Child task',
     JSON.stringify({ id: child.id, goal: child.goal, constraints: child.constraints }, null, 2),
-    'Output contract (STRICT): respond with a single JSON object and nothing else: ' +
-      '{"files":[{"path":"relative/path.ts","content":"…"}],"notes":"…"} — paths are ' +
-      'relative to the workspace root.',
+    'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
+      'commentary before or after. Exact shape: ' +
+      '{"files":[{"path":"relative/path.ts","content":"<COMPLETE file content>"}],"notes":"…"}. ' +
+      '"files" MUST contain at least one entry; each entry carries the complete final ' +
+      'content of that file; paths are relative to the workspace root.',
   ].join('\n\n');
 }
 
@@ -178,12 +184,19 @@ async function publishVerdict(kern: Kernloop, verdict: Verdict): Promise<void> {
   });
 }
 
+/** A violation sink under this run's overlay, labelled with the node. */
+function sinkFor(b: LoopBindings, runId: string, node: string): ViolationSink {
+  return { overlayDir: b.kern.paths.dir, runId, node };
+}
+
 /** Bind `invoke` as the vote gate's voter seam under the ballot contract. */
-function voterInvoker(invoke: LoopInvoke): InvokeVoter {
+function voterInvoker(b: LoopBindings, runId: string): InvokeVoter {
   return async (voter, brief, proposal) => {
-    const { output, cost } = await invoke(voterPrompt(voter.rolePrompt, brief, proposal));
-    // A malformed ballot throws here, so the gate records an honest abstain.
-    const ballot = parseEmission(output, BallotEmissionSchema, 'ballot');
+    const { output, cost } = await b.invoke(voterPrompt(voter.rolePrompt, brief, proposal));
+    // A malformed ballot throws here (raw output preserved for diagnosis),
+    // so the gate records an honest abstain.
+    const sink = sinkFor(b, runId, `vote-${voter.name}`);
+    const ballot = parseEmission(output, BallotEmissionSchema, 'ballot', sink);
     return { ...ballot, cost };
   };
 }
@@ -257,7 +270,7 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
       brief: b.refs.researchBrief ?? planBrief,
       panel: ctx.config.gates.vote.panel === 7 ? PANEL_RATIFICATION : PANEL_DEFAULT,
       strategy: ctx.config.gates.vote.strategy,
-      invokeVoter: voterInvoker(b.invoke),
+      invokeVoter: voterInvoker(b, ctx.runId),
     });
     await publishVerdict(b.kern, verdict);
     return verdict;
@@ -273,7 +286,8 @@ function decomposeExecutor(b: LoopBindings): NodeExecutor {
       throw new Error(`decompose reached without framed task + plan (run ${ctx.runId})`);
     }
     const { output } = await b.invoke(decomposePrompt(parent, briefText(plan)));
-    const emission = parseEmission(output, SubtasksEmissionSchema, 'subtasks');
+    const sink = sinkFor(b, ctx.runId, 'decompose');
+    const emission = parseEmission(output, SubtasksEmissionSchema, 'subtasks', sink);
     return decomposePlan({ parent, subtasks: emission.subtasks as SubtaskSpec[] });
   };
 }
@@ -283,7 +297,8 @@ function implementExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const child = TaskContractSchema.parse(input);
     const { output, cost } = await b.invoke(coderPrompt(child));
-    const emission = parseEmission(output, FilesEmissionSchema, 'files');
+    const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
+    const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
     const notes = emission.notes === '' ? '' : ` — ${emission.notes}`;
     return OutcomeSchema.parse({
