@@ -1,0 +1,20 @@
+{
+  "name": "@kernloop/claims",
+  "version": "0.1.0",
+  "description": "Kernloop claims registry + claims:check gate — every capability statement is backed by a claim whose evidence resolves (spec §1 rule 2).",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.4"
+  }
+}

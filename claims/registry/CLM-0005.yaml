@@ -1,0 +1,13 @@
+id: CLM-0005
+statement: >-
+  Manifests carry governance as data: authority tier, maturity, optional
+  promotion threshold, and claim references are schema-enforced, with
+  unknown tiers and malformed claim ids rejected at parse time.
+evidence:
+  - 'test:packages/contracts/src/manifest.test.ts::parses a valid Manifest'
+  - 'test:packages/contracts/src/manifest.test.ts::parses without the optional promotion field and with empty claims'
+  - 'test:packages/contracts/src/manifest.test.ts::rejects unknown tier, kind, and maturity enum values'
+  - 'test:packages/contracts/src/manifest.test.ts::rejects malformed claim ids'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

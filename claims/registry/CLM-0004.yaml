@@ -1,0 +1,14 @@
+id: CLM-0004
+statement: >-
+  The contract surface is frozen at exactly five types — TaskContract, Brief,
+  Verdict, Outcome, Manifest — and references to any contract outside the
+  five are rejected.
+evidence:
+  - 'test:packages/contracts/src/index.test.ts::contains exactly the frozen five, keyed by CONTRACT_NAMES'
+  - 'test:packages/contracts/src/index.test.ts::maps each name to its schema'
+  - 'test:packages/contracts/src/common.test.ts::accepts exactly the frozen five names'
+  - 'test:packages/contracts/src/common.test.ts::rejects anything that is not one of the five'
+  - 'test:packages/contracts/src/manifest.test.ts::rejects contract refs outside the frozen five'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

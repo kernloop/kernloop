@@ -1,0 +1,13 @@
+id: CLM-0007
+statement: >-
+  claims:check fails on dangling evidence — a test ref naming a nonexistent
+  test, a CI ref naming a nonexistent job, a doc ref with a missing anchor,
+  or an eval ref pointing at a missing artifact each exit the gate red.
+evidence:
+  - 'test:claims/src/check.test.ts::fails a claim whose test ref names a nonexistent test'
+  - 'test:claims/src/check.test.ts::fails a claim whose ci ref names a nonexistent job'
+  - 'test:claims/src/check.test.ts::fails a claim whose doc anchor is missing'
+  - 'test:claims/src/check.test.ts::fails a claim whose eval artifact does not exist'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

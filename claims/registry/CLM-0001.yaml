@@ -1,0 +1,14 @@
+id: CLM-0001
+statement: >-
+  Kernloop's five contracts are zod-validated: malformed messages — missing
+  fields, unknown enum values, wrong types, negative budgets — are rejected
+  at parse time.
+evidence:
+  - 'test:packages/contracts/src/task-contract.test.ts::rejects when a required field is missing'
+  - 'test:packages/contracts/src/task-contract.test.ts::rejects an unknown authorityCeiling tier'
+  - 'test:packages/contracts/src/task-contract.test.ts::rejects wrong field types'
+  - 'test:packages/contracts/src/task-contract.test.ts::rejects negative or malformed budgets'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

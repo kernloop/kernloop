@@ -1,0 +1,9 @@
+id: CLM-0008
+statement: >-
+  A claim marked verified without at least one test evidence ref fails
+  claims:check.
+evidence:
+  - 'test:claims/src/check.test.ts::fails a verified claim that has zero test evidence'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

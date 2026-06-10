@@ -1,0 +1,13 @@
+id: CLM-0003
+statement: >-
+  All five contracts survive JSON round-trip serialization: parsing the
+  stringified form of a valid contract yields a value equal to the original.
+evidence:
+  - 'test:packages/contracts/src/task-contract.test.ts::round-trips through JSON serialization'
+  - 'test:packages/contracts/src/brief.test.ts::round-trips through JSON serialization'
+  - 'test:packages/contracts/src/verdict.test.ts::round-trips through JSON serialization'
+  - 'test:packages/contracts/src/outcome.test.ts::round-trips through JSON serialization'
+  - 'test:packages/contracts/src/manifest.test.ts::round-trips through JSON serialization'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

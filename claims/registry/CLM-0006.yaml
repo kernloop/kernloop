@@ -1,0 +1,13 @@
+id: CLM-0006
+statement: >-
+  All five contracts reject unknown top-level keys, so field drift fails at
+  parse time instead of passing silently across the bus.
+evidence:
+  - 'test:packages/contracts/src/task-contract.test.ts::rejects unknown top-level keys (the contract is frozen)'
+  - 'test:packages/contracts/src/brief.test.ts::rejects wrong field types and unknown keys'
+  - 'test:packages/contracts/src/verdict.test.ts::rejects negative cost and unknown keys'
+  - 'test:packages/contracts/src/outcome.test.ts::rejects negative cost and unknown keys'
+  - 'test:packages/contracts/src/manifest.test.ts::rejects negative cost profile values and unknown keys'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

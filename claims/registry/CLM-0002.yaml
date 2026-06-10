@@ -1,0 +1,10 @@
+id: CLM-0002
+statement: >-
+  The authority ladder is a closed four-tier enum — observe, suggest,
+  advisory, enforce — and any other tier value is rejected at parse time.
+evidence:
+  - 'test:packages/contracts/src/common.test.ts::accepts each of the four ladder tiers'
+  - 'test:packages/contracts/src/common.test.ts::rejects unknown tier values'
+status: verified
+owner: williamzujkowski
+since: 0.1.0
