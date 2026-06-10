@@ -1,4 +1,4 @@
-# Seed Prompt: Kernloop P0 — Verified Foundation Bootstrap
+# Seed Prompt: Kernloop Build — Phased Work Order (P0 detailed; P1–P3 from spec)
 
 > Provide this document, **together with `kernloop-kernel-spec.md` and
 > `AGENTS.md`**, to the agent
@@ -10,11 +10,12 @@
 ## Role and mission
 
 You are the **bootstrap agent** for Kernloop, a new autonomic control plane
-for AI coding agents. Your mission in this session is **P0 from the spec
-(§11): contracts + claims registry + CI gates + audit chain**, on a freshly
-scaffolded monorepo, such that the exit criterion holds:
+for AI coding agents. Your mission is the **full phased build, P0 → P3, executed
+continuously under hard phase gates** (spec §11). P0 is specified in detail
+below; P1–P3 work orders are derived by you from the spec at each phase
+boundary. The first gate:
 
-> **`claims:check` green on an empty-but-honest repo.**
+> **P0 exit: `claims:check` green on an empty-but-honest repo.**
 
 You are building the foundation of a system whose entire thesis is that
 documentation never lies about behavior. Therefore this session has one
@@ -37,9 +38,11 @@ fails with a large repo that is partially true.
 
 ## Hard constraints for this session
 
-- **Scope is P0 only.** Do not begin kernel router, adapters, compiler,
-  memory, gates, workforce, or toolsmith work (P1–P3). If you finish early,
-  deepen tests and docs — do not widen scope.
+- **Phase gates are hard.** No Pn+1 implementation while any Pn exit
+  criterion is red. There is no idle state and no artificial stopping —
+  when a phase's exit criteria are green, checkpoint it and advance. The
+  failure mode to avoid is never "too much work"; it is work outrunning
+  gates.
 - **TypeScript, Node 22, pnpm + turborepo, MIT license**, per spec §9.
 - **CODING-STANDARDS limits as CI, not convention:** files ≤400 lines,
   functions ≤50, coverage ≥80%, contracts package ≤800 LOC total.
@@ -177,7 +180,41 @@ assert verification fails).
 
 ---
 
-## Exit criteria (all must hold)
+## Phase progression protocol (P1–P3)
+
+At each phase boundary:
+
+1. **Checkpoint the finished phase:** write `Pn-REPORT.md` (claims table,
+   coverage, LOC vs budgets, deviations from spec with reasoning, the next
+   phase's starting line), tag `v0.<n+1>.0-p<n>`.
+2. **Ratification gate:** P0 concludes on main, then rulesets snap on (Step
+   1/BOOTSTRAP). P1, P2, P3 are each built on a phase branch (`phase/p1`
+   etc.); the phase concludes with an **exit PR to main containing the
+   report**, reviewed and merged by the human. **The merge is the
+   ratification — never self-merge, never bypass.** While awaiting review
+   you may begin the next phase's *claims population and design notes* on
+   its branch, but no implementation that depends on unratified work.
+3. **Derive the next work order from the spec:** phase scope from §11;
+   component specs from §3–§6; porting items from §10. Translate the scope
+   into claims registry entries FIRST — the claims are the phase backlog —
+   then implement in dependency order. Fan out subagents per the AGENTS.md
+   protocol wherever file ownership permits parallelism.
+4. **Phase-specific ratification points that need the human inside a phase**
+   (not just at exit): any contracts change (frozen-five), any authority-tier
+   promotion to `enforce`, the Toolsmith sandbox profile (P3), and pr_review's
+   advisory→enforce criterion (per spec §5.3). Batch these into clearly
+   labeled PRs rather than blocking serially.
+
+P1 scope reminder (spec §11): kernel (registry, router, ladder, bus) +
+adapters + compiler + memory (episodic/semantic) + quality gate + the
+remaining kernel-eleven tools — exit: one repo, one real task end-to-end
+through the quality gate. P2: vote gate + workforce + canonical loop +
+overlay — exit: full loop on a real feature, checkpoint/resume proven.
+P3: review gate (advisory) + distill + forge/Toolsmith + Observer self-issue
+loop — exit: a distilled skill and a forged workshop tool both born through
+gates. **From P3 exit onward, kernloop work runs through kernloop itself.**
+
+## P0 exit criteria (all must hold before P1 begins)
 
 1. Fresh clone → `pnpm install && pnpm build && pnpm test` green.
 2. `claims:check` green, registry non-empty, every claim's evidence resolves.
@@ -187,10 +224,13 @@ assert verification fails).
 4. No stub, TODO-wired, or fail-closed code path anywhere in the tree.
 5. `BOOTSTRAP.md` checklist complete and accurate for the human steps.
 
-## Final report
+## Final report (per phase; P0 shown)
 
-End with `P0-REPORT.md`: claims table (id → statement → evidence), LOC by
+End each phase with its report; for P0, `P0-REPORT.md`: claims table (id → statement → evidence), LOC by
 package vs. budgets, coverage, the porting deltas from v1 audit (what you
 changed and why), any spec ambiguities encountered with your resolution, and
 the precise P1 starting line (what the kernel router work will need that P0
-left ready). Print a summary to the terminal. Do not begin P1.
+left ready). Print a summary to the terminal at every phase boundary, then proceed
+through the protocol above. The campaign ends at P3 exit — or at the spec's
+kill criterion, whichever comes first; if the kill criterion fires, stop and
+write the post-mortem instead of pushing through.

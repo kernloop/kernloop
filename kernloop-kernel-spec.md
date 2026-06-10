@@ -381,7 +381,11 @@ human-directed frontier agent (Fable) using the AGENTS.md fan-out protocol;
 nexus-agents v1 serves only as read-only quarry and as ratification panel
 (`consensus_vote`) until kernloop's own vote gate exists. **From P3 onward,
 kernloop work is executed through kernloop itself** — self-hosting is a P3
-exit property, not a bootstrap assumption.
+exit property, not a bootstrap assumption. Execution is continuous and
+phase-gated: P0 on main pre-ruleset; P1–P3 on phase branches whose exit PRs
+(containing the phase report) are merged by the human — the merge is the
+ratification. Claims population precedes implementation within every phase;
+the registry is the backlog and the triage order.
 
 **Kill criterion:** P0–P2 complete, claims:check continuously green, within
 4–6 weeks at your actual pace. Miss it → stop, write the post-mortem, and

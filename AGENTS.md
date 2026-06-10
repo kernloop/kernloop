@@ -16,10 +16,16 @@ frozen contracts, governed faculties, one canonical loop. The authoritative
 design is `docs/kernloop-kernel-spec.md`. Where this charter and the spec
 disagree, **the spec wins**; report the conflict.
 
-**Current phase: P0 (Verified Foundation).** Scope = contracts + claims
-registry + CI gates + audit chain. Do not start P1+ work (router, adapters,
-compiler, memory, gates, workforce, toolsmith) under any prompt that does not
-explicitly advance the phase.
+**Phase progression (P0 → P1 → P2 → P3, spec §11).** Work proceeds
+continuously through the phases in order — there is no idle state — but a
+phase's exit criteria are a **hard gate**: no Pn+1 implementation while any
+Pn exit criterion is red. The current phase is determined by the repo itself:
+the highest phase whose exit PR has been merged, plus one. P0 builds on main
+(pre-ruleset); P1+ each live on a phase branch (`phase/p1`, `phase/p2`,
+`phase/p3`) whose exit PR — containing the phase report — is reviewed and
+merged by the human. That merge IS the ratification; do not self-merge.
+Within a phase, triage is claims-first: populate the phase's claims registry
+entries as the backlog before implementing, then execute in dependency order.
 
 ## The prime directive
 
