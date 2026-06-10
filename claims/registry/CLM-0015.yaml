@@ -1,7 +1,11 @@
 id: CLM-0015
 statement: >-
   The manifest registry rejects invalid manifests at registration and is the single source of capability truth for lookup.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/kernel/src/registry/manifest-registry.test.ts::rejects an invalid manifest at registration with a typed error'
+  - 'test:packages/kernel/src/registry/manifest-registry.test.ts::rejects a duplicate name@version registration with a typed error'
+  - 'test:packages/kernel/src/registry/manifest-registry.test.ts::findByCapability returns only registered manifests advertising the capability'
+  - 'test:packages/kernel/src/registry/manifest-registry.test.ts::get returns the most recently registered version by default and an exact version on request'
+status: verified
 owner: williamzujkowski
 since: 0.2.0

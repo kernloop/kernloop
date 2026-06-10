@@ -1,7 +1,10 @@
 id: CLM-0016
 statement: >-
   The ladder blocks any routed action whose required tier exceeds the manifest's tier or the task's authorityCeiling.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::denies an action whose required tier exceeds the actor tier'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::denies an action whose required tier exceeds the authorityCeiling'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::audits every allow and every deny, and the chain verifies'
+status: verified
 owner: williamzujkowski
 since: 0.2.0
