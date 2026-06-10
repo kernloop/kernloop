@@ -1,0 +1,11 @@
+id: CLM-0040
+statement: >-
+  Workforce agents are configuration, not generation: PM, Coder, Reviewer, Documenter, and Researcher templates instantiate as manifests, and new templates enter at suggest tier.
+evidence:
+  - 'test:packages/faculty-workforce/src/instantiate.test.ts::each of the five shipped templates instantiates to a ManifestSchema-valid agentTemplate manifest'
+  - 'test:packages/faculty-workforce/src/instantiate.test.ts::shipped templates instantiate stable at suggest tier with empty claims'
+  - 'test:packages/faculty-workforce/src/instantiate.test.ts::a custom template enters at suggest tier with experimental maturity'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.3.0

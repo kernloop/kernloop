@@ -27,14 +27,10 @@ import {
 } from '@kernloop/kernel';
 import { createMemory, memoryManifest, type Memory } from '@kernloop/faculty-memory';
 import { compilerManifest } from '@kernloop/faculty-compiler';
-import { qualityGateManifest } from '@kernloop/faculty-gates';
+import { qualityGateManifest, voteGateManifest } from '@kernloop/faculty-gates';
+import { workflowsManifest } from '@kernloop/workflows';
 import type { Manifest } from '@kernloop/contracts';
-import {
-  loadOverlayConfig,
-  overlayPaths,
-  type OverlayConfig,
-  type OverlayPaths,
-} from './overlay.js';
+import { loadOverlay, overlayPaths, type Overlay, type OverlayPaths } from './overlay.js';
 import { buildExecutors, type CapabilityExecutor } from './executors.js';
 
 /** The three P1 faculty manifests this root registers (spec §5.1–5.3). */
@@ -44,10 +40,14 @@ export const P1_FACULTY_MANIFESTS: readonly Manifest[] = [
   qualityGateManifest,
 ];
 
+/** The P2 manifests: the vote gate (spec §5.3, tier `advisory`) and the
+ * canonical loop engine (spec §6, tier `suggest`) [CLM-0046]. */
+export const P2_MANIFESTS: readonly Manifest[] = [voteGateManifest, workflowsManifest];
+
 /** The assembled system every tool operates on. */
 export interface Kernloop {
   readonly paths: OverlayPaths;
-  readonly config: OverlayConfig;
+  readonly config: Overlay;
   readonly store: AuditStore;
   readonly bus: EventBus;
   readonly registry: ManifestRegistry;
@@ -84,7 +84,7 @@ function seedTier(ladder: Ladder, manifest: Manifest): void {
 export function createKernloop(options: CreateKernloopOptions): Kernloop {
   const paths = overlayPaths(options.overlayDir);
   mkdirSync(paths.dir, { recursive: true }); // SQLite needs the directory to exist
-  const config = loadOverlayConfig(paths);
+  const config = loadOverlay(paths.dir);
   const clock = options.clock;
   const store = createAuditStore(paths.audit, clock === undefined ? undefined : { clock });
   const bus = new EventBus(store);
@@ -99,7 +99,7 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
     paths.memory,
     clock === undefined ? {} : { clock: () => clock().getTime() },
   );
-  for (const manifest of P1_FACULTY_MANIFESTS) {
+  for (const manifest of [...P1_FACULTY_MANIFESTS, ...P2_MANIFESTS]) {
     registry.register(manifest);
     seedTier(ladder, manifest);
   }

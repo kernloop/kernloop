@@ -15,18 +15,29 @@ import { z } from 'zod';
 import {
   TaskContractSchema,
   TierSchema,
+  type Finding,
   type Outcome,
   type TaskContract,
   type Tier,
   type Verdict,
 } from '@kernloop/contracts';
-import { RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
+import { ADAPTER_NAMES, RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import type { Kernloop } from '../kernel.js';
+import {
+  LoopResumeError,
+  checkpointFile,
+  loadCheckpointTask,
+  type LoopInvoke,
+} from '../loop/index.js';
 
-/** Input to the `run` tool — a goal plus optional TaskContract overrides. */
+/**
+ * Input to the `run` tool — a goal plus optional TaskContract overrides.
+ * `goal` is optional ONLY because `resume` replaces it: a resumed loop run
+ * takes its task from the checkpoint (enforced in {@link runTool}).
+ */
 export const RunInputSchema = z.strictObject({
-  goal: z.string().min(1),
+  goal: z.string().min(1).optional(),
   capability: z.string().min(1),
   workspaceDir: z.string().min(1).optional(),
   execute: z.boolean().default(true),
@@ -42,6 +53,10 @@ export const RunInputSchema = z.strictObject({
     .optional(),
   authorityCeiling: TierSchema.default('advisory'),
   overlay: z.string().min(1).optional(),
+  /** Adapter the canonical loop's model calls flow through (spec §3.1). */
+  adapter: z.enum(ADAPTER_NAMES).default('claude'),
+  /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
+  resume: z.string().min(1).optional(),
 });
 export type RunInput = z.input<typeof RunInputSchema>;
 
@@ -67,7 +82,17 @@ export type RunResult =
       selected: string;
       error: { code: 'no_run_executor'; message: string };
     }
-  | { kind: 'outcome'; task: TaskContract; outcome: Outcome; verdict?: Verdict; data?: unknown };
+  | { kind: 'outcome'; task: TaskContract; outcome: Outcome; verdict?: Verdict; data?: unknown }
+  | {
+      /** A loop run that exhausted K and HALTED — its own status, never
+       * disguised as success [CLM-0043]; resume with `--resume runId`. */
+      kind: 'escalated';
+      task: TaskContract;
+      outcome: Outcome;
+      runId: string;
+      findings: readonly Finding[];
+      data?: unknown;
+    };
 
 /** Flatten a kernel RoutingDecision into identity facts for callers. */
 export function reportDecision(decision: RoutingDecision): RoutingReport {
@@ -85,6 +110,9 @@ export function reportDecision(decision: RoutingDecision): RoutingReport {
 
 /** Build the TaskContract from input + overlay defaults (spec §4 fields). */
 export function buildTask(kern: Kernloop, input: z.output<typeof RunInputSchema>): TaskContract {
+  if (input.goal === undefined) {
+    throw new Error('goal is required unless --resume names a checkpointed loop run');
+  }
   return TaskContractSchema.parse({
     id: input.id ?? `task-${randomUUID()}`,
     ...(input.parent === undefined ? {} : { parent: input.parent }),
@@ -109,28 +137,24 @@ function requiredTierFor(kern: Kernloop, capability: string): Tier {
   return matches[0]?.tier ?? 'observe';
 }
 
-/** Execute the routed capability and close out the task as an Outcome. */
-async function executeAndRecord(
+/** Executor pass-throughs the run tool forwards (loop seam included). */
+interface ExecutorOptions {
+  workspaceDir?: string;
+  checks?: readonly QualityCheck[];
+  adapter?: z.output<typeof RunInputSchema>['adapter'];
+  invoke?: LoopInvoke;
+  resumeRunId?: string;
+}
+
+/** Close out one executed capability: publish + persist + audit the Outcome. */
+async function recordOutcome(
   kern: Kernloop,
   task: TaskContract,
   capability: string,
   selected: string,
-  options: { workspaceDir?: string; checks?: readonly QualityCheck[] },
-): Promise<RunResult> {
-  const executor = kern.executors.get(capability);
-  if (executor === undefined) {
-    return {
-      kind: 'unwired',
-      task,
-      selected,
-      error: {
-        code: 'no_run_executor',
-        message: `capability "${capability}" is wired through its own entry point (remember / Outcome recording), not through run`,
-      },
-    };
-  }
-  const started = Date.now();
-  const result = await executor({ task, ...options });
+  started: number,
+  result: { status: Outcome['status']; signals: Outcome['signals']; cost: Outcome['cost'] },
+): Promise<Outcome> {
   const outcome: Outcome = {
     taskId: task.id,
     status: result.status,
@@ -154,19 +178,78 @@ async function executeAndRecord(
       wallClockMs: outcome.cost.wallClockMs ?? 0,
     },
   });
+  return outcome;
+}
+
+/** Execute the routed capability and close out the task as an Outcome. */
+async function executeAndRecord(
+  kern: Kernloop,
+  task: TaskContract,
+  capability: string,
+  selected: string,
+  options: ExecutorOptions,
+): Promise<RunResult> {
+  const executor = kern.executors.get(capability);
+  if (executor === undefined) {
+    return {
+      kind: 'unwired',
+      task,
+      selected,
+      error: {
+        code: 'no_run_executor',
+        message: `capability "${capability}" is wired through its own entry point (remember / Outcome recording), not through run`,
+      },
+    };
+  }
+  const started = Date.now();
+  const result = await executor({ task, ...options });
+  const outcome = await recordOutcome(kern, task, capability, selected, started, result);
+  if (result.escalation !== undefined) {
+    return {
+      kind: 'escalated',
+      task,
+      outcome,
+      runId: result.escalation.runId,
+      findings: result.escalation.findings,
+      data: result.data,
+    };
+  }
   return result.verdict === undefined
     ? { kind: 'outcome', task, outcome, data: result.data }
     : { kind: 'outcome', task, outcome, verdict: result.verdict, data: result.data };
+}
+
+/**
+ * The task a run operates on: built from the input, or — on `--resume` —
+ * loaded from the run's checkpoint (the checkpointed task is the truth; a
+ * freshly built one would lie about what resumes). Resume is a
+ * canonical-loop concern only.
+ */
+async function resolveTask(
+  kern: Kernloop,
+  parsed: z.output<typeof RunInputSchema>,
+): Promise<TaskContract> {
+  if (parsed.resume === undefined) return buildTask(kern, parsed);
+  if (parsed.capability !== 'workflow.canonical') {
+    throw new Error(
+      `--resume resumes a canonical-loop run: capability must be "workflow.canonical", got "${parsed.capability}"`,
+    );
+  }
+  const task = await loadCheckpointTask(kern, parsed.resume);
+  if (task === undefined) {
+    throw new LoopResumeError(parsed.resume, checkpointFile(kern.paths.dir, parsed.resume));
+  }
+  return task;
 }
 
 /** The `run` tool. See module docs. */
 export async function runTool(
   kern: Kernloop,
   input: RunInput,
-  options: { checks?: readonly QualityCheck[] } = {},
+  options: { checks?: readonly QualityCheck[]; invoke?: LoopInvoke } = {},
 ): Promise<RunResult> {
   const parsed = RunInputSchema.parse(input);
-  const task = buildTask(kern, parsed);
+  const task = await resolveTask(kern, parsed);
   await kern.bus.publish('TaskContract', task);
   let decision;
   try {
@@ -205,5 +288,8 @@ export async function runTool(
   return executeAndRecord(kern, task, parsed.capability, selected, {
     ...(parsed.workspaceDir === undefined ? {} : { workspaceDir: parsed.workspaceDir }),
     ...(options.checks === undefined ? {} : { checks: options.checks }),
+    ...(options.invoke === undefined ? {} : { invoke: options.invoke }),
+    adapter: parsed.adapter,
+    ...(parsed.resume === undefined ? {} : { resumeRunId: parsed.resume }),
   });
 }

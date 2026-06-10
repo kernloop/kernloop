@@ -78,9 +78,15 @@ importers:
       '@kernloop/faculty-memory':
         specifier: workspace:*
         version: link:../faculty-memory
+      '@kernloop/faculty-workforce':
+        specifier: workspace:*
+        version: link:../faculty-workforce
       '@kernloop/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@kernloop/workflows':
+        specifier: workspace:*
+        version: link:../workflows
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -142,7 +148,29 @@ importers:
         specifier: ^22.19.11
         version: 22.19.20
 
+  packages/faculty-workforce:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   packages/kernel:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.11
+        version: 22.19.20
+
+  packages/workflows:
     dependencies:
       '@kernloop/contracts':
         specifier: workspace:*

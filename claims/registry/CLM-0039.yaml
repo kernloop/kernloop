@@ -1,0 +1,9 @@
+id: CLM-0039
+statement: >-
+  Voters on one gate panel share a single compiled Brief — one compile, n voters.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::passes the identical Brief object to every voter'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.3.0

@@ -1,0 +1,16 @@
+id: CLM-0037
+statement: >-
+  The vote gate aggregates a panel of voters into one Verdict under simple-majority, super-majority, or unanimous strategies — three voters by default, seven at plan ratification.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::simple majority approves 2-1 and rejects 1-2'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::rejects an exact tie (a tie is not a majority)'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::supermajority approves at exactly two thirds and rejects below'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::unanimous rejects on any rejection and requires at least one approval'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::an all-abstain panel abstains under every strategy'
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::convenes the default 3-voter panel when no panel is given'
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::convenes the 7-voter ratification panel when given'
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::emits a schema-valid Verdict for the vote gate'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.3.0

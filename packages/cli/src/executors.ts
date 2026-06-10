@@ -11,6 +11,10 @@
  *                              gathered by the composition root
  *  - `memory.semantic.recall`→ memory faculty recall on the task goal
  *  - `memory.episodic.read`  → memory faculty trace summaries
+ *  - `workflow.canonical`    → the canonical loop (spec §6) through the
+ *                              workflows engine over real executors
+ *                              [CLM-0046]; escalation surfaces as its own
+ *                              result, never disguised as success
  *
  * `memory.semantic.write` and `memory.episodic.write` have NO run-executor:
  * a TaskContract carries no fact payload to write, so wiring them here would
@@ -18,18 +22,25 @@
  * `remember` tool and `run`'s own Outcome recording.
  */
 import { defaultQualityChecks, runQualityGate, type QualityCheck } from '@kernloop/faculty-gates';
-import type { Cost, Outcome, Signal, TaskContract, Verdict } from '@kernloop/contracts';
-import { appendEvent } from '@kernloop/kernel';
+import type { Cost, Finding, Outcome, Signal, TaskContract, Verdict } from '@kernloop/contracts';
+import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import type { Kernloop } from './kernel.js';
 import { assembleBrief } from './gather.js';
+import { executeCanonicalLoop, type LoopInvoke, type LoopReport } from './loop/index.js';
 
 /** Per-invocation context handed to an executor by the run tool. */
 export interface ExecutionContext {
   readonly task: TaskContract;
-  /** Workspace the capability operates on (required by `gate.quality`). */
+  /** Workspace the capability operates on (gate.quality, workflow.canonical). */
   readonly workspaceDir?: string;
   /** Programmatic check override for the quality gate (tests only). */
   readonly checks?: readonly QualityCheck[];
+  /** Adapter the loop's default invoke binds to (workflow.canonical). */
+  readonly adapter?: AdapterName;
+  /** Injectable model seam for the loop (tests script it). */
+  readonly invoke?: LoopInvoke;
+  /** Resume this checkpointed loop run instead of starting fresh. */
+  readonly resumeRunId?: string;
 }
 
 /** What one executed capability reports back to the run tool. */
@@ -39,8 +50,10 @@ export interface ExecutionResult {
   readonly cost: Cost;
   /** The Verdict, when the capability is a gate. */
   readonly verdict?: Verdict;
-  /** Capability-specific payload (brief, recalled facts, summaries). */
+  /** Capability-specific payload (brief, recalled facts, loop report). */
   readonly data?: unknown;
+  /** Set when a loop run escalated: the K bound was exhausted [CLM-0043]. */
+  readonly escalation?: { runId: string; findings: readonly Finding[] };
 }
 
 /** One wired capability. */
@@ -61,6 +74,8 @@ export interface QualityGateRequest {
   readonly taskId: string;
   readonly workspaceDir: string;
   readonly checks?: readonly QualityCheck[];
+  /** Per-check timeout override (the overlay's gates.quality knob). */
+  readonly timeoutMsPerCheck?: number;
 }
 
 /**
@@ -78,6 +93,9 @@ export async function executeQualityGate(
     taskId: request.taskId,
     workspaceDir: request.workspaceDir,
     checks: request.checks ?? defaultQualityChecks(),
+    ...(request.timeoutMsPerCheck === undefined
+      ? {}
+      : { timeoutMsPerCheck: request.timeoutMsPerCheck }),
   });
   await kern.bus.publish('Verdict', verdict);
   appendEvent(kern.store, {
@@ -178,6 +196,54 @@ function episodicReadExecutor(kern: Kernloop): CapabilityExecutor {
   };
 }
 
+/** Map a finished loop report into the run tool's execution result. */
+function loopExecutionResult(report: LoopReport): ExecutionResult {
+  const error =
+    report.error === undefined ? '' : ` — ${report.error.code}: ${report.error.message}`;
+  const status: Outcome['status'] =
+    report.status === 'completed'
+      ? (report.outcome?.status ?? 'failure')
+      : report.status === 'escalated'
+        ? 'partial'
+        : 'failure';
+  return {
+    status,
+    signals: [
+      {
+        name: 'loop:canonical',
+        passed: report.status === 'completed' && report.outcome?.status === 'success',
+        detail: `${report.status} after ${String(report.nodeTrace.length)} node step(s)${error}`,
+      },
+    ],
+    cost: report.cost,
+    data: report,
+    ...(report.status === 'escalated'
+      ? { escalation: { runId: report.runId, findings: report.findings ?? [] } }
+      : {}),
+  };
+}
+
+/** Executor for `workflow.canonical` — the full loop over a workspace [CLM-0046]. */
+function workflowCanonicalExecutor(kern: Kernloop): CapabilityExecutor {
+  return async ({ task, workspaceDir, checks, adapter, invoke, resumeRunId }) => {
+    if (workspaceDir === undefined) {
+      throw new ExecutionError(
+        'workspace_required',
+        'workflow.canonical needs a workspaceDir — the loop children implement into it',
+      );
+    }
+    const report = await executeCanonicalLoop(kern, {
+      task,
+      workspaceDir,
+      ...(adapter === undefined ? {} : { adapter }),
+      ...(invoke === undefined ? {} : { invoke }),
+      ...(resumeRunId === undefined ? {} : { resumeRunId }),
+      ...(checks === undefined ? {} : { checks }),
+    });
+    return loopExecutionResult(report);
+  };
+}
+
 /** Build the capability-executor map for one assembled system. */
 export function buildExecutors(kern: Kernloop): ReadonlyMap<string, CapabilityExecutor> {
   return new Map<string, CapabilityExecutor>([
@@ -185,5 +251,6 @@ export function buildExecutors(kern: Kernloop): ReadonlyMap<string, CapabilityEx
     ['brief.compile', briefCompileExecutor(kern)],
     ['memory.semantic.recall', semanticRecallExecutor(kern)],
     ['memory.episodic.read', episodicReadExecutor(kern)],
+    ['workflow.canonical', workflowCanonicalExecutor(kern)],
   ]);
 }

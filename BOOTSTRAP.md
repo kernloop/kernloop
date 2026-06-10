@@ -104,6 +104,21 @@ gh api repos/kernloop/kernloop/rulesets -X POST --input - <<'EOF'
 EOF
 ```
 
+**Amendment (2026-06-10, human-instructed):** the require-review rule
+deadlocks a solo-maintainer repo — GitHub forbids authors approving their own
+PRs, and every PR here is authored under the maintainer's token. A
+Repository-admin bypass scoped to **pull requests only** was added (ratified
+in-session by the human before the P1 merge): admins may merge a PR lacking a
+second reviewer; direct pushes and force-pushes remain blocked for everyone;
+bypass use is recorded by GitHub. Applied with:
+
+```bash
+gh api repos/kernloop/kernloop/rulesets/17478829 -X PUT --input - <<'EOF'
+{ "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" } ] }
+EOF
+```
+
 Secret scanning + push protection + Dependabot alerts:
 
 ```bash

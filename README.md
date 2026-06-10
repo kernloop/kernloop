@@ -50,6 +50,16 @@ The MCP surface exposes exactly nine kernel tools in P1 — run, status, brief, 
 The run entry point routes a TaskContract via manifests and returns an Outcome with every routing decision audited [CLM-0034]; the audit tool queries and verifies the chain on demand [CLM-0035].
 One real task has run end-to-end through the quality gate — Verdict, Outcome, and verifiable audit chain included [CLM-0036].
 
+The vote gate aggregates voter panels into one Verdict under simple-majority, super-majority, or unanimous strategies — three voters by default, seven at plan ratification [CLM-0037].
+Every voter's vote and reasoning is recorded for precision tracking [CLM-0038], and one compiled Brief is shared across the whole panel [CLM-0039].
+Workforce agents are configuration, not generation: five shipped templates instantiate as manifests, and new templates enter at suggest tier [CLM-0040].
+The PM decomposes plans into child TaskContracts whose budgets must sum within the parent's [CLM-0041].
+The canonical loop is declared as data, every edge carrying a contract and every gate emitting a Verdict [CLM-0042].
+The vote-iterate cycle is bounded at K iterations before escalating to the human [CLM-0043].
+Per-node checkpoints make any run resumable: a run killed mid-loop resumes and completes without re-running finished nodes [CLM-0044].
+A repo overlay overrides gate thresholds, K, budgets, and loop nodes as data — never by duplicating the graph [CLM-0045].
+The full canonical loop has run on a real feature in a real repository, end to end through vote and quality gates [CLM-0046].
+
 <!-- claims:end -->
 
 ## The claims registry

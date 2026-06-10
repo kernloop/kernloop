@@ -98,7 +98,7 @@ describe('MCP server surface', () => {
     const manifests = parseResult(
       await client.callTool({ name: 'manifest', arguments: { op: 'list' } }),
     ) as { manifests: unknown[] };
-    expect(manifests.manifests).toHaveLength(3);
+    expect(manifests.manifests).toHaveLength(5);
     const audit = parseResult(
       await client.callTool({ name: 'audit', arguments: { op: 'verify' } }),
     ) as { result: { ok: boolean } };

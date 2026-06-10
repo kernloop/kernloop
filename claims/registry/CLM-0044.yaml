@@ -1,0 +1,14 @@
+id: CLM-0044
+statement: >-
+  Per-node checkpoints make any run resumable: a run killed mid-loop resumes from its last checkpoint and completes.
+evidence:
+  - 'test:packages/workflows/src/resume.test.ts::persists a checkpoint after every node completion with the spec shape'
+  - 'test:packages/workflows/src/resume.test.ts::a run killed mid-loop resumes from its last checkpoint and completes with zero re-executions'
+  - 'test:packages/workflows/src/resume.test.ts::an abort signal mid-run leaves the last checkpoint intact and resumable'
+  - 'test:packages/workflows/src/resume.test.ts::survives a process death: a fresh engine over a fresh jsonl store resumes from disk'
+  - 'test:packages/workflows/src/checkpoints.test.ts::jsonl store round-trips checkpoints through a real file'
+  - 'test:packages/workflows/src/checkpoints.test.ts::jsonl reads skip corrupt lines and resume from the last complete checkpoint'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.3.0

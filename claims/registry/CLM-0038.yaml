@@ -1,0 +1,11 @@
+id: CLM-0038
+statement: >-
+  Every voter's vote and reasoning is recorded as a VoterRecord, feeding the per-voter precision series.
+evidence:
+  - "test:packages/faculty-gates/src/vote/run.test.ts::records every voter's vote and reasoning in panel order"
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::records a throwing voter as abstain with voter_error reasoning'
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::records a schema-invalid ballot as abstain, never coercing a vote'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.3.0

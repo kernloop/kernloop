@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { verifyChain } from '@kernloop/kernel';
-import { createKernloop, P1_FACULTY_MANIFESTS } from './kernel.js';
+import { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS } from './kernel.js';
 import { readEnvelopes } from './tools/audit.js';
 
 const dirs: string[] = [];
@@ -17,15 +17,18 @@ afterEach(() => {
 });
 
 describe('createKernloop', () => {
-  it('registers the three P1 faculty manifests in the registry', () => {
+  it('registers the three P1 faculty manifests plus the P2 vote gate and workflows', () => {
     const kern = freshKernloop();
     const names = kern.registry.list().map((m) => m.name);
     expect(names).toEqual([
       '@kernloop/faculty-memory',
       '@kernloop/faculty-compiler',
       '@kernloop/faculty-gates',
+      '@kernloop/faculty-gates/vote',
+      '@kernloop/workflows',
     ]);
     expect(P1_FACULTY_MANIFESTS).toHaveLength(3);
+    expect(P2_MANIFESTS).toHaveLength(2);
     kern.close();
   });
 
@@ -43,6 +46,8 @@ describe('createKernloop', () => {
     expect(seeded).toEqual([
       ['@kernloop/faculty-memory', 'suggest', null],
       ['@kernloop/faculty-gates', 'advisory', null],
+      ['@kernloop/faculty-gates/vote', 'advisory', null],
+      ['@kernloop/workflows', 'suggest', null],
     ]);
     kern.close();
   });
@@ -54,6 +59,7 @@ describe('createKernloop', () => {
       'gate.quality',
       'memory.episodic.read',
       'memory.semantic.recall',
+      'workflow.canonical',
     ]);
     // write capabilities flow through their real entry points, not run
     expect(kern.executors.has('memory.semantic.write')).toBe(false);
@@ -66,6 +72,17 @@ describe('createKernloop', () => {
     const result = verifyChain(kern.store);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.length).toBeGreaterThan(0);
+    kern.close();
+  });
+
+  it('threads an injected clock into every audit envelope', () => {
+    const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-kernel-'));
+    dirs.push(repo);
+    const frozen = new Date('2026-01-02T03:04:05.000Z');
+    const kern = createKernloop({ overlayDir: path.join(repo, '.kernloop'), clock: () => frozen });
+    const envelopes = readEnvelopes(kern.paths.audit);
+    expect(envelopes.length).toBeGreaterThan(0);
+    expect(envelopes.every((e) => e.ts === frozen.toISOString())).toBe(true);
     kern.close();
   });
 });
