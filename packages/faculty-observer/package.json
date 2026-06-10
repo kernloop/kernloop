@@ -1,0 +1,32 @@
+{
+  "name": "@kernloop/faculty-observer",
+  "version": "0.1.0",
+  "description": "Kernloop Layer 2 — the observer faculty (spec §5.5). P3 scope: the tool/skill/template fitness ledger, per-voter precision series, cost-per-governed-decision, drift signals, and the self-issue path at suggest tier. Bus subscription and auditing happen kernel-side at the composition root; this package exposes ingest functions only.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@kernloop/contracts": "workspace:*",
+    "better-sqlite3": "^12.10.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.19.11"
+  }
+}
