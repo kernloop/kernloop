@@ -1,7 +1,12 @@
 id: CLM-0041
 statement: >-
   The PM decomposes a ratified plan into child TaskContracts whose budgets must sum within the parent's budget.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-workforce/src/decompose.test.ts::child budgets summing exactly to the parent budget pass on every dimension'
+  - 'test:packages/faculty-workforce/src/decompose.test.ts::a token-sum violation throws BudgetExceededError naming the dimension and amounts'
+  - 'test:packages/faculty-workforce/src/decompose.test.ts::a usd-sum violation throws BudgetExceededError for the usd dimension'
+  - 'test:packages/faculty-workforce/src/decompose.test.ts::a wall-clock-sum violation throws BudgetExceededError for the wallClockMin dimension'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.3.0
