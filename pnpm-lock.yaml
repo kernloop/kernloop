@@ -78,6 +78,12 @@ importers:
       '@kernloop/faculty-memory':
         specifier: workspace:*
         version: link:../faculty-memory
+      '@kernloop/faculty-observer':
+        specifier: workspace:*
+        version: link:../faculty-observer
+      '@kernloop/faculty-toolsmith':
+        specifier: workspace:*
+        version: link:../faculty-toolsmith
       '@kernloop/faculty-workforce':
         specifier: workspace:*
         version: link:../faculty-workforce
