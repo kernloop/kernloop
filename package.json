@@ -13,6 +13,8 @@
     "test": "turbo run test && vitest run --coverage --config vitest.root.config.mjs",
     "lint": "eslint . --max-warnings 0 && node scripts/loc-check.mjs",
     "claims:check": "tsx claims/src/check.ts",
+    "governance:check": "node scripts/governance-check.mjs",
+    "audit:selftest": "node scripts/audit-selftest.mjs",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "prepare": "husky"
@@ -21,6 +23,7 @@
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
     "@eslint/js": "^10.0.1",
+    "@kernloop/kernel": "workspace:*",
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.4.1",
     "globals": "^17.6.0",

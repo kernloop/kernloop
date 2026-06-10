@@ -22,3 +22,43 @@ jobs:
       - run: pnpm lint
       - run: pnpm format
       - run: pnpm test
+
+  claims_check:
+    name: 'claims:check'
+    # Ordered after test: a green claims:check therefore implies every
+    # test-evidence ref it resolved also ran green (claims/src/resolve.ts).
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm claims:check
+
+  governance:
+    name: governance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: node scripts/governance-check.mjs
+
+  audit-selftest:
+    name: audit-selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm audit:selftest
