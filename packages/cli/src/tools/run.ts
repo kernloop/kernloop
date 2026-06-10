@@ -168,6 +168,9 @@ async function recordOutcome(
     outcome,
     `${task.goal} — ${capability} via ${selected}: ${outcome.status}`,
   );
+  // Observer fitness ledger (spec §5.5): the Outcome is attributed to the
+  // manifest the router actually selected, never a guessed subject.
+  kern.observer.ingestOutcome(outcome, { subject: selected });
   appendEvent(kern.store, {
     type: 'cli.run.outcome',
     payload: {

@@ -79,11 +79,34 @@ export interface QualityGateRequest {
 }
 
 /**
- * Run the quality gate, publish the Verdict on the bus (the publish is
- * audited — every gate Verdict appends to the chain [CLM-0032]), and append
- * a `cli.gate.verdict` telemetry event carrying the result so `observe` can
- * report pass/fail counts from real chain data. Shared by the `gate` tool
- * and the `gate.quality` run-executor.
+ * Close out one gate Verdict, whichever gate emitted it: publish it on the
+ * bus (the publish is audited — every gate Verdict appends to the chain
+ * [CLM-0032]), ingest it into the observer's voter series and
+ * cost-per-decision ledger (spec §5.5), and append a `cli.gate.verdict`
+ * telemetry event so `observe` reports real chain data. Shared by the
+ * `gate` tool (all three gates), the `gate.quality` run-executor, and the
+ * canonical loop's gate nodes.
+ */
+export async function publishVerdict(kern: Kernloop, verdict: Verdict): Promise<void> {
+  await kern.bus.publish('Verdict', verdict);
+  kern.observer.ingestVerdict(verdict);
+  appendEvent(kern.store, {
+    type: 'cli.gate.verdict',
+    payload: {
+      taskId: verdict.taskId,
+      gate: verdict.gate,
+      result: verdict.result,
+      findings: verdict.findings.length,
+      voters: (verdict.voters ?? []).map((v) => v.voter),
+      wallClockMs: verdict.cost.wallClockMs ?? 0,
+    },
+  });
+}
+
+/**
+ * Run the quality gate and close out its Verdict via
+ * {@link publishVerdict}. Shared by the `gate` tool and the `gate.quality`
+ * run-executor.
  */
 export async function executeQualityGate(
   kern: Kernloop,
@@ -97,17 +120,7 @@ export async function executeQualityGate(
       ? {}
       : { timeoutMsPerCheck: request.timeoutMsPerCheck }),
   });
-  await kern.bus.publish('Verdict', verdict);
-  appendEvent(kern.store, {
-    type: 'cli.gate.verdict',
-    payload: {
-      taskId: verdict.taskId,
-      gate: verdict.gate,
-      result: verdict.result,
-      findings: verdict.findings.length,
-      wallClockMs: verdict.cost.wallClockMs ?? 0,
-    },
-  });
+  await publishVerdict(kern, verdict);
   return verdict;
 }
 

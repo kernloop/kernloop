@@ -9,6 +9,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { createKernloop, type Kernloop } from '../kernel.js';
+import type { LoopInvoke } from '../loop/invoke.js';
+import { gateTool } from './gate.js';
 import { observeTool } from './observe.js';
 import { runTool } from './run.js';
 
@@ -70,6 +72,61 @@ describe('observeTool', () => {
       id: 'task-obs-3',
     });
     expect(observeTool(kern, {}).memory.episodicTraces).toBe(1);
+    kern.close();
+  });
+
+  it('reports empty observer arrays on a fresh overlay — never invented rows', () => {
+    const kern = freshKernloop();
+    const report = observeTool(kern, {});
+    expect(report.observer).toEqual({
+      fitnessLedger: [],
+      costPerGovernedDecision: [],
+      driftSignals: [],
+      voterSeries: [],
+    });
+    kern.close();
+  });
+
+  it('reflects the real ingested ledger: a run feeds fitness, a vote verdict feeds voter series and gate cost', async () => {
+    const kern = freshKernloop();
+    await runTool(
+      kern,
+      {
+        goal: 'feed the ledger',
+        capability: 'gate.quality',
+        workspaceDir: kern.paths.repoRoot,
+        id: 'task-obs-ledger',
+      },
+      { checks: [passingCheck] },
+    );
+    const scripted: LoopInvoke = () =>
+      Promise.resolve({
+        output: '{"vote":"approve","reasoning":"ok"}',
+        cost: { tokens: 7, usd: 0.01 },
+      });
+    await gateTool(
+      kern,
+      { gateName: 'vote', taskId: 'task-obs-vote', proposal: 'observe the ledger' },
+      { invoke: scripted },
+    );
+    const report = observeTool(kern, {});
+    // fitness: the run's Outcome was attributed to the selected manifest
+    expect(report.observer.fitnessLedger.map((r) => r.subject)).toEqual([
+      '@kernloop/faculty-gates@0.1.0',
+    ]);
+    expect(report.observer.fitnessLedger[0]).toMatchObject({ invocations: 1, successRate: 1 });
+    // cost per governed decision, per gate actually seen on the chain
+    const gates = report.observer.costPerGovernedDecision.map((c) => c.gate);
+    expect(gates).toEqual(['quality', 'vote']);
+    const vote = report.observer.costPerGovernedDecision.find((c) => c.gate === 'vote');
+    expect(vote).toMatchObject({ decisions: 1, meanTokens: 21 }); // 3 voters × 7 tokens
+    // voter series presence: every panel voter has one ingested vote
+    expect(report.observer.voterSeries).toEqual([
+      { voter: 'architect', votes: 1 },
+      { voter: 'scope-steward', votes: 1 },
+      { voter: 'security', votes: 1 },
+    ]);
+    expect(report.observer.driftSignals).toEqual([]); // no drift on a 1-outcome history
     kern.close();
   });
 

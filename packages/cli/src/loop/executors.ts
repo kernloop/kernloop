@@ -21,14 +21,11 @@ import {
   type Finding,
   type Signal,
   type TaskContract,
-  type Verdict,
 } from '@kernloop/contracts';
-import { appendEvent } from '@kernloop/kernel';
 import {
   PANEL_DEFAULT,
   PANEL_RATIFICATION,
   runVoteGate,
-  type InvokeVoter,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
 import { SHIPPED_TEMPLATES, decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
@@ -36,9 +33,8 @@ import { estimateTokens } from '@kernloop/faculty-compiler';
 import type { ChildResult, NodeExecutor } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { assembleBrief } from '../gather.js';
-import { executeQualityGate } from '../executors.js';
+import { executeQualityGate, publishVerdict } from '../executors.js';
 import {
-  BallotEmissionSchema,
   FilesEmissionSchema,
   LoopParseError,
   SubtasksEmissionSchema,
@@ -46,6 +42,7 @@ import {
   type LoopInvoke,
   type ViolationSink,
 } from './invoke.js';
+import { ballotInvoker, briefText } from './seams.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -76,11 +73,6 @@ function shippedTemplate(name: string) {
   return template;
 }
 
-/** Render a Brief's sections as prompt text. */
-function briefText(brief: Brief): string {
-  return brief.sections.map((s) => `### ${s.name}\n${s.content}`).join('\n\n');
-}
-
 /** The plan prompt: PM role + compiled brief + prior vote findings. */
 function planPrompt(research: Brief, findings: readonly Finding[]): string {
   const parts = [shippedTemplate('pm').rolePrompt, '## Compiled brief', briefText(research)];
@@ -94,19 +86,6 @@ function planPrompt(research: Brief, findings: readonly Finding[]): string {
     'Write the implementation plan for this task as concise, reviewable prose. Plain text, no JSON.',
   );
   return parts.join('\n\n');
-}
-
-/** One voter's prompt: role + the shared brief + proposal + strict contract. */
-function voterPrompt(rolePrompt: string, brief: Brief, proposal: string): string {
-  return [
-    rolePrompt,
-    '## Shared brief',
-    briefText(brief),
-    '## Proposal under vote',
-    proposal,
-    'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
-      'commentary before or after: {"vote":"approve"|"reject"|"abstain","reasoning":"<why>"}',
-  ].join('\n\n');
 }
 
 /** The PM decomposition prompt with the strict subtasks contract. */
@@ -171,36 +150,9 @@ export function writeWorkspaceFiles(
   return resolved.map((file) => path.relative(root, file.target));
 }
 
-/** Publish a gate Verdict on the bus (audited) + the observe telemetry row. */
-async function publishVerdict(kern: Kernloop, verdict: Verdict): Promise<void> {
-  await kern.bus.publish('Verdict', verdict);
-  appendEvent(kern.store, {
-    type: 'cli.gate.verdict',
-    payload: {
-      taskId: verdict.taskId,
-      gate: verdict.gate,
-      result: verdict.result,
-      findings: verdict.findings.length,
-      wallClockMs: verdict.cost.wallClockMs ?? 0,
-    },
-  });
-}
-
 /** A violation sink under this run's overlay, labelled with the node. */
 function sinkFor(b: LoopBindings, runId: string, node: string): ViolationSink {
   return { overlayDir: b.kern.paths.dir, runId, node };
-}
-
-/** Bind `invoke` as the vote gate's voter seam under the ballot contract. */
-function voterInvoker(b: LoopBindings, runId: string): InvokeVoter {
-  return async (voter, brief, proposal) => {
-    const { output, cost } = await b.invoke(voterPrompt(voter.rolePrompt, brief, proposal));
-    // A malformed ballot throws here (raw output preserved for diagnosis),
-    // so the gate records an honest abstain.
-    const sink = sinkFor(b, runId, `vote-${voter.name}`);
-    const ballot = parseEmission(output, BallotEmissionSchema, 'ballot', sink);
-    return { ...ballot, cost };
-  };
 }
 
 /** Mechanical per-child verdict signal for integrate. */
@@ -272,7 +224,11 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
       brief: b.refs.researchBrief ?? planBrief,
       panel: ctx.config.gates.vote.panel === 7 ? PANEL_RATIFICATION : PANEL_DEFAULT,
       strategy: ctx.config.gates.vote.strategy,
-      invokeVoter: voterInvoker(b, ctx.runId),
+      invokeVoter: ballotInvoker({
+        overlayDir: b.kern.paths.dir,
+        runId: ctx.runId,
+        invoke: b.invoke,
+      }),
     });
     await publishVerdict(b.kern, verdict);
     return verdict;

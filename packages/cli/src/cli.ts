@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * The `kernloop` CLI (spec §9): init/doctor/serve plus the nine P1 kernel
- * tools as subcommands, JSON on stdout, and `distill` (P3 [CLM-0049] — CLI
- * and library only until the MCP surface goes to eleven). The CLI is a thin
- * shell — argument parsing here, behavior in the tool functions; the MCP
- * server (`serve`) exposes the nine-tool surface over stdio [CLM-0033].
+ * The `kernloop` CLI (spec §9): init/doctor/serve plus the kernel eleven
+ * (spec §3.4) as subcommands, JSON on stdout. The CLI is a thin shell —
+ * argument parsing here, behavior in the tool functions; the MCP server
+ * (`serve`) exposes the same eleven-tool surface over stdio [CLM-0033,
+ * CLM-0058].
  */
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -12,14 +12,15 @@ import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
-import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
+import { OVERLAY_DIR_NAME, VOTE_STRATEGIES, initOverlay } from './overlay.js';
 import { doctor } from './doctor.js';
 import { createKernloop, type Kernloop } from './kernel.js';
-import { distillFromTrace } from './distill.js';
 import { serveStdio } from './mcp.js';
 import {
   auditTool,
   briefTool,
+  distillTool,
+  forgeTool,
   gateTool,
   manifestTool,
   observeTool,
@@ -27,6 +28,7 @@ import {
   rememberTool,
   runTool,
   statusTool,
+  type GateInput,
 } from './tools/index.js';
 
 /** Injectable I/O so tests can capture output. */
@@ -45,13 +47,16 @@ const USAGE = [
   '            --resume RUNID --capability workflow.canonical [--workspace D] [--adapter A]',
   '  status    --task-id T',
   '  brief     --goal G [--id I]',
-  '  gate      --task-id T --workspace D [--gate quality]',
+  '  gate      --gate quality --task-id T --workspace D',
+  '            --gate vote --proposal P [--brief-goal G] [--panel 3|7] [--strategy S] [--adapter A] [--task-id T]',
+  '            --gate review (--diff D | --diff-file F) [--context C] [--adapter A] [--task-id T]',
   '  recall    --query Q [--limit N]',
   '  remember  --fact F --provenance P [--confidence C]',
+  '  distill   --trace <taskId|runId> [--adapter A]   propose a skill from a trace (suggest tier)',
+  '  forge     --spec-file <tool-spec.json> [--adapter A]   birth a workshop/* tool in the sandbox',
   '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
-  '  distill   --trace <taskId|runId> [--adapter A]   propose a skill from a trace (suggest tier)',
 ].join('\n');
 
 /** Common string-flag declaration, spread into each command's options. */
@@ -59,6 +64,10 @@ const S = { type: 'string' } as const;
 
 /** `--adapter` value space: the five kernel adapters (spec §3.1). */
 const AdapterFlagSchema = z.enum(ADAPTER_NAMES);
+
+/** `--panel` / `--strategy` value spaces (spec §5.3). */
+const PanelFlagSchema = z.union([z.literal(3), z.literal(7)]);
+const StrategyFlagSchema = z.enum(VOTE_STRATEGIES);
 
 /** Parse flags for one command; unknown flags fail loudly. */
 function flags<const O extends Record<string, { type: 'string' | 'boolean' }>>(
@@ -133,6 +142,42 @@ function manifestOp(
   throw new Error(`unknown manifest op "${op}" — use list, get, or register`);
 }
 
+/** Map gate flags onto the gate tool's discriminated input (spec §5.3). */
+function gateInputFrom(io: CliIo, v: Record<string, string | boolean | undefined>): GateInput {
+  const gateName = str(v.gate) ?? 'quality';
+  const taskId = str(v['task-id']);
+  const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
+  if (gateName === 'vote') {
+    const [briefGoal, panel, strategy] = [str(v['brief-goal']), str(v.panel), str(v.strategy)];
+    return {
+      gateName,
+      proposal: required(v.proposal, '--proposal'),
+      ...(taskId === undefined ? {} : { taskId }),
+      ...(briefGoal === undefined ? {} : { briefGoal }),
+      ...(panel === undefined ? {} : { panel: PanelFlagSchema.parse(Number(panel)) }),
+      ...(strategy === undefined ? {} : { strategy: StrategyFlagSchema.parse(strategy) }),
+      ...(adapter === undefined ? {} : { adapter }),
+    };
+  }
+  if (gateName === 'review') {
+    const [diff, diffFile, context] = [str(v.diff), str(v['diff-file']), str(v.context)];
+    return {
+      gateName,
+      ...(taskId === undefined ? {} : { taskId }),
+      ...(diff === undefined ? {} : { diff }),
+      ...(diffFile === undefined ? {} : { diffFile: path.resolve(io.cwd, diffFile) }),
+      ...(context === undefined ? {} : { context }),
+      ...(adapter === undefined ? {} : { adapter }),
+    };
+  }
+  // quality (or an unknown name the tool rejects with its typed error)
+  return {
+    gateName: gateName as 'quality',
+    taskId: required(v['task-id'], '--task-id'),
+    workspaceDir: path.resolve(io.cwd, required(v.workspace, '--workspace')),
+  };
+}
+
 const HANDLERS: Record<string, Handler> = {
   init: (args, io) => {
     const v = flags(args, {});
@@ -192,14 +237,20 @@ const HANDLERS: Record<string, Handler> = {
     );
   },
   gate: (args, io) => {
-    const v = flags(args, { 'task-id': S, workspace: S, gate: S });
-    return withKernloop(io, v.dir, (kern) =>
-      gateTool(kern, {
-        gateName: str(v.gate) ?? 'quality',
-        taskId: required(v['task-id'], '--task-id'),
-        workspaceDir: path.resolve(io.cwd, required(v.workspace, '--workspace')),
-      }),
-    );
+    const v = flags(args, {
+      'task-id': S,
+      workspace: S,
+      gate: S,
+      proposal: S,
+      'brief-goal': S,
+      panel: S,
+      strategy: S,
+      diff: S,
+      'diff-file': S,
+      context: S,
+      adapter: S,
+    });
+    return withKernloop(io, v.dir, (kern) => gateTool(kern, gateInputFrom(io, v)));
   },
   recall: (args, io) => {
     const v = flags(args, { query: S, limit: S });
@@ -243,16 +294,22 @@ const HANDLERS: Record<string, Handler> = {
     const v = flags(args, {});
     return withKernloop(io, v.dir, (kern) => observeTool(kern, {}));
   },
-  // distill is a CLI subcommand + library function only in this wave; its
-  // MCP registration lands with forge when the surface goes to eleven
-  // (p3 design notes, wave 3) — the MCP surface stays exactly nine [CLM-0033].
   distill: (args, io) => {
     const v = flags(args, { trace: S, adapter: S });
     const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
     return withKernloop(io, v.dir, (kern) =>
-      distillFromTrace({
-        kern,
+      distillTool(kern, {
         trace: required(v.trace, '--trace'),
+        ...(adapter === undefined ? {} : { adapter }),
+      }),
+    );
+  },
+  forge: (args, io) => {
+    const v = flags(args, { 'spec-file': S, adapter: S });
+    const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
+    return withKernloop(io, v.dir, (kern) =>
+      forgeTool(kern, {
+        specFile: path.resolve(io.cwd, required(v['spec-file'], '--spec-file')),
         ...(adapter === undefined ? {} : { adapter }),
       }),
     );

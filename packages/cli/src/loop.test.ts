@@ -178,6 +178,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
         result: 'approve',
         findings: 0,
         taskId: 'task-loop-pass',
+        voters: ['architect', 'security', 'scope-steward'],
         wallClockMs: expect.any(Number) as number,
       },
       {
@@ -185,6 +186,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
         result: 'pass',
         findings: 0,
         taskId: 'task-loop-pass.1',
+        voters: [],
         wallClockMs: expect.any(Number) as number,
       },
     ]);

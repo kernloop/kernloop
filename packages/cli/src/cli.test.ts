@@ -113,7 +113,7 @@ describe('kernloop CLI', () => {
     const repo = repoDir();
     const list = capture(repo);
     expect(await runCli(['manifest', '--op', 'list'], list.io)).toBe(0);
-    expect((list.json() as { manifests: unknown[] }).manifests).toHaveLength(5);
+    expect((list.json() as { manifests: unknown[] }).manifests).toHaveLength(8);
     const get = capture(repo);
     expect(
       await runCli(['manifest', '--op', 'get', '--name', '@kernloop/faculty-memory'], get.io),
@@ -146,9 +146,57 @@ describe('kernloop CLI', () => {
     const repo = repoDir();
     const c = capture(repo);
     expect(
-      await runCli(['gate', '--task-id', 't', '--workspace', repo, '--gate', 'vote'], c.io),
+      await runCli(['gate', '--task-id', 't', '--workspace', repo, '--gate', 'oracle'], c.io),
     ).toBe(1);
     expect(c.err()).toContain('UnknownGateError');
+  });
+
+  it('gate vote requires --proposal and gate review requires a diff source', async () => {
+    const repo = repoDir();
+    const vote = capture(repo);
+    expect(await runCli(['gate', '--gate', 'vote'], vote.io)).toBe(1);
+    expect(vote.err()).toContain('--proposal');
+    const review = capture(repo);
+    expect(await runCli(['gate', '--gate', 'review', '--task-id', 't'], review.io)).toBe(1);
+    expect(review.err()).toContain('exactly one of diff or diffFile');
+  });
+
+  it('gate flags validate their value spaces: --panel 3|7, --strategy, one diff source', async () => {
+    const repo = repoDir();
+    const panel = capture(repo);
+    expect(
+      await runCli(['gate', '--gate', 'vote', '--proposal', 'p', '--panel', '5'], panel.io),
+    ).toBe(1);
+    const strategy = capture(repo);
+    expect(
+      await runCli(
+        ['gate', '--gate', 'vote', '--proposal', 'p', '--strategy', 'coin-flip'],
+        strategy.io,
+      ),
+    ).toBe(1);
+    const both = capture(repo);
+    expect(
+      await runCli(
+        // every review flag set at once, still rejected: diff XOR diff-file
+        [
+          'gate',
+          '--gate',
+          'review',
+          '--task-id',
+          't',
+          '--diff',
+          'x',
+          '--diff-file',
+          'y',
+          '--context',
+          'c',
+          '--adapter',
+          'claude',
+        ],
+        both.io,
+      ),
+    ).toBe(1);
+    expect(both.err()).toContain('exactly one of diff or diffFile');
   });
 
   it('fails loudly on missing required flags, unknown flags, and unknown commands', async () => {
@@ -205,10 +253,38 @@ describe('kernloop CLI', () => {
     expect(bare.out()).toContain('usage: kernloop');
   });
 
-  it('usage lists the distill subcommand', async () => {
+  it('usage lists the kernel eleven plus init/doctor/serve, including distill, forge, and the three gates', async () => {
     const help = capture(repoDir());
     expect(await runCli(['help'], help.io)).toBe(0);
-    expect(help.out()).toContain('distill   --trace <taskId|runId>');
+    const usage = help.out();
+    for (const command of [
+      'init',
+      'doctor',
+      'serve',
+      'run',
+      'status',
+      'brief',
+      'gate',
+      'recall',
+      'remember',
+      'distill',
+      'forge',
+      'manifest',
+      'audit',
+      'observe',
+    ]) {
+      expect(usage).toMatch(new RegExp(`^  ${command}\\b`, 'm'));
+    }
+    expect(usage).toContain('distill   --trace <taskId|runId>');
+    expect(usage).toContain('forge     --spec-file');
+    expect(usage).toContain('--gate vote');
+    expect(usage).toContain('--gate review');
+  });
+
+  it('forge requires --spec-file', async () => {
+    const c = capture(repoDir());
+    expect(await runCli(['forge'], c.io)).toBe(1);
+    expect(c.err()).toContain('missing required flag --spec-file');
   });
 
   it('distill requires --trace', async () => {

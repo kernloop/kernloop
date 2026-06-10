@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { verifyChain } from '@kernloop/kernel';
-import { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS } from './kernel.js';
+import { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS, P3_MANIFESTS } from './kernel.js';
 import { readEnvelopes } from './tools/audit.js';
 
 const dirs: string[] = [];
@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe('createKernloop', () => {
-  it('registers the three P1 faculty manifests plus the P2 vote gate and workflows', () => {
+  it('registers the P1 faculties, the P2 vote gate and workflows, and the P3 review gate, observer, and toolsmith', () => {
     const kern = freshKernloop();
     const names = kern.registry.list().map((m) => m.name);
     expect(names).toEqual([
@@ -26,9 +26,13 @@ describe('createKernloop', () => {
       '@kernloop/faculty-gates',
       '@kernloop/faculty-gates/vote',
       '@kernloop/workflows',
+      '@kernloop/faculty-gates/review',
+      '@kernloop/faculty-observer',
+      '@kernloop/faculty-toolsmith',
     ]);
     expect(P1_FACULTY_MANIFESTS).toHaveLength(3);
     expect(P2_MANIFESTS).toHaveLength(2);
+    expect(P3_MANIFESTS).toHaveLength(3);
     kern.close();
   });
 
@@ -48,7 +52,31 @@ describe('createKernloop', () => {
       ['@kernloop/faculty-gates', 'advisory', null],
       ['@kernloop/faculty-gates/vote', 'advisory', null],
       ['@kernloop/workflows', 'suggest', null],
+      ['@kernloop/faculty-gates/review', 'advisory', null],
+      ['@kernloop/faculty-observer', 'suggest', null],
+      ['@kernloop/faculty-toolsmith', 'suggest', null],
     ]);
+    kern.close();
+  });
+
+  it('opens the observer over the same overlay database file as memory, coexisting', () => {
+    const kern = freshKernloop();
+    // both faculties operate on <overlay>/memory.sqlite — write through each
+    kern.memory.rememberFact({ fact: 'one db per overlay', provenance: 'spec §3.3' });
+    const record = kern.observer.ingestOutcome(
+      {
+        taskId: 'task-coexist',
+        status: 'success',
+        signals: [],
+        cost: { tokens: 1, usd: 0 },
+        traceRef: 'audit:#task=task-coexist',
+        distillCandidates: [],
+      },
+      { subject: 'subject-coexist' },
+    );
+    expect(record.invocations).toBe(1);
+    expect(kern.memory.recallFacts('one db per overlay')).toHaveLength(1);
+    expect(kern.observer.fitnessLedger().map((r) => r.subject)).toEqual(['subject-coexist']);
     kern.close();
   });
 

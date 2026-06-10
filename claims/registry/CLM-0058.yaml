@@ -1,7 +1,12 @@
 id: CLM-0058
 statement: >-
   Distill and forge complete the MCP surface at exactly the kernel eleven.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/cli/src/mcp.test.ts::exposes exactly the kernel eleven: run, status, brief, gate, recall, remember, distill, forge, manifest, audit, observe — and nothing else'
+  - 'test:packages/cli/src/mcp.test.ts::serves distill over MCP: a recorded trace becomes a proposed skill through a scripted adapter'
+  - 'test:packages/cli/src/mcp.test.ts::serves forge over MCP: a workshop tool is born through the sandbox via scripted adapter and docker'
+  - 'test:packages/cli/src/mcp.test.ts::surfaces forge birth refusals as typed MCP error results'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0

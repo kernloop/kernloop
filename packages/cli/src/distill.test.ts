@@ -188,6 +188,22 @@ describe('distillFromTrace [CLM-0049]', () => {
   });
 });
 
+describe('distillTool — the kernel-tool wrapper [CLM-0058]', () => {
+  it('zod-validates the wire input and forwards to distillFromTrace', async () => {
+    const repo = repoDir();
+    const kern = freshKernloop(repo);
+    await recordTrace(kern, 'task-tool-wrap', 'wrap the library function');
+    const proposal = await cliExports.distillTool(
+      kern,
+      { trace: 'task-tool-wrap' },
+      { invoke: scriptedInvoke(EMISSION) },
+    );
+    expect(proposal).toMatchObject({ name: 'episodic-read-probe', tier: 'suggest' });
+    await expect(cliExports.distillTool(kern, { trace: '' })).rejects.toThrow();
+    kern.close();
+  });
+});
+
 describe('ratification path — the live library has no runtime write path [CLM-0050]', () => {
   it('distill writes land under skills/proposed and the live library is never written', async () => {
     const repo = repoDir();
@@ -257,10 +273,12 @@ describe('ratification path — the live library has no runtime write path [CLM-
       /skill|proposal|distill/i.test(name),
     );
     expect(skillExports.sort()).toEqual([
+      'DistillInputSchema',
       'SKILL_NAME_MAX',
       'SkillNameError',
       'SkillProposalEmissionSchema',
       'distillFromTrace',
+      'distillTool',
       'gatherSkillsIndex',
       'proposedSkillsRoot',
       'resolveProposalDir',
