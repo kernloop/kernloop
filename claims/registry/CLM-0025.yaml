@@ -1,7 +1,10 @@
 id: CLM-0025
 statement: >-
   Memory state is repo-local SQLite; deleting the database file leaves the system functional with empty memory.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/faculty-memory/src/store.test.ts::deleting the database file and reopening yields a functional empty store'
+  - 'test:packages/faculty-memory/src/store.test.ts::reopening an existing database preserves stored facts and traces'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.2.0
