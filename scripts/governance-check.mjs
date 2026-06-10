@@ -68,7 +68,7 @@ export function checkSymlinks(root) {
   const errors = [];
   for (const link of ['CLAUDE.md', 'GEMINI.md']) {
     const full = path.join(root, link);
-    let target = null;
+    let target;
     try {
       target = fs.readlinkSync(full);
     } catch {
