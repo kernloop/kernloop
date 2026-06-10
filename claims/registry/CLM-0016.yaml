@@ -1,0 +1,7 @@
+id: CLM-0016
+statement: >-
+  The ladder blocks any routed action whose required tier exceeds the manifest's tier or the task's authorityCeiling.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

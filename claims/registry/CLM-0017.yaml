@@ -1,0 +1,7 @@
+id: CLM-0017
+statement: >-
+  Every tier transition (promotion, demotion) is recorded to the audit chain; demotion on threshold breach is automatic.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

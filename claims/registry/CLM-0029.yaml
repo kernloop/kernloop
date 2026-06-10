@@ -1,0 +1,7 @@
+id: CLM-0029
+statement: >-
+  The context compiler is deterministic: identical inputs produce byte-identical Briefs under a pinned compiler version.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

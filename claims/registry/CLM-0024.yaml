@@ -1,0 +1,7 @@
+id: CLM-0024
+statement: >-
+  Episodic memory persists each Outcome as a summary plus a pointer to the full trace, retrievable by task id.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

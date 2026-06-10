@@ -1,17 +1,18 @@
 /**
  * Capability-statement lint proofs: untagged sentences and unknown tags in
- * claims blocks fail; the P0 absence policy (missing file OK; README without
- * markers FAILS; ARCHITECTURE.md without markers OK) holds.
+ * claims blocks fail; citing a non-verified (planned or experimental) claim
+ * fails; the P0 absence policy (missing file OK; README without markers
+ * FAILS; ARCHITECTURE.md without markers OK) holds.
  */
 import { afterAll, describe, expect, it } from 'vitest';
-import { extractClaimBlocks, lintCapabilityDocs } from './lint.js';
+import { extractClaimBlocks, lintCapabilityDocs, type ClaimStatuses } from './lint.js';
 import { runClaimsCheck } from './check.js';
 import { githubSlug } from './resolve.js';
 import { CAP_TEST_FILE, claimYaml, cleanupRepos, makeRepo } from './__fixtures__/fixture-repo.js';
 
 afterAll(cleanupRepos);
 
-const KNOWN = new Set(['CLM-0001']);
+const KNOWN: ClaimStatuses = new Map([['CLM-0001', 'verified']]);
 
 function readme(body: string): string {
   return `# Fixture\n\n<!-- claims:begin -->\n${body}\n<!-- claims:end -->\n`;
@@ -45,6 +46,32 @@ describe('lintCapabilityDocs', () => {
     const root = repoWithReadme(readme('Contracts validate. [CLM-9999]'));
     const errors = lintCapabilityDocs(root, KNOWN);
     expect(errors.join('\n')).toContain('[CLM-9999] does not reference an existing registry claim');
+  });
+
+  it('fails a tag that cites a planned claim (docs may only state verified capability)', () => {
+    const statuses: ClaimStatuses = new Map([
+      ['CLM-0001', 'verified'],
+      ['CLM-0002', 'planned'],
+    ]);
+    const root = repoWithReadme(readme('A future capability. [CLM-0002]'));
+    const errors = lintCapabilityDocs(root, statuses);
+    expect(errors.join('\n')).toContain(
+      'tag [CLM-0002] cites a "planned" claim — documentation may only state verified capability',
+    );
+  });
+
+  it('fails a tag that cites an experimental claim', () => {
+    const statuses: ClaimStatuses = new Map([['CLM-0003', 'experimental']]);
+    const root = repoWithReadme(readme('An experimental capability. [CLM-0003]'));
+    const errors = lintCapabilityDocs(root, statuses);
+    expect(errors.join('\n')).toContain(
+      'tag [CLM-0003] cites a "experimental" claim — documentation may only state verified capability',
+    );
+  });
+
+  it('passes a tag that cites a verified claim', () => {
+    const root = repoWithReadme(readme('A verified capability. [CLM-0001]'));
+    expect(lintCapabilityDocs(root, KNOWN)).toEqual([]);
   });
 
   it('flags unknown tags even outside the claims block', () => {

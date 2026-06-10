@@ -1,0 +1,7 @@
+id: CLM-0033
+statement: >-
+  The P1 MCP surface exposes exactly nine kernel tools — run, status, brief, gate, recall, remember, manifest, audit, observe — and nothing else.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

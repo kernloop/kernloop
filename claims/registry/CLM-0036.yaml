@@ -1,0 +1,7 @@
+id: CLM-0036
+statement: >-
+  One real task runs end-to-end through the quality gate, producing a Verdict, an Outcome, and a verifiable audit chain.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

@@ -1,0 +1,7 @@
+id: CLM-0020
+statement: >-
+  Every adapter call is metered — tokens, usd, and duration — and reported in the contracts Cost shape.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

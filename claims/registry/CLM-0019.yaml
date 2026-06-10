@@ -1,0 +1,7 @@
+id: CLM-0019
+statement: >-
+  Adapter subprocess calls capture stdout, stderr, and exit code, and enforce wall-clock timeouts.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

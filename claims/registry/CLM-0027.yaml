@@ -1,0 +1,7 @@
+id: CLM-0027
+statement: >-
+  The router never routes to a manifest whose tier exceeds the task's authorityCeiling.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

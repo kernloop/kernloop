@@ -8,8 +8,12 @@
  *       claims:check verifies test EXISTENCE by name; CI orders this job
  *       after the test job, so green here implies the tests also ran green);
  *   (c) a claim is `verified` with zero test evidence;
- *   (d) the capability-statement lint fails on README.md / ARCHITECTURE.md.
- * On success prints a summary table (id → statement → evidence count).
+ *   (d) the capability-statement lint fails on README.md / ARCHITECTURE.md —
+ *       including a `[CLM-NNNN]` tag citing a `planned` or `experimental`
+ *       claim (documentation may only state verified capability).
+ * On success prints the verified summary table (id → statement → evidence
+ * count) plus separate experimental and backlog (planned) sections, so a
+ * planned claim never appears in the verified table.
  */
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -48,20 +52,45 @@ export function runClaimsCheck(options: CheckOptions): CheckResult {
       );
     }
   }
-  const knownIds = new Set(claims.map((c) => c.claim.id));
-  errors.push(...lintCapabilityDocs(repoRoot, knownIds));
+  const statuses = new Map(claims.map((c) => [c.claim.id, c.claim.status]));
+  errors.push(...lintCapabilityDocs(repoRoot, statuses));
   return { ok: errors.length === 0, errors, claims };
 }
 
-/** Render the success summary: id → statement → evidence count. */
+function truncate(statement: string): string {
+  return statement.length > 72 ? `${statement.slice(0, 69)}...` : statement;
+}
+
+/**
+ * Render the success summary: the verified table (id → statement → evidence
+ * count), then experimental claims (if any), then the planned backlog (if
+ * any). Planned claims never appear in the verified table — the registry IS
+ * the backlog, and the backlog is not verified capability.
+ */
 export function summaryTable(claims: RegistryClaim[]): string {
   const rows = [...claims].sort((a, b) => a.claim.id.localeCompare(b.claim.id));
-  const lines = rows.map(({ claim }) => {
-    const statement =
-      claim.statement.length > 72 ? `${claim.statement.slice(0, 69)}...` : claim.statement;
-    return `${claim.id}  ${statement.padEnd(72)}  ${String(claim.evidence.length).padStart(2)} evidence`;
-  });
-  return [`claims:check ✓ ${rows.length} claims, all evidence resolves`, ...lines].join('\n');
+  const byStatus = (status: RegistryClaim['claim']['status']): RegistryClaim[] =>
+    rows.filter(({ claim }) => claim.status === status);
+  const verified = byStatus('verified');
+  const experimental = byStatus('experimental');
+  const planned = byStatus('planned');
+  const lines = [
+    `claims:check ✓ ${rows.length} claims, all evidence resolves`,
+    `verified (${verified.length}):`,
+    ...verified.map(
+      ({ claim }) =>
+        `${claim.id}  ${truncate(claim.statement).padEnd(72)}  ${String(claim.evidence.length).padStart(2)} evidence`,
+    ),
+  ];
+  if (experimental.length > 0) {
+    lines.push(`experimental (${experimental.length}) — not citable in docs:`);
+    lines.push(...experimental.map(({ claim }) => `${claim.id}  ${truncate(claim.statement)}`));
+  }
+  if (planned.length > 0) {
+    lines.push(`backlog (${planned.length} planned) — not citable in docs:`);
+    lines.push(...planned.map(({ claim }) => `${claim.id}  ${truncate(claim.statement)}`));
+  }
+  return lines.join('\n');
 }
 
 /** CLI entry: run against the real repo root and exit nonzero on failure. */

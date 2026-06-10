@@ -1,0 +1,7 @@
+id: CLM-0014
+statement: >-
+  The event bus delivers only the five frozen contracts: publishing a malformed or unknown message type is rejected at the boundary.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

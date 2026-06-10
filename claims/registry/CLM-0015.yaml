@@ -1,0 +1,7 @@
+id: CLM-0015
+statement: >-
+  The manifest registry rejects invalid manifests at registration and is the single source of capability truth for lookup.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

@@ -1,0 +1,7 @@
+id: CLM-0018
+statement: >-
+  The event bus applies backpressure when a subscriber's queue is full rather than dropping events silently.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

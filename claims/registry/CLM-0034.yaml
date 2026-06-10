@@ -1,0 +1,7 @@
+id: CLM-0034
+statement: >-
+  The run entry point routes a TaskContract via manifests and returns an Outcome, with every routing decision audited.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

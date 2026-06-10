@@ -1,0 +1,7 @@
+id: CLM-0030
+statement: >-
+  Brief sections respect hard token budgets with priority-ordered drop, and every section carries provenance.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

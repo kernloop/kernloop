@@ -1,0 +1,7 @@
+id: CLM-0032
+statement: >-
+  Every quality-gate Verdict appends to the audit chain.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

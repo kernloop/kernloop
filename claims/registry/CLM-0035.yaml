@@ -1,0 +1,7 @@
+id: CLM-0035
+statement: >-
+  The audit tool queries events and verifies the chain on demand.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

@@ -1,0 +1,7 @@
+id: CLM-0022
+statement: >-
+  Semantic memory rejects writes without provenance.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

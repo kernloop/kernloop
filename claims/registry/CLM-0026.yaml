@@ -1,0 +1,7 @@
+id: CLM-0026
+statement: >-
+  The router matches a TaskContract to manifests by capability and budget, and returns the routing decision without executing when asked to plan only.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

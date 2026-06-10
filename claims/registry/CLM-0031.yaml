@@ -1,0 +1,7 @@
+id: CLM-0031
+statement: >-
+  The quality gate runs typecheck, lint, test, and coverage over a workspace and emits a structured Verdict with severity-tagged findings.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0

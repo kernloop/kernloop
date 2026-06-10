@@ -1,0 +1,7 @@
+id: CLM-0023
+statement: >-
+  Semantic recall ranks facts by provenance and recency, and unrefreshed facts decay below fresher ones.
+evidence: []
+status: planned
+owner: williamzujkowski
+since: 0.2.0
