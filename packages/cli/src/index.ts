@@ -4,8 +4,16 @@
  * kernel tools (spec §3.4) as typed functions, CLI subcommands, and an MCP
  * server. `distill` and `forge` are P3; absent by design, not stubbed.
  */
-export { createKernloop, P1_FACULTY_MANIFESTS } from './kernel.js';
+export { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS } from './kernel.js';
 export type { Kernloop, CreateKernloopOptions } from './kernel.js';
+export {
+  LoopParseError,
+  LoopResumeError,
+  checkpointFile,
+  executeCanonicalLoop,
+  loadCheckpointTask,
+} from './loop/index.js';
+export type { LoopInvoke, LoopReport, LoopRequest } from './loop/index.js';
 export {
   OVERLAY_DIR_NAME,
   NodeOverrideSchema,

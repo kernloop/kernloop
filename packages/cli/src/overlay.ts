@@ -203,9 +203,10 @@ function overlayTemplate(defaults: Overlay): string {
     `    panel: ${String(defaults.gates.vote.panel)} # 3 default; 7 at plan ratification (spec §8.6)`,
     '#  quality:',
     '#    timeoutMsPerCheck: 120000',
-    "# nodeOverrides:  # swap a gate node's gate / add fan-out specialists (spec §6) — never duplicate the graph",
-    '#   review: { gate: security-review }',
-    '#   fan-out: { specialists: [api-designer] }',
+    "# nodeOverrides:  # swap a gate node's gate / add fanout specialists (spec §6) — never duplicate the graph",
+    '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
+    '#   quality: { gate: security-review }',
+    '#   fanout: { specialists: [researcher] }',
     '',
   ].join('\n');
 }
@@ -227,7 +228,10 @@ export function initOverlay(repoRoot: string): InitResult {
     [paths.config, overlayTemplate(defaults)],
     [
       path.join(paths.dir, '.gitignore'),
-      '# spec §12.4: gitignore the memory database (privacy over portability)\nmemory.sqlite\n',
+      '# spec §12.4: gitignore the memory database (privacy over portability)\n' +
+        'memory.sqlite\n' +
+        '# loop run checkpoints are machine-local, never repo identity\n' +
+        'checkpoints/\n',
     ],
   ];
   for (const [file, content] of files) {

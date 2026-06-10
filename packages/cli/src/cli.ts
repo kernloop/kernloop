@@ -9,6 +9,8 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
+import { z } from 'zod';
+import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
 import { doctor } from './doctor.js';
 import { createKernloop, type Kernloop } from './kernel.js';
@@ -37,7 +39,8 @@ const USAGE = [
   '  init      [--dir <repo>]                        scaffold .kernloop/',
   '  doctor    [--dir <repo>]                        validate the overlay',
   '  serve     [--dir <repo>]                        MCP server on stdio',
-  '  run       --goal G --capability C [--workspace D] [--plan] [--id I]',
+  '  run       --goal G --capability C [--workspace D] [--adapter A] [--plan] [--id I]',
+  '            --resume RUNID --capability workflow.canonical [--workspace D] [--adapter A]',
   '  status    --task-id T',
   '  brief     --goal G [--id I]',
   '  gate      --task-id T --workspace D [--gate quality]',
@@ -50,6 +53,9 @@ const USAGE = [
 
 /** Common string-flag declaration, spread into each command's options. */
 const S = { type: 'string' } as const;
+
+/** `--adapter` value space: the five kernel adapters (spec §3.1). */
+const AdapterFlagSchema = z.enum(ADAPTER_NAMES);
 
 /** Parse flags for one command; unknown flags fail loudly. */
 function flags<const O extends Record<string, { type: 'string' | 'boolean' }>>(
@@ -149,17 +155,23 @@ const HANDLERS: Record<string, Handler> = {
       capability: S,
       workspace: S,
       id: S,
+      adapter: S,
+      resume: S,
       plan: { type: 'boolean' },
     });
-    const workspace = str(v.workspace);
-    const id = str(v.id);
+    const [workspace, id, resume] = [str(v.workspace), str(v.id), str(v.resume)];
+    // `--resume` replaces `--goal` (the checkpointed task is the truth).
+    const goal = resume === undefined ? required(v.goal, '--goal') : str(v.goal);
+    const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
     return withKernloop(io, v.dir, (kern) =>
       runTool(kern, {
-        goal: required(v.goal, '--goal'),
+        ...(goal === undefined ? {} : { goal }),
         capability: required(v.capability, '--capability'),
         ...(workspace === undefined ? {} : { workspaceDir: path.resolve(io.cwd, workspace) }),
         ...(v.plan === true ? { execute: false } : {}),
         ...(id === undefined ? {} : { id }),
+        ...(adapter === undefined ? {} : { adapter }),
+        ...(resume === undefined ? {} : { resume }),
       }),
     );
   },

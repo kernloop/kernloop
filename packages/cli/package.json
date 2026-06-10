@@ -28,7 +28,9 @@
     "@kernloop/faculty-compiler": "workspace:*",
     "@kernloop/faculty-gates": "workspace:*",
     "@kernloop/faculty-memory": "workspace:*",
+    "@kernloop/faculty-workforce": "workspace:*",
     "@kernloop/kernel": "workspace:*",
+    "@kernloop/workflows": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "yaml": "^2.8.2",
     "zod": "^4.4.3"

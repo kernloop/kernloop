@@ -113,7 +113,7 @@ describe('kernloop CLI', () => {
     const repo = repoDir();
     const list = capture(repo);
     expect(await runCli(['manifest', '--op', 'list'], list.io)).toBe(0);
-    expect((list.json() as { manifests: unknown[] }).manifests).toHaveLength(3);
+    expect((list.json() as { manifests: unknown[] }).manifests).toHaveLength(5);
     const get = capture(repo);
     expect(
       await runCli(['manifest', '--op', 'get', '--name', '@kernloop/faculty-memory'], get.io),
@@ -161,6 +161,39 @@ describe('kernloop CLI', () => {
     const unknownCmd = capture(repo);
     expect(await runCli(['frobnicate'], unknownCmd.io)).toBe(1);
     expect(unknownCmd.err()).toContain('unknown command');
+  });
+
+  it('run --resume replaces --goal and surfaces the typed no-checkpoint error', async () => {
+    const repo = repoDir();
+    await runCli(['init'], capture(repo).io);
+    const c = capture(repo);
+    const argv = [
+      'run',
+      '--capability',
+      'workflow.canonical',
+      '--resume',
+      'run-ghost',
+      '--workspace',
+      repo,
+      '--adapter',
+      'claude',
+    ];
+    expect(await runCli(argv, c.io)).toBe(1);
+    expect(c.err()).toContain('LoopResumeError');
+    expect(c.err()).toContain('run-ghost');
+  });
+
+  it('run rejects an --adapter outside the five kernel adapters', async () => {
+    const repo = repoDir();
+    await runCli(['init'], capture(repo).io);
+    const c = capture(repo);
+    expect(
+      await runCli(
+        ['run', '--goal', 'g', '--capability', 'workflow.canonical', '--adapter', 'gpt-12'],
+        c.io,
+      ),
+    ).toBe(1);
+    expect(c.err()).toContain('claude');
   });
 
   it('prints usage for help and for a bare invocation', async () => {
