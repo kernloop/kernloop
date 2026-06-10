@@ -1,0 +1,9 @@
+id: CLM-0010
+statement: >-
+  Every audit envelope carries the contracts surface version it was written
+  under.
+evidence:
+  - 'test:packages/kernel/src/audit/chain.test.ts::every stored envelope carries contractsVersion from @kernloop/contracts'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

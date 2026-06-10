@@ -59,6 +59,14 @@ describe('runClaimsCheck — happy path', () => {
     expect(runClaimsCheck({ repoRoot: root }).ok).toBe(true);
   });
 
+  it('resolves a parameterized it.each test by its literal template name', () => {
+    const root = repoWith(
+      { 'CLM-0001.yaml': claimYaml({ evidence: ['test:src/each.test.ts::seed %i: holds'] }) },
+      { 'src/each.test.ts': "it.each([1, 2])('seed %i: holds', () => {});\n" },
+    );
+    expect(runClaimsCheck({ repoRoot: root }).ok).toBe(true);
+  });
+
   it('passes an experimental claim that has zero test evidence', () => {
     const root = repoWith({
       'CLM-0001.yaml': claimYaml({ status: 'experimental', evidence: ['ci:test'] }),

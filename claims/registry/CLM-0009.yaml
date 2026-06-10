@@ -1,0 +1,9 @@
+id: CLM-0009
+statement: >-
+  Every audit event is hash-chained: a chain of appended events verifies
+  end-to-end with its exact length.
+evidence:
+  - 'test:packages/kernel/src/audit/chain.test.ts::appends N events and verifyChain reports ok with length N'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

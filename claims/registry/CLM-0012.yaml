@@ -1,0 +1,10 @@
+id: CLM-0012
+statement: >-
+  Truncating, reordering, or deleting audit log entries fails verification.
+evidence:
+  - 'test:packages/kernel/src/audit/chain.test.ts::detects truncation of the log suffix when verified with expectedLength'
+  - 'test:packages/kernel/src/audit/chain.test.ts::detects reordering of two entries'
+  - 'test:packages/kernel/src/audit/chain.test.ts::detects deletion of a middle line'
+status: verified
+owner: williamzujkowski
+since: 0.1.0

@@ -19,10 +19,12 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * `test:<path>::<name>` — the file must exist and contain a `test('name')`
- * or `it('name')` call with that exact name as a plain string literal
- * (single or double quotes). Template-literal test names are deliberately
- * unresolvable: a name the checker cannot read statically is not evidence.
+ * `test:<path>::<name>` — the file must exist and contain a `test('name')`,
+ * `it('name')`, or parameterized `test.each(…)('name')` / `it.each(…)('name')`
+ * call with that exact name as a plain string literal (single or double
+ * quotes; for `.each` the literal printf-style template, e.g. `seed %i: …`,
+ * is the name). Template-literal test names are deliberately unresolvable:
+ * a name the checker cannot read statically is not evidence.
  */
 function resolveTestRef(
   ref: Extract<EvidenceRef, { kind: 'test' }>,
@@ -33,7 +35,9 @@ function resolveTestRef(
     return `${ref.raw}: test file not found: ${ref.path}`;
   }
   const source = fs.readFileSync(file, 'utf8');
-  const pattern = new RegExp(`\\b(?:test|it)\\(\\s*(['"])${escapeRegExp(ref.testName)}\\1`);
+  const pattern = new RegExp(
+    `\\b(?:test|it)(?:\\.each\\([^)]*\\))?\\(\\s*(['"])${escapeRegExp(ref.testName)}\\1`,
+  );
   if (!pattern.test(source)) {
     return `${ref.raw}: no test named "${ref.testName}" in ${ref.path} (exact test('…')/it('…') string literal required)`;
   }

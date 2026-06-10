@@ -1,0 +1,10 @@
+id: CLM-0013
+statement: >-
+  Tamper evidence is property-tested: across seeded random chains, every
+  single-byte mutation of the audit log file fails verification.
+evidence:
+  - 'test:packages/kernel/src/audit/property.test.ts::seed %i: every single-byte mutation is detected by verifyChain'
+  - 'test:packages/kernel/src/audit/property.test.ts::seed %i: N random events verify ok with the expected length'
+status: verified
+owner: williamzujkowski
+since: 0.1.0
