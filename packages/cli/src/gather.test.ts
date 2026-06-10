@@ -80,6 +80,25 @@ describe('gatherSkillsIndex', () => {
   it('returns an empty index when the library is empty', () => {
     expect(gatherSkillsIndex(repoDir())).toEqual([]);
   });
+
+  it('excludes skills/proposed from the index so only the committed library is served', () => {
+    const repo = repoDir();
+    mkdirSync(path.join(repo, 'skills', 'live-skill'), { recursive: true });
+    writeFileSync(
+      path.join(repo, 'skills', 'live-skill', 'SKILL.md'),
+      '# live-skill\n\nA ratified, committed skill.\n',
+    );
+    mkdirSync(path.join(repo, 'skills', 'proposed', 'pending-skill'), { recursive: true });
+    writeFileSync(
+      path.join(repo, 'skills', 'proposed', 'pending-skill', 'SKILL.md'),
+      '# pending-skill\n\nAn unratified distill proposal.\n',
+    );
+    // even a stray SKILL.md directly under proposed/ stays out of the index
+    writeFileSync(path.join(repo, 'skills', 'proposed', 'SKILL.md'), '# stray\n\nNot a skill.\n');
+    expect(gatherSkillsIndex(repo)).toEqual([
+      { name: 'live-skill', oneLiner: 'A ratified, committed skill.' },
+    ]);
+  });
 });
 
 describe('briefTool', () => {

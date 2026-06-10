@@ -204,4 +204,27 @@ describe('kernloop CLI', () => {
     expect(await runCli([], bare.io)).toBe(1);
     expect(bare.out()).toContain('usage: kernloop');
   });
+
+  it('usage lists the distill subcommand', async () => {
+    const help = capture(repoDir());
+    expect(await runCli(['help'], help.io)).toBe(0);
+    expect(help.out()).toContain('distill   --trace <taskId|runId>');
+  });
+
+  it('distill requires --trace', async () => {
+    const c = capture(repoDir());
+    expect(await runCli(['distill'], c.io)).toBe(1);
+    expect(c.err()).toContain('missing required flag --trace');
+  });
+
+  it('distill surfaces the typed not-found error as JSON on stderr', async () => {
+    const repo = repoDir();
+    await runCli(['init'], capture(repo).io);
+    const c = capture(repo);
+    expect(await runCli(['distill', '--trace', 'task-never-ran'], c.io)).toBe(1);
+    expect(JSON.parse(c.err())).toMatchObject({
+      error: 'TraceNotFoundError',
+      message: expect.stringContaining('task-never-ran') as unknown,
+    });
+  });
 });

@@ -1,7 +1,13 @@
 id: CLM-0050
 statement: >-
   Skills enter the procedural library only through the distill ratification path.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/cli/src/distill.test.ts::distill writes land under skills/proposed and the live library is never written'
+  - 'test:packages/cli/src/distill.test.ts::rejects a proposal name that escapes the proposed area with a typed error'
+  - 'test:packages/cli/src/distill.test.ts::resolveProposalDir resolves only direct children of skills/proposed'
+  - 'test:packages/cli/src/distill.test.ts::no exported cli or memory runtime function writes into the live skills library'
+  - 'test:packages/cli/src/gather.test.ts::excludes skills/proposed from the index so only the committed library is served'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0

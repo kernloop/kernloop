@@ -1,7 +1,14 @@
 id: CLM-0049
 statement: >-
   Distill proposes a SKILL.md from an episodic trace, entering the ladder at suggest tier.
-evidence: []
-status: planned
+evidence:
+  - 'test:packages/cli/src/distill.test.ts::distills a recorded trace into skills/proposed with SKILL.md and a valid suggest-tier PROPOSAL.yaml'
+  - 'test:packages/cli/src/distill.test.ts::includes the loop node trace in the prompt when the trace id names a checkpointed run'
+  - 'test:packages/cli/src/distill.test.ts::throws a typed not-found error for a trace memory has never seen'
+  - 'test:packages/cli/src/distill.test.ts::a malformed model emission is a typed violation with the raw output preserved'
+  - 'test:packages/cli/src/cli.test.ts::distill surfaces the typed not-found error as JSON on stderr'
+  - 'test:packages/cli/src/cli.test.ts::usage lists the distill subcommand'
+  - 'ci:test'
+status: verified
 owner: williamzujkowski
 since: 0.4.0

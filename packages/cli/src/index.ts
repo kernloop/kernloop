@@ -2,10 +2,23 @@
  * @kernloop/cli — the composition root (spec §9). Assembles kernel +
  * faculties over a per-repo overlay (spec §7) and exposes the nine P1
  * kernel tools (spec §3.4) as typed functions, CLI subcommands, and an MCP
- * server. `distill` and `forge` are P3; absent by design, not stubbed.
+ * server. P3: `distill` ships as a library function + CLI subcommand at
+ * suggest tier [CLM-0049] — its MCP registration lands with `forge` when
+ * the surface goes to eleven; until then the MCP surface stays exactly
+ * nine [CLM-0033]. `forge` is absent by design, not stubbed.
  */
 export { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS } from './kernel.js';
 export type { Kernloop, CreateKernloopOptions } from './kernel.js';
+export {
+  SKILL_NAME_MAX,
+  SkillNameError,
+  SkillProposalEmissionSchema,
+  TraceNotFoundError,
+  distillFromTrace,
+  proposedSkillsRoot,
+  resolveProposalDir,
+} from './distill.js';
+export type { DistillRequest, SkillProposal } from './distill.js';
 export {
   LoopParseError,
   LoopResumeError,

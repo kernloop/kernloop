@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * The `kernloop` CLI (spec §9): init/doctor/serve plus the nine P1 kernel
- * tools as subcommands, JSON on stdout. The CLI is a thin shell — argument
- * parsing here, behavior in the tool functions; the MCP server (`serve`)
- * exposes the identical surface over stdio.
+ * tools as subcommands, JSON on stdout, and `distill` (P3 [CLM-0049] — CLI
+ * and library only until the MCP surface goes to eleven). The CLI is a thin
+ * shell — argument parsing here, behavior in the tool functions; the MCP
+ * server (`serve`) exposes the nine-tool surface over stdio [CLM-0033].
  */
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -14,6 +15,7 @@ import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
 import { doctor } from './doctor.js';
 import { createKernloop, type Kernloop } from './kernel.js';
+import { distillFromTrace } from './distill.js';
 import { serveStdio } from './mcp.js';
 import {
   auditTool,
@@ -49,6 +51,7 @@ const USAGE = [
   '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
+  '  distill   --trace <taskId|runId> [--adapter A]   propose a skill from a trace (suggest tier)',
 ].join('\n');
 
 /** Common string-flag declaration, spread into each command's options. */
@@ -239,6 +242,20 @@ const HANDLERS: Record<string, Handler> = {
   observe: (args, io) => {
     const v = flags(args, {});
     return withKernloop(io, v.dir, (kern) => observeTool(kern, {}));
+  },
+  // distill is a CLI subcommand + library function only in this wave; its
+  // MCP registration lands with forge when the surface goes to eleven
+  // (p3 design notes, wave 3) — the MCP surface stays exactly nine [CLM-0033].
+  distill: (args, io) => {
+    const v = flags(args, { trace: S, adapter: S });
+    const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
+    return withKernloop(io, v.dir, (kern) =>
+      distillFromTrace({
+        kern,
+        trace: required(v.trace, '--trace'),
+        ...(adapter === undefined ? {} : { adapter }),
+      }),
+    );
   },
 };
 

@@ -1,7 +1,9 @@
 /**
  * MCP server — the resident process per session (spec §3.3). Exposes
- * EXACTLY the nine P1 kernel tools (spec §3.4, §11 P1 row) [CLM-0033];
- * `distill` and `forge` are P3 and absent, not stubbed. Tool inputs are
+ * EXACTLY the nine P1 kernel tools (spec §3.4, §11 P1 row) [CLM-0033].
+ * `distill` exists as a library function + CLI subcommand [CLM-0049] but is
+ * NOT registered here — its MCP registration lands together with `forge`
+ * when the surface goes to eleven (p3 wave 3). Tool inputs are
  * zod-validated by the same schemas the typed tool functions use; input
  * JSON Schemas advertised over `tools/list` are generated from those same
  * zod schemas, so the wire contract cannot drift from the implementation.

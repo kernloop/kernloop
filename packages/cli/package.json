@@ -1,7 +1,7 @@
 {
   "name": "@kernloop/cli",
   "version": "0.1.0",
-  "description": "Kernloop composition root (spec §9): the `kernloop` CLI and MCP server. Assembles kernel + faculties over a per-repo overlay (spec §7) and exposes the nine P1 kernel tools — run, status, brief, gate, recall, remember, manifest, audit, observe (spec §3.4). distill and forge are P3; absent here by design, not stubbed.",
+  "description": "Kernloop composition root (spec §9): the `kernloop` CLI and MCP server. Assembles kernel + faculties over a per-repo overlay (spec §7) and exposes the nine P1 kernel tools — run, status, brief, gate, recall, remember, manifest, audit, observe (spec §3.4) — plus distill as a library function and CLI subcommand at suggest tier (P3 wave 2; its MCP registration lands with forge at eleven). forge is absent by design, not stubbed.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
