@@ -134,5 +134,8 @@ export function servedRef(served: ServedModel): string {
   else if (served.effortClamped)
     notes.push(`effort ${served.requestedEffort}→${served.servedEffort}`);
   const suffix = notes.length === 0 ? '' : ` (${notes.join(',')})`;
+  // `@<effort>` is the REQUESTED effort by design; any divergence from what
+  // actually served is disclosed in the `(...)` note (dropped / x→y) above, so
+  // the ref never implies a served level it didn't honor (prime directive).
   return `model:${served.adapter}/${model}@${served.requestedEffort}${suffix}`;
 }

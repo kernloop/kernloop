@@ -344,13 +344,43 @@ except skills (which are instructions, not code). `kernloop init` scaffolds it;
    contract, not by hope.
 2. Skills over tools — capability index costs ~1 line until loaded.
 3. Shared Brief per gate panel — one compile, n voters.
-4. Tiered adapters — Observer/triage on cheap models; Plan/Vote on frontier;
-   declared in manifests, enforced by Router.
+4. Tiered adapters — triage/read work on lean models, plan/vote/generation on
+   capable ones; the demand is declared in manifests (see §8.4), the binding
+   resolved at the loop composition root.
 5. Trace summarization at write — episodic memory stores digests, not
    transcripts.
 6. 3-voter default, 7 at ratification only.
 7. `observe` answers "what does a governed decision cost" per gate type —
    the Epic-G requirement, native from day one.
+
+### 8.4 Model requirements — two axes (as-realized, ratified 2026-06-11)
+
+A component's model demand is a **`ModelRequirement`** — two orthogonal,
+discrete axes plus capability filters, the industry-standard shape every major
+harness exposes:
+
+- **`tier`** = model class: `frontier | large | medium | small` (ordinal,
+  default `medium`). `frontier` is the top (the cutting-edge model); the rest
+  are the cross-vendor-neutral size ladder.
+- **`effort`** = reasoning depth: `low | medium | high | xhigh` (ordinal,
+  default `medium`) — the provider knob (OpenAI `reasoning_effort`, Anthropic
+  `/effort`, Gemini thinking budget), declared **separately** from the model.
+- **`capabilities`** = hard filters (`toolUse | vision | longContext |
+  jsonMode`), AND-ed gates, not tier rungs.
+
+Declared on the Manifest (`Manifest.model?`, the single source of truth for a
+component) and on each loop node via the manifest/template it routes to.
+Resolution is **at the loop composition root, not the Router** (the spec's §3.1
+keeps the Router free of model-call concerns): a **pure kernel translation
+seam** maps `(tier, effort)` against each adapter's declarative profile —
+`tier → bound model/alias` degrading **downward only** to the nearest populated
+tier, `effort → the adapter's literal` clamping to the nearest supported level
+or **dropped** where a harness has no effort knob. Every degradation is
+**recorded in provenance**, never silent (the prime directive); nothing is
+synthesized upward. Each adapter (`harness-routed | concrete-id | api`)
+declares its tier→model map, effort support, and capabilities as data, so a new
+harness is a definition, not a code path. Volatile tier→concrete-model bindings
+live in overlay/catalog config, not kernel code.
 
 ---
 
