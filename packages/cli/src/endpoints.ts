@@ -8,9 +8,13 @@
  * SECRET HYGIENE AT THE CONFIG BOUNDARY (the security reviewer hunts this): a
  * literal key must NEVER appear in `overlay.yaml`. `apiKeyEnv` is validated as a
  * plausible ENV-VAR NAME (`^[A-Z_][A-Z0-9_]*$`) — a value that looks like a key
- * (e.g. `sk-…`, a long high-entropy token) is REJECTED at parse, and the same
- * key-shaped guard runs over every header value. The key is read from the
- * environment at call time inside the kernel adapter, not from this file.
+ * (e.g. `sk-…`, a long high-entropy token) is REJECTED at parse. The same
+ * key-shaped guard runs over every header VALUE as defence-in-depth (it is
+ * bypassable for short keys — see {@link looksLikeSecret}), and reserved header
+ * NAMES (authorization, host, content-type, content-length, cookie) are
+ * rejected outright so a static header can never clobber the kernel-controlled
+ * auth header or inject a routing trick. The key is read from the environment
+ * at call time inside the kernel adapter, not from this file.
  *
  * @module cli/endpoints
  */
@@ -46,28 +50,63 @@ const ApiKeyEnvSchema = z
       'apiKeyEnv looks like a literal key — it must be the NAME of an env var, never the key',
   });
 
-/** Header values must not carry a literal secret (a key belongs in the env). */
+/**
+ * Header VALUES must not carry a literal secret — defence-in-depth only (a key
+ * belongs in the env). This guard is bypassable for short keys; it is not the
+ * primary control (that is `apiKeyEnv` + reserved-name rejection).
+ */
 const HeaderValueSchema = z.string().refine((v) => !looksLikeSecret(v), {
   message: 'header value looks like a literal secret — keep keys in the env, not in overlay.yaml',
 });
+
+/**
+ * Header NAMES a static overlay header may never set: the kernel writes
+ * `authorization`/`content-type` itself (and they must always win), and
+ * `host`/`content-length`/`cookie` enable routing/smuggling tricks. Rejected at
+ * parse, case-insensitively, so config can never clobber a kernel-controlled
+ * header or inject one.
+ */
+const RESERVED_HEADER_NAMES = new Set([
+  'authorization',
+  'host',
+  'content-type',
+  'content-length',
+  'cookie',
+]);
+
+/** A header NAME the overlay may set — never one the kernel controls. */
+const HeaderNameSchema = z
+  .string()
+  .min(1)
+  .refine((k) => !RESERVED_HEADER_NAMES.has(k.toLowerCase()), {
+    message:
+      'reserved header name — authorization/host/content-type/content-length/cookie are kernel-controlled and cannot be set in config',
+  });
 
 /** Tier → concrete model id this endpoint serves (spec §8.4); any subset of tiers. */
 const ModelsSchema = z.partialRecord(ModelTierSchema, z.string().min(1));
 
 /**
- * One registered endpoint. `baseUrl` is validated for scheme/SSRF inside the
- * kernel adapter at call time (the single enforcement point); here we validate
- * the config SHAPE and the secret-hygiene invariant.
+ * One registered endpoint. `baseUrl` is validated for scheme/credentials inside
+ * the kernel adapter at call time (the single enforcement point); here we
+ * validate the config SHAPE, the secret-hygiene invariant, and the
+ * metersUsd/maxUsdPerCall coherence (a cap is inert without metering).
  */
-export const EndpointSchema = z.strictObject({
-  baseUrl: z.string().min(1),
-  apiKeyEnv: ApiKeyEnvSchema,
-  models: ModelsSchema,
-  headers: z.record(z.string().min(1), HeaderValueSchema).optional(),
-  capabilities: z.array(ModelCapabilitySchema).optional(),
-  metersUsd: z.boolean().optional(),
-  maxUsdPerCall: z.number().positive().optional(),
-});
+export const EndpointSchema = z
+  .strictObject({
+    baseUrl: z.string().min(1),
+    apiKeyEnv: ApiKeyEnvSchema,
+    models: ModelsSchema,
+    headers: z.record(HeaderNameSchema, HeaderValueSchema).optional(),
+    capabilities: z.array(ModelCapabilitySchema).optional(),
+    metersUsd: z.boolean().optional(),
+    maxUsdPerCall: z.number().positive().optional(),
+  })
+  .refine((e) => !(e.maxUsdPerCall !== undefined && e.metersUsd !== true), {
+    path: ['maxUsdPerCall'],
+    message:
+      'maxUsdPerCall requires metersUsd:true — a cap on an unmetered endpoint is inert and would imply a spend ceiling that is never checked',
+  });
 export type EndpointConfig = z.infer<typeof EndpointSchema>;
 
 /** The `endpoints` block: id → endpoint config. Ids are referenced by `adapters`. */

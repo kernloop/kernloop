@@ -16,23 +16,35 @@
  *    never logged, and {@link scrub} redacts it from any surfaced string
  *    (error bodies included). A missing/empty env key is a fail-closed
  *    {@link ApiKeyMissingError} naming the env var, never the value.
- *  - SSRF: {@link assertSafeBaseUrl} requires `https:` (or `http:` ONLY to an
- *    explicit localhost/loopback/private host, for a local vLLM/LM-Studio);
- *    the request path is the FIXED `/chat/completions`, never user-templated;
- *    cross-host redirects are refused (`redirect: 'error'`).
+ *  - BASEURL GUARD (NOT SSRF immunity): {@link assertSafeBaseUrl} validates the
+ *    OPERATOR-configured `baseUrl` (scheme/credentials/path) — `https:` (or
+ *    `http:` ONLY to an explicit localhost/loopback/private host, for a local
+ *    vLLM/LM-Studio), and no embedded `user:pass@` credentials. It trusts the
+ *    overlay as operator config; an https baseUrl MAY reach any host the
+ *    operator points it at (intended — that is their provider). This is NOT
+ *    full SSRF immunity against a hostile overlay. The request path is the
+ *    FIXED `/chat/completions`, never user-templated; cross-host redirects are
+ *    refused (`redirect: 'error'`).
+ *  - HEADER PRECEDENCE: kernel-controlled `content-type`/`authorization` are
+ *    written LAST so a static overlay header can never clobber the real key or
+ *    inject one; reserved header NAMES are also rejected at config parse.
  *  - UNTRUSTED RESPONSE: the body is zod-validated defensively and read under a
- *    size cap — malformed/oversized is a typed error, never a crash or a guess.
+ *    STREAMED size cap — the stream is aborted past the cap, so an oversized
+ *    body is a typed error, never an OOM, crash, or a guess.
  *  - SPEND CEILING: a bounded `max_tokens` is ALWAYS sent; the metered cost
  *    flows into the run budget; an optional per-endpoint `maxUsdPerCall` fails
- *    closed if a call's reported cost would exceed it.
- *  - TIMEOUT: an {@link AbortController} enforces a wall-clock budget, always.
+ *    closed if a call's reported cost would exceed it. An endpoint that
+ *    declares `metersUsd` but reports NO cost on a 2xx fails closed rather than
+ *    silently meter $0 — a report never implies $0 spend when spend is unknown.
+ *  - TIMEOUT: ONE {@link AbortController} enforces a wall-clock budget over both
+ *    the request AND the streamed body read, so a slow body is bounded too.
  *
  * @module kernel/adapters/api
  */
-import { isIP } from 'node:net';
 import { CostSchema, type Cost } from '@kernloop/contracts';
 import { z } from 'zod';
 import type { ApiAdapterDefinition } from './api-config.js';
+import { CHAT_PATH, assertSafeBaseUrl } from './api-url.js';
 import {
   ApiEndpointError,
   ApiKeyMissingError,
@@ -45,9 +57,6 @@ import type { MeteredFlags } from './invoke.js';
 
 /** Cap on the response body we will read — an oversized body is a typed error. */
 export const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
-
-/** The fixed request path — never user-templated (SSRF: baseUrl is host only). */
-export const CHAT_PATH = '/chat/completions';
 
 /** One api-adapter call: the assembled prompt, a token cap, a wall-clock budget. */
 export interface ApiInvocation {
@@ -93,7 +102,8 @@ export interface ApiAdapterResult {
  * The untrusted response shape, validated DEFENSIVELY. `passthrough` is avoided
  * — only the fields we read are kept, and every numeric usage field is coerced
  * to a finite non-negative number or rejected. `usage.cost`/`usage.total_cost`
- * (OpenRouter) is the reported dollar amount; absence means cost is unmetered.
+ * (reported by some OpenAI-compatible endpoints) is the dollar amount; absence
+ * means cost is unmetered.
  */
 const UsageSchema = z
   .object({
@@ -125,59 +135,6 @@ const ResponseSchema = z.object({
 export function scrub(text: string, key: string): string {
   if (key === '') return text;
   return text.split(key).join('[REDACTED]');
-}
-
-/**
- * Validate an api endpoint `baseUrl` BEFORE any network call (SSRF guard).
- * `https:` is always allowed; plain `http:` is allowed ONLY to an explicit
- * localhost/loopback/private host (the documented local-model escape hatch for
- * vLLM/LM-Studio). Any other scheme, or `http:` to a public host, is a typed
- * {@link ApiEndpointError}. Returns the normalized origin (scheme+host+port),
- * to which the FIXED {@link CHAT_PATH} is appended — the path is never user
- * input.
- */
-export function assertSafeBaseUrl(adapter: string, baseUrl: string): URL {
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    throw new ApiEndpointError(adapter, `baseUrl is not a valid URL: ${baseUrl}`);
-  }
-  if (url.protocol === 'https:') return url;
-  if (url.protocol === 'http:') {
-    if (isLocalHost(url.hostname)) return url;
-    throw new ApiEndpointError(
-      adapter,
-      `http: baseUrl is allowed only for a local host (localhost/loopback/private); ` +
-        `"${url.hostname}" is not local — use https: (got ${baseUrl})`,
-    );
-  }
-  throw new ApiEndpointError(adapter, `baseUrl scheme must be http(s); got "${url.protocol}"`);
-}
-
-/** True for localhost, IPv4/IPv6 loopback, and RFC-1918/link-local private hosts. */
-function isLocalHost(hostname: string): boolean {
-  const host = hostname.replace(/^\[|\]$/g, '');
-  if (host === 'localhost' || host.endsWith('.localhost')) return true;
-  const ipVersion = isIP(host);
-  if (ipVersion === 4) return isPrivateIPv4(host);
-  if (ipVersion === 6) return host === '::1' || host.startsWith('fc') || host.startsWith('fd');
-  return false;
-}
-
-/** True for loopback / RFC-1918 / link-local IPv4 ranges. */
-function isPrivateIPv4(host: string): boolean {
-  const parts = host.split('.').map((p) => Number.parseInt(p, 10));
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
-    return false;
-  }
-  const [a, b] = parts as [number, number, number, number];
-  if (a === 127) return true; // loopback
-  if (a === 10) return true; // 10/8
-  if (a === 192 && b === 168) return true; // 192.168/16
-  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16/12
-  if (a === 169 && b === 254) return true; // link-local
-  return false;
 }
 
 /** Build the request body — `max_tokens` is ALWAYS present (spend ceiling). */
@@ -213,24 +170,52 @@ function checkInvocation(def: ApiAdapterDefinition, invocation: ApiInvocation): 
   }
 }
 
-/** Read the response body under the size cap (UNscrubbed — parsed before surfacing). */
-async function readCappedBody(response: Response): Promise<string> {
-  const raw = await response.text();
-  return raw.length > MAX_RESPONSE_BYTES ? raw.slice(0, MAX_RESPONSE_BYTES) : raw;
+/**
+ * Read the response body via the STREAM under the size cap, aborting the
+ * request and throwing once {@link MAX_RESPONSE_BYTES} is exceeded — the whole
+ * body is never buffered, so a multi-GB body cannot OOM or hang the process.
+ * UNscrubbed (parsed before surfacing). `abort` cancels the underlying request
+ * so a slow/oversized stream cannot keep the socket open past the cap.
+ */
+async function readCappedBody(
+  adapter: string,
+  response: Response,
+  abort: () => void,
+): Promise<string> {
+  const reader = response.body?.getReader();
+  if (reader === undefined) return ''; // no body (e.g. HEAD/204) — empty is honest
+  const decoder = new TextDecoder();
+  let out = '';
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_RESPONSE_BYTES) {
+      abort(); // cancel egress immediately; do not buffer the overflow
+      await reader.cancel().catch(() => undefined);
+      throw new AdapterOutputError(
+        adapter,
+        out.slice(0, 200),
+        `response body exceeded the ${String(MAX_RESPONSE_BYTES)}-byte cap`,
+      );
+    }
+    out += decoder.decode(value, { stream: true });
+  }
+  return out + decoder.decode();
 }
 
 /**
- * Parse a 2xx body into output + a metered Cost, or throw a typed error.
- * Parses the RAW body (scrubbing here would corrupt JSON when a key happens to
- * be a substring); every surfaced string (the {@link AdapterOutputError}'s
- * stdout/stderr) is scrubbed with `key` so no secret escapes.
+ * Validate the RAW 2xx body into the message content + usage we read, or throw a
+ * typed {@link AdapterOutputError} (every surfaced string scrubbed with `key`).
+ * Parsing the RAW body keeps a key that happens to be a JSON substring from
+ * corrupting the parse; only surfaced strings are scrubbed.
  */
-function interpret(
+function parseResponse(
   def: ApiAdapterDefinition,
   body: string,
   key: string,
-  durationMs: number,
-): { output: string; cost: Cost; metered: MeteredFlags } {
+): { content: string; usage: z.infer<typeof UsageSchema> } {
   let json: unknown;
   try {
     json = JSON.parse(body) as unknown;
@@ -249,12 +234,36 @@ function interpret(
   if (content === undefined || content === null || content === '') {
     throw new AdapterOutputError(def.name, scrub(body, key), 'response carried no message content');
   }
-  const usage = parsed.data.usage;
+  return { content, usage: parsed.data.usage };
+}
+
+/**
+ * Parse a 2xx body into output + a metered Cost, or throw a typed error. Meters
+ * honestly (tokens when present, usd when reported); fails closed when
+ * `metersUsd` is declared but no cost arrived, or a cost exceeds `maxUsdPerCall`.
+ */
+function interpret(
+  def: ApiAdapterDefinition,
+  body: string,
+  key: string,
+  durationMs: number,
+): { output: string; cost: Cost; metered: MeteredFlags } {
+  const { content, usage } = parseResponse(def, body, key);
   const tokens = (usage?.prompt_tokens ?? 0) + (usage?.completion_tokens ?? 0);
   const usdValue = usage?.cost ?? usage?.total_cost;
   const meteredTokens =
     usage?.prompt_tokens !== undefined || usage?.completion_tokens !== undefined;
   const meteredUsd = usdValue !== undefined;
+  // Prime directive: an endpoint that DECLARES it meters cost must report one —
+  // metering $0 (and skipping the ceiling) when real money may have been spent
+  // would imply $0 spend when spend is unknown. metersUsd:false meters tokens only.
+  if (def.metersUsd && !meteredUsd) {
+    throw new AdapterOutputError(
+      def.name,
+      scrub(body, key),
+      'endpoint declared metersUsd but the 2xx response reported no cost (usage.cost/total_cost)',
+    );
+  }
   const usd = usdValue ?? 0;
   enforceUsdCeiling(def, usd, meteredUsd);
   const cost = CostSchema.parse({
@@ -296,64 +305,96 @@ export async function invokeApiAdapter(
   const origin = assertSafeBaseUrl(def.name, def.baseUrl);
   const target = new URL(origin.pathname.replace(/\/$/, '') + CHAT_PATH, origin);
 
+  // ONE AbortController budget spans BOTH the request AND the body read, so a
+  // slow body (slowloris) is bounded by the same wall-clock timeout — the timer
+  // is cleared only AFTER the body has been read.
   const startedAt = Date.now();
-  const response = await postChat(def, invocation, target, key, startedAt);
-  const rawBody = await readCappedBody(response);
-  const scrubbedBody = scrub(rawBody, key); // the only form we ever surface
-  const durationMs = Date.now() - startedAt;
-  if (!response.ok) {
-    throw new AdapterExecutionError(def.name, response.status, null, scrubbedBody);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), invocation.timeoutMs);
+  try {
+    const response = await postChat(def, invocation, target, key, controller.signal);
+    const rawBody = await readCappedBody(def.name, response, () => controller.abort());
+    const scrubbedBody = scrub(rawBody, key); // the only form we ever surface
+    const durationMs = Date.now() - startedAt;
+    if (!response.ok) {
+      throw new AdapterExecutionError(def.name, response.status, null, scrubbedBody);
+    }
+    // Parse the RAW body (a key that is a JSON substring must not corrupt parse),
+    // but surface only the SCRUBBED body on `raw` (defence-in-depth secret hygiene).
+    const { output, cost, metered } = interpret(def, rawBody, key, durationMs);
+    return {
+      adapter: def.name,
+      output,
+      cost,
+      metered,
+      raw: { status: response.status, durationMs, body: scrubbedBody },
+    };
+  } catch (error) {
+    throw classifyCallError(def, invocation, key, controller.signal, startedAt, error);
+  } finally {
+    clearTimeout(timer);
   }
-  // Parse the RAW body (a key that is a JSON substring must not corrupt parse),
-  // but surface only the SCRUBBED body on `raw` (defence-in-depth secret hygiene).
-  const { output, cost, metered } = interpret(def, rawBody, key, durationMs);
-  return {
-    adapter: def.name,
-    output,
-    cost,
-    metered,
-    raw: { status: response.status, durationMs, body: scrubbedBody },
-  };
 }
 
 /**
- * POST the chat request under an {@link AbortController} wall-clock budget,
- * refusing cross-host redirects (SSRF). A timeout is a typed
- * {@link AdapterTimeoutError}; any other network/redirect failure is an
- * {@link AdapterExecutionError} whose message is key-scrubbed.
+ * Map a raw failure from the request OR the body read into a typed error. An
+ * abort (request OR slow body) under our own signal is a wall-clock
+ * {@link AdapterTimeoutError}; our already-typed adapter errors pass through;
+ * anything else (network/redirect) is a key-scrubbed {@link AdapterExecutionError}.
+ */
+function classifyCallError(
+  def: ApiAdapterDefinition,
+  invocation: ApiInvocation,
+  key: string,
+  signal: AbortSignal,
+  startedAt: number,
+  error: unknown,
+): Error {
+  // An already-typed adapter error (non-2xx, unusable output, cost-ceiling,
+  // metering fail-closed) passes through unchanged — only raw fetch/abort
+  // failures are classified below.
+  if (
+    error instanceof AdapterExecutionError ||
+    error instanceof AdapterOutputError ||
+    error instanceof ApiEndpointError
+  ) {
+    return error;
+  }
+  if (signal.aborted) {
+    return new AdapterTimeoutError(def.name, invocation.timeoutMs, Date.now() - startedAt);
+  }
+  return new AdapterExecutionError(
+    def.name,
+    null,
+    'fetch',
+    scrub(error instanceof Error ? error.message : String(error), key),
+  );
+}
+
+/**
+ * POST the chat request under the shared {@link AbortSignal} budget, refusing
+ * cross-host redirects. Kernel-controlled `content-type`/`authorization` are
+ * written LAST (after the static overlay `def.headers`) so a configured header
+ * can NEVER clobber the real bearer key or inject a competing one; reserved
+ * header NAMES are also rejected at config parse (endpoints.ts). Returns the
+ * raw {@link Response}; failures are classified by {@link classifyCallError}.
  */
 async function postChat(
   def: ApiAdapterDefinition,
   invocation: ApiInvocation,
   target: URL,
   key: string,
-  startedAt: number,
+  signal: AbortSignal,
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), invocation.timeoutMs);
-  try {
-    return await fetch(target, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${key}`,
-        ...def.headers,
-      },
-      body: buildBody(invocation),
-      redirect: 'error',
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw new AdapterTimeoutError(def.name, invocation.timeoutMs, Date.now() - startedAt);
-    }
-    throw new AdapterExecutionError(
-      def.name,
-      null,
-      'fetch',
-      scrub(error instanceof Error ? error.message : String(error), key),
-    );
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetch(target, {
+    method: 'POST',
+    headers: {
+      ...def.headers,
+      'content-type': 'application/json',
+      authorization: `Bearer ${key}`,
+    },
+    body: buildBody(invocation),
+    redirect: 'error',
+    signal,
+  });
 }

@@ -22,7 +22,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { EffortSchema, ModelTierSchema, type ModelRequirement } from '@kernloop/contracts';
-import { ADAPTER_NAMES } from '@kernloop/kernel';
+import { ADAPTER_NAMES, resolveTierModel } from '@kernloop/kernel';
 import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
 import YAML from 'yaml';
@@ -197,13 +197,28 @@ export const OverlaySchema = z
     // Every per-tier adapter must be a built-in CLI name OR a registered endpoint id.
     for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
       const name = overlay.adapters?.[tier];
-      if (name !== undefined && !isCliAdapter(name) && overlay.endpoints[name] === undefined) {
+      if (name === undefined || isCliAdapter(name)) continue;
+      const endpoint = overlay.endpoints[name];
+      if (endpoint === undefined) {
         ctx.addIssue({
           code: 'custom',
           path: ['adapters', tier],
           message:
             `adapters.${tier} "${name}" is neither a built-in adapter ` +
             `(${ADAPTER_NAMES.join(', ')}) nor a registered endpoint id — register it under endpoints`,
+        });
+        continue;
+      }
+      // Fail FAST, not mid-loop: an endpoint pointed at a tier it serves no model
+      // for resolves to the empty model id at call time — fatal for an api endpoint
+      // (no harness default), so reject it at config time, naming tier + endpoint.
+      if (resolveTierModel(tier, endpoint.models).model === '') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['adapters', tier],
+          message:
+            `adapters.${tier} "${name}" serves no model for the ${tier} tier (or one below) — ` +
+            `add a models entry for ${tier} (or a lower tier) under endpoints.${name}`,
         });
       }
     }
@@ -325,10 +340,11 @@ function overlayTemplate(defaults: Overlay): string {
     '# endpoints:  # OpenAI-compatible HTTP endpoints (spec §8.4 api adapter) — referenced by id from adapters above',
     '#   my-provider:        # an internal OpenAI-compatible provider; reference it as adapters.<tier>: my-provider',
     '#     baseUrl: https://api.example.com/v1   # https required (http allowed ONLY for localhost/private, e.g. local vLLM)',
+    '#                                            # this validates YOUR configured URL (scheme/creds); it is operator-trusted, not SSRF immunity',
     '#     apiKeyEnv: MY_PROVIDER_API_KEY        # the NAME of an env var — NEVER the key itself; set it in your shell',
     '#     models: { frontier: some-frontier-model, medium: some-medium-model }  # tier → concrete model id',
-    '#     metersUsd: true       # the endpoint reports per-call USD cost (usage.cost) — meter it into the run budget',
-    '#     maxUsdPerCall: 0.50   # optional fail-closed per-call spend cap',
+    '#     metersUsd: true       # the endpoint reports per-call USD cost (usage.cost) — meter it; a 2xx with no cost then fails closed',
+    '#     maxUsdPerCall: 0.50   # optional fail-closed per-call spend cap (requires metersUsd: true)',
     "# nodeOverrides:  # swap a gate's gate / add fanout specialists / raise a node's model (spec §6, §8.4)",
     '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
     '#   quality: { gate: security-review }',

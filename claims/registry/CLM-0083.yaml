@@ -3,15 +3,21 @@ statement: >-
   An api endpoint's secret is held env-only: the adapter reads the key from process.env[apiKeyEnv]
   at call time and fails closed with an ApiKeyMissingError naming the env var (never the value) when
   it is unset or empty, the key NEVER appears in any error, output, or raw field, and the overlay
-  config boundary rejects a literal key — only the NAME of an env var may be stored in overlay.yaml.
+  config boundary rejects a literal apiKeyEnv — only the NAME of an env var may be stored. The kernel
+  writes the authorization/content-type headers last (a config header cannot clobber them) and
+  rejects reserved header NAMES at parse; the looks-like-a-secret guard over header VALUES is
+  defence-in-depth only (bypassable for short keys), not the primary control.
 evidence:
   - 'test:packages/kernel/src/adapters/api.test.ts::throws ApiKeyMissingError naming the env var when the key is unset'
   - 'test:packages/kernel/src/adapters/api.test.ts::throws ApiKeyMissingError when the key is the empty string'
   - 'test:packages/kernel/src/adapters/api.test.ts::does not leak the key through a non-2xx error body that echoes the header'
   - 'test:packages/kernel/src/adapters/api.test.ts::does not leak the key through a malformed-JSON body that echoes the header'
   - 'test:packages/kernel/src/adapters/api.test.ts::scrub() redacts the key from any surfaced string'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::the kernel authorization header wins even if a header of that name is forced onto the def'
   - 'test:packages/cli/src/endpoints.test.ts::REJECTS an apiKeyEnv that is a literal key (sk- prefix)'
   - 'test:packages/cli/src/endpoints.test.ts::REJECTS a header value that looks like a literal secret'
+  - 'test:packages/cli/src/endpoints.test.ts::REJECTS a reserved header NAME (authorization) at parse'
+  - 'test:packages/cli/src/endpoints.test.ts::REJECTS a reserved header NAME (Host, case-insensitive) at parse'
   - 'test:packages/cli/src/endpoints.test.ts::carries the env-var NAME (never a key) + the tier→model map + body effort'
   - 'test:packages/cli/src/overlay.test.ts::REJECTS a literal key in apiKeyEnv — secrets never live in overlay.yaml [CLM-0083]'
   - 'ci:test'

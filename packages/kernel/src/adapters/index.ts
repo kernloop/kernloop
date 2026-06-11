@@ -48,14 +48,13 @@ export {
 } from './invoke.js';
 export {
   invokeApiAdapter,
-  assertSafeBaseUrl,
   scrub,
-  CHAT_PATH,
   MAX_RESPONSE_BYTES,
   type ApiInvocation,
   type ApiAdapterResult,
   type ApiRawObservation,
 } from './api.js';
+export { assertSafeBaseUrl, CHAT_PATH } from './api-url.js';
 export {
   API_EFFORT_PARAM,
   API_EFFORT_PROFILE,

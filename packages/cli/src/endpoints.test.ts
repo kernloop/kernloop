@@ -34,16 +34,50 @@ describe('EndpointSchema — env-var name, never a literal key', () => {
   });
 
   it('REJECTS a header value that looks like a literal secret', () => {
+    // A non-reserved header NAME with a secret-shaped VALUE — the value guard
+    // (defence-in-depth) catches it, distinct from the reserved-name guard.
     const r = EndpointSchema.safeParse({
       ...valid,
-      headers: { authorization: 'Bearer sk-or-abcdef0123456789' },
+      headers: { 'X-Provider-Token': 'sk-or-abcdef0123456789' },
     });
     expect(r.success).toBe(false);
+  });
+
+  it('REJECTS a reserved header NAME (authorization) at parse', () => {
+    // H1: a config header may never set authorization — the kernel writes it,
+    // and it must always win. Reject the NAME outright at the config boundary.
+    const r = EndpointSchema.safeParse({
+      ...valid,
+      headers: { authorization: 'Bearer whatever' },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('REJECTS a reserved header NAME (Host, case-insensitive) at parse', () => {
+    // A `Host:` header enables routing tricks; rejected regardless of casing.
+    expect(EndpointSchema.safeParse({ ...valid, headers: { Host: 'evil.example' } }).success).toBe(
+      false,
+    );
+    expect(
+      EndpointSchema.safeParse({ ...valid, headers: { 'CONTENT-TYPE': 'text/plain' } }).success,
+    ).toBe(false);
   });
 
   it('accepts benign static headers', () => {
     const r = EndpointSchema.safeParse({ ...valid, headers: { 'HTTP-Referer': 'kernloop.dev' } });
     expect(r.success).toBe(true);
+  });
+
+  it('REJECTS maxUsdPerCall without metersUsd:true (an inert cap)', () => {
+    // H2: a spend cap on an unmetered endpoint would never be checked — reject
+    // it at parse rather than imply a ceiling that does nothing.
+    expect(EndpointSchema.safeParse({ ...valid, maxUsdPerCall: 0.5 }).success).toBe(false);
+    expect(
+      EndpointSchema.safeParse({ ...valid, metersUsd: false, maxUsdPerCall: 0.5 }).success,
+    ).toBe(false);
+    expect(
+      EndpointSchema.safeParse({ ...valid, metersUsd: true, maxUsdPerCall: 0.5 }).success,
+    ).toBe(true);
   });
 });
 

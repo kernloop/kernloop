@@ -84,6 +84,15 @@ wholesale and no v1 package is imported. This file records the deltas.
   output, **no usage reported** (the CLI prints none non-interactively) and
   `experimental: true` per spec §5.8. It requires an explicit model — no
   default model ships, because choosing one would be a routing decision.
+
+  **Note — "no new HTTP dependency" ≠ "no direct HTTP adapter".** The above
+  reasoning rules out adding the `ollama` npm SDK (a new runtime HTTP
+  dependency) for a CLI we can drive over a subprocess. It does NOT rule out a
+  direct HTTP model call as such: the `api` adapter (`api.ts`, CLM-0082..0085)
+  is the spec-§8.4-sanctioned `api` kind and makes one over Node 22's GLOBAL
+  `fetch` — still **no new runtime dependency**. The distinction is the
+  load-bearing one: we avoid new HTTP _dependencies_, not all direct HTTP.
+
 - opencode `part.cost` is read as reported usd; v1 parsed tokens but ignored
   the cost field.
 

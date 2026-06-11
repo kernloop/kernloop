@@ -16,7 +16,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { invokeApiAdapter, scrub, assertSafeBaseUrl, MAX_RESPONSE_BYTES } from './api.js';
+import { invokeApiAdapter, scrub, MAX_RESPONSE_BYTES } from './api.js';
+import { assertSafeBaseUrl } from './api-url.js';
 import type { ApiAdapterDefinition } from './api-config.js';
 import {
   AdapterExecutionError,
@@ -30,6 +31,7 @@ import {
 /** One recorded request the mock server saw. */
 interface Recorded {
   authorization: string | undefined;
+  url: string | undefined;
   body: unknown;
 }
 
@@ -58,6 +60,7 @@ beforeAll(async () => {
     req.on('end', () => {
       recorded.push({
         authorization: req.headers.authorization,
+        url: req.url,
         body: raw === '' ? undefined : (JSON.parse(raw) as unknown),
       });
       handler(req, res, raw);
@@ -335,6 +338,16 @@ describe('assertSafeBaseUrl — SSRF guard', () => {
   it('REJECTS a non-http(s) scheme (file/ftp/etc.)', () => {
     expect(() => assertSafeBaseUrl('e', 'file:///etc/passwd')).toThrow(ApiEndpointError);
     expect(() => assertSafeBaseUrl('e', 'ftp://host/x')).toThrow(ApiEndpointError);
+  });
+
+  it('REJECTS a baseUrl that embeds credentials (user:pass@)', () => {
+    // L1: a secret in the URL contradicts env-only; reject before any egress.
+    expect(() => assertSafeBaseUrl('e', 'https://user:pass@api.example.com/v1')).toThrow(
+      ApiEndpointError,
+    );
+    expect(() => assertSafeBaseUrl('e', 'https://user@api.example.com/v1')).toThrow(
+      ApiEndpointError,
+    );
   });
 
   it('REJECTS a malformed url', () => {

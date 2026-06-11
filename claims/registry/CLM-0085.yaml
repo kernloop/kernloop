@@ -4,12 +4,16 @@ statement: >-
   the kernel api adapter, resolving the served concrete model and reasoning_effort through the same
   pure translation seam, recording the endpoint as the served adapter in provenance, and metering the
   call's reported tokens and usd into the run budget — and a per-endpoint maxUsdPerCall fails closed.
+  An endpoint declaring metersUsd:true that returns a 2xx with no cost also fails closed rather than
+  meter $0, so a report never implies $0 spend when spend is unknown.
 evidence:
   - 'test:packages/cli/src/loop/api-loop.test.ts::binds the endpoint as the served adapter and resolves the concrete model'
   - 'test:packages/cli/src/loop/api-loop.test.ts::invokes the endpoint (metered usage flows into the run totals)'
   - 'test:packages/cli/src/loop/api-loop.test.ts::fails closed (ApiKeyMissingError) when the endpoint key env var is unset'
   - 'test:packages/kernel/src/adapters/api.test.ts::fails closed when the reported cost exceeds the per-call cap'
   - 'test:packages/kernel/src/adapters/api.test.ts::allows a call whose reported cost is within the cap'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::fails closed when metersUsd is declared but the 2xx body reports no cost'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::meters usd when metersUsd is declared and a cost is reported'
   - 'test:packages/cli/src/overlay.test.ts::loads the optional endpoints block and an adapter that references one [CLM-0083]'
   - 'ci:test'
 status: verified

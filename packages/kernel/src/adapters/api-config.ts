@@ -37,7 +37,7 @@ export interface ApiAdapterDefinition {
   readonly baseUrl: string;
   /** The NAME of the env var the bearer key is read from at call time. */
   readonly apiKeyEnv: string;
-  /** Extra static headers (e.g. an OpenRouter `HTTP-Referer`); never a secret. */
+  /** Extra static headers (e.g. an `HTTP-Referer` some endpoints want); never a secret. */
   readonly headers?: Readonly<Record<string, string>>;
   /** Tier → CONCRETE model id this endpoint serves (spec §8.4). */
   readonly tierBinding: Partial<Record<ModelTier, string>>;
@@ -45,7 +45,11 @@ export interface ApiAdapterDefinition {
   readonly effort?: AdapterEffortProfile;
   /** Model capabilities this endpoint advertises (spec §8.4). */
   readonly capabilities: readonly ModelCapability[];
-  /** True when the endpoint reports per-call USD cost (OpenRouter `usage.cost`). */
+  /**
+   * True when the endpoint reports per-call USD cost (`usage.cost`, as some
+   * OpenAI-compatible endpoints do). When declared, a 2xx that reports NO cost
+   * fails closed in the adapter rather than metering $0 (prime directive).
+   */
   readonly metersUsd: boolean;
   /** Optional fail-closed per-call USD cap (spec §3.1 spend ceiling). */
   readonly maxUsdPerCall?: number;
