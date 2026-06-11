@@ -69,7 +69,7 @@ A distilled skill and a forged workshop tool have both been born through gates [
 Distill and forge complete the MCP surface at exactly the kernel eleven [CLM-0058].
 
 Files a coder model emits are confined to the workspace, against both lexical traversal and symlink escape [CLM-0059].
-The constitution enforces itself, not just asserts itself: no stub, TODO-wired, or not-implemented marker survives in shipped source [CLM-0060]; the kernel cannot originate a model call [CLM-0061]; no plugin imports another plugin, including via dynamic faculty-prefixed imports [CLM-0062]; and per-file, per-function, and per-package LOC budgets are gated [CLM-0063].
+The constitution enforces itself, not just asserts itself: no incompleteness marker — TODO/FIXME/XXX/HACK, "not implemented", or a stub-throwing literal — survives in shipped source [CLM-0060]; kernel source outside the adapters module cannot call or import the model-invocation primitives, so it cannot originate a model call [CLM-0061]; no plugin imports another plugin, including via dynamic faculty-prefixed imports [CLM-0062]; and per-file, per-function, and per-package LOC budgets are gated [CLM-0063].
 
 <!-- claims:end -->
 

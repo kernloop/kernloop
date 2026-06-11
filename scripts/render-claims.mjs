@@ -63,6 +63,11 @@ export function spliceBlock(readme, table) {
   return `${readme.slice(0, begin + BEGIN.length)}\n${table}\n${readme.slice(end)}`;
 }
 
+/** A markdown table separator row (only pipes, dashes, colons, spaces). */
+function isSeparatorRow(line) {
+  return /^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes('-');
+}
+
 /** Whitespace-normalize table rows so prettier alignment is not drift. */
 export function normalizeBlock(text) {
   const begin = text.indexOf(BEGIN);
@@ -72,14 +77,13 @@ export function normalizeBlock(text) {
     text
       .slice(begin + BEGIN.length, end)
       .split('\n')
-      // Collapse cell padding and separator dash-runs that prettier adds when
-      // it aligns table columns, so alignment is never read as content drift.
-      .map((l) =>
-        l
-          .replace(/\s*\|\s*/g, '|')
-          .replace(/-{2,}/g, '-')
-          .trim(),
-      )
+      // Collapse the cell padding prettier adds. Dash-runs are collapsed ONLY
+      // on a separator row — doing it everywhere could hide a real `--`→`-`
+      // drift inside a content cell (e.g. a path).
+      .map((l) => {
+        const tightened = l.replace(/\s*\|\s*/g, '|').trim();
+        return isSeparatorRow(l) ? tightened.replace(/-{2,}/g, '-') : tightened;
+      })
       .filter((l) => l.length > 0)
       .join('\n')
   );

@@ -24,6 +24,11 @@ test('no-model-calls-in-kernel enforces spec §1.4 (kernel originates no model c
         code: 'export function route(task) {\n  return task.id;\n}',
         filename: 'packages/kernel/src/router/router.ts',
       },
+      {
+        // a pure re-export does not call — it exposes the surface (src/index.ts)
+        code: "export * from './adapters/index.js';",
+        filename: 'packages/kernel/src/index.ts',
+      },
     ],
     invalid: [
       {
@@ -37,6 +42,18 @@ test('no-model-calls-in-kernel enforces spec §1.4 (kernel originates no model c
         // call the kernel would be originating
         code: "import { invokeAdapter } from './adapters/index.js';",
         filename: 'packages/kernel/src/router/router.ts',
+        errors: [{ messageId: 'kernelModelCall' }],
+      },
+      {
+        // runSubprocess is the raw spawn the metered call is built on — also forbidden
+        code: "await runSubprocess({ command: 'claude', args: [] });",
+        filename: 'packages/kernel/src/router/router.ts',
+        errors: [{ messageId: 'kernelModelCall' }],
+      },
+      {
+        // a member call on a namespace import evades a bare-identifier check
+        code: "import * as a from './adapters/index.js';\nawait a.invokeAdapter('claude', i);",
+        filename: 'packages/kernel/src/ladder/ladder.ts',
         errors: [{ messageId: 'kernelModelCall' }],
       },
     ],

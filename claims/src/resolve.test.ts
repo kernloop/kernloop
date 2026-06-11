@@ -41,6 +41,12 @@ describe('findTestCall — static test-shape inspection', () => {
   it('returns null when the named test is absent', () => {
     expect(findTestCall("it('other', () => {})", 'missing')).toBeNull();
   });
+
+  it('detects an empty function() body without bleeding into a later arrow test', () => {
+    const src = "it('a', function () {});\nit('b', () => { expect(1).toBe(1); });";
+    expect(findTestCall(src, 'a')?.emptyBody).toBe(true);
+    expect(findTestCall(src, 'b')?.emptyBody).toBe(false);
+  });
 });
 
 describe('resolveEvidence — disabled and empty tests are not evidence', () => {

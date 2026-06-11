@@ -45,11 +45,17 @@ export function findTestCall(
   if (m === null) return null;
   const token = m[1] ?? '';
   const modifiers = m[2] ?? '';
-  // Find the callback body: skip past the name argument to the first `{` that
-  // opens the test function, then brace-match to its close.
+  // Find the callback body's opening `{`. For an arrow callback the body
+  // follows `=>`, and arrow params may themselves contain `{` (destructuring),
+  // so we jump past `=>` first — but ONLY when that `=>` precedes the next
+  // `{`. Otherwise (a `function () {}` callback, whose `{` comes before any
+  // arrow) we take the first `{`, so an empty `function` body is not misread
+  // by jumping to a LATER test's `=>`.
   const i = head.lastIndex;
+  const firstBrace = source.indexOf('{', i);
   const arrow = source.indexOf('=>', i);
-  const open = source.indexOf('{', arrow === -1 ? i : arrow);
+  const useArrow = arrow !== -1 && (firstBrace === -1 || arrow < firstBrace);
+  const open = useArrow ? source.indexOf('{', arrow) : firstBrace;
   let emptyBody = false;
   if (open !== -1) {
     let depth = 0;

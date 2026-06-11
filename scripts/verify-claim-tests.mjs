@@ -19,6 +19,16 @@ import { parse as parseYaml } from 'yaml';
 /** Convert a registry test name (possibly a printf `.each` template) to a matcher. */
 export function nameMatcher(testName) {
   if (/%[sdifjo#%]/.test(testName)) {
+    // A name that is nothing but wildcards (e.g. "%s") would match every
+    // title — it is not a usable cite. Require literal content to anchor on.
+    if (
+      testName
+        .replace(/%%/g, '')
+        .replace(/%[sdifjo#]/g, '')
+        .trim().length === 0
+    ) {
+      return () => false;
+    }
     const rx = testName
       .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       .replace(/%%/g, '%')
@@ -51,19 +61,31 @@ export function collectTestRefs(registryDir) {
 export function flattenResults(report) {
   const rows = [];
   for (const suite of report.testResults ?? []) {
+    // `suite.name` is the absolute test file path; normalize separators so a
+    // POSIX `ref.file` suffix match works regardless of platform.
+    const file = (suite.name ?? '').split('\\').join('/');
     for (const a of suite.assertionResults ?? []) {
-      rows.push({ title: a.title, fullName: a.fullName, status: a.status });
+      rows.push({ file, title: a.title, fullName: a.fullName, status: a.status });
     }
   }
   return rows;
 }
 
-/** Cross-check every test ref against the run results. Returns error strings. */
+/**
+ * Cross-check every test ref against the run results. A cited test must match
+ * by name AND come from the cited file — otherwise a deleted/renamed test
+ * could be satisfied by an identically-named test in a different file.
+ */
 export function checkRefs(refs, rows) {
   const errors = [];
   for (const ref of refs) {
     const match = nameMatcher(ref.testName);
-    const hits = rows.filter((r) => match(r.title) || (r.fullName && match(r.fullName)));
+    const inFile = rows.filter((r) => r.file.endsWith(ref.file));
+    if (inFile.length === 0) {
+      errors.push(`${ref.claim}: cited test file did not run: ${ref.file}`);
+      continue;
+    }
+    const hits = inFile.filter((r) => match(r.title) || (r.fullName && match(r.fullName)));
     if (hits.length === 0) {
       errors.push(`${ref.claim}: cited test never ran: "${ref.testName}" (${ref.file})`);
       continue;
