@@ -1,0 +1,16 @@
+id: CLM-0069
+statement: >-
+  Semantic facts and episodic trace summaries export to a portable JSON
+  document and re-import loss-free, so an overlay's memory can travel with the
+  repo.
+evidence:
+  - 'test:packages/faculty-memory/src/export.test.ts::exports a schema-valid, JSON-serializable document'
+  - 'test:packages/faculty-memory/src/export.test.ts::round-trips facts and traces loss-free into a fresh overlay'
+  - 'test:packages/faculty-memory/src/export.test.ts::preserves the decay clock so recall ranking survives the trip'
+  - 'test:packages/faculty-memory/src/export.test.ts::dedups on re-import by the existing UNIQUE keys (idempotent)'
+  - 'test:packages/cli/src/tools/portability.test.ts::round-trips an overlay’s memory across repos via the CLI, loss-free'
+  - 'test:packages/cli/src/tools/portability.test.ts::audits the import as cli.memory.import with counts'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

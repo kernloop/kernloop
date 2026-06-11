@@ -17,6 +17,8 @@ describe('the no-privileged-path property (CLM-0056)', () => {
       'InvalidOutcomeError',
       'InvalidVerdictError',
       'ObserverTrackerUnavailableError',
+      'PriorsExportSchema',
+      'RoutingPriorSchema',
       'SCHEMA_DDL',
       'createObserver',
       'issueBody',

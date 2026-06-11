@@ -76,6 +76,9 @@ A research skill pack ships, so the Researcher template's skill reference resolv
 
 The canonical loop selects the model adapter per node by declared tier — research and review on the overlay's cheap adapter, plan, vote, decompose, and implement on the frontier adapter — each defaulting to the run adapter when no tier adapter is configured [CLM-0068].
 
+Semantic facts and episodic trace summaries export to a portable JSON document and re-import loss-free, so an overlay's memory can travel with the repo [CLM-0069].
+Learned routing priors export from the Observer fitness ledger to a reviewable YAML priors file committed with the overlay [CLM-0070].
+
 <!-- claims:end -->
 
 ## The claims registry
@@ -167,6 +170,8 @@ and `claims:verify-ran`, which proves the cited test actually ran and passed).
 | [CLM-0066](claims/registry/CLM-0066.yaml) | [`scripts/__tests__/research-skill.test.mjs`](scripts/__tests__/research-skill.test.mjs), [`skills/research/SKILL.md`](skills/research/SKILL.md), CI `test`                                                                                                                                                                                                                                                                                   |
 | [CLM-0067](claims/registry/CLM-0067.yaml) | [`packages/cli/src/loop/gates-in-loop.test.ts`](packages/cli/src/loop/gates-in-loop.test.ts), CI `test`                                                                                                                                                                                                                                                                                                                                       |
 | [CLM-0068](claims/registry/CLM-0068.yaml) | [`packages/cli/src/loop/tiers.test.ts`](packages/cli/src/loop/tiers.test.ts), [`packages/cli/src/overlay.test.ts`](packages/cli/src/overlay.test.ts), CI `test`                                                                                                                                                                                                                                                                               |
+| [CLM-0069](claims/registry/CLM-0069.yaml) | [`packages/faculty-memory/src/export.test.ts`](packages/faculty-memory/src/export.test.ts), [`packages/cli/src/tools/portability.test.ts`](packages/cli/src/tools/portability.test.ts), CI `test`                                                                                                                                                                                                                                             |
+| [CLM-0070](claims/registry/CLM-0070.yaml) | [`packages/faculty-observer/src/priors.test.ts`](packages/faculty-observer/src/priors.test.ts), [`packages/cli/src/tools/portability.test.ts`](packages/cli/src/tools/portability.test.ts), CI `test`                                                                                                                                                                                                                                         |
 
 <!-- enforcement:end -->
 
