@@ -1,0 +1,14 @@
+id: CLM-0070
+statement: >-
+  Learned routing priors export to a reviewable .kernloop/priors.yaml from the
+  Observer fitness ledger.
+evidence:
+  - 'test:packages/faculty-observer/src/priors.test.ts::exports per-subject success rate as the routing fitness signal'
+  - 'test:packages/faculty-observer/src/priors.test.ts::exports an empty, schema-valid document from an empty ledger'
+  - 'test:packages/faculty-observer/src/priors.test.ts::orders priors most-recently-used first (the ledger ordering)'
+  - 'test:packages/cli/src/tools/portability.test.ts::writes reviewable priors.yaml from the fitness ledger via the CLI'
+  - 'test:packages/cli/src/tools/portability.test.ts::exports an empty priors document when the ledger is empty'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

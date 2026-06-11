@@ -40,6 +40,8 @@ export interface OverlayPaths {
   readonly memory: string;
   /** Overlay configuration: id, budgets, gate thresholds, K, overrides. */
   readonly config: string;
+  /** Exported, reviewable learned routing priors (spec §7 priors.yaml). */
+  readonly priors: string;
 }
 
 /** Resolve the overlay file layout for an overlay directory. */
@@ -51,6 +53,7 @@ export function overlayPaths(overlayDir: string): OverlayPaths {
     audit: path.join(dir, 'audit.jsonl'),
     memory: path.join(dir, 'memory.sqlite'),
     config: path.join(dir, 'overlay.yaml'),
+    priors: path.join(dir, 'priors.yaml'),
   };
 }
 

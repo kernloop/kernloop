@@ -30,6 +30,7 @@ import {
   statusTool,
   type GateInput,
 } from './tools/index.js';
+import { memoryCommand, priorsCommand, type CommandHelpers } from './portability-commands.js';
 
 /** Injectable I/O so tests can capture output. */
 export interface CliIo {
@@ -57,6 +58,9 @@ const USAGE = [
   '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
+  '  memory    export [--out <file>]                 portable memory export (JSON; default stdout)',
+  '            import <file>                          load a memory export (upserts, audited)',
+  '  priors    export [--out <file>]                 routing priors → .kernloop/priors.yaml (YAML)',
 ].join('\n');
 
 /** Common string-flag declaration, spread into each command's options. */
@@ -178,6 +182,13 @@ function gateInputFrom(io: CliIo, v: Record<string, string | boolean | undefined
   };
 }
 
+/** Dispatch helpers shared with the extracted portability subcommands. */
+const commandHelpers: CommandHelpers = {
+  outFlags: (args) => flags(args, { out: S }),
+  withKernloop,
+  str,
+};
+
 const HANDLERS: Record<string, Handler> = {
   init: (args, io) => {
     const v = flags(args, {});
@@ -294,6 +305,8 @@ const HANDLERS: Record<string, Handler> = {
     const v = flags(args, {});
     return withKernloop(io, v.dir, (kern) => observeTool(kern, {}));
   },
+  memory: (args, io) => memoryCommand(args, io, commandHelpers),
+  priors: (args, io) => priorsCommand(args, io, commandHelpers),
   distill: (args, io) => {
     const v = flags(args, { trace: S, adapter: S });
     const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);

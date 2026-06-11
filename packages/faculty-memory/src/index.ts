@@ -19,6 +19,7 @@ import {
   type RememberFactInput,
 } from './semantic.js';
 import { getTraceSummary, listSummaries, recordOutcome, type TraceSummary } from './episodic.js';
+import { exportMemory, importMemory, type MemoryExport } from './export.js';
 
 export { ProvenanceRequiredError, InvalidFactError, InvalidOutcomeError } from './errors.js';
 export { SCHEMA_DDL } from './store.js';
@@ -26,6 +27,12 @@ export { DECAY_HALF_LIFE_MS, DEFAULT_RECALL_LIMIT } from './semantic.js';
 export type { FactRecord, RecalledFact, RememberFactInput, RecallOptions } from './semantic.js';
 export { DEFAULT_LIST_LIMIT } from './episodic.js';
 export type { TraceSummary } from './episodic.js';
+export {
+  MemoryExportSchema,
+  SemanticFactExportSchema,
+  TraceSummaryExportSchema,
+} from './export.js';
+export type { MemoryExport, SemanticFactExport, TraceSummaryExport } from './export.js';
 export { memoryManifest } from './manifest.js';
 
 /** Options for {@link createMemory}. */
@@ -49,6 +56,11 @@ export interface Memory {
   getTraceSummary(taskId: string): TraceSummary | undefined;
   /** Episodic read — summaries newest-first (CLM-0024). */
   listSummaries(options?: { limit?: number }): TraceSummary[];
+  /** Portable export — facts + trace summaries as a JSON document (CLM-0069). */
+  exportMemory(): MemoryExport;
+  /** Loss-free import — upserts the export over the existing insert paths;
+   * returns the counts written so the caller can audit it (CLM-0069). */
+  importMemory(data: MemoryExport): { facts: number; traces: number };
   /** Close the underlying database handle. */
   close(): void;
 }
@@ -67,6 +79,8 @@ export function createMemory(dbPath: string, options: CreateMemoryOptions = {}):
     recordOutcome: (outcome, summary) => recordOutcome(db, clock(), outcome, summary),
     getTraceSummary: (taskId) => getTraceSummary(db, taskId),
     listSummaries: (opts) => listSummaries(db, opts),
+    exportMemory: () => exportMemory(db),
+    importMemory: (data) => importMemory(db, data),
     close: () => db.close(),
   };
 }

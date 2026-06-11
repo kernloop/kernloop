@@ -41,6 +41,7 @@ import {
   type IssueProposal,
   type IssueProposalInput,
 } from './issues.js';
+import { exportPriors, type PriorsExport } from './priors.js';
 
 export {
   InvalidOutcomeError,
@@ -55,6 +56,8 @@ export { DEFAULT_PRECISION_WINDOW_N } from './voters.js';
 export type { GateDecisionCost, RunningPrecision, VoterSeriesEntry } from './voters.js';
 export { issueBody } from './issues.js';
 export type { ExecResult, IssueExec, IssueProposal, IssueProposalInput } from './issues.js';
+export { PriorsExportSchema, RoutingPriorSchema } from './priors.js';
+export type { PriorsExport, RoutingPrior } from './priors.js';
 export { observerManifest } from './manifest.js';
 
 /** Options for {@link createObserver}. */
@@ -86,6 +89,8 @@ export interface Observer {
   costPerGovernedDecision(gate: string): GateDecisionCost | undefined;
   /** Subjects whose recent window underperforms lifetime (spec §5.5). */
   driftSignals(options?: DriftOptions): DriftSignal[];
+  /** Export learned routing priors from the fitness ledger (CLM-0070). */
+  exportPriors(): PriorsExport;
   /** Persist a self-issue proposal at suggest tier (CLM-0056). */
   proposeIssue(input: IssueProposalInput): IssueProposal;
   /** One proposal by id. */
@@ -119,6 +124,7 @@ export function createObserver(dbPath: string, options: CreateObserverOptions = 
     runningPrecision: (voter, opts) => runningPrecision(db, voter, opts),
     costPerGovernedDecision: (gate) => costPerGovernedDecision(db, gate),
     driftSignals: (opts) => driftSignals(db, opts),
+    exportPriors: () => exportPriors(db),
     proposeIssue: (input) => proposeIssue(db, clock(), input),
     getIssue: (id) => getIssue(db, id),
     listIssues: () => listIssues(db),
