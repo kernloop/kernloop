@@ -5,8 +5,9 @@
  *   (a) a registry file fails schema validation, ids are duplicated, or a
  *       filename does not equal its claim id;
  *   (b) any evidence ref does not resolve (see resolve.ts for semantics —
- *       claims:check verifies test EXISTENCE by name; CI orders this job
- *       after the test job, so green here implies the tests also ran green);
+ *       this gate statically rejects missing, disabled, or empty-bodied
+ *       tests; `scripts/verify-claim-tests.mjs` is the companion gate that
+ *       proves every cited test actually RAN and PASSED in the test run);
  *   (c) a claim is `verified` with zero test evidence;
  *   (d) the capability-statement lint fails on README.md / ARCHITECTURE.md —
  *       including a `[CLM-NNNN]` tag citing a `planned` or `experimental`

@@ -13,6 +13,7 @@
     "test": "turbo run test && vitest run --coverage --config vitest.root.config.mjs",
     "lint": "eslint . --max-warnings 0 && node scripts/loc-check.mjs",
     "claims:check": "tsx claims/src/check.ts",
+    "claims:verify-ran": "node scripts/verify-claim-tests.mjs",
     "governance:check": "node scripts/governance-check.mjs",
     "audit:selftest": "node scripts/audit-selftest.mjs",
     "format": "prettier --check .",

@@ -22,12 +22,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm format
       - run: pnpm test
+      # Ran-and-passed gate: proves every claim's cited test actually executed
+      # and passed in this run — not merely that its name exists in a file.
+      - run: pnpm claims:verify-ran
 
   claims_check:
     name: 'claims:check'
-    # Ordered after test: a green claims:check therefore implies every
-    # test-evidence ref it resolved also ran green (claims/src/resolve.ts).
-    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

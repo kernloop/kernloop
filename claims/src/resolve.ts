@@ -3,11 +3,20 @@
  * does this evidence reference point at something that exists in the tree
  * RIGHT NOW? Resolvers return `null` on success or a precise error message.
  *
- * NOTE on "test passes" semantics: the test resolver verifies the referenced
- * test EXISTS by exact name in the referenced file. The CI pipeline orders
- * the `claims:check` job after the test job, so a green `claims:check` run
- * implies the referenced tests also ran green — existence here plus ordering
- * there is what makes a claim's test evidence mean "passing test".
+ * What "test evidence" proves, in two layers (deliberately, and stated so the
+ * gate cannot overclaim):
+ *  1. THIS resolver (static, fast): the referenced test EXISTS by exact name,
+ *     is not disabled inline (`.skip`/`.only`/`.todo`/`xit`/`xtest`), and does
+ *     not have an empty body. It does not execute anything.
+ *  2. `scripts/verify-claim-tests.mjs` (the ran-and-passed gate, blocking in
+ *     CI's `test` job): every cited test must appear in the actual test-run
+ *     results with status `passed`. This is what makes "verified" mean the
+ *     test RAN and PASSED — it catches `describe.skip`, CLI `--skip`, renamed
+ *     or deleted tests, and failures, none of which a static scan can see.
+ * What neither layer claims: that a passing test asserts something *meaningful*
+ * (a no-op-but-named test that throws nothing "passes"). The empty-body check
+ * here catches the blatant case; assertion quality is a code-review concern,
+ * and the gate does not pretend otherwise.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,13 +28,51 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * `test:<path>::<name>` — the file must exist and contain a `test('name')`,
- * `it('name')`, or parameterized `test.each(…)('name')` / `it.each(…)('name')`
- * call with that exact name as a plain string literal (single or double
- * quotes; for `.each` the literal printf-style template, e.g. `seed %i: …`,
- * is the name). Template-literal test names are deliberately unresolvable:
- * a name the checker cannot read statically is not evidence.
+ * Locate a `test`/`it` call for `name` and report what it is. Returns the
+ * matched leading token (`test`/`it`/`xit`/`xtest`), any modifier chain
+ * (`.skip`, `.only`, `.todo`, `.each(...)`), and whether its callback body is
+ * empty. `null` means no such named test call exists in the source.
  */
+export function findTestCall(
+  source: string,
+  name: string,
+): { token: string; modifiers: string; emptyBody: boolean } | null {
+  const head = new RegExp(
+    `\\b(test|it|xit|xtest)((?:\\.(?:skip|only|todo|concurrent|sequential|fails|each\\([^)]*\\)))*)\\(\\s*(['"])${escapeRegExp(name)}\\3`,
+    'g',
+  );
+  const m = head.exec(source);
+  if (m === null) return null;
+  const token = m[1] ?? '';
+  const modifiers = m[2] ?? '';
+  // Find the callback body: skip past the name argument to the first `{` that
+  // opens the test function, then brace-match to its close.
+  const i = head.lastIndex;
+  const arrow = source.indexOf('=>', i);
+  const open = source.indexOf('{', arrow === -1 ? i : arrow);
+  let emptyBody = false;
+  if (open !== -1) {
+    let depth = 0;
+    let bodyChars = '';
+    for (let j = open; j < source.length; j++) {
+      const ch = source[j];
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) break;
+      } else if (depth === 1) {
+        bodyChars += ch;
+      }
+    }
+    emptyBody =
+      bodyChars
+        .replace(/\/\/[^\n]*/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .trim() === '';
+  }
+  return { token, modifiers, emptyBody };
+}
+
 function resolveTestRef(
   ref: Extract<EvidenceRef, { kind: 'test' }>,
   repoRoot: string,
@@ -35,11 +82,19 @@ function resolveTestRef(
     return `${ref.raw}: test file not found: ${ref.path}`;
   }
   const source = fs.readFileSync(file, 'utf8');
-  const pattern = new RegExp(
-    `\\b(?:test|it)(?:\\.each\\([^)]*\\))?\\(\\s*(['"])${escapeRegExp(ref.testName)}\\1`,
-  );
-  if (!pattern.test(source)) {
+  const call = findTestCall(source, ref.testName);
+  if (call === null) {
     return `${ref.raw}: no test named "${ref.testName}" in ${ref.path} (exact test('…')/it('…') string literal required)`;
+  }
+  if (call.token === 'xit' || call.token === 'xtest') {
+    return `${ref.raw}: test "${ref.testName}" is disabled (${call.token}) — evidence must cite a live test`;
+  }
+  const disabled = /\.(?:skip|only|todo)\b/.exec(call.modifiers);
+  if (disabled !== null) {
+    return `${ref.raw}: test "${ref.testName}" is disabled (${disabled[0]}) — evidence must cite a live test`;
+  }
+  if (call.emptyBody) {
+    return `${ref.raw}: test "${ref.testName}" has an empty body — an empty test is not evidence`;
   }
   return null;
 }
