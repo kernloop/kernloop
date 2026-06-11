@@ -100,9 +100,13 @@ describe('runSubprocess', () => {
   });
 
   it('keeps output produced before the timeout kill', async () => {
-    const result = await runNode('process.stdout.write("partial"); setTimeout(() => {}, 30_000);', {
-      timeoutMs: 150,
-    });
+    // Write SYNCHRONOUSLY to the stdout fd so the bytes are in the pipe before
+    // the kill can race the flush (a buffered `process.stdout.write` to a pipe
+    // could otherwise be killed before it lands — flaky on slow CI runners).
+    const result = await runNode(
+      'require("node:fs").writeSync(1, "partial"); setTimeout(() => {}, 30_000);',
+      { timeoutMs: 300 },
+    );
     expect(result.timedOut).toBe(true);
     expect(result.stdout).toBe('partial');
   });
