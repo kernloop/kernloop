@@ -40,6 +40,51 @@ import {
   meteredInvoke,
   type LoopInvoke,
 } from './invoke.js';
+import type { ModelTier } from './tiers.js';
+import type { TierAdapters } from '../overlay.js';
+
+export { NODE_TIERS, type ModelTier, type TieredNode } from './tiers.js';
+
+/**
+ * Resolve which adapter NAME a node tier binds [CLM-0068]: the overlay's
+ * declared adapter for that tier, or the run adapter when the tier is unset.
+ * The pure mapping at the heart of tiered routing — with no `adapters`, every
+ * tier resolves to `runAdapter` (the backward-compat guarantee).
+ */
+export function tierAdapter(
+  runAdapter: AdapterName,
+  adapters: TierAdapters | undefined,
+  tier: ModelTier,
+): AdapterName {
+  return adapters?.[tier] ?? runAdapter;
+}
+
+/**
+ * Build the per-tier model seam [CLM-0068]. Each tier resolves to the adapter
+ * the overlay declares for it (`overlay.adapters.cheap` / `.frontier`),
+ * falling back to `runAdapter` when unset — so an overlay with no `adapters`
+ * block makes BOTH tiers resolve to the run adapter (byte-identical to today,
+ * the backward-compat guarantee). Every returned invoke is metered through
+ * `totals`, exactly as the single-seam path is.
+ *
+ * Enforcement point note (honesty): this lives at the LOOP composition root,
+ * not the Router — see loop/tiers.ts.
+ */
+export function buildInvokeForTier(
+  runAdapter: AdapterName,
+  adapters: TierAdapters | undefined,
+  totals: { tokens: number; usd: number },
+): (tier: ModelTier) => LoopInvoke {
+  const cache = new Map<ModelTier, LoopInvoke>();
+  return (tier) => {
+    let invoke = cache.get(tier);
+    if (invoke === undefined) {
+      invoke = meteredInvoke(adapterInvoke(tierAdapter(runAdapter, adapters, tier)), totals);
+      cache.set(tier, invoke);
+    }
+    return invoke;
+  };
+}
 
 export {
   LoopParseError,
@@ -123,6 +168,24 @@ function report(result: RunResult, totals: { tokens: number; usd: number }): Loo
 }
 
 /**
+ * Probe every adapter a default-seam run can actually call — the run adapter
+ * plus any tier adapter the overlay declares — so a misconfigured environment
+ * fails fast up front, never mid-loop. Each absence is a typed error.
+ */
+function ensureRunAdaptersAvailable(
+  runAdapter: AdapterName,
+  tierAdapters: TierAdapters | undefined,
+): void {
+  ensureAdapterAvailable(runAdapter);
+  for (const tier of ['cheap', 'frontier'] as const) {
+    const tierAdapter = tierAdapters?.[tier];
+    if (tierAdapter !== undefined && tierAdapter !== runAdapter) {
+      ensureAdapterAvailable(tierAdapter);
+    }
+  }
+}
+
+/**
  * Run (or resume) the canonical loop over one assembled kernloop. The
  * default invoke requires the chosen adapter's CLI on PATH — probed up
  * front; unavailable is a typed error, never a stub.
@@ -132,7 +195,8 @@ export async function executeCanonicalLoop(
   request: LoopRequest,
 ): Promise<LoopReport> {
   const adapter = request.adapter ?? 'claude';
-  if (request.invoke === undefined) ensureAdapterAvailable(adapter);
+  const tierAdapters = kern.config.adapters;
+  if (request.invoke === undefined) ensureRunAdaptersAvailable(adapter, tierAdapters);
   const base = request.invoke ?? adapterInvoke(adapter);
   const runId = request.resumeRunId ?? request.runId ?? randomUUID();
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
@@ -145,11 +209,20 @@ export async function executeCanonicalLoop(
     primeRefs(refs, latest.state);
   }
   const totals = { tokens: 0, usd: 0 };
+  // Default + per-tier seams, both metered. An injected invoke makes every
+  // tier resolve to it (tests unaffected); else each tier resolves to its
+  // overlay-declared adapter, defaulting to the run adapter [CLM-0068].
+  const defaultInvoke = meteredInvoke(base, totals);
+  const invokeFor: (tier: ModelTier) => LoopInvoke =
+    request.invoke === undefined
+      ? buildInvokeForTier(adapter, tierAdapters, totals)
+      : () => defaultInvoke;
   const engine = createEngine({
     executors: buildLoopExecutors({
       kern,
       workspaceDir: request.workspaceDir,
-      invoke: meteredInvoke(base, totals),
+      invoke: defaultInvoke,
+      invokeFor,
       adapter,
       refs,
       ...(request.checks === undefined ? {} : { checks: request.checks }),

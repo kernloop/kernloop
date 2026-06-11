@@ -74,6 +74,8 @@ The constitution enforces itself, not just asserts itself: no incompleteness mar
 The canonical loop runs an advisory review gate per child after the quality gate — implement, then quality, then review — its Verdict audited but never blocking [CLM-0064].
 A research skill pack ships, so the Researcher template's skill reference resolves [CLM-0066], and the loop's research node invokes the Researcher template, folding gathered findings into the Brief [CLM-0067].
 
+The canonical loop selects the model adapter per node by declared tier — research and review on the overlay's cheap adapter, plan, vote, decompose, and implement on the frontier adapter — each defaulting to the run adapter when no tier adapter is configured [CLM-0068].
+
 <!-- claims:end -->
 
 ## The claims registry
@@ -164,6 +166,7 @@ and `claims:verify-ran`, which proves the cited test actually ran and passed).
 | [CLM-0064](claims/registry/CLM-0064.yaml) | [`packages/workflows/src/graph.test.ts`](packages/workflows/src/graph.test.ts), [`packages/cli/src/loop/gates-in-loop.test.ts`](packages/cli/src/loop/gates-in-loop.test.ts), [`packages/cli/src/loop.test.ts`](packages/cli/src/loop.test.ts), CI `test`                                                                                                                                                                                     |
 | [CLM-0066](claims/registry/CLM-0066.yaml) | [`scripts/__tests__/research-skill.test.mjs`](scripts/__tests__/research-skill.test.mjs), [`skills/research/SKILL.md`](skills/research/SKILL.md), CI `test`                                                                                                                                                                                                                                                                                   |
 | [CLM-0067](claims/registry/CLM-0067.yaml) | [`packages/cli/src/loop/gates-in-loop.test.ts`](packages/cli/src/loop/gates-in-loop.test.ts), CI `test`                                                                                                                                                                                                                                                                                                                                       |
+| [CLM-0068](claims/registry/CLM-0068.yaml) | [`packages/cli/src/loop/tiers.test.ts`](packages/cli/src/loop/tiers.test.ts), [`packages/cli/src/overlay.test.ts`](packages/cli/src/overlay.test.ts), CI `test`                                                                                                                                                                                                                                                                               |
 
 <!-- enforcement:end -->
 

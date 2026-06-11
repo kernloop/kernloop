@@ -1,0 +1,17 @@
+id: CLM-0068
+statement: >-
+  The canonical loop selects the model adapter per node by declared tier —
+  cheap-tier nodes (research, review) use the overlay's cheap adapter and
+  frontier-tier nodes (plan, vote, decompose, implement) the frontier adapter
+  — each defaulting to the run adapter when no tier adapter is configured.
+evidence:
+  - 'test:packages/cli/src/loop/tiers.test.ts::routes read/judge nodes to cheap and load-bearing generation/decisions to frontier'
+  - 'test:packages/cli/src/loop/tiers.test.ts::binds the configured adapter per tier: research(cheap)→codex, plan(frontier)→claude'
+  - 'test:packages/cli/src/loop/tiers.test.ts::BACKWARD-COMPAT: with no adapters config, both tiers resolve to the run adapter'
+  - "test:packages/cli/src/loop/tiers.test.ts::the run adapter's tier seam invokes the real run-adapter CLI and meters its cost"
+  - 'test:packages/cli/src/loop/tiers.test.ts::each model-calling node draws its seam from its declared tier: research/review cheap, plan/vote/decompose/implement frontier'
+  - 'test:packages/cli/src/overlay.test.ts::loads the optional tiered-adapters block [CLM-0068]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0
