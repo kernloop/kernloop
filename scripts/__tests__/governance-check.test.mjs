@@ -119,4 +119,16 @@ describe('governance:check failure modes (drift proofs)', () => {
       'AGENTS.md contains no `pnpm <command>` lines — charter/commands drift',
     );
   });
+
+  test('matches a hyphenated command name in full (e.g. claims:verify-ran)', () => {
+    const root = fixtureRepo();
+    fs.writeFileSync(path.join(root, 'AGENTS.md'), '# charter\n```\npnpm claims:verify-ran\n```\n');
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({ scripts: { 'claims:verify-ran': 'x' } }),
+    );
+    // The whole hyphenated name must resolve — a regex that stopped at the
+    // hyphen would look for "claims:verify" and wrongly report drift.
+    expect(checkCharterCommands(root)).toEqual([]);
+  });
 });
