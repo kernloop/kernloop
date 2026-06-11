@@ -39,6 +39,8 @@ export { buildDockerArgs, runInSandbox } from './sandbox.js';
 export type { SandboxMount, SandboxResult, SandboxRunOptions } from './sandbox.js';
 export { forge, ToolClaimSchema, ToolSpecSchema } from './forge.js';
 export type { ForgeOptions, ForgeResult, InvokeToolGenerator, ToolSpec } from './forge.js';
+export { runWorkshopTool } from './run.js';
+export type { RunWorkshopToolOptions, RunWorkshopToolResult } from './run.js';
 export {
   RETIRED_DIR,
   SAFE_TOOL_NAME,

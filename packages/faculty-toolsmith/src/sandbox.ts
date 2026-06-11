@@ -39,6 +39,12 @@ export interface SandboxRunOptions {
   readonly profile: SandboxProfile;
   /** Docker binary; injectable so the refusal path is testable. */
   readonly dockerBin?: string;
+  /**
+   * Optional bytes to write to the container process's stdin, then close it.
+   * Present → `docker run -i` so the container reads an interactive stdin
+   * (the workshop RUN contract: a tool reads its input JSON from stdin).
+   */
+  readonly stdin?: string;
 }
 
 /** Outcome of one sandboxed run. */
@@ -71,6 +77,9 @@ export function buildDockerArgs(
   const args = [
     'run',
     '--rm',
+    // `-i` keeps the container's stdin open so we can stream the input
+    // contract JSON to the tool process; harmless when no stdin is provided.
+    ...(options.stdin !== undefined ? ['-i'] : []),
     '--name',
     containerName,
     '--network',
@@ -122,9 +131,19 @@ function spawnDocker(
   args: string[],
   containerName: string,
   timeoutMs: number,
+  stdin: string | undefined,
 ): Promise<RawRun> {
   return new Promise((resolve) => {
-    const child = spawn(dockerBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    // Pipe stdin only when there is input to write; otherwise leave it
+    // ignored so a tool that reads stdin sees an immediate EOF, not a hang.
+    const child =
+      stdin === undefined
+        ? spawn(dockerBin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+        : spawn(dockerBin, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    if (stdin !== undefined && child.stdin !== null) {
+      child.stdin.on('error', () => {}); // a tool that never reads stdin: ignore EPIPE
+      child.stdin.end(stdin);
+    }
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -157,7 +176,13 @@ export async function runInSandbox(options: SandboxRunOptions): Promise<SandboxR
   const dockerBin = options.dockerBin ?? 'docker';
   const containerName = `kernloop-forge-${randomUUID()}`;
   const args = buildDockerArgs(options, containerName);
-  const raw = await spawnDocker(dockerBin, args, containerName, options.profile.timeoutMs);
+  const raw = await spawnDocker(
+    dockerBin,
+    args,
+    containerName,
+    options.profile.timeoutMs,
+    options.stdin,
+  );
   if (raw.spawnError !== undefined) {
     throw new SandboxUnavailableError(
       `docker binary not runnable at ${JSON.stringify(dockerBin)} (${raw.spawnError.code ?? raw.spawnError.message})`,
