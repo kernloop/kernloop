@@ -1,7 +1,8 @@
 id: CLM-0060
 statement: >-
-  No stub, TODO-wired, or not-implemented marker exists in shipped package
-  source — the wiring-complete rule is gated, not just asserted.
+  No incompleteness marker — a TODO/FIXME/XXX/HACK comment, a "not implemented"
+  string, or a stub-throwing literal — survives in shipped package source; the
+  wiring-complete rule is gated by a marker scan, not just asserted.
 evidence:
   - 'test:scripts/__tests__/wiring-check.test.mjs::a TODO comment in package source fails the gate'
   - 'test:scripts/__tests__/wiring-check.test.mjs::a fully-wired clean file passes the gate'

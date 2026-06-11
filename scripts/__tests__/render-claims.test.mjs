@@ -76,4 +76,11 @@ describe('renderTable + spliceBlock + drift', () => {
     const tight = `${'<!-- enforcement:begin -->'}\n|A|B|\n|-|-|\n|x|y|\n${'<!-- enforcement:end -->'}`;
     expect(normalizeBlock(aligned)).toBe(normalizeBlock(tight));
   });
+
+  test('normalizeBlock preserves dash-runs inside content cells (no false-clean drift)', () => {
+    // A `--` inside a content path is real drift, not column alignment.
+    const a = `${'<!-- enforcement:begin -->'}\n| x | a--b.ts |\n${'<!-- enforcement:end -->'}`;
+    const b = `${'<!-- enforcement:begin -->'}\n| x | a-b.ts |\n${'<!-- enforcement:end -->'}`;
+    expect(normalizeBlock(a)).not.toBe(normalizeBlock(b));
+  });
 });

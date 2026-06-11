@@ -139,10 +139,15 @@ const noCrossPluginImports = {
 
 /**
  * Constitutional rule 4 (spec §1): the kernel contains no intelligence. The
- * single metering primitive that originates a model call is `invokeAdapter`,
- * which lives in the adapters module. Referencing it anywhere else in kernel
- * source means the kernel itself would originate a model call — forbidden.
- * The adapters directory IS the metering primitive and is exempt.
+ * metering primitives that originate a model call — `invokeAdapter` (the
+ * metered entry point) and `runSubprocess` (the raw spawn it is built on) —
+ * live in the adapters module. Kernel source OUTSIDE adapters must not call
+ * them or import them by name: a bare call, a member call on a namespace
+ * import, and a named import are all flagged, so the kernel cannot originate
+ * a model call however the binding is reached. A pure re-export
+ * (`export … from './adapters'`, as `src/index.ts` does to expose the surface
+ * to the composition root) does not call and is allowed. The adapters
+ * directory itself is exempt — it IS the metering boundary.
  */
 function inKernelSrc(filename) {
   const normalized = filename.split(path.sep).join('/');
@@ -154,18 +159,18 @@ function inKernelAdapters(filename) {
   return /(^|\/)packages\/kernel\/src\/adapters\//.test(normalized);
 }
 
-const ADAPTER_PRIMITIVE = 'invokeAdapter';
+const ADAPTER_PRIMITIVES = new Set(['invokeAdapter', 'runSubprocess']);
 
 const noModelCallsInKernel = {
   meta: {
     type: 'problem',
     docs: {
       description:
-        'the kernel contains no intelligence; it must not originate a model call by referencing the adapter invocation primitive outside the adapters module (spec §1.4)',
+        'the kernel contains no intelligence; it must not originate a model call by calling or importing an adapter primitive outside the adapters module (spec §1.4)',
     },
     messages: {
       kernelModelCall:
-        "kernel source references the adapter invocation primitive '{{name}}' — the kernel must not originate a model call (spec §1.4); only packages/kernel/src/adapters/** may invoke an adapter",
+        "kernel source references the adapter primitive '{{name}}' — the kernel must not originate a model call (spec §1.4); only packages/kernel/src/adapters/** may invoke an adapter",
     },
     schema: [],
   },
@@ -178,19 +183,27 @@ const noModelCallsInKernel = {
     if (!inKernelSrc(filename) || inKernelAdapters(filename)) {
       return {};
     }
-    const report = (node) =>
-      context.report({ node, messageId: 'kernelModelCall', data: { name: ADAPTER_PRIMITIVE } });
+    const report = (node, name) =>
+      context.report({ node, messageId: 'kernelModelCall', data: { name } });
     return {
-      // A call: invokeAdapter(...)
       CallExpression(node) {
-        if (node.callee.type === 'Identifier' && node.callee.name === ADAPTER_PRIMITIVE) {
-          report(node.callee);
+        // A bare call: invokeAdapter(...) / runSubprocess(...)
+        if (node.callee.type === 'Identifier' && ADAPTER_PRIMITIVES.has(node.callee.name)) {
+          report(node.callee, node.callee.name);
+        }
+        // A member call on a namespace import: adapters.invokeAdapter(...)
+        if (
+          node.callee.type === 'MemberExpression' &&
+          node.callee.property.type === 'Identifier' &&
+          ADAPTER_PRIMITIVES.has(node.callee.property.name)
+        ) {
+          report(node.callee.property, node.callee.property.name);
         }
       },
-      // An import binding: import { invokeAdapter } from ...
+      // A named import: import { invokeAdapter } / { runSubprocess } from ...
       ImportSpecifier(node) {
-        if (node.imported.type === 'Identifier' && node.imported.name === ADAPTER_PRIMITIVE) {
-          report(node);
+        if (node.imported.type === 'Identifier' && ADAPTER_PRIMITIVES.has(node.imported.name)) {
+          report(node, node.imported.name);
         }
       },
     };
