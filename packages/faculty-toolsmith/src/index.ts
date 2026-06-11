@@ -20,6 +20,7 @@ export {
   ForgeTestFailedError,
   LadderOrderError,
   RatificationRequiredError,
+  SandboxMountError,
   SandboxProfileMismatchError,
   SandboxUnavailableError,
   UnknownToolError,
