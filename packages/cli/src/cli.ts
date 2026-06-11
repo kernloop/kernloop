@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
  * The `kernloop` CLI (spec §9): init/doctor/serve plus the kernel eleven
- * (spec §3.4) as subcommands, JSON on stdout. The CLI is a thin shell —
- * argument parsing here, behavior in the tool functions; the MCP server
- * (`serve`) exposes the same eleven-tool surface over stdio [CLM-0033,
- * CLM-0058].
+ * (spec §3.4) as subcommands, JSON on stdout. A thin shell — argument parsing
+ * here, behavior in the tool functions; `serve` exposes the same eleven-tool
+ * surface over stdio [CLM-0033, CLM-0058].
  */
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -13,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { OVERLAY_DIR_NAME, VOTE_STRATEGIES, initOverlay } from './overlay.js';
+import { parseBudget } from './cli-flags.js';
 import { doctor } from './doctor.js';
 import { createKernloop, type Kernloop } from './kernel.js';
 import { serveStdio } from './mcp.js';
@@ -46,6 +46,7 @@ const USAGE = [
   '  doctor    [--dir <repo>]                        validate the overlay',
   '  serve     [--dir <repo>]                        MCP server on stdio',
   '  run       --goal G --capability C [--workspace D] [--adapter A] [--plan] [--async] [--id I]',
+  '            [--budget tokens=N,usd=N,wallClock=N] [--unlimited]',
   '            --resume RUNID --capability workflow.canonical [--workspace D] [--adapter A]',
   '  status    (--task-id T | --job J)',
   '  brief     --goal G [--id I]',
@@ -69,11 +70,8 @@ const USAGE = [
 
 /** Common string-flag declaration, spread into each command's options. */
 const S = { type: 'string' } as const;
-
-/** `--adapter` value space: the five kernel adapters (spec §3.1). */
+/** Flag value spaces: `--adapter` (spec §3.1), `--panel` / `--strategy` (spec §5.3). */
 const AdapterFlagSchema = z.enum(ADAPTER_NAMES);
-
-/** `--panel` / `--strategy` value spaces (spec §5.3). */
 const PanelFlagSchema = z.union([z.literal(3), z.literal(7)]);
 const StrategyFlagSchema = z.enum(VOTE_STRATEGIES);
 
@@ -222,19 +220,20 @@ const HANDLERS: Record<string, Handler> = {
       id: S,
       adapter: S,
       resume: S,
+      budget: S,
       plan: { type: 'boolean' },
       async: { type: 'boolean' },
+      unlimited: { type: 'boolean' },
     });
     const [workspace, id, resume] = [str(v.workspace), str(v.id), str(v.resume)];
     // `--resume` replaces `--goal` (the checkpointed task is the truth).
     const goal = resume === undefined ? required(v.goal, '--goal') : str(v.goal);
     const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
+    const budget = parseBudget(str(v.budget));
     return withKernloop(io, v.dir, async (kern) => {
       // The CLI is one-shot: an async run returns the job id immediately but
-      // must settle its job before the process exits, so we drain the
-      // background settle promise before the overlay is torn down. True
-      // backgrounding (work overlapping further calls) is the resident MCP
-      // server's job; here we are honest that the job is recorded by exit.
+      // must settle its job before the process exits, so we drain the background
+      // settle promise before tear-down (true backgrounding is the MCP server's job).
       let background: Promise<void> | undefined;
       const result = await runTool(
         kern,
@@ -244,8 +243,10 @@ const HANDLERS: Record<string, Handler> = {
           ...(workspace === undefined ? {} : { workspaceDir: path.resolve(io.cwd, workspace) }),
           ...(v.plan === true ? { execute: false } : {}),
           ...(v.async === true ? { async: true } : {}),
+          ...(v.unlimited === true ? { unlimited: true } : {}),
           ...(id === undefined ? {} : { id }),
           ...(adapter === undefined ? {} : { adapter }),
+          ...(budget === undefined ? {} : { budget }),
           ...(resume === undefined ? {} : { resume }),
         },
         { onBackground: (settled) => (background = settled) },

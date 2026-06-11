@@ -8,11 +8,42 @@ import { z } from 'zod';
 import {
   KNOWN_CONTRACTS,
   TaskContractSchema,
+  type Finding,
   type TaskContract,
   type Verdict,
 } from '@kernloop/contracts';
 import { nodeByName, successor, type LoopGraph, type LoopNode } from './graph.js';
 import { WorkflowError, type RunState } from './state.js';
+import {
+  childBranch,
+  escalateChild,
+  foldHints,
+  gateDrivesIteration,
+  reiterateChild,
+} from './child-iterate.js';
+
+/**
+ * Loop-shaping inputs the engine resolves from its config + injected seams and
+ * threads into {@link advance}: the vote bound `K`, the child-iterate bound
+ * `Kc`, overlay specialists, the review-drives-iteration honesty flag, whether
+ * a child re-entry is within budget, and an audit hook fired on each child
+ * re-iteration (the engine wires it to the chain; workflows imports no kernel).
+ */
+export interface AdvanceOptions {
+  readonly k: number;
+  readonly kc: number;
+  readonly specialists: readonly string[];
+  readonly reviewDrivesIteration: boolean;
+  /** False when a child re-implement would exceed the run budget (Part B). */
+  readonly childWithinBudget: boolean;
+  /** Fired when a child re-enters implement: {childId, iteration, gate, findingCount}. */
+  readonly onIterate?: (event: {
+    childId: string;
+    iteration: number;
+    gate: string;
+    findingCount: number;
+  }) => void;
+}
 
 /** The next unit of work the cursor points at. */
 export interface Step {
@@ -20,6 +51,13 @@ export interface Step {
   readonly input: unknown;
   /** Set inside the fan-out sub-chain. */
   readonly child?: TaskContract;
+  /**
+   * The CHILD's accumulated gate findings, inside the fan-out sub-chain — what
+   * the re-running coder must fix [CLM-0043]. Distinct from the run-level
+   * findings (vote re-entries); the engine hands these to the child's
+   * NodeContext so implement reads its own critique, not the run's.
+   */
+  readonly childFindings?: readonly Finding[];
 }
 
 /** Build the initial state for a fresh run. */
@@ -55,8 +93,9 @@ export function nextStep(graph: LoopGraph, state: RunState): Step {
     if (child === undefined || node === undefined) {
       throw new WorkflowError('corrupt_checkpoint', 'fan-out cursor points outside the run state');
     }
-    const input = cursor.sub === 0 ? child : state.childResults[cursor.childIndex]?.output;
-    return { node, input, child };
+    const result = state.childResults[cursor.childIndex];
+    const input = cursor.sub === 0 ? child : result?.output;
+    return { node, input, child, childFindings: result?.findings ?? [] };
   }
   const node = nodeByName(graph, cursor.node);
   if (node === undefined) {
@@ -140,6 +179,7 @@ function advanceVote(graph: LoopGraph, state: RunState, node: LoopNode, k: numbe
     const edge = successor(graph, node.name, 'rejected');
     if (edge !== undefined) state.cursor = { phase: 'main', node: edge.to };
     state.status = 'escalated';
+    state.haltReason = 'vote';
     return;
   }
   state.iteration += 1;
@@ -147,8 +187,20 @@ function advanceVote(graph: LoopGraph, state: RunState, node: LoopNode, k: numbe
   if (edge !== undefined) state.cursor = { phase: 'main', node: edge.to };
 }
 
-/** Advance the fan-out cursor after one child sub-node completed. */
-function advanceChild(graph: LoopGraph, state: RunState, output: unknown): void {
+/**
+ * Advance the fan-out cursor after one child sub-node completed — branch-aware,
+ * MIRRORING {@link advanceVote}. A driving gate (quality always; review only
+ * when promoted to enforce, the honesty guard) that rejects re-runs implement
+ * within Kc and budget [CLM-0043], or escalates the child at the bound; a
+ * passing gate (and any non-driving gate, whose findings fold in as hints)
+ * advances the sub-chain, then to the next child.
+ */
+function advanceChild(
+  graph: LoopGraph,
+  state: RunState,
+  output: unknown,
+  opts: AdvanceOptions,
+): void {
   if (state.cursor.phase !== 'fanout') return;
   const { childIndex, sub } = state.cursor;
   const result = state.childResults[childIndex];
@@ -163,11 +215,55 @@ function advanceChild(graph: LoopGraph, state: RunState, output: unknown): void 
   } else {
     result.output = output;
   }
+  if (
+    subNode?.kind === 'gate' &&
+    advanceChildGate(graph, state, subNode, output as Verdict, opts)
+  ) {
+    return; // the gate branched (re-iterate or escalate); cursor already moved.
+  }
   if (sub + 1 < graph.childChain.length) {
     state.cursor = { phase: 'fanout', childIndex, sub: sub + 1 };
   } else {
     advanceToNextChild(graph, state, childIndex);
   }
+}
+
+/**
+ * Apply a completed child gate: drive the iteration back-edge (quality, or
+ * review at enforce), or fold a non-driving gate's findings as hints. Returns
+ * true when the cursor branched (re-iterate or escalate at the bound) so the
+ * caller does not also advance the sub-chain — exactly as advanceVote owns the
+ * cursor on the rejected edge.
+ */
+function advanceChildGate(
+  graph: LoopGraph,
+  state: RunState,
+  gateNode: LoopNode,
+  verdict: Verdict,
+  opts: AdvanceOptions,
+): boolean {
+  if (state.cursor.phase !== 'fanout') return false;
+  const result = state.childResults[state.cursor.childIndex];
+  if (result === undefined) return false;
+  if (!gateDrivesIteration(gateNode, opts.reviewDrivesIteration)) {
+    foldHints(result, verdict.findings);
+    return false;
+  }
+  const branch = childBranch(verdict, result, opts.kc, opts.childWithinBudget);
+  if (branch === 'pass') return false;
+  if (branch === 'escalate') {
+    escalateChild(result, verdict.findings);
+    advanceToNextChild(graph, state, state.cursor.childIndex);
+    return true;
+  }
+  reiterateChild(state, result, verdict.findings);
+  opts.onIterate?.({
+    childId: result.child.id,
+    iteration: result.iteration,
+    gate: gateNode.gate ?? gateNode.name,
+    findingCount: result.findings.length,
+  });
+  return true;
 }
 
 /** Step to the next fan-out child, or back to the main chain after the last. */
@@ -186,30 +282,30 @@ export function advanceToNextChild(graph: LoopGraph, state: RunState, childIndex
 
 /**
  * Apply one validated emission to the state and move the cursor. Mutates
- * `state` (the engine snapshots per checkpoint). `specialists` are the
- * overlay-added fan-out entries resolved by the engine from its config.
+ * `state` (the engine snapshots per checkpoint). {@link AdvanceOptions} carries
+ * the vote bound K, the child-iterate bound Kc, overlay specialists, the
+ * review-drives-iteration honesty flag, the budget verdict, and the audit hook.
  */
 export function advance(
   graph: LoopGraph,
   state: RunState,
   node: LoopNode,
   output: unknown,
-  k: number,
-  specialists: readonly string[],
+  opts: AdvanceOptions,
 ): void {
   if (state.cursor.phase === 'fanout') {
-    advanceChild(graph, state, output);
+    advanceChild(graph, state, output, opts);
     return;
   }
   state.values[node.name] = output;
   if (node.kind === 'gate') {
-    advanceVote(graph, state, node, k);
+    advanceVote(graph, state, node, opts.k);
     return;
   }
   if (node.kind === 'decompose') {
     const children = output as TaskContract[];
-    state.children = [...children, ...specialists.map((s) => specialistChild(state.task, s))];
-    state.childResults = state.children.map((child) => ({ child }));
+    state.children = [...children, ...opts.specialists.map((s) => specialistChild(state.task, s))];
+    state.childResults = state.children.map((child) => ({ child, iteration: 0, findings: [] }));
     enterFanout(graph, state, node.name);
     return;
   }

@@ -36,6 +36,14 @@ export type Cursor = z.infer<typeof CursorSchema>;
  * (pass or fail — a failing verdict is a result, not an engine error). The
  * `reviewVerdict` is the advisory review gate's verdict (recorded, never
  * blocking). All shapes aggregate into integrate's input unfiltered.
+ *
+ * `iteration` and `findings` carry the per-child actor-critic loop [CLM-0043]:
+ * a quality reject re-runs implement, folding the gate's findings into the
+ * coder's next attempt, bounded by Kc (and the run budget). They mirror the
+ * run-level `iteration`/`findings` but scope to one child, and are
+ * checkpointed so a resume mid-child-iteration re-runs nothing finished.
+ * `escalated` marks a child that hit the Kc/budget bound still failing — it is
+ * recorded, never re-attempted, and does NOT sink its siblings or the run.
  */
 export const ChildResultSchema = z.strictObject({
   child: TaskContractSchema,
@@ -43,6 +51,12 @@ export const ChildResultSchema = z.strictObject({
   verdict: VerdictSchema.optional(),
   reviewVerdict: VerdictSchema.optional(),
   error: z.string().min(1).optional(),
+  /** How many times implement has been re-run for this child (0 on first). */
+  iteration: z.number().int().nonnegative().default(0),
+  /** Gate findings accumulated across this child's iterations, fed to the coder. */
+  findings: z.array(FindingSchema).default([]),
+  /** Set when the child hit the Kc/budget bound still failing (bounded escalation). */
+  escalated: z.boolean().optional(),
 });
 export type ChildResult = z.infer<typeof ChildResultSchema>;
 
@@ -63,6 +77,14 @@ export const RunStateSchema = z.strictObject({
   task: TaskContractSchema,
   status: z.enum(['running', 'escalated', 'completed']),
   cursor: CursorSchema,
+  /**
+   * Why an escalated run halted: `vote` (the K vote-iterate bound — resume
+   * re-plans with a fresh K after the human edit [CLM-0043]) or `budget` (the
+   * run exceeded its budget in enforce mode — resume continues from the cursor
+   * once the human raises the budget or re-runs unlimited [CLM-0075]). Absent
+   * while running/completed.
+   */
+  haltReason: z.enum(['vote', 'budget']).optional(),
   /** Vote-iterate count: how many times the rejected edge re-entered plan. */
   iteration: z.number().int().nonnegative(),
   /** Last emission per node name — the values that flow along edges. */

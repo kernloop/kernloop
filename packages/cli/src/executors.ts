@@ -41,6 +41,8 @@ export interface ExecutionContext {
   readonly invoke?: LoopInvoke;
   /** Resume this checkpointed loop run instead of starting fresh. */
   readonly resumeRunId?: string;
+  /** Force unlimited budget mode for the canonical loop [CLM-0075]. */
+  readonly unlimited?: boolean;
 }
 
 /** What one executed capability reports back to the run tool. */
@@ -219,15 +221,26 @@ function loopExecutionResult(report: LoopReport): ExecutionResult {
       : report.status === 'escalated'
         ? 'partial'
         : 'failure';
+  // Always-on reporting [CLM-0075]: the metered cost rides in BOTH modes; an
+  // unlimited run is recorded honestly so no report implies a cap was honored.
+  const budgetNote = report.unlimited ? ' (ran without budget enforcement)' : '';
+  const signals: Signal[] = [
+    {
+      name: 'loop:canonical',
+      passed: report.status === 'completed' && report.outcome?.status === 'success',
+      detail: `${report.status} after ${String(report.nodeTrace.length)} node step(s)${budgetNote}${error}`,
+    },
+  ];
+  if (report.unlimited) {
+    signals.push({
+      name: 'loop:budget',
+      passed: true,
+      detail: `unlimited mode — budget not enforced; metered cost ${String(report.cost.tokens)} tokens / $${String(report.cost.usd)} still reported`,
+    });
+  }
   return {
     status,
-    signals: [
-      {
-        name: 'loop:canonical',
-        passed: report.status === 'completed' && report.outcome?.status === 'success',
-        detail: `${report.status} after ${String(report.nodeTrace.length)} node step(s)${error}`,
-      },
-    ],
+    signals,
     cost: report.cost,
     data: report,
     ...(report.status === 'escalated'
@@ -238,7 +251,7 @@ function loopExecutionResult(report: LoopReport): ExecutionResult {
 
 /** Executor for `workflow.canonical` — the full loop over a workspace [CLM-0046]. */
 function workflowCanonicalExecutor(kern: Kernloop): CapabilityExecutor {
-  return async ({ task, workspaceDir, checks, adapter, invoke, resumeRunId }) => {
+  return async ({ task, workspaceDir, checks, adapter, invoke, resumeRunId, unlimited }) => {
     if (workspaceDir === undefined) {
       throw new ExecutionError(
         'workspace_required',
@@ -252,6 +265,7 @@ function workflowCanonicalExecutor(kern: Kernloop): CapabilityExecutor {
       ...(invoke === undefined ? {} : { invoke }),
       ...(resumeRunId === undefined ? {} : { resumeRunId }),
       ...(checks === undefined ? {} : { checks }),
+      ...(unlimited === undefined ? {} : { unlimited }),
     });
     return loopExecutionResult(report);
   };

@@ -238,11 +238,16 @@ function decomposeExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
-/** The implement child node: coder via invoke → files written for real. */
+/** The implement child node: coder via invoke → files written for real.
+ * On a re-iteration `ctx.findings` carries THIS child's accumulated gate
+ * findings (the engine scopes findings to the child inside the fan-out); they
+ * fold into the coder prompt so the re-run fixes every failed check [CLM-0043]. */
 function implementExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const child = TaskContractSchema.parse(input);
-    const { output, cost } = await b.invokeFor(NODE_TIERS.implement)(coderPrompt(child));
+    const { output, cost } = await b.invokeFor(NODE_TIERS.implement)(
+      coderPrompt(child, ctx.findings),
+    );
     const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
     const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);

@@ -22,11 +22,15 @@ import {
   type Outcome,
   type TaskContract,
 } from '@kernloop/contracts';
-import type { AdapterName } from '@kernloop/kernel';
+import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import {
   JsonlCheckpointStore,
   createEngine,
+  type BudgetGuard,
+  type BudgetMode,
+  type ChildIterateEvent,
+  type Engine,
   type RunResult,
   type RunState,
   type TraceEntry,
@@ -113,6 +117,12 @@ export interface LoopRequest {
   readonly runId?: string;
   /** Quality-check override (tests); real defaults otherwise. */
   readonly checks?: readonly QualityCheck[];
+  /**
+   * Force unlimited budget mode for this run [CLM-0075], overriding the
+   * overlay's `budgetMode`. The run never halts on budget; usage/cost is still
+   * metered and reported, and the run is recorded honestly as unlimited.
+   */
+  readonly unlimited?: boolean;
 }
 
 /** The loop RunResult mapped for the run tool, plus the metered model spend. */
@@ -120,8 +130,17 @@ export interface LoopReport {
   readonly runId: string;
   readonly status: 'completed' | 'escalated' | 'failed';
   readonly nodeTrace: readonly TraceEntry[];
-  /** Total model spend metered through the one invoke seam. */
+  /**
+   * Total model spend metered through the invoke seams [CLM-0075]. ALWAYS
+   * reported, identically in both budget modes — unlimited removes the
+   * restriction, never the tracking.
+   */
   readonly cost: Cost;
+  /**
+   * True when the run executed in unlimited budget mode (budget not enforced).
+   * Recorded honestly so a report never implies a cap was honored [CLM-0075].
+   */
+  readonly unlimited: boolean;
   readonly outcome?: Outcome;
   readonly findings?: readonly Finding[];
   readonly error?: { code: string; message: string };
@@ -153,12 +172,18 @@ function primeRefs(refs: LoopRefs, state: RunState): void {
 }
 
 /** Map the engine's RunResult into the report the run tool returns. */
-function report(result: RunResult, totals: { tokens: number; usd: number }): LoopReport {
+function report(
+  result: RunResult,
+  totals: { tokens: number; usd: number },
+  unlimited: boolean,
+): LoopReport {
   return {
     runId: result.runId,
     status: result.status,
     nodeTrace: result.nodeTrace,
+    // Always-on reporting [CLM-0075]: metered spend rides in both modes.
     cost: { tokens: totals.tokens, usd: totals.usd },
+    unlimited,
     ...(result.outcome === undefined ? {} : { outcome: result.outcome }),
     ...(result.findings === undefined ? {} : { findings: result.findings }),
     ...(result.error === undefined
@@ -186,6 +211,108 @@ function ensureRunAdaptersAvailable(
 }
 
 /**
+ * The runtime budget guard for one canonical-loop run [CLM-0075]. The limit is
+ * the parent TaskContract's token/usd budget; `spent()` reads the live metered
+ * `totals` (always-on tracking). In `enforce` mode the engine halts the run on
+ * overspend; `unlimited` never halts but the spend is still metered. The
+ * wall-clock dimension is the run's own concern, not metered here.
+ */
+function budgetGuardFor(
+  mode: BudgetMode,
+  task: { budget: { tokens: number; usd: number } },
+  totals: { tokens: number; usd: number },
+): BudgetGuard {
+  return {
+    mode,
+    limit: { tokens: task.budget.tokens, usd: task.budget.usd },
+    spent: () => ({ tokens: totals.tokens, usd: totals.usd }),
+  };
+}
+
+/**
+ * Wire the per-child-iteration audit hook [CLM-0043]: each re-entry appends a
+ * `loop.child.iterate` event to the hash chain, so the refine history is
+ * recorded and the Observer can later read iterations-to-pass as a fitness
+ * signal. Workflows imports no kernel — this seam does the append.
+ */
+function childIterateAudit(kern: Kernloop, runId: string): (e: ChildIterateEvent) => void {
+  return (e) =>
+    appendEvent(kern.store, {
+      type: 'loop.child.iterate',
+      payload: {
+        runId,
+        childId: e.childId,
+        iteration: e.iteration,
+        gate: e.gate,
+        findingCount: e.findingCount,
+      },
+    });
+}
+
+/**
+ * Build the engine over the real executors + the run's budget/iterate seams.
+ * `mode` is the effective budget mode; `totals` is the metered-spend accumulator
+ * the budget guard reads (always-on tracking). Kc and budgetMode flow from the
+ * overlay; the per-iteration audit hook wires re-entries to the chain [CLM-0043].
+ */
+function buildLoopEngine(
+  kern: Kernloop,
+  request: LoopRequest,
+  seams: {
+    runId: string;
+    checkpoints: JsonlCheckpointStore;
+    refs: LoopRefs;
+    adapter: AdapterName;
+    defaultInvoke: LoopInvoke;
+    invokeFor: (tier: ModelTier) => LoopInvoke;
+    mode: BudgetMode;
+    totals: { tokens: number; usd: number };
+  },
+): Engine {
+  return createEngine({
+    executors: buildLoopExecutors({
+      kern,
+      workspaceDir: request.workspaceDir,
+      invoke: seams.defaultInvoke,
+      invokeFor: seams.invokeFor,
+      adapter: seams.adapter,
+      refs: seams.refs,
+      ...(request.checks === undefined ? {} : { checks: request.checks }),
+    }),
+    checkpoints: seams.checkpoints,
+    config: {
+      K: kern.config.K,
+      Kc: kern.config.Kc,
+      gates: { vote: kern.config.gates.vote },
+      nodeOverrides: kern.config.nodeOverrides,
+    },
+    budget: budgetGuardFor(seams.mode, request.task, seams.totals),
+    onChildIterate: childIterateAudit(kern, seams.runId),
+  });
+}
+
+/**
+ * Resolve the run's effective budget mode [CLM-0075]: a run-level --unlimited
+ * forces unlimited, else the overlay's budgetMode (default enforce). An
+ * unlimited run is recorded honestly with a `loop.unlimited` audit event so no
+ * report later implies a cap was honored when it wasn't.
+ */
+function resolveBudgetMode(kern: Kernloop, request: LoopRequest, runId: string): BudgetMode {
+  const mode: BudgetMode = request.unlimited === true ? 'unlimited' : kern.config.budgetMode;
+  if (mode === 'unlimited') {
+    appendEvent(kern.store, {
+      type: 'loop.unlimited',
+      payload: {
+        runId,
+        taskId: request.task.id,
+        reason: 'budget enforcement disabled for this run',
+      },
+    });
+  }
+  return mode;
+}
+
+/**
  * Run (or resume) the canonical loop over one assembled kernloop. The
  * default invoke requires the chosen adapter's CLI on PATH — probed up
  * front; unavailable is a typed error, never a stub.
@@ -209,34 +336,29 @@ export async function executeCanonicalLoop(
     primeRefs(refs, latest.state);
   }
   const totals = { tokens: 0, usd: 0 };
-  // Default + per-tier seams, both metered. An injected invoke makes every
-  // tier resolve to it (tests unaffected); else each tier resolves to its
-  // overlay-declared adapter, defaulting to the run adapter [CLM-0068].
+  // Default + per-tier seams, both metered. An injected invoke makes every tier
+  // resolve to it; else each tier resolves to its overlay adapter [CLM-0068].
   const defaultInvoke = meteredInvoke(base, totals);
   const invokeFor: (tier: ModelTier) => LoopInvoke =
     request.invoke === undefined
       ? buildInvokeForTier(adapter, tierAdapters, totals)
       : () => defaultInvoke;
-  const engine = createEngine({
-    executors: buildLoopExecutors({
-      kern,
-      workspaceDir: request.workspaceDir,
-      invoke: defaultInvoke,
-      invokeFor,
-      adapter,
-      refs,
-      ...(request.checks === undefined ? {} : { checks: request.checks }),
-    }),
+  // Effective budget mode [CLM-0075]: --unlimited forces unlimited; else the
+  // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
+  const mode = resolveBudgetMode(kern, request, runId);
+  const engine = buildLoopEngine(kern, request, {
+    runId,
     checkpoints,
-    config: {
-      K: kern.config.K,
-      gates: { vote: kern.config.gates.vote },
-      nodeOverrides: kern.config.nodeOverrides,
-    },
+    refs,
+    adapter,
+    defaultInvoke,
+    invokeFor,
+    mode,
+    totals,
   });
   const result =
     request.resumeRunId === undefined
       ? await engine.run(request.task, { runId })
       : await engine.resume(runId);
-  return report(result, totals);
+  return report(result, totals, mode === 'unlimited');
 }

@@ -1,24 +1,14 @@
 /**
- * The loop execution engine. `createEngine({executors, checkpoints,
- * config})` binds the CANONICAL_LOOP to injected node executors and an
- * injected checkpoint store — all real work (model calls, gates, memory)
- * arrives through `executors`; this package never imports the kernel, a
- * faculty, or the cli (constitutional rule 5 in spirit: workflows talks
- * contracts, not plugins).
- *
- * Config ↔ overlay mapping (documented, not imported): EngineConfig is the
- * loop-relevant subset of the cli's `OverlaySchema` (`packages/cli/src/
- * overlay.ts`) — `K`, `gates.vote.{strategy,panel}`, and `nodeOverrides`
- * share its field names and value spaces, so the composition root maps
- * `Overlay` → `EngineConfig` field-for-field [CLM-0045]. Overrides change
- * behavior against the SAME frozen graph: a `gate` override swaps which
- * gate executor a gate node calls; `specialists` adds entries to the
- * fan-out children list. The graph is never duplicated.
- *
- * Execution order: fan-out children run SEQUENTIALLY in children order —
- * deterministic trace, unambiguous checkpoint cursor, and child budgets
- * never race. Concurrency is a composition-root concern kernloop does not
- * need in P2; revisit via a claim, not a flag.
+ * The loop execution engine. `createEngine({executors, checkpoints, config})`
+ * binds the CANONICAL_LOOP to injected node executors and a checkpoint store —
+ * all real work (model calls, gates, memory) arrives through `executors`; this
+ * package never imports the kernel, a faculty, or the cli (workflows talks
+ * contracts, not plugins). The config schema lives in config.ts; it mirrors the
+ * cli OverlaySchema field-for-field [CLM-0045]. Overrides change behavior
+ * against the SAME frozen graph (a `gate` override swaps a gate executor;
+ * `specialists` adds fan-out children) — the graph is never duplicated. Fan-out
+ * children run SEQUENTIALLY: deterministic trace, unambiguous cursor, no budget
+ * race; concurrency returns via a claim, not a flag.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -31,31 +21,22 @@ import {
 import { CANONICAL_LOOP, type LoopGraph, type LoopNode } from './graph.js';
 import type { CheckpointStore } from './checkpoints.js';
 import { RunStateSchema, WorkflowError, type RunResult, type RunState } from './state.js';
-import { advance, advanceToNextChild, initialState, nextStep, validateEmission } from './steps.js';
+import {
+  advance,
+  advanceToNextChild,
+  initialState,
+  nextStep,
+  validateEmission,
+  type AdvanceOptions,
+  type Step,
+} from './steps.js';
+import { overBudget, overspendFinding, type BudgetGuard } from './budget.js';
+import type { ChildIterateEvent } from './child-iterate.js';
+import { EngineConfigSchema, type EngineConfig, type EngineConfigInput } from './config.js';
 
-/** Vote strategies in use (mirrors the cli overlay's VOTE_STRATEGIES). */
-const VoteConfigSchema = z.strictObject({
-  strategy: z.enum(['simple_majority', 'supermajority', 'unanimous']).default('simple_majority'),
-  panel: z.union([z.literal(3), z.literal(7)]).default(3),
-});
-
-/** One node override (mirrors the cli overlay's NodeOverrideSchema). */
-const NodeOverrideSchema = z.strictObject({
-  gate: z.string().min(1).optional(),
-  specialists: z.array(z.string().min(1)).optional(),
-});
-
-/** Engine configuration — see the module docs for the overlay mapping. */
-export const EngineConfigSchema = z
-  .strictObject({
-    /** Vote-iterate bound: at most K rejected re-entries into plan (spec §6). */
-    K: z.number().int().min(1).default(3),
-    gates: z.strictObject({ vote: VoteConfigSchema.prefault({}) }).prefault({}),
-    nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
-  })
-  .prefault({});
-export type EngineConfig = z.infer<typeof EngineConfigSchema>;
-export type EngineConfigInput = z.input<typeof EngineConfigSchema>;
+export { EngineConfigSchema, type EngineConfig, type EngineConfigInput } from './config.js';
+export { BudgetModeSchema, type BudgetGuard, type BudgetMode } from './budget.js';
+export type { ChildIterateEvent } from './child-iterate.js';
 
 /** Per-invocation context handed to every node executor. */
 export interface NodeContext {
@@ -66,10 +47,17 @@ export interface NodeContext {
   readonly config: EngineConfig;
   /** The node being executed (resolved gate executors see the gate node). */
   readonly node: string;
-  /** Findings accumulated from rejecting Verdicts (plan re-entries read these). */
+  /**
+   * Findings the executing node must address. On the main chain these are the
+   * run-level vote-iterate findings (plan re-entries read these); inside the
+   * fan-out they are the CHILD's accumulated gate findings — what the
+   * re-running coder must fix [CLM-0043], NOT the run-level snapshot.
+   */
   readonly findings: readonly Finding[];
   /** The child contract, inside the fan-out sub-chain. */
   readonly child?: TaskContract;
+  /** This child's actor-critic iteration (0 on first implement), inside the fan-out. */
+  readonly childIteration?: number;
   readonly signal?: AbortSignal;
 }
 
@@ -81,6 +69,23 @@ export interface EngineDeps {
   readonly executors: Readonly<Record<string, NodeExecutor>>;
   readonly checkpoints: CheckpointStore;
   readonly config?: EngineConfigInput;
+  /**
+   * Runtime budget guard (spec §8) [CLM-0075]. Absent → no budget enforcement
+   * (Kc still bounds child iteration). In `enforce` mode the run escalates when
+   * metered spend exceeds the parent budget; `unlimited` never halts on budget
+   * but the spend is still tracked (always-on reporting). The CLI composition
+   * root injects this from the run's mode + the parent TaskContract.budget +
+   * the live metered `totals`. Workflows imports no kernel: `spent()` is a
+   * plain seam.
+   */
+  readonly budget?: BudgetGuard;
+  /**
+   * Audit hook fired on each child re-iteration [CLM-0043] — the CLI appends a
+   * `loop.child.iterate` event to the hash chain so the refine history is
+   * recorded (the Observer can later read iterations-to-pass as fitness).
+   * Workflows imports no kernel; this is the seam.
+   */
+  readonly onChildIterate?: (event: ChildIterateEvent) => void;
 }
 
 /** Per-run options. */
@@ -120,11 +125,15 @@ class LoopEngine implements Engine {
   private readonly executors: Readonly<Record<string, NodeExecutor>>;
   private readonly checkpoints: CheckpointStore;
   private readonly config: EngineConfig;
+  private readonly budget: BudgetGuard | undefined;
+  private readonly onChildIterate: ((event: ChildIterateEvent) => void) | undefined;
 
   constructor(deps: EngineDeps) {
     this.executors = deps.executors;
     this.checkpoints = deps.checkpoints;
     this.config = EngineConfigSchema.parse(deps.config);
+    this.budget = deps.budget;
+    this.onChildIterate = deps.onChildIterate;
     // Wiring-complete or absent: every executable node must resolve NOW.
     // The fan-out node is structural (the engine itself runs the sub-chain).
     for (const node of [...this.graph.nodes, ...this.graph.childChain]) {
@@ -169,10 +178,15 @@ class LoopEngine implements Engine {
     const state = parsed.data;
     if (state.status === 'completed') return this.finish(runId, state);
     if (state.status === 'escalated') {
-      // The human edited the plan inputs; continue from plan (the cursor is
-      // already parked there) with a fresh K budget [CLM-0043].
+      // Vote escalation: the human edited the plan inputs; continue from plan
+      // (cursor parked there) with a fresh K budget [CLM-0043]. Budget halt
+      // [CLM-0075]: the human raised the budget (or re-runs unlimited); continue
+      // from the cursor exactly where spend tripped the limit — iteration is NOT
+      // reset (no plan re-edit happened), and the budget guard re-evaluates as
+      // the run proceeds.
+      if (state.haltReason !== 'budget') state.iteration = 0;
       state.status = 'running';
-      state.iteration = 0;
+      state.haltReason = undefined;
     }
     return this.loop(runId, state, checkpoint.seq, options.signal);
   }
@@ -205,13 +219,13 @@ class LoopEngine implements Engine {
         if (failure !== undefined) {
           return { runId, status: 'failed', nodeTrace: state.trace, error: failure };
         }
-        // A child executor failed: recorded honestly (classify advanced the
-        // cursor past the child), and the fan-out continues.
+        // A child executor failed: recorded honestly (classify advanced the cursor), fan-out continues.
         childFailed = true;
       }
       if (!childFailed) {
-        advance(this.graph, state, step.node, output, this.config.K, this.specialists());
+        advance(this.graph, state, step.node, output, this.advanceOptions());
       }
+      this.enforceBudget(state);
       seq += 1;
       state.trace.push(this.traceEntry(seq, iteration, step));
       const persistFailure = await this.persist(runId, seq, iteration, state, step.node.name);
@@ -223,6 +237,33 @@ class LoopEngine implements Engine {
       return { runId, status: 'escalated', nodeTrace: state.trace, findings: state.findings };
     }
     return this.finish(runId, state);
+  }
+
+  /** The loop-shaping inputs for one {@link advance} call, resolved from config + seams. */
+  private advanceOptions(): AdvanceOptions {
+    return {
+      k: this.config.K,
+      kc: this.config.Kc,
+      specialists: this.specialists(),
+      reviewDrivesIteration: this.config.reviewDrivesIteration,
+      // A child re-implement is allowed only within budget; over budget forces escalation before Kc.
+      childWithinBudget: !overBudget(this.budget),
+      ...(this.onChildIterate === undefined ? {} : { onIterate: this.onChildIterate }),
+    };
+  }
+
+  /**
+   * Runtime budget enforcement [CLM-0075]: in `enforce` mode a run that has now
+   * overspent its parent budget HALTS as escalated (resumable). `unlimited`
+   * never halts here; a finished run is not retro-halted — its cost is still
+   * reported in full by the always-on metering.
+   */
+  private enforceBudget(state: RunState): void {
+    if (state.status !== 'running' || state.cursor.phase === 'done') return;
+    if (!overBudget(this.budget) || this.budget === undefined) return;
+    state.status = 'escalated';
+    state.haltReason = 'budget';
+    state.findings.push(overspendFinding(this.budget));
   }
 
   /** Classify a node throw: undefined means "recorded as child failure, continue". */
@@ -243,24 +284,31 @@ class LoopEngine implements Engine {
     return wrapped;
   }
 
-  private context(
-    runId: string,
-    state: RunState,
-    step: { node: LoopNode; child?: TaskContract },
-    signal?: AbortSignal,
-  ): NodeContext {
+  private context(runId: string, state: RunState, step: Step, signal?: AbortSignal): NodeContext {
+    // Inside the fan-out, a node reads its CHILD's accumulated findings (the
+    // critique the re-running coder must fix [CLM-0043]); on the main chain it
+    // reads the run-level vote-iterate findings. A snapshot, not the live
+    // array: executors read findings, they cannot reach back into engine state.
+    const inFanout = step.child !== undefined;
+    const findings = inFanout ? [...(step.childFindings ?? [])] : [...state.findings];
+    const childIteration =
+      step.child === undefined ? undefined : (this.childIterationFor(state, step.child.id) ?? 0);
     return {
       runId,
       taskId: state.task.id,
       iteration: state.iteration,
       config: this.config,
       node: step.node.name,
-      // A snapshot, not the live array: executors read findings, they
-      // cannot reach back into engine state.
-      findings: [...state.findings],
+      findings,
       ...(step.child === undefined ? {} : { child: step.child }),
+      ...(childIteration === undefined ? {} : { childIteration }),
       ...(signal === undefined ? {} : { signal }),
     };
+  }
+
+  /** This child's current actor-critic iteration, from the run state. */
+  private childIterationFor(state: RunState, childId: string): number | undefined {
+    return state.childResults.find((r) => r.child.id === childId)?.iteration;
   }
 
   /** Trace/checkpoint rows record the iteration at which the node RAN. */

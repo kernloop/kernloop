@@ -55,18 +55,31 @@ export function decomposePrompt(parent: TaskContract, planText: string): string 
   ].join('\n\n');
 }
 
-/** The coder prompt with the strict files contract. */
-export function coderPrompt(child: TaskContract): string {
-  return [
+/**
+ * The coder prompt with the strict files contract. On a re-iteration the
+ * child's accumulated gate findings are folded in [CLM-0043] so the re-running
+ * coder fixes every failed check — the actor reading the critic's notes.
+ */
+export function coderPrompt(child: TaskContract, findings: readonly Finding[] = []): string {
+  const parts = [
     shippedTemplate('coder').rolePrompt,
     '## Child task',
     JSON.stringify({ id: child.id, goal: child.goal, constraints: child.constraints }, null, 2),
+  ];
+  if (findings.length > 0) {
+    parts.push(
+      '## Your previous attempt failed these checks — fix every one',
+      findings.map((f) => `- [${f.severity}] ${f.message}`).join('\n'),
+    );
+  }
+  parts.push(
     'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
       'commentary before or after. Exact shape: ' +
       '{"files":[{"path":"relative/path.ts","content":"<COMPLETE file content>"}],"notes":"…"}. ' +
       '"files" MUST contain at least one entry; each entry carries the complete final ' +
       'content of that file; paths are relative to the workspace root.',
-  ].join('\n\n');
+  );
+  return parts.join('\n\n');
 }
 
 /** The Researcher template's prompt: role + task + assembled context. */
