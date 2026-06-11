@@ -45,9 +45,9 @@ const USAGE = [
   '  init      [--dir <repo>]                        scaffold .kernloop/',
   '  doctor    [--dir <repo>]                        validate the overlay',
   '  serve     [--dir <repo>]                        MCP server on stdio',
-  '  run       --goal G --capability C [--workspace D] [--adapter A] [--plan] [--id I]',
+  '  run       --goal G --capability C [--workspace D] [--adapter A] [--plan] [--async] [--id I]',
   '            --resume RUNID --capability workflow.canonical [--workspace D] [--adapter A]',
-  '  status    --task-id T',
+  '  status    (--task-id T | --job J)',
   '  brief     --goal G [--id I]',
   '  gate      --gate quality --task-id T --workspace D',
   '            --gate vote --proposal P [--brief-goal G] [--panel 3|7] [--strategy S] [--adapter A] [--task-id T]',
@@ -223,27 +223,45 @@ const HANDLERS: Record<string, Handler> = {
       adapter: S,
       resume: S,
       plan: { type: 'boolean' },
+      async: { type: 'boolean' },
     });
     const [workspace, id, resume] = [str(v.workspace), str(v.id), str(v.resume)];
     // `--resume` replaces `--goal` (the checkpointed task is the truth).
     const goal = resume === undefined ? required(v.goal, '--goal') : str(v.goal);
     const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
-    return withKernloop(io, v.dir, (kern) =>
-      runTool(kern, {
-        ...(goal === undefined ? {} : { goal }),
-        capability: required(v.capability, '--capability'),
-        ...(workspace === undefined ? {} : { workspaceDir: path.resolve(io.cwd, workspace) }),
-        ...(v.plan === true ? { execute: false } : {}),
-        ...(id === undefined ? {} : { id }),
-        ...(adapter === undefined ? {} : { adapter }),
-        ...(resume === undefined ? {} : { resume }),
-      }),
-    );
+    return withKernloop(io, v.dir, async (kern) => {
+      // The CLI is one-shot: an async run returns the job id immediately but
+      // must settle its job before the process exits, so we drain the
+      // background settle promise before the overlay is torn down. True
+      // backgrounding (work overlapping further calls) is the resident MCP
+      // server's job; here we are honest that the job is recorded by exit.
+      let background: Promise<void> | undefined;
+      const result = await runTool(
+        kern,
+        {
+          ...(goal === undefined ? {} : { goal }),
+          capability: required(v.capability, '--capability'),
+          ...(workspace === undefined ? {} : { workspaceDir: path.resolve(io.cwd, workspace) }),
+          ...(v.plan === true ? { execute: false } : {}),
+          ...(v.async === true ? { async: true } : {}),
+          ...(id === undefined ? {} : { id }),
+          ...(adapter === undefined ? {} : { adapter }),
+          ...(resume === undefined ? {} : { resume }),
+        },
+        { onBackground: (settled) => (background = settled) },
+      );
+      if (background !== undefined) await background;
+      return result;
+    });
   },
   status: (args, io) => {
-    const v = flags(args, { 'task-id': S });
+    const v = flags(args, { 'task-id': S, job: S });
+    const job = str(v.job);
     return withKernloop(io, v.dir, (kern) =>
-      statusTool(kern, { taskId: required(v['task-id'], '--task-id') }),
+      statusTool(
+        kern,
+        job === undefined ? { taskId: required(v['task-id'], '--task-id') } : { job },
+      ),
     );
   },
   brief: (args, io) => {

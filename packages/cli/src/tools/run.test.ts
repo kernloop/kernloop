@@ -148,4 +148,94 @@ describe('runTool', () => {
     expect(payload.wallClockMs).toBeGreaterThanOrEqual(0);
     kern.close();
   });
+
+  it('records a synchronous run as a job (running → done) so status --job can inspect it [CLM-0073]', async () => {
+    const kern = freshKernloop();
+    const result = await runTool(
+      kern,
+      { goal: 'sync run records a job', capability: 'memory.episodic.read', id: 'task-sync-job' },
+      { newJobId: () => 'job-sync-1' },
+    );
+    expect(result.kind).toBe('outcome'); // existing return shape unchanged
+    const job = kern.jobs.getJob('job-sync-1');
+    expect(job?.status).toBe('done');
+    expect(job?.capability).toBe('memory.episodic.read');
+    expect(job?.traceRef).toContain('task-sync-job');
+    // the create + finish transitions are audited (rule 7)
+    const types = readEnvelopes(kern.paths.audit).map((e) => e.type);
+    expect(types).toContain('cli.job.created');
+    expect(types).toContain('cli.job.finished');
+    kern.close();
+  });
+
+  it('settles a failing synchronous run as a failed job and still re-throws [CLM-0073]', async () => {
+    const kern = freshKernloop();
+    await expect(
+      runTool(
+        kern,
+        { goal: 'sync gate no workspace', capability: 'gate.quality', id: 'task-sync-fail' },
+        { newJobId: () => 'job-sync-fail' },
+      ),
+    ).rejects.toThrow(ExecutionError);
+    const job = kern.jobs.getJob('job-sync-fail');
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toContain('workspaceDir');
+    kern.close();
+  });
+
+  it('run --async returns a job id immediately and settles the job done with a traceRef [CLM-0074]', async () => {
+    const kern = freshKernloop();
+    let settled: Promise<void> | undefined;
+    const result = await runTool(
+      kern,
+      { goal: 'async read', capability: 'memory.episodic.read', id: 'task-async', async: true },
+      { newJobId: () => 'job-async-1', onBackground: (p) => (settled = p) },
+    );
+    // returns promptly as a job, BEFORE the work has settled
+    expect(result.kind).toBe('job');
+    if (result.kind !== 'job') throw new Error('expected job');
+    expect(result.jobId).toBe('job-async-1');
+    expect(result.status).toBe('running');
+    expect(kern.jobs.getJob('job-async-1')?.status).toBe('running');
+    // let the background work settle
+    expect(settled).toBeDefined();
+    await settled;
+    const job = kern.jobs.getJob('job-async-1');
+    expect(job?.status).toBe('done');
+    expect(job?.traceRef).toContain('task-async');
+    kern.close();
+  });
+
+  it('records a failing async run as failed — never an unhandled rejection [CLM-0074]', async () => {
+    const kern = freshKernloop();
+    let settled: Promise<void> | undefined;
+    const result = await runTool(
+      kern,
+      { goal: 'async gate no workspace', capability: 'gate.quality', async: true },
+      { newJobId: () => 'job-async-fail', onBackground: (p) => (settled = p) },
+    );
+    expect(result.kind).toBe('job');
+    // the background settle resolves (does not reject) — the error is recorded
+    await expect(settled).resolves.toBeUndefined();
+    const job = kern.jobs.getJob('job-async-fail');
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toContain('workspaceDir');
+    kern.close();
+  });
+
+  it('does not record a job for an unwired capability — no run actually started', async () => {
+    const kern = freshKernloop();
+    const result = await runTool(
+      kern,
+      {
+        goal: 'write a fact through run',
+        capability: 'memory.semantic.write',
+        id: 'task-unwired-job',
+      },
+      { newJobId: () => 'job-should-not-exist' },
+    );
+    expect(result.kind).toBe('unwired');
+    expect(kern.jobs.getJob('job-should-not-exist')).toBeUndefined();
+    kern.close();
+  });
 });

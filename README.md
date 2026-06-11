@@ -82,6 +82,9 @@ Learned routing priors export from the Observer fitness ledger to a reviewable Y
 A born workshop tool is invocable: `kernloop workshop run` executes it in the ratified sandbox against a stdin contract JSON, parses its stdout contract JSON, and audits every invocation [CLM-0071].
 Workshop tools earn promotion through use — five clean audited invocations move a tool from suggest to advisory — and `kernloop workshop sweep` decays unused tools toward removal [CLM-0072].
 
+Every run is recorded in a persisted job registry, and `status` resolves a job id to its state — running, done, or failed — cross-session from a fresh process over the same overlay [CLM-0073].
+`run --async` returns a job id immediately and runs the work in the resident process, recording the terminal state to the job registry — a failed background run is recorded as failed, never an unhandled rejection [CLM-0074].
+
 <!-- claims:end -->
 
 ## The claims registry
@@ -177,6 +180,8 @@ and `claims:verify-ran`, which proves the cited test actually ran and passed).
 | [CLM-0070](claims/registry/CLM-0070.yaml) | [`packages/faculty-observer/src/priors.test.ts`](packages/faculty-observer/src/priors.test.ts), [`packages/cli/src/tools/portability.test.ts`](packages/cli/src/tools/portability.test.ts), CI `test`                                                                                                                                                                                                                                         |
 | [CLM-0071](claims/registry/CLM-0071.yaml) | [`packages/faculty-toolsmith/src/run.docker.test.ts`](packages/faculty-toolsmith/src/run.docker.test.ts), [`packages/faculty-toolsmith/src/run.test.ts`](packages/faculty-toolsmith/src/run.test.ts), [`packages/cli/src/tools/workshop.test.ts`](packages/cli/src/tools/workshop.test.ts), [`packages/cli/src/cli.workshop.docker.test.ts`](packages/cli/src/cli.workshop.docker.test.ts), CI `test`                                         |
 | [CLM-0072](claims/registry/CLM-0072.yaml) | [`packages/faculty-toolsmith/src/run.docker.test.ts`](packages/faculty-toolsmith/src/run.docker.test.ts), [`packages/cli/src/tools/workshop.test.ts`](packages/cli/src/tools/workshop.test.ts), CI `test`                                                                                                                                                                                                                                     |
+| [CLM-0073](claims/registry/CLM-0073.yaml) | [`packages/cli/src/jobs.test.ts`](packages/cli/src/jobs.test.ts), [`packages/cli/src/tools/status.test.ts`](packages/cli/src/tools/status.test.ts), [`packages/cli/src/tools/run.test.ts`](packages/cli/src/tools/run.test.ts), CI `test`                                                                                                                                                                                                     |
+| [CLM-0074](claims/registry/CLM-0074.yaml) | [`packages/cli/src/tools/run.test.ts`](packages/cli/src/tools/run.test.ts), CI `test`                                                                                                                                                                                                                                                                                                                                                         |
 
 <!-- enforcement:end -->
 

@@ -30,6 +30,7 @@ import {
   loadCheckpointTask,
   type LoopInvoke,
 } from '../loop/index.js';
+import { runUnderJob } from './run-jobs.js';
 
 /**
  * Input to the `run` tool — a goal plus optional TaskContract overrides.
@@ -57,6 +58,14 @@ export const RunInputSchema = z.strictObject({
   adapter: z.enum(ADAPTER_NAMES).default('claude'),
   /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
   resume: z.string().min(1).optional(),
+  /**
+   * Run in the background: create a `running` job, kick off the capability
+   * without awaiting, and return its job id immediately [CLM-0074]. The
+   * terminal state is recorded to the job registry when the work settles.
+   * In the resident MCP server the background work genuinely overlaps; the
+   * one-shot CLI still settles the job before the process exits.
+   */
+  async: z.boolean().default(false),
 });
 export type RunInput = z.input<typeof RunInputSchema>;
 
@@ -83,6 +92,15 @@ export type RunResult =
       error: { code: 'no_run_executor'; message: string };
     }
   | { kind: 'outcome'; task: TaskContract; outcome: Outcome; verdict?: Verdict; data?: unknown }
+  | {
+      /** `run --async` accepted: the job is `running` in the resident process
+       * and its terminal state lands in the job registry — inspect it with
+       * `status --job <jobId>` [CLM-0074]. */
+      kind: 'job';
+      task: TaskContract;
+      jobId: string;
+      status: 'running';
+    }
   | {
       /** A loop run that exhausted K and HALTED — its own status, never
        * disguised as success [CLM-0043]; resume with `--resume runId`. */
@@ -245,11 +263,22 @@ async function resolveTask(
   return task;
 }
 
+/** Side-channel options for {@link runTool} — test seams, never wire input. */
+export interface RunToolOptions {
+  checks?: readonly QualityCheck[];
+  invoke?: LoopInvoke;
+  /** Job id generator, injected so async/cross-session tests are deterministic. */
+  newJobId?: () => string;
+  /** Receives an async run's background settle promise so a one-shot host (the
+   * CLI) can drain it before tearing down the overlay. */
+  onBackground?: (settled: Promise<void>) => void;
+}
+
 /** The `run` tool. See module docs. */
 export async function runTool(
   kern: Kernloop,
   input: RunInput,
-  options: { checks?: readonly QualityCheck[]; invoke?: LoopInvoke } = {},
+  options: RunToolOptions = {},
 ): Promise<RunResult> {
   const parsed = RunInputSchema.parse(input);
   const task = await resolveTask(kern, parsed);
@@ -287,12 +316,47 @@ export async function runTool(
       decision: reportDecision(decision),
     };
   }
-  const selected = `${decision.selected.name}@${decision.selected.version}`;
-  return executeAndRecord(kern, task, parsed.capability, selected, {
+  return dispatchSelected(
+    kern,
+    task,
+    parsed,
+    `${decision.selected.name}@${decision.selected.version}`,
+    options,
+  );
+}
+
+/**
+ * Execute the routed capability. An unwired capability ran no work, so it
+ * returns its honest result without recording a job (a job row implies a run
+ * actually started). A wired capability runs under a recorded job (sync or
+ * `--async`, see {@link runUnderJob}).
+ */
+function dispatchSelected(
+  kern: Kernloop,
+  task: TaskContract,
+  parsed: z.output<typeof RunInputSchema>,
+  selected: string,
+  options: RunToolOptions,
+): Promise<RunResult> {
+  if (!kern.executors.has(parsed.capability)) {
+    return executeAndRecord(kern, task, parsed.capability, selected, {});
+  }
+  const executorOptions: ExecutorOptions = {
     ...(parsed.workspaceDir === undefined ? {} : { workspaceDir: parsed.workspaceDir }),
     ...(options.checks === undefined ? {} : { checks: options.checks }),
     ...(options.invoke === undefined ? {} : { invoke: options.invoke }),
     adapter: parsed.adapter,
     ...(parsed.resume === undefined ? {} : { resumeRunId: parsed.resume }),
-  });
+  };
+  return runUnderJob(
+    kern,
+    task,
+    parsed.capability,
+    {
+      async: parsed.async,
+      jobId: (options.newJobId ?? (() => `job-${randomUUID()}`))(),
+      ...(options.onBackground === undefined ? {} : { onBackground: options.onBackground }),
+    },
+    () => executeAndRecord(kern, task, parsed.capability, selected, executorOptions),
+  );
 }
