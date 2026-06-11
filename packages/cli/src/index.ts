@@ -42,8 +42,11 @@ export {
   loadOverlay,
   overlayPaths,
   specialistsForNode,
+  isCliAdapter,
 } from './overlay.js';
-export type { InitResult, NodeOverride, Overlay, OverlayPaths } from './overlay.js';
+export type { InitResult, NodeOverride, Overlay, OverlayPaths, TierAdapters } from './overlay.js';
+export { EndpointSchema, EndpointsSchema, apiDefinitionFor, looksLikeSecret } from './endpoints.js';
+export type { EndpointConfig, Endpoints } from './endpoints.js';
 export { doctor } from './doctor.js';
 export type { DoctorCheck, DoctorResult } from './doctor.js';
 export { buildExecutors, executeQualityGate, publishVerdict, ExecutionError } from './executors.js';

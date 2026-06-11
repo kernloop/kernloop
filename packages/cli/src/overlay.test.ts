@@ -161,6 +161,45 @@ describe('loadOverlay defaults and precedence', () => {
       expect(overlay.gates.vote.strategy).toBe(strategy);
     }
   });
+
+  it('loads the optional endpoints block and an adapter that references one [CLM-0083]', () => {
+    const overlay = loadFrom(
+      [
+        'id: api',
+        'adapters: { large: internal-provider }',
+        'endpoints:',
+        '  internal-provider:',
+        '    baseUrl: https://api.example.com/v1',
+        '    apiKeyEnv: INTERNAL_PROVIDER_KEY',
+        '    models: { large: big-model }',
+        '    metersUsd: true',
+        '',
+      ].join('\n'),
+    );
+    expect(overlay.adapters?.large).toBe('internal-provider');
+    expect(overlay.endpoints['internal-provider']?.apiKeyEnv).toBe('INTERNAL_PROVIDER_KEY');
+    expect(overlay.endpoints['internal-provider']?.models).toEqual({ large: 'big-model' });
+  });
+
+  it('REJECTS a literal key in apiKeyEnv — secrets never live in overlay.yaml [CLM-0083]', () => {
+    expect(() =>
+      loadFrom(
+        [
+          'id: leak',
+          'endpoints:',
+          '  p:',
+          '    baseUrl: https://api.example.com/v1',
+          '    apiKeyEnv: sk-or-deadbeef0123456789',
+          '    models: { large: m }',
+          '',
+        ].join('\n'),
+      ),
+    ).toThrow(OverlayError);
+  });
+
+  it('REJECTS an adapter that names an unregistered endpoint id [CLM-0083]', () => {
+    expect(() => loadFrom('id: x\nadapters: { large: not-registered }\n')).toThrow(OverlayError);
+  });
 });
 
 describe('loadOverlay rejection matrix', () => {

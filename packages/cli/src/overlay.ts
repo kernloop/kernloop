@@ -26,6 +26,7 @@ import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
 import YAML from 'yaml';
+import { EndpointsSchema } from './endpoints.js';
 
 /** Name of the overlay directory committed with each repo (spec §7). */
 export const OVERLAY_DIR_NAME = '.kernloop';
@@ -140,12 +141,17 @@ export type NodeOverride = z.infer<typeof NodeOverrideSchema>;
  * loop-vs-Router honesty note.
  */
 const AdaptersSchema = z.strictObject({
-  frontier: z.enum(ADAPTER_NAMES).optional(),
-  large: z.enum(ADAPTER_NAMES).optional(),
-  medium: z.enum(ADAPTER_NAMES).optional(),
-  small: z.enum(ADAPTER_NAMES).optional(),
+  frontier: z.string().min(1).optional(),
+  large: z.string().min(1).optional(),
+  medium: z.string().min(1).optional(),
+  small: z.string().min(1).optional(),
 });
 export type TierAdapters = z.infer<typeof AdaptersSchema>;
+
+/** True when `name` is one of the five built-in CLI adapters (vs an endpoint id). */
+export function isCliAdapter(name: string): name is (typeof ADAPTER_NAMES)[number] {
+  return (ADAPTER_NAMES as readonly string[]).includes(name);
+}
 
 /**
  * overlay.yaml schema (spec §7: "gate thresholds, K, budgets, node
@@ -154,30 +160,54 @@ export type TierAdapters = z.infer<typeof AdaptersSchema>;
  * §12.2). Every field except `id` defaults, so a minimal overlay is just an
  * id; file values win over defaults (precedence, see module docs).
  */
-export const OverlaySchema = z.strictObject({
-  id: z.string().min(1),
-  budgets: BudgetsSchema.prefault({}),
-  briefTokens: z.number().int().positive().default(4_000),
-  K: z.number().int().min(1).default(3),
-  /**
-   * Child-iterate bound (spec §6, §8) [CLM-0043]: a child's implement re-runs
-   * at most Kc times on a quality reject before the child escalates. Bounds
-   * child iteration in BOTH budget modes — unlimited budget is not unlimited
-   * iterations; raising Kc is how you allow more.
-   */
-  Kc: z.number().int().min(1).default(3),
-  /**
-   * Budget enforcement mode (spec §8) [CLM-0077]: `enforce` (default) HALTS a
-   * run whose metered spend exceeds the parent budget; `unlimited` lifts the
-   * restriction but NOT the tracking — usage/cost is metered and reported
-   * identically in both modes. A run-level `--unlimited` override forces
-   * `unlimited` regardless of this default.
-   */
-  budgetMode: BudgetModeSchema.default('enforce'),
-  gates: GatesSchema.prefault({}),
-  nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
-  adapters: AdaptersSchema.optional(),
-});
+export const OverlaySchema = z
+  .strictObject({
+    id: z.string().min(1),
+    budgets: BudgetsSchema.prefault({}),
+    briefTokens: z.number().int().positive().default(4_000),
+    K: z.number().int().min(1).default(3),
+    /**
+     * Child-iterate bound (spec §6, §8) [CLM-0043]: a child's implement re-runs
+     * at most Kc times on a quality reject before the child escalates. Bounds
+     * child iteration in BOTH budget modes — unlimited budget is not unlimited
+     * iterations; raising Kc is how you allow more.
+     */
+    Kc: z.number().int().min(1).default(3),
+    /**
+     * Budget enforcement mode (spec §8) [CLM-0077]: `enforce` (default) HALTS a
+     * run whose metered spend exceeds the parent budget; `unlimited` lifts the
+     * restriction but NOT the tracking — usage/cost is metered and reported
+     * identically in both modes. A run-level `--unlimited` override forces
+     * `unlimited` regardless of this default.
+     */
+    budgetMode: BudgetModeSchema.default('enforce'),
+    gates: GatesSchema.prefault({}),
+    nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
+    adapters: AdaptersSchema.optional(),
+    /**
+     * Registered OpenAI-compatible HTTP endpoints (spec §8.4 `api` adapter), keyed
+     * by id. The per-tier `adapters` map may name an endpoint id (vs a CLI name);
+     * the loop then calls that endpoint via the kernel `invokeApiAdapter`, metered
+     * into the run budget. The key VALUE is NEVER stored here — only the NAME of
+     * an env var (`apiKeyEnv`); a literal key is rejected at parse (see endpoints.ts).
+     */
+    endpoints: EndpointsSchema.default({}),
+  })
+  .superRefine((overlay, ctx) => {
+    // Every per-tier adapter must be a built-in CLI name OR a registered endpoint id.
+    for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
+      const name = overlay.adapters?.[tier];
+      if (name !== undefined && !isCliAdapter(name) && overlay.endpoints[name] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['adapters', tier],
+          message:
+            `adapters.${tier} "${name}" is neither a built-in adapter ` +
+            `(${ADAPTER_NAMES.join(', ')}) nor a registered endpoint id — register it under endpoints`,
+        });
+      }
+    }
+  });
 export type Overlay = z.infer<typeof OverlaySchema>;
 
 /** Typed failure loading or validating an overlay; schema failures carry the zod issues. */
@@ -288,10 +318,17 @@ function overlayTemplate(defaults: Overlay): string {
     '#  quality:',
     '#    timeoutMsPerCheck: 120000',
     '# adapters:  # per-tier model adapters (spec §8.4) — which adapter serves each model tier',
-    '#   frontier: claude  # any of: claude codex gemini opencode ollama; unset → falls back to --adapter',
+    '#   frontier: claude  # any of: claude codex gemini opencode ollama, OR a registered endpoint id below',
     '#   large: claude     # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',
     '#   medium: codex',
     '#   small: ollama',
+    '# endpoints:  # OpenAI-compatible HTTP endpoints (spec §8.4 api adapter) — referenced by id from adapters above',
+    '#   my-provider:        # an internal OpenAI-compatible provider; reference it as adapters.<tier>: my-provider',
+    '#     baseUrl: https://api.example.com/v1   # https required (http allowed ONLY for localhost/private, e.g. local vLLM)',
+    '#     apiKeyEnv: MY_PROVIDER_API_KEY        # the NAME of an env var — NEVER the key itself; set it in your shell',
+    '#     models: { frontier: some-frontier-model, medium: some-medium-model }  # tier → concrete model id',
+    '#     metersUsd: true       # the endpoint reports per-call USD cost (usage.cost) — meter it into the run budget',
+    '#     maxUsdPerCall: 0.50   # optional fail-closed per-call spend cap',
     "# nodeOverrides:  # swap a gate's gate / add fanout specialists / raise a node's model (spec §6, §8.4)",
     '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
     '#   quality: { gate: security-review }',

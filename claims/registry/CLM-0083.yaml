@@ -1,0 +1,20 @@
+id: CLM-0083
+statement: >-
+  An api endpoint's secret is held env-only: the adapter reads the key from process.env[apiKeyEnv]
+  at call time and fails closed with an ApiKeyMissingError naming the env var (never the value) when
+  it is unset or empty, the key NEVER appears in any error, output, or raw field, and the overlay
+  config boundary rejects a literal key — only the NAME of an env var may be stored in overlay.yaml.
+evidence:
+  - 'test:packages/kernel/src/adapters/api.test.ts::throws ApiKeyMissingError naming the env var when the key is unset'
+  - 'test:packages/kernel/src/adapters/api.test.ts::throws ApiKeyMissingError when the key is the empty string'
+  - 'test:packages/kernel/src/adapters/api.test.ts::does not leak the key through a non-2xx error body that echoes the header'
+  - 'test:packages/kernel/src/adapters/api.test.ts::does not leak the key through a malformed-JSON body that echoes the header'
+  - 'test:packages/kernel/src/adapters/api.test.ts::scrub() redacts the key from any surfaced string'
+  - 'test:packages/cli/src/endpoints.test.ts::REJECTS an apiKeyEnv that is a literal key (sk- prefix)'
+  - 'test:packages/cli/src/endpoints.test.ts::REJECTS a header value that looks like a literal secret'
+  - 'test:packages/cli/src/endpoints.test.ts::carries the env-var NAME (never a key) + the tier→model map + body effort'
+  - 'test:packages/cli/src/overlay.test.ts::REJECTS a literal key in apiKeyEnv — secrets never live in overlay.yaml [CLM-0083]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

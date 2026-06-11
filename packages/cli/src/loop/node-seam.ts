@@ -27,8 +27,8 @@ export type TierAdapters = Partial<Record<ModelTier, AdapterName | undefined>>;
 
 /** What actually served a node's requirement — the honest provenance record. */
 export interface ServedModel {
-  /** The adapter that served the call. */
-  readonly adapter: AdapterName;
+  /** The adapter that served the call: a CLI adapter name OR a registered api endpoint id. */
+  readonly adapter: AdapterName | string;
   /** The model/alias the adapter bound (`''` = the harness default). */
   readonly model: string;
   /** The requested tier. */

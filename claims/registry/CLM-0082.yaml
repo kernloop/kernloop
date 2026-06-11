@@ -1,0 +1,17 @@
+id: CLM-0082
+statement: >-
+  The OpenAI-compatible HTTP adapter POSTs a single assembled prompt to a configured
+  endpoint's /chat/completions, reads choices[0].message.content as the output, and meters
+  honestly from the response usage — prompt+completion tokens when present, usage.cost or
+  usage.total_cost as usd when present, else metered false — never fabricating a figure.
+evidence:
+  - 'test:packages/kernel/src/adapters/api.test.ts::returns the message content and meters tokens + usd from usage'
+  - 'test:packages/kernel/src/adapters/api.test.ts::meters tokens but reports usd unmetered when the endpoint omits cost'
+  - 'test:packages/kernel/src/adapters/api.test.ts::reads usage.total_cost (alt cost field) as the metered usd'
+  - 'test:packages/kernel/src/adapters/api.test.ts::ALWAYS sends a bounded max_tokens and the resolved model + reasoning_effort'
+  - 'test:packages/kernel/src/adapters/api.test.ts::malformed JSON in a 2xx body is a typed AdapterOutputError, never a crash'
+  - 'test:packages/kernel/src/adapters/api.test.ts::a 2xx body with no usable message content is a typed AdapterOutputError'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

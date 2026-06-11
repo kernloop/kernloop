@@ -47,9 +47,27 @@ export {
   type MeteredFlags,
 } from './invoke.js';
 export {
+  invokeApiAdapter,
+  assertSafeBaseUrl,
+  scrub,
+  CHAT_PATH,
+  MAX_RESPONSE_BYTES,
+  type ApiInvocation,
+  type ApiAdapterResult,
+  type ApiRawObservation,
+} from './api.js';
+export {
+  API_EFFORT_PARAM,
+  API_EFFORT_PROFILE,
+  API_EFFORT_LEVELS,
+  type ApiAdapterDefinition,
+} from './api-config.js';
+export {
   AdapterUnavailableError,
   AdapterRequestError,
   AdapterTimeoutError,
   AdapterExecutionError,
   AdapterOutputError,
+  ApiKeyMissingError,
+  ApiEndpointError,
 } from './errors.js';

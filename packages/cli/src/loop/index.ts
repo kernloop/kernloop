@@ -44,15 +44,10 @@ import {
   meteredInvoke,
   type LoopInvoke,
 } from './invoke.js';
-import { nodeRequirement, type TieredNode } from './node-model.js';
-import {
-  adapterForTier,
-  buildNodeSeam,
-  resolveServed,
-  type NodeSeam,
-  type TierAdapters,
-} from './node-seam.js';
-import { requirementForNode, type Overlay } from '../overlay.js';
+import { type TieredNode } from './node-model.js';
+import { type NodeSeam } from './node-seam.js';
+import { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
+import { type Overlay } from '../overlay.js';
 
 export { TIERED_NODES, type TieredNode } from './node-model.js';
 export {
@@ -65,63 +60,7 @@ export {
   type NodeSeam,
 } from './node-seam.js';
 
-/**
- * Build the per-NODE model seam [CLM-0078]: for each model-calling node, derive
- * its {@link ModelRequirement} from its single source (template/manifest), apply
- * any overlay per-node tier/effort override, pick the adapter that serves its
- * tier (`overlay.adapters[tier]`, else the run adapter), resolve the served
- * model+effort through the kernel translation seam, and bind a metered invoke
- * carrying that provenance. With NO `adapters` block AND no overrides, every
- * node binds the run adapter at its declared tier alias — the backward-compat
- * guarantee (unchanged spend shape). Seams are cached per node.
- *
- * Enforcement point note (honesty): this lives at the LOOP composition root,
- * not the Router — see loop/node-model.ts.
- */
-export function buildInvokeForNode(
-  runAdapter: AdapterName,
-  overlay: Overlay,
-  totals: { tokens: number; usd: number },
-): (node: TieredNode) => NodeSeam {
-  const cache = new Map<TieredNode, NodeSeam>();
-  const adapters: TierAdapters | undefined = overlay.adapters;
-  return (node) => {
-    let seam = cache.get(node);
-    if (seam === undefined) {
-      const req = requirementForNode(overlay, node, nodeRequirement(node));
-      const adapter = adapterForTier(req.tier, adapters, runAdapter);
-      const served = resolveServed(req, adapter);
-      seam = buildNodeSeam(served, adapterInvoke(adapter), totals);
-      cache.set(node, seam);
-    }
-    return seam;
-  };
-}
-
-/**
- * Per-node seams for an INJECTED invoke (tests script the model CLI). Every
- * node routes through the one injected `base`, but the node's served model +
- * effort are still resolved against the run adapter — so provenance records
- * what each node requested even though one scripted seam answers them all.
- */
-function injectedSeamFor(
-  runAdapter: AdapterName,
-  overlay: Overlay,
-  base: LoopInvoke,
-  totals: { tokens: number; usd: number },
-): (node: TieredNode) => NodeSeam {
-  const cache = new Map<TieredNode, NodeSeam>();
-  return (node) => {
-    let seam = cache.get(node);
-    if (seam === undefined) {
-      const req = requirementForNode(overlay, node, nodeRequirement(node));
-      const adapter = adapterForTier(req.tier, overlay.adapters, runAdapter);
-      seam = buildNodeSeam(resolveServed(req, adapter), base, totals);
-      cache.set(node, seam);
-    }
-    return seam;
-  };
-}
+export { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
 
 export {
   LoopParseError,
@@ -230,15 +169,18 @@ function report(
  * plus any tier adapter the overlay declares — so a misconfigured environment
  * fails fast up front, never mid-loop. Each absence is a typed error.
  */
-function ensureRunAdaptersAvailable(
-  runAdapter: AdapterName,
-  tierAdapters: TierAdapters | undefined,
-): void {
+function ensureRunAdaptersAvailable(runAdapter: AdapterName, overlay: Overlay): void {
   ensureAdapterAvailable(runAdapter);
   for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
-    const tierAdapter = tierAdapters?.[tier];
-    if (tierAdapter !== undefined && tierAdapter !== runAdapter) {
-      ensureAdapterAvailable(tierAdapter);
+    const tierAdapter = overlay.adapters?.[tier];
+    // A registered endpoint id is an api adapter — no CLI to probe on PATH; its
+    // key is validated fail-closed at call time (ApiKeyMissingError), not here.
+    if (
+      tierAdapter !== undefined &&
+      tierAdapter !== runAdapter &&
+      overlay.endpoints[tierAdapter] === undefined
+    ) {
+      ensureAdapterAvailable(tierAdapter as AdapterName);
     }
   }
 }
@@ -355,8 +297,7 @@ export async function executeCanonicalLoop(
   request: LoopRequest,
 ): Promise<LoopReport> {
   const adapter = request.adapter ?? 'claude';
-  const tierAdapters = kern.config.adapters;
-  if (request.invoke === undefined) ensureRunAdaptersAvailable(adapter, tierAdapters);
+  if (request.invoke === undefined) ensureRunAdaptersAvailable(adapter, kern.config);
   const base = request.invoke ?? adapterInvoke(adapter);
   const runId = request.resumeRunId ?? request.runId ?? randomUUID();
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));

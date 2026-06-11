@@ -1,0 +1,17 @@
+id: CLM-0084
+statement: >-
+  The api adapter validates its baseUrl before any network egress — requiring https except for an
+  explicit localhost/loopback/private host, rejecting any other scheme — appends only the fixed
+  /chat/completions path (never user-templated), refuses cross-host redirects, caps the response
+  read size, and enforces a wall-clock timeout via an AbortController on every call.
+evidence:
+  - 'test:packages/kernel/src/adapters/api.test.ts::allows https to any host'
+  - 'test:packages/kernel/src/adapters/api.test.ts::allows http ONLY to localhost / loopback / private hosts'
+  - 'test:packages/kernel/src/adapters/api.test.ts::REJECTS http to a non-local (public) host'
+  - 'test:packages/kernel/src/adapters/api.test.ts::REJECTS a non-http(s) scheme (file/ftp/etc.)'
+  - 'test:packages/kernel/src/adapters/api.test.ts::throws ApiEndpointError for an http public baseUrl (no network egress)'
+  - 'test:packages/kernel/src/adapters/api.test.ts::aborts and throws AdapterTimeoutError when the endpoint is too slow'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
