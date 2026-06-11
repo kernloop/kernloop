@@ -75,6 +75,31 @@ describe('buildDockerArgs', () => {
     expect(args.indexOf(`${input}:/inputs:ro`)).toBeLessThan(args.indexOf('node:22-alpine'));
   });
 
+  it('adds -i when stdin is provided so the container reads its input contract', () => {
+    const args = buildDockerArgs(
+      {
+        scratchDir: tmpDir(),
+        command: ['node', 'tool.mjs'],
+        profile: RATIFIED_SANDBOX_PROFILE,
+        stdin: '{"x":1}',
+      },
+      'kernloop-run-z',
+    );
+    expect(args.slice(0, 3)).toEqual(['run', '--rm', '-i']);
+  });
+
+  it('omits -i when no stdin is provided', () => {
+    const args = buildDockerArgs(
+      {
+        scratchDir: tmpDir(),
+        command: ['node', 'tool.mjs'],
+        profile: RATIFIED_SANDBOX_PROFILE,
+      },
+      'kernloop-run-w',
+    );
+    expect(args).not.toContain('-i');
+  });
+
   it('rejects an invalid profile at the boundary', () => {
     expect(() =>
       buildDockerArgs(

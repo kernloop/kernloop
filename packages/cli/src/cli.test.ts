@@ -279,6 +279,46 @@ describe('kernloop CLI', () => {
     expect(usage).toContain('forge     --spec-file');
     expect(usage).toContain('--gate vote');
     expect(usage).toContain('--gate review');
+    expect(usage).toMatch(/^  workshop\b/m);
+    expect(usage).toContain('workshop  run <name>');
+  });
+
+  it('workshop run requires a name and exactly one input source', async () => {
+    const repo = repoDir();
+    await runCli(['init'], capture(repo).io);
+    const noName = capture(repo);
+    expect(await runCli(['workshop', 'run', '--input-json', '{}'], noName.io)).toBe(1);
+    expect(noName.err()).toContain('workshop run <name>');
+    const noInput = capture(repo);
+    expect(await runCli(['workshop', 'run', 'echo'], noInput.io)).toBe(1);
+    expect(noInput.err()).toContain('exactly one of --input');
+    const bothInputs = capture(repo);
+    expect(
+      await runCli(
+        ['workshop', 'run', 'echo', '--input', 'f.json', '--input-json', '{}'],
+        bothInputs.io,
+      ),
+    ).toBe(1);
+    expect(bothInputs.err()).toContain('exactly one of --input');
+  });
+
+  it('workshop rejects an unknown subcommand', async () => {
+    const repo = repoDir();
+    await runCli(['init'], capture(repo).io);
+    const c = capture(repo);
+    expect(await runCli(['workshop', 'frobnicate'], c.io)).toBe(1);
+    expect(c.err()).toContain('unknown workshop subcommand');
+  });
+
+  it('workshop list and sweep run over an empty overlay without docker', async () => {
+    const repo = repoDir();
+    await runCli(['init'], capture(repo).io);
+    const list = capture(repo);
+    expect(await runCli(['workshop', 'list'], list.io)).toBe(0);
+    expect(list.json()).toEqual({ tools: [] });
+    const sweep = capture(repo);
+    expect(await runCli(['workshop', 'sweep'], sweep.io)).toBe(0);
+    expect(sweep.json()).toEqual({ swept: [], removalProposed: [] });
   });
 
   it('forge requires --spec-file', async () => {

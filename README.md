@@ -79,6 +79,9 @@ The canonical loop selects the model adapter per node by declared tier — resea
 Semantic facts and episodic trace summaries export to a portable JSON document and re-import loss-free, so an overlay's memory can travel with the repo [CLM-0069].
 Learned routing priors export from the Observer fitness ledger to a reviewable YAML priors file committed with the overlay [CLM-0070].
 
+A born workshop tool is invocable: `kernloop workshop run` executes it in the ratified sandbox against a stdin contract JSON, parses its stdout contract JSON, and audits every invocation [CLM-0071].
+Workshop tools earn promotion through use — five clean audited invocations move a tool from suggest to advisory — and `kernloop workshop sweep` decays unused tools toward removal [CLM-0072].
+
 <!-- claims:end -->
 
 ## The claims registry
@@ -172,6 +175,8 @@ and `claims:verify-ran`, which proves the cited test actually ran and passed).
 | [CLM-0068](claims/registry/CLM-0068.yaml) | [`packages/cli/src/loop/tiers.test.ts`](packages/cli/src/loop/tiers.test.ts), [`packages/cli/src/overlay.test.ts`](packages/cli/src/overlay.test.ts), CI `test`                                                                                                                                                                                                                                                                               |
 | [CLM-0069](claims/registry/CLM-0069.yaml) | [`packages/faculty-memory/src/export.test.ts`](packages/faculty-memory/src/export.test.ts), [`packages/cli/src/tools/portability.test.ts`](packages/cli/src/tools/portability.test.ts), CI `test`                                                                                                                                                                                                                                             |
 | [CLM-0070](claims/registry/CLM-0070.yaml) | [`packages/faculty-observer/src/priors.test.ts`](packages/faculty-observer/src/priors.test.ts), [`packages/cli/src/tools/portability.test.ts`](packages/cli/src/tools/portability.test.ts), CI `test`                                                                                                                                                                                                                                         |
+| [CLM-0071](claims/registry/CLM-0071.yaml) | [`packages/faculty-toolsmith/src/run.docker.test.ts`](packages/faculty-toolsmith/src/run.docker.test.ts), [`packages/faculty-toolsmith/src/run.test.ts`](packages/faculty-toolsmith/src/run.test.ts), [`packages/cli/src/tools/workshop.test.ts`](packages/cli/src/tools/workshop.test.ts), [`packages/cli/src/cli.workshop.docker.test.ts`](packages/cli/src/cli.workshop.docker.test.ts), CI `test`                                         |
+| [CLM-0072](claims/registry/CLM-0072.yaml) | [`packages/faculty-toolsmith/src/run.docker.test.ts`](packages/faculty-toolsmith/src/run.docker.test.ts), [`packages/cli/src/tools/workshop.test.ts`](packages/cli/src/tools/workshop.test.ts), CI `test`                                                                                                                                                                                                                                     |
 
 <!-- enforcement:end -->
 

@@ -31,6 +31,7 @@ import {
   type GateInput,
 } from './tools/index.js';
 import { memoryCommand, priorsCommand, type CommandHelpers } from './portability-commands.js';
+import { workshopCommand } from './workshop-commands.js';
 
 /** Injectable I/O so tests can capture output. */
 export interface CliIo {
@@ -55,6 +56,9 @@ const USAGE = [
   '  remember  --fact F --provenance P [--confidence C]',
   '  distill   --trace <taskId|runId> [--adapter A]   propose a skill from a trace (suggest tier)',
   '  forge     --spec-file <tool-spec.json> [--adapter A]   birth a workshop/* tool in the sandbox',
+  '  workshop  run <name> (--input <file> | --input-json <json>)  invoke a born tool in the sandbox',
+  '            sweep                                       decay unused tools toward removal',
+  '            list                                        live workshop tools + their ladder tier',
   '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
@@ -185,6 +189,8 @@ function gateInputFrom(io: CliIo, v: Record<string, string | boolean | undefined
 /** Dispatch helpers shared with the extracted portability subcommands. */
 const commandHelpers: CommandHelpers = {
   outFlags: (args) => flags(args, { out: S }),
+  strFlags: (args, names) =>
+    flags(args, Object.fromEntries(names.map((n) => [n, S]))) as Record<string, string | boolean>,
   withKernloop,
   str,
 };
@@ -327,6 +333,7 @@ const HANDLERS: Record<string, Handler> = {
       }),
     );
   },
+  workshop: (args, io) => workshopCommand(args, io, commandHelpers),
 };
 
 /** Dispatch one CLI invocation; returns the process exit code. */

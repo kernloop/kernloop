@@ -26,6 +26,13 @@ export { auditTool, AuditInputSchema, readEnvelopes } from './audit.js';
 export type { AuditInput, AuditResult } from './audit.js';
 export { observeTool, ObserveInputSchema } from './observe.js';
 export type { ObserveInput, ObserveResult } from './observe.js';
+export { workshopRunTool, workshopSweepTool, workshopListTool } from './workshop.js';
+export type {
+  WorkshopRunResult,
+  WorkshopRunOptions,
+  WorkshopSweepResult,
+  WorkshopListRow,
+} from './workshop.js';
 
 /** The kernel eleven tool names, in spec §3.4 order. */
 export const KERNEL_TOOL_NAMES = [

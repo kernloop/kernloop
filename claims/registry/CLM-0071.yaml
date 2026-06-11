@@ -1,0 +1,15 @@
+id: CLM-0071
+statement: >-
+  A born workshop tool is invocable: it runs in the ratified sandbox against a
+  stdin contract JSON, emits a stdout contract JSON, and every invocation is
+  audited.
+evidence:
+  - 'test:packages/faculty-toolsmith/src/run.docker.test.ts::runs a born tool in the sandbox against a stdin contract and parses its stdout contract'
+  - 'test:packages/faculty-toolsmith/src/run.test.ts::a clean run parses the stdout contract and records a clean run on the ladder'
+  - 'test:packages/faculty-toolsmith/src/run.test.ts::an unknown tool is a typed UnknownToolError, before any docker call'
+  - 'test:packages/cli/src/tools/workshop.test.ts::invokes a born tool, returns its parsed output, and audits the invocation'
+  - 'test:packages/cli/src/cli.workshop.docker.test.ts::invokes a born tool through the CLI and prints its stdout contract'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

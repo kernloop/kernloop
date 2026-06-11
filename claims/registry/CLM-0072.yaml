@@ -1,0 +1,14 @@
+id: CLM-0072
+statement: >-
+  Workshop tools earn promotion through use: N clean audited invocations move a
+  tool from suggest to advisory, and `kernloop workshop sweep` decays unused
+  tools toward removal.
+evidence:
+  - 'test:packages/faculty-toolsmith/src/run.docker.test.ts::promotes suggest → advisory after 5 clean audited invocations'
+  - 'test:packages/faculty-toolsmith/src/run.docker.test.ts::a tool that emits non-JSON on stdout is an unclean run — no promotion credit'
+  - 'test:packages/cli/src/tools/workshop.test.ts::decays an unused tool and proposes its removal, auditing the sweep'
+  - 'test:packages/cli/src/tools/workshop.test.ts::a sweep with nothing to decay records no audit event'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

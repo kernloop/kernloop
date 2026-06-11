@@ -15,6 +15,8 @@ import { priorsExportTool } from './tools/priors.js';
 export interface CommandHelpers {
   /** Parse `--out` (and the shared `--dir`); unknown flags fail loudly. */
   outFlags: (args: string[]) => { out?: string | boolean; dir?: string | boolean };
+  /** Parse the named string flags (plus the shared `--dir`); unknown flags fail loudly. */
+  strFlags: (args: string[], names: readonly string[]) => Record<string, string | boolean>;
   /** Assemble a kernloop over the overlay, run `fn`, print JSON, then close. */
   withKernloop: (
     io: CliIo,
