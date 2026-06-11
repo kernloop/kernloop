@@ -19,6 +19,9 @@ describe('instantiateAgent', () => {
       expect(manifest.capabilities.map((c) => c.name)).toEqual([`agent.${name}`]);
       expect(manifest.contracts).toEqual({ consumes: ['TaskContract'], emits: ['Outcome'] });
       expect(manifest.cost).toEqual(MODEL_TIER_COST[template.modelTier]);
+      // The template's declared tier is propagated first-class onto the
+      // Manifest — the single source the loop derives its adapter from (§8.4).
+      expect(manifest.modelTier).toBe(template.modelTier);
     }
   });
 
@@ -55,6 +58,8 @@ describe('instantiateAgent', () => {
     expect(manifest.maturity).toBe('experimental');
     expect(manifest.tier).toBe('suggest');
     expect(manifest.cost).toEqual(MODEL_TIER_COST.cheap);
+    // The override flips the declared model tier on the Manifest too.
+    expect(manifest.modelTier).toBe('cheap');
   });
 
   it('a whole-cloth template not in the shipped library is experimental', () => {

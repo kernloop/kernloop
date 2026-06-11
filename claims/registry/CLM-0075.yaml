@@ -1,0 +1,14 @@
+id: CLM-0075
+statement: >-
+  The kernel resolves a manifest's declared model tier to a configured adapter
+  by pure static lookup, failing closed on an unknown tier and holding no
+  deployment policy or model call.
+evidence:
+  - 'test:packages/kernel/src/adapters/tier.test.ts::resolves a declared tier to its configured adapter'
+  - 'test:packages/kernel/src/adapters/tier.test.ts::falls back to the run adapter when the overlay declares no adapter for the tier'
+  - 'test:packages/kernel/src/adapters/tier.test.ts::is pure: same inputs always give the same adapter'
+  - 'test:packages/kernel/src/adapters/tier.test.ts::fails closed on an unrecognized tier — never silently defaults upward'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

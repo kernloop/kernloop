@@ -16,5 +16,6 @@ describe('observerManifest (spec §4, §5.5)', () => {
     expect(parsed.tier).toBe('suggest');
     expect(parsed.maturity).toBe('stable');
     expect(parsed.claims).toEqual(['CLM-0055', 'CLM-0056']);
+    expect(parsed.modelTier).toBe('cheap'); // triage runs on cheap models (spec §8.4)
   });
 });

@@ -14,9 +14,11 @@ import { PROMOTION_CRITERION } from './calibrate.js';
  * that criterion as data; promotion to `enforce` is a named human-
  * ratification point, never a default. Consumes TaskContract + Brief;
  * emits Verdict whose per-reviewer VoterRecords feed the fitness ledger's
- * precision series (CLM-0047). Expected cost: the default 3-reviewer
- * panel over a PR-sized diff on frontier-tier models (spec §8.4); actual
- * cost is metered by the injected adapters into each Verdict.
+ * precision series (CLM-0047). Expected cost: the default 3-reviewer panel
+ * over a PR-sized diff. The `modelTier: 'cheap'` is declared first-class
+ * (spec §8.4: adversarial reading/triage runs on cheap models) — the SINGLE
+ * source the loop's review node derives its adapter from; actual cost is
+ * metered by the injected adapters into each Verdict.
  */
 export const reviewGateManifest: Manifest = ManifestSchema.parse({
   name: '@kernloop/faculty-gates/review',
@@ -42,4 +44,5 @@ export const reviewGateManifest: Manifest = ManifestSchema.parse({
   promotion: PROMOTION_CRITERION,
   claims: ['CLM-0047', 'CLM-0048'],
   maturity: 'stable',
+  modelTier: 'cheap',
 });

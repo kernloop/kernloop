@@ -24,6 +24,10 @@ describe('voteGateManifest', () => {
     expect(voteGateManifest.claims).toEqual(['CLM-0037', 'CLM-0038', 'CLM-0039']);
   });
 
+  it('declares modelTier frontier — plan ratification runs on frontier (spec §8.4)', () => {
+    expect(voteGateManifest.modelTier).toBe('frontier');
+  });
+
   it('does not collide with the quality gate manifest in a name@version registry', () => {
     expect(`${voteGateManifest.name}@${voteGateManifest.version}`).not.toBe(
       `${qualityGateManifest.name}@${qualityGateManifest.version}`,

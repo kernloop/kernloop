@@ -1,15 +1,19 @@
 id: CLM-0068
 statement: >-
-  The canonical loop selects the model adapter per node by declared tier —
-  cheap-tier nodes (research, review) use the overlay's cheap adapter and
-  frontier-tier nodes (plan, vote, decompose, implement) the frontier adapter
-  — each defaulting to the run adapter when no tier adapter is configured.
+  Model tier is declared on each manifest (the single source of truth, spec
+  §8.4); the canonical loop resolves every node's adapter from the
+  manifest/template it routes to via the kernel's pure tier→adapter resolver —
+  there is no separate per-node tier map.
 evidence:
-  - 'test:packages/cli/src/loop/tiers.test.ts::routes read/judge nodes to cheap and load-bearing generation/decisions to frontier'
-  - 'test:packages/cli/src/loop/tiers.test.ts::binds the configured adapter per tier: research(cheap)→codex, plan(frontier)→claude'
-  - 'test:packages/cli/src/loop/tiers.test.ts::BACKWARD-COMPAT: with no adapters config, both tiers resolve to the run adapter'
-  - "test:packages/cli/src/loop/tiers.test.ts::the run adapter's tier seam invokes the real run-adapter CLI and meters its cost"
-  - 'test:packages/cli/src/loop/tiers.test.ts::each model-calling node draws its seam from its declared tier: research/review cheap, plan/vote/decompose/implement frontier'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::reads read/judge nodes as cheap and load-bearing generation/decisions as frontier'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::the real sources are the shipped templates and the two model-calling gates'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::binds the configured adapter for each node by its derived tier'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::BACKWARD-COMPAT: with no adapters config, every node resolves to the run adapter'
+  - "test:packages/cli/src/loop/node-tiers.test.ts::each node's seam invokes its resolved real adapter CLI and meters its cost"
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::each model-calling executor draws its seam by NODE name: research cheap, vote/decompose/implement frontier'
+  - 'test:packages/faculty-workforce/src/instantiate.test.ts::each of the five shipped templates instantiates to a ManifestSchema-valid agentTemplate manifest'
+  - 'test:packages/faculty-gates/src/vote/manifest.test.ts::declares modelTier frontier — plan ratification runs on frontier (spec §8.4)'
+  - 'test:packages/faculty-gates/src/review/manifest.test.ts::declares modelTier cheap — adversarial diff reading runs on cheap models (spec §8.4)'
   - 'test:packages/cli/src/overlay.test.ts::loads the optional tiered-adapters block [CLM-0068]'
   - 'ci:test'
 status: verified

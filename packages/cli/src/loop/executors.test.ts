@@ -95,10 +95,10 @@ function bindingsFor(
 ): LoopBindings {
   const workspaceDir = path.join(scratch, 'unit-ws');
   mkdirSync(workspaceDir, { recursive: true }); // quality checks spawn with cwd = workspace
-  // Injected-invoke parity: every node tier resolves to the same injected
-  // invoke, so a custom invoke reaches per-tier executors too (the loop's
-  // injected-invoke backward-compat contract, [CLM-0068]).
-  return { kern, workspaceDir, invoke, invokeFor: () => invoke, adapter: 'claude', refs };
+  // Injected-invoke parity: every node resolves to the same injected invoke,
+  // so a custom invoke reaches the per-node executors too (the loop's
+  // injected-invoke backward-compat contract, [CLM-0068, CLM-0076]).
+  return { kern, workspaceDir, invokeFor: () => invoke, adapter: 'claude', refs };
 }
 
 function ctxFor(panel: 3 | 7): NodeContext {

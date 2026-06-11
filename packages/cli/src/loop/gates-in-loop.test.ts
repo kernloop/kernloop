@@ -58,7 +58,6 @@ function bindingsFor(kern: Kernloop, refs: LoopRefs = {}): LoopBindings {
   return {
     kern,
     workspaceDir,
-    invoke: scripted,
     invokeFor: () => scripted,
     adapter: 'claude',
     refs,

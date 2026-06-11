@@ -1,0 +1,14 @@
+id: CLM-0076
+statement: >-
+  Tiered routing is single-source: flipping a manifest/template's declared
+  modelTier changes the adapter the loop binds for that node, with no parallel
+  tier map to diverge.
+evidence:
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::flipping researcher.modelTier to frontier flips the research adapter to B'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::flipping the vote gate modelTier to cheap flips the vote adapter to A'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::research binds the cheap adapter and plan the frontier adapter by default'
+  - 'test:packages/cli/src/loop/node-tiers.test.ts::a gate source that omits modelTier is a manifest bug, surfaced loudly'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

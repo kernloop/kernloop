@@ -22,7 +22,11 @@ import {
   type Outcome,
   type TaskContract,
 } from '@kernloop/contracts';
-import type { AdapterName } from '@kernloop/kernel';
+import {
+  adapterForTier,
+  type AdapterName,
+  type TierAdapters as KernelTierAdapters,
+} from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import {
   JsonlCheckpointStore,
@@ -40,47 +44,74 @@ import {
   meteredInvoke,
   type LoopInvoke,
 } from './invoke.js';
-import type { ModelTier } from './tiers.js';
+import {
+  nodeModelTier,
+  defaultTierSources,
+  type TieredNode,
+  type TierSources,
+} from './node-tiers.js';
 import type { TierAdapters } from '../overlay.js';
 
-export { NODE_TIERS, type ModelTier, type TieredNode } from './tiers.js';
+export {
+  TIERED_NODES,
+  nodeModelTier,
+  defaultTierSources,
+  type TieredNode,
+  type TierSources,
+} from './node-tiers.js';
 
 /**
- * Resolve which adapter NAME a node tier binds [CLM-0068]: the overlay's
- * declared adapter for that tier, or the run adapter when the tier is unset.
- * The pure mapping at the heart of tiered routing — with no `adapters`, every
- * tier resolves to `runAdapter` (the backward-compat guarantee).
+ * Resolve which adapter NAME a node binds [CLM-0068, CLM-0076] — the SINGLE
+ * source of truth path. The node's model tier is DERIVED from the
+ * manifest/template it routes to (via {@link nodeModelTier}); the kernel's pure
+ * {@link adapterForTier} resolver then maps that declared tier to the overlay's
+ * configured adapter, or the run adapter when the overlay declares none. With
+ * no `adapters` block every node resolves to `runAdapter` (the backward-compat
+ * guarantee). Flip a source's `modelTier` and this returns a different adapter
+ * for that node — there is no parallel tier map to diverge.
  */
-export function tierAdapter(
+export function nodeAdapter(
   runAdapter: AdapterName,
   adapters: TierAdapters | undefined,
-  tier: ModelTier,
+  node: TieredNode,
+  sources: TierSources = defaultTierSources(),
 ): AdapterName {
-  return adapters?.[tier] ?? runAdapter;
+  return adapterForTier(nodeModelTier(node, sources), kernelTierAdapters(adapters), runAdapter);
+}
+
+/** Drop unset tiers so the overlay's optional-keyed config matches the kernel
+ * resolver's `Partial<Record<ModelTier, AdapterName>>` (exactOptional). */
+function kernelTierAdapters(adapters: TierAdapters | undefined): KernelTierAdapters {
+  const out: KernelTierAdapters = {};
+  if (adapters?.cheap !== undefined) out.cheap = adapters.cheap;
+  if (adapters?.frontier !== undefined) out.frontier = adapters.frontier;
+  return out;
 }
 
 /**
- * Build the per-tier model seam [CLM-0068]. Each tier resolves to the adapter
- * the overlay declares for it (`overlay.adapters.cheap` / `.frontier`),
- * falling back to `runAdapter` when unset — so an overlay with no `adapters`
- * block makes BOTH tiers resolve to the run adapter (byte-identical to today,
- * the backward-compat guarantee). Every returned invoke is metered through
- * `totals`, exactly as the single-seam path is.
+ * Build the per-node model seam [CLM-0068, CLM-0076]. Each node's adapter is
+ * resolved from the manifest/template it routes to (its declared tier) through
+ * the kernel resolver — so an overlay with no `adapters` block makes every node
+ * resolve to the run adapter (byte-identical to today, the backward-compat
+ * guarantee). Every returned invoke is metered through `totals`, exactly as the
+ * single-seam path is.
  *
  * Enforcement point note (honesty): this lives at the LOOP composition root,
- * not the Router — see loop/tiers.ts.
+ * not the Router — see loop/node-tiers.ts.
  */
-export function buildInvokeForTier(
+export function buildInvokeForNode(
   runAdapter: AdapterName,
   adapters: TierAdapters | undefined,
   totals: { tokens: number; usd: number },
-): (tier: ModelTier) => LoopInvoke {
-  const cache = new Map<ModelTier, LoopInvoke>();
-  return (tier) => {
-    let invoke = cache.get(tier);
+  sources: TierSources = defaultTierSources(),
+): (node: TieredNode) => LoopInvoke {
+  const cache = new Map<AdapterName, LoopInvoke>();
+  return (node) => {
+    const adapter = nodeAdapter(runAdapter, adapters, node, sources);
+    let invoke = cache.get(adapter);
     if (invoke === undefined) {
-      invoke = meteredInvoke(adapterInvoke(tierAdapter(runAdapter, adapters, tier)), totals);
-      cache.set(tier, invoke);
+      invoke = meteredInvoke(adapterInvoke(adapter), totals);
+      cache.set(adapter, invoke);
     }
     return invoke;
   };
@@ -209,19 +240,19 @@ export async function executeCanonicalLoop(
     primeRefs(refs, latest.state);
   }
   const totals = { tokens: 0, usd: 0 };
-  // Default + per-tier seams, both metered. An injected invoke makes every
-  // tier resolve to it (tests unaffected); else each tier resolves to its
-  // overlay-declared adapter, defaulting to the run adapter [CLM-0068].
+  // Default + per-node seams, both metered. An injected invoke makes every
+  // node resolve to it (tests unaffected); else each node's adapter is derived
+  // from the manifest/template it routes to, resolved through the kernel tier
+  // resolver, defaulting to the run adapter [CLM-0068, CLM-0076].
   const defaultInvoke = meteredInvoke(base, totals);
-  const invokeFor: (tier: ModelTier) => LoopInvoke =
+  const invokeFor: (node: TieredNode) => LoopInvoke =
     request.invoke === undefined
-      ? buildInvokeForTier(adapter, tierAdapters, totals)
+      ? buildInvokeForNode(adapter, tierAdapters, totals)
       : () => defaultInvoke;
   const engine = createEngine({
     executors: buildLoopExecutors({
       kern,
       workspaceDir: request.workspaceDir,
-      invoke: defaultInvoke,
       invokeFor,
       adapter,
       refs,

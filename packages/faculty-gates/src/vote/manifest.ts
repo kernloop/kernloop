@@ -13,9 +13,11 @@ import { ManifestSchema, type Manifest } from '@kernloop/contracts';
  * ratification, never a default (the tier is itself a P2-exit ratification
  * item). Consumes TaskContract (what to judge) and Brief (the one shared
  * compiled context every voter receives, CLM-0039); emits Verdict.
- * Expected cost: the default 3-voter panel on frontier-tier models —
- * declared per spec §8.4 so the Router can budget-match; actual cost is
- * metered by the injected adapters and summed into each Verdict.
+ * Expected cost: the default 3-voter panel on frontier-tier models. The
+ * `modelTier: 'frontier'` is declared first-class (spec §8.4: plan
+ * ratification runs on frontier) — the SINGLE source the loop's vote node
+ * derives its adapter from; actual cost is metered by the injected adapters
+ * and summed into each Verdict.
  */
 export const voteGateManifest: Manifest = ManifestSchema.parse({
   name: '@kernloop/faculty-gates/vote',
@@ -40,4 +42,5 @@ export const voteGateManifest: Manifest = ManifestSchema.parse({
   tier: 'advisory',
   claims: ['CLM-0037', 'CLM-0038', 'CLM-0039'],
   maturity: 'stable',
+  modelTier: 'frontier',
 });

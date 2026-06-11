@@ -51,7 +51,7 @@ import {
   writtenDiff,
 } from './prompts.js';
 import { childSignal, sumChildCosts } from './aggregate.js';
-import { NODE_TIERS, type ModelTier } from './tiers.js';
+import type { TieredNode } from './node-tiers.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -71,19 +71,17 @@ export interface LoopBindings {
   readonly kern: Kernloop;
   /** Workspace the children implement into and quality judges. */
   readonly workspaceDir: string;
-  /** The default model seam — already metered by the caller. Used where no
-   * node tier applies; equals {@link invokeFor}('frontier') by default. */
-  readonly invoke: LoopInvoke;
   /**
-   * Per-tier model seam [CLM-0068]: the (already-metered) invoke bound to the
-   * adapter the overlay declares for `tier`, defaulting to the run adapter.
-   * Each model-calling executor picks its seam by its declared
-   * {@link NODE_TIERS} tier; the loop composition root (loop/index.ts) builds
-   * this from `overlay.adapters` — see loop/tiers.ts for the loop-vs-Router
-   * honesty note. When an explicit `invoke` is injected (tests), every tier
+   * Per-NODE model seam [CLM-0068, CLM-0076]: the (already-metered) invoke
+   * bound to the adapter resolved for `node`. Each model-calling executor asks
+   * for its seam by NODE name; the loop composition root (loop/index.ts)
+   * DERIVES that node's model tier from the manifest/template it routes to and
+   * resolves the adapter through the kernel tier resolver — there is no
+   * parallel per-node tier map. See loop/node-tiers.ts for the loop-vs-Router
+   * honesty note. When an explicit `invoke` is injected (tests), every node
    * resolves to that same invoke.
    */
-  readonly invokeFor: (tier: ModelTier) => LoopInvoke;
+  readonly invokeFor: (node: TieredNode) => LoopInvoke;
   /** Adapter name, recorded as provenance on generated Brief sections. */
   readonly adapter: string;
   /** Quality-check override (tests); real defaults otherwise. */
@@ -141,7 +139,7 @@ function planExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const research = BriefSchema.parse(input);
     b.refs.researchBrief = research;
-    const { output } = await b.invokeFor(NODE_TIERS.plan)(planPrompt(research, ctx.findings));
+    const { output } = await b.invokeFor('plan')(planPrompt(research, ctx.findings));
     const used = estimateTokens(output);
     const plan = BriefSchema.parse({
       taskId: ctx.taskId,
@@ -175,7 +173,7 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
       invokeVoter: ballotInvoker({
         overlayDir: b.kern.paths.dir,
         runId: ctx.runId,
-        invoke: b.invokeFor(NODE_TIERS.vote),
+        invoke: b.invokeFor('vote'),
       }),
     });
     await publishVerdict(b.kern, verdict);
@@ -213,7 +211,7 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
       invokeReviewer: reviewerInvoker({
         overlayDir: b.kern.paths.dir,
         runId: ctx.runId,
-        invoke: b.invokeFor(NODE_TIERS.review),
+        invoke: b.invokeFor('review'),
       }),
     });
     await publishVerdict(b.kern, verdict);
@@ -229,9 +227,7 @@ function decomposeExecutor(b: LoopBindings): NodeExecutor {
     if (parent === undefined || plan === undefined) {
       throw new Error(`decompose reached without framed task + plan (run ${ctx.runId})`);
     }
-    const { output } = await b.invokeFor(NODE_TIERS.decompose)(
-      decomposePrompt(parent, briefText(plan)),
-    );
+    const { output } = await b.invokeFor('decompose')(decomposePrompt(parent, briefText(plan)));
     const sink = sinkFor(b, ctx.runId, 'decompose');
     const emission = parseEmission(output, SubtasksEmissionSchema, 'subtasks', sink);
     return decomposePlan({ parent, subtasks: emission.subtasks as SubtaskSpec[] });
@@ -242,7 +238,7 @@ function decomposeExecutor(b: LoopBindings): NodeExecutor {
 function implementExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const child = TaskContractSchema.parse(input);
-    const { output, cost } = await b.invokeFor(NODE_TIERS.implement)(coderPrompt(child));
+    const { output, cost } = await b.invokeFor('implement')(coderPrompt(child));
     const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
     const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
@@ -320,7 +316,7 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
   return async (input) => {
     const task = TaskContractSchema.parse(input);
     const base = await assembleBrief(b.kern, task);
-    const { output } = await b.invokeFor(NODE_TIERS.research)(researcherPrompt(task, base));
+    const { output } = await b.invokeFor('research')(researcherPrompt(task, base));
     const findings = output.trim();
     if (findings.length === 0) return base;
     return BriefSchema.parse({

@@ -34,4 +34,8 @@ describe('reviewGateManifest', () => {
     expect(reviewGateManifest.maturity).toBe('stable');
     expect(reviewGateManifest.claims).toEqual(['CLM-0047', 'CLM-0048']);
   });
+
+  it('declares modelTier cheap — adversarial diff reading runs on cheap models (spec §8.4)', () => {
+    expect(reviewGateManifest.modelTier).toBe('cheap');
+  });
 });

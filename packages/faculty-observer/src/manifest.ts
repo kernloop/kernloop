@@ -11,7 +11,9 @@ import { ManifestSchema, type Manifest } from '@kernloop/contracts';
  * outside its own tables (spec §3.2, §5.5). Consumes every Outcome and
  * Verdict off the bus (subscription wired at the composition root); emits
  * nothing — telemetry is read through the `observe` kernel tool, and
- * self-issues travel through the tracker, not the bus.
+ * self-issues travel through the tracker, not the bus. Declares
+ * `modelTier: 'cheap'` (spec §8.4: Observer/triage runs on cheap models) —
+ * the single source of truth for any tiered routing of its model calls.
  */
 export const observerManifest: Manifest = ManifestSchema.parse({
   name: '@kernloop/faculty-observer',
@@ -37,4 +39,5 @@ export const observerManifest: Manifest = ManifestSchema.parse({
   tier: 'suggest',
   claims: ['CLM-0055', 'CLM-0056'],
   maturity: 'stable',
+  modelTier: 'cheap',
 });
