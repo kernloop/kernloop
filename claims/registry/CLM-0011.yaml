@@ -1,7 +1,7 @@
 id: CLM-0011
 statement: >-
-  A single bit flipped anywhere in a stored audit record is detected and
-  attributed to its sequence number.
+  A bit flipped in a stored audit record is detected and attributed to its
+  sequence number (exhaustive single-byte coverage is CLM-0013).
 evidence:
   - 'test:packages/kernel/src/audit/chain.test.ts::detects a bit-flip in a stored record and identifies the seq'
 status: verified

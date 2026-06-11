@@ -1,3 +1,9 @@
+> **Point-in-time snapshot.** This document recorded the state at its phase
+> exit and is preserved for history; it is not maintained. For current
+> capability see [README.md](../../README.md) — the live, claim-gated source
+> of truth. Statements here (e.g. tool counts, "current phase") were true at
+> the time and may since have been superseded.
+
 # P1 Report — Kernel, Faculties, and the First Governed Task
 
 **Phase:** P1 (kernel registry/router/ladder/bus + adapters + compiler + memory + quality gate + nine kernel tools)

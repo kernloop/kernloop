@@ -1,3 +1,6 @@
+> **Point-in-time design note (superseded).** Preserved for history; the
+> work it planned is implemented and claim-backed. See [README.md](../../../README.md).
+
 # P2 Design Notes — vote gate · workforce · canonical loop · overlay
 
 Status: design only. Written on `phase/p2` while the P1 exit PR awaits human

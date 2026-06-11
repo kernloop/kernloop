@@ -38,6 +38,7 @@ const DOCS: DocSpec[] = [
   // Any doc that carries [CLM-] tags must be scanned, or those tags are
   // decorative — verified by nothing, the exact drift this gate prevents.
   { file: 'skills/README.md', markersRequired: false },
+  { file: 'SECURITY.md', markersRequired: false },
 ];
 
 /** Extract the text between each begin/end marker pair; flag unbalanced markers. */

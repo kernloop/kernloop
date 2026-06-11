@@ -6,17 +6,17 @@ An **autonomic control plane for AI coding agents**, delivered as a local CLI +
 MCP server. Kernloop does not write code itself; it makes the agents that write
 code governed, observable, context-rich, and compounding.
 
-Most of that sentence is **roadmap, not capability**. This repository's thesis
-is that documentation never lies about behavior, so the line between the two is
-machine-enforced: every capability statement below carries a claim ID from
-[`claims/`](claims/), and the `claims:check` CI gate fails if a statement's
-evidence does not resolve to real, passing tests. The one entry point (`run`),
-adversarial review gates, and closed-loop self-tuning arrive in P1–P3 (see
-[Roadmap](#roadmap)). What exists today is the verified foundation: the frozen
-contracts, the claims registry and its gate, the audit chain, and CI that
-blocks on all of them.
+Every word of that is now capability, not aspiration — and you do not have to
+take that on faith. This repository's thesis is that documentation never lies
+about behavior, so the line is machine-enforced: every capability statement
+below carries a claim ID from [`claims/`](claims/); `claims:check` fails CI if
+a statement's evidence does not resolve, and `claims:verify-ran` fails CI
+unless every cited test actually ran and passed in that build. The P0→P3
+campaign is complete (see [Roadmap](#roadmap)): the frozen contracts, the
+kernel, the faculties, the canonical loop, and the eleven MCP tools all exist
+and are claim-backed.
 
-## Capabilities (P0, verified)
+## Capabilities (verified)
 
 <!-- claims:begin -->
 
@@ -29,9 +29,9 @@ Manifests carry governance as data: authority tier, maturity, promotion threshol
 
 Every audit event is hash-chained, and a chain of appended events verifies end-to-end with its exact length [CLM-0009].
 Every audit envelope carries the contracts version it was written under [CLM-0010].
-A single flipped bit anywhere in a stored record is detected and attributed to its sequence number [CLM-0011].
+A flipped bit in a stored record is detected and attributed to its sequence number [CLM-0011].
 Truncating, reordering, or deleting log entries fails verification [CLM-0012].
-Tamper evidence is property-tested across seeded random chains [CLM-0013].
+Tamper evidence is property-tested: across seeded random chains, every sampled single-byte mutation fails verification [CLM-0013].
 
 The documentation gate enforces itself: claims:check fails on dangling evidence [CLM-0007].
 A claim marked verified without test evidence fails the gate [CLM-0008].
@@ -67,6 +67,9 @@ Workshop tools are generated and tested only inside the ratified sandbox — no 
 The Observer maintains the fitness ledger and per-voter precision series [CLM-0055] and files self-issues at suggest tier that re-enter the canonical loop with no privileged path [CLM-0056].
 A distilled skill and a forged workshop tool have both been born through gates [CLM-0057].
 Distill and forge complete the MCP surface at exactly the kernel eleven [CLM-0058].
+
+Files a coder model emits are confined to the workspace, against both lexical traversal and symlink escape [CLM-0059].
+The constitution enforces itself, not just asserts itself: no stub, TODO-wired, or not-implemented marker survives in shipped source [CLM-0060]; the kernel cannot originate a model call [CLM-0061]; no plugin imports another plugin, including via dynamic faculty-prefixed imports [CLM-0062]; and per-file, per-function, and per-package LOC budgets are gated [CLM-0063].
 
 <!-- claims:end -->
 
@@ -108,16 +111,22 @@ Node ≥22 and pnpm 10 required.
 
 ## Roadmap
 
-| Phase         | Scope                                                                                | Exit criterion                                                  |
-| ------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| **P0** (this) | contracts + claims registry + CI gates + audit chain                                 | `claims:check` green on an empty-but-honest repo                |
-| P1            | kernel (registry, router, ladder, bus) + adapters + compiler + memory + quality gate | one real task end-to-end through the quality gate               |
-| P2            | vote gate + workforce + canonical loop + overlay                                     | full loop on a real feature, checkpoint/resume proven           |
-| P3            | review gate + distill + Toolsmith + Observer self-issue loop                         | a distilled skill and a forged workshop tool born through gates |
+The P0→P3 build campaign is **complete** — all four phases merged on `main`.
+Each phase's exit report is archived under
+[`docs/history/`](docs/history/) as a point-in-time snapshot.
 
-The canonical design is [`docs/kernloop-kernel-spec.md`](docs/kernloop-kernel-spec.md);
-the agent charter is [`AGENTS.md`](AGENTS.md). Architecture overview:
-[`ARCHITECTURE.md`](ARCHITECTURE.md).
+| Phase | Scope                                                                                | Exit criterion (met)                                            |
+| ----- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| P0 ✅ | contracts + claims registry + CI gates + audit chain                                 | `claims:check` green on an empty-but-honest repo                |
+| P1 ✅ | kernel (registry, router, ladder, bus) + adapters + compiler + memory + quality gate | one real task end-to-end through the quality gate               |
+| P2 ✅ | vote gate + workforce + canonical loop + overlay                                     | full loop on a real feature, checkpoint/resume proven           |
+| P3 ✅ | review gate + distill + Toolsmith + Observer self-issue loop                         | a distilled skill and a forged workshop tool born through gates |
+
+From P3 onward, kernloop work runs through kernloop itself. The canonical
+design is [`docs/kernloop-kernel-spec.md`](docs/kernloop-kernel-spec.md); the
+agent charter is [`AGENTS.md`](AGENTS.md). Architecture overview:
+[`ARCHITECTURE.md`](ARCHITECTURE.md). Security policy:
+[`SECURITY.md`](SECURITY.md).
 
 ## License
 

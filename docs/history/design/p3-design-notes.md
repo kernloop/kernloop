@@ -1,3 +1,6 @@
+> **Point-in-time design note (superseded).** Preserved for history; the
+> work it planned is implemented and claim-backed. See [README.md](../../../README.md).
+
 # P3 Design Notes — review gate · distill · Toolsmith · Observer
 
 Status: design only, written on `phase/p3` while the P2 exit PR (#6) awaits
