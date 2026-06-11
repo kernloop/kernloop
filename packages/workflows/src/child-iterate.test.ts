@@ -1,5 +1,5 @@
 /**
- * Review-driven child iteration [CLM-0043] + runtime budget mode [CLM-0075].
+ * Review-driven child iteration [CLM-0043] + runtime budget mode [CLM-0077].
  * The actor-critic inner loop MIRRORS the vote→plan back-edge: a quality
  * reject re-runs implement within Kc, folding findings into the coder's next
  * attempt; at the bound the child escalates WITHOUT failing its siblings or the
@@ -245,7 +245,7 @@ describe('review-driven child iteration [CLM-0043]', () => {
   });
 });
 
-describe('runtime budget enforcement [CLM-0075]', () => {
+describe('runtime budget enforcement [CLM-0077]', () => {
   /** A guard whose spend jumps past the limit after `tripAfter` reads. */
   function guard(mode: 'enforce' | 'unlimited', limit = 100, tripAfter = 0): BudgetGuard {
     let reads = 0;

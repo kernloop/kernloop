@@ -89,10 +89,14 @@ wholesale and no v1 package is imported. This file records the deltas.
 
 **Dropped (and why):**
 
-- Model-alias maps (`MODEL_TO_CLI_ALIAS`, `resolveOpenCodeModel`, dynamic
-  model discovery, model-not-found fallback): routing decisions, explicitly
-  NOT the adapter's job (spec §3.1). The caller's model string passes
-  through verbatim or is absent.
+- v1's dynamic model discovery, `resolveOpenCodeModel`, and model-not-found
+  fallback: those were _runtime routing decisions_ (probe the world, pick a
+  model) — explicitly NOT the adapter's job (spec §3.1). They stay dropped.
+  (Note: the `tierBinding` later added to `AdapterDefinition` — see §8.4 — is
+  NOT that: it is a _declarative, static_ tier→stable-alias map the loop's pure
+  translation seam reads as data; the adapter still makes no routing decision
+  and still passes the resolved model string through verbatim. Static
+  declaration ≠ runtime routing.)
 - `systemPrompt` materialization (claude `--system-prompt`, codex/gemini
   tempfile workarounds, opencode prepend): prompt assembly, explicitly NOT
   the adapter's job (spec §3.1). Adapters take one fully assembled prompt.

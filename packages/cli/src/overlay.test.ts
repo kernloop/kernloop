@@ -88,13 +88,13 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.briefTokens).toBe(4_000);
     expect(overlay.K).toBe(3);
     expect(overlay.Kc).toBe(3); // child-iterate bound default [CLM-0043]
-    expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0075]
+    expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
     expect(overlay.gates).toEqual({ vote: { strategy: 'simple_majority', panel: 3 }, quality: {} });
     expect(overlay.nodeOverrides).toEqual({});
-    expect(overlay.adapters).toBeUndefined(); // tiered adapters are opt-in [CLM-0068]
+    expect(overlay.adapters).toBeUndefined(); // per-tier adapters are opt-in [CLM-0078]
   });
 
-  it('loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0075]', () => {
+  it('loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0077]', () => {
     const overlay = loadFrom('id: x\nKc: 5\nbudgetMode: unlimited\n');
     expect(overlay.Kc).toBe(5);
     expect(overlay.budgetMode).toBe('unlimited');
@@ -102,13 +102,20 @@ describe('loadOverlay defaults and precedence', () => {
     expect(() => loadFrom('id: x\nbudgetMode: yolo\n')).toThrow(); // enforce | unlimited only
   });
 
-  it('loads the optional tiered-adapters block [CLM-0068]', () => {
-    const overlay = loadFrom('id: tiered\nadapters:\n  cheap: codex\n  frontier: claude\n');
-    expect(overlay.adapters).toEqual({ cheap: 'codex', frontier: 'claude' });
+  it('loads the optional per-tier adapters block [CLM-0078]', () => {
+    const overlay = loadFrom(
+      'id: tiered\nadapters:\n  frontier: claude\n  large: claude\n  medium: codex\n  small: ollama\n',
+    );
+    expect(overlay.adapters).toEqual({
+      frontier: 'claude',
+      large: 'claude',
+      medium: 'codex',
+      small: 'ollama',
+    });
   });
 
-  it('accepts a partial adapters block — either tier may be set alone [CLM-0068]', () => {
-    expect(loadFrom('id: x\nadapters:\n  cheap: gemini\n').adapters).toEqual({ cheap: 'gemini' });
+  it('accepts a partial adapters block — any tier may be set alone [CLM-0078]', () => {
+    expect(loadFrom('id: x\nadapters:\n  medium: gemini\n').adapters).toEqual({ medium: 'gemini' });
     expect(loadFrom('id: x\nadapters:\n  frontier: opencode\n').adapters).toEqual({
       frontier: 'opencode',
     });
@@ -187,8 +194,16 @@ describe('loadOverlay rejection matrix', () => {
     ['empty node override (hides intent)', 'id: x\nnodeOverrides:\n  review: {}\n'],
     ['skip in a node override', 'id: x\nnodeOverrides:\n  review: { skip: true }\n'],
     ['empty gate name in an override', 'id: x\nnodeOverrides:\n  review: { gate: "" }\n'],
-    ['unknown adapter name in a tier', 'id: x\nadapters:\n  cheap: gpt5\n'],
-    ['unknown key inside adapters', 'id: x\nadapters:\n  medium: claude\n'],
+    ['unknown adapter name in a tier', 'id: x\nadapters:\n  medium: gpt5\n'],
+    ['unknown tier key inside adapters', 'id: x\nadapters:\n  cheap: claude\n'],
+    [
+      'unknown model tier in a node override',
+      'id: x\nnodeOverrides:\n  research: { tier: huge }\n',
+    ],
+    [
+      'unknown effort in a node override',
+      'id: x\nnodeOverrides:\n  research: { effort: max-plus }\n',
+    ],
   ])('rejects %s with a typed OverlayError carrying the zod issues', (_name, yaml) => {
     let caught: unknown;
     try {

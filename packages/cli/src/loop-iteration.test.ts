@@ -1,5 +1,5 @@
 /**
- * Review-driven child iteration + budget mode, end to end [CLM-0043, CLM-0075]:
+ * Review-driven child iteration + budget mode, end to end [CLM-0043, CLM-0077]:
  * the actor-critic inner loop and the runtime budget guard driven through the
  * real `run` tool over a real git repo with a real tsc quality gate. A child
  * whose quality fails re-runs implement with the findings folded into the coder
@@ -130,7 +130,7 @@ describe('review-driven child iteration, end to end [CLM-0043]', () => {
  * A scripted invoke whose PM decomposes into a child with a TINY budget, so a
  * small parent budget still satisfies the decompose budget-sum invariant
  * (CLM-0041) while leaving the RUNTIME metered spend free to exceed it — the
- * setup the runtime budget guard [CLM-0075] is meant to catch.
+ * setup the runtime budget guard [CLM-0077] is meant to catch.
  */
 function smallBudgetInvoke(): LoopInvoke {
   return (prompt) => {
@@ -176,7 +176,7 @@ function smallBudgetInvoke(): LoopInvoke {
   };
 }
 
-describe('budget mode + always-on reporting [CLM-0075]', () => {
+describe('budget mode + always-on reporting [CLM-0077]', () => {
   it('an UNLIMITED run that exceeds the nominal budget COMPLETES, still reports full cost, and is recorded as unlimited', async () => {
     // A tiny budget the run will blow past; --unlimited lifts the restriction.
     const repo = fixtureRepo('unlimited', 'id: fixture-unlimited\n');

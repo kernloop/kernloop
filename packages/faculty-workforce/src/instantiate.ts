@@ -49,9 +49,10 @@ function isShipped(t: AgentTemplate): boolean {
  * - `claims` is empty: an instantiated agent is a runtime configuration
  *   record, not a repo capability; the claim backing this machinery
  *   (CLM-0040) lives on the faculty manifest.
- * - `modelTier` and `overlay` are recorded in the capability description;
- *   the cost profile reflects the tier (spec §8.4). Binding the tier to a
- *   concrete model id is the composition root's concern.
+ * - the model `tier`/`effort` and `overlay` are recorded in the capability
+ *   description; the cost profile reflects the tier and the `model`
+ *   requirement is stamped onto the manifest (spec §8.4). Binding the tier to
+ *   a concrete model id is the composition root's concern.
  *
  * DEFERRED (P3): the spec grants the PM authority to compose bespoke
  * specialists at `enforce`. Per the P2 design-notes ratification point, that
@@ -73,7 +74,7 @@ export function instantiateAgent(template: AgentTemplate, options: InstantiateOp
       {
         name: `agent.${effective.name}`,
         description:
-          `${effective.name} agent (${effective.modelTier} tier, ` +
+          `${effective.name} agent (${effective.model.tier} tier, ${effective.model.effort} effort, ` +
           `budget share ${effective.budgetShare}, skills: ${effective.skills.join(', ') || 'none'}) ` +
           `for overlay ${opts.overlay}`,
       },
@@ -82,9 +83,10 @@ export function instantiateAgent(template: AgentTemplate, options: InstantiateOp
       consumes: ['TaskContract'],
       emits: ['Outcome'],
     },
-    cost: MODEL_TIER_COST[effective.modelTier],
+    cost: MODEL_TIER_COST[effective.model.tier],
     tier: 'suggest',
     claims: [],
     maturity: custom ? 'experimental' : 'stable',
+    model: effective.model,
   });
 }

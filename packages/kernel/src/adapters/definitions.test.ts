@@ -95,6 +95,22 @@ describe('uniform adapter interface (CLM-0021)', () => {
       expect(withoutModel.args).not.toContain('chosen-model');
     }
   });
+
+  it('rides a resolved arg-effort into argv, and omits it when absent (spec §8.4)', () => {
+    const effort = { param: '--effort', value: 'high', via: 'arg' } as const;
+    const withEffort = adapterDefinitions.claude.buildCommand({ prompt: 'p', effort });
+    expect(withEffort.args).toContain('--effort');
+    expect(withEffort.args).toContain('high');
+    const withoutEffort = adapterDefinitions.claude.buildCommand({ prompt: 'p' });
+    expect(withoutEffort.args).not.toContain('--effort');
+    // codex carries its reasoning-effort key the same way.
+    const codex = adapterDefinitions.codex.buildCommand({
+      prompt: 'p',
+      effort: { param: 'model_reasoning_effort', value: 'xhigh', via: 'arg' },
+    });
+    expect(codex.args).toContain('model_reasoning_effort');
+    expect(codex.args).toContain('xhigh');
+  });
 });
 
 describe('claude definition', () => {

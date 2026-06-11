@@ -1,0 +1,21 @@
+id: CLM-0079
+statement: >-
+  The kernel translates a ModelRequirement against an adapter's declarative profile by a PURE
+  fail-closed lookup — tier resolves to the bound model, degrading DOWNWARD only to the nearest
+  populated tier and recording it; effort maps to the adapter's literal, clamping to the nearest
+  supported level or dropping honestly when the adapter has none — synthesizing nothing.
+evidence:
+  - 'test:packages/kernel/src/adapters/translate.test.ts::returns the exact bound model for a populated tier, not degraded'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::steps DOWNWARD to the nearest populated tier and records degraded'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::NEVER steps upward: a request below the only populated tier defaults the harness'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::maps a supported effort to the adapter literal, not clamped'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::clamps an unsupported level to the nearest supported AT-OR-BELOW, recording clamped'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::clamps UP to the highest supported only when none is at-or-below'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::DROPS effort honestly for an adapter with no effort param (ollama)'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::claude is harness-routed with a full tier ladder + effort + capabilities'
+  - 'test:packages/kernel/src/adapters/translate.test.ts::ollama is concrete-id with NO effort param'
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::rides a resolved arg-effort into argv, and omits it when absent (spec §8.4)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.7.0

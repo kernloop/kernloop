@@ -44,49 +44,80 @@ import {
   meteredInvoke,
   type LoopInvoke,
 } from './invoke.js';
-import type { ModelTier } from './tiers.js';
-import type { TierAdapters } from '../overlay.js';
+import { nodeRequirement, type TieredNode } from './node-model.js';
+import {
+  adapterForTier,
+  buildNodeSeam,
+  resolveServed,
+  type NodeSeam,
+  type TierAdapters,
+} from './node-seam.js';
+import { requirementForNode, type Overlay } from '../overlay.js';
 
-export { NODE_TIERS, type ModelTier, type TieredNode } from './tiers.js';
+export { TIERED_NODES, type TieredNode } from './node-model.js';
+export {
+  resolveServed,
+  servedRef,
+  adapterForTier,
+  type ServedModel,
+  type NodeSeam,
+} from './node-seam.js';
 
 /**
- * Resolve which adapter NAME a node tier binds [CLM-0068]: the overlay's
- * declared adapter for that tier, or the run adapter when the tier is unset.
- * The pure mapping at the heart of tiered routing — with no `adapters`, every
- * tier resolves to `runAdapter` (the backward-compat guarantee).
+ * Build the per-NODE model seam [CLM-0078]: for each model-calling node, derive
+ * its {@link ModelRequirement} from its single source (template/manifest), apply
+ * any overlay per-node tier/effort override, pick the adapter that serves its
+ * tier (`overlay.adapters[tier]`, else the run adapter), resolve the served
+ * model+effort through the kernel translation seam, and bind a metered invoke
+ * carrying that provenance. With NO `adapters` block AND no overrides, every
+ * node binds the run adapter at its declared tier alias — the backward-compat
+ * guarantee (unchanged spend shape). Seams are cached per node.
+ *
+ * Enforcement point note (honesty): this lives at the LOOP composition root,
+ * not the Router — see loop/node-model.ts.
  */
-export function tierAdapter(
+export function buildInvokeForNode(
   runAdapter: AdapterName,
-  adapters: TierAdapters | undefined,
-  tier: ModelTier,
-): AdapterName {
-  return adapters?.[tier] ?? runAdapter;
+  overlay: Overlay,
+  totals: { tokens: number; usd: number },
+): (node: TieredNode) => NodeSeam {
+  const cache = new Map<TieredNode, NodeSeam>();
+  const adapters: TierAdapters | undefined = overlay.adapters;
+  return (node) => {
+    let seam = cache.get(node);
+    if (seam === undefined) {
+      const req = requirementForNode(overlay, node, nodeRequirement(node));
+      const adapter = adapterForTier(req.tier, adapters, runAdapter);
+      const served = resolveServed(req, adapter);
+      seam = buildNodeSeam(served, adapterInvoke(adapter), totals);
+      cache.set(node, seam);
+    }
+    return seam;
+  };
 }
 
 /**
- * Build the per-tier model seam [CLM-0068]. Each tier resolves to the adapter
- * the overlay declares for it (`overlay.adapters.cheap` / `.frontier`),
- * falling back to `runAdapter` when unset — so an overlay with no `adapters`
- * block makes BOTH tiers resolve to the run adapter (byte-identical to today,
- * the backward-compat guarantee). Every returned invoke is metered through
- * `totals`, exactly as the single-seam path is.
- *
- * Enforcement point note (honesty): this lives at the LOOP composition root,
- * not the Router — see loop/tiers.ts.
+ * Per-node seams for an INJECTED invoke (tests script the model CLI). Every
+ * node routes through the one injected `base`, but the node's served model +
+ * effort are still resolved against the run adapter — so provenance records
+ * what each node requested even though one scripted seam answers them all.
  */
-export function buildInvokeForTier(
+function injectedSeamFor(
   runAdapter: AdapterName,
-  adapters: TierAdapters | undefined,
+  overlay: Overlay,
+  base: LoopInvoke,
   totals: { tokens: number; usd: number },
-): (tier: ModelTier) => LoopInvoke {
-  const cache = new Map<ModelTier, LoopInvoke>();
-  return (tier) => {
-    let invoke = cache.get(tier);
-    if (invoke === undefined) {
-      invoke = meteredInvoke(adapterInvoke(tierAdapter(runAdapter, adapters, tier)), totals);
-      cache.set(tier, invoke);
+): (node: TieredNode) => NodeSeam {
+  const cache = new Map<TieredNode, NodeSeam>();
+  return (node) => {
+    let seam = cache.get(node);
+    if (seam === undefined) {
+      const req = requirementForNode(overlay, node, nodeRequirement(node));
+      const adapter = adapterForTier(req.tier, overlay.adapters, runAdapter);
+      seam = buildNodeSeam(resolveServed(req, adapter), base, totals);
+      cache.set(node, seam);
     }
-    return invoke;
+    return seam;
   };
 }
 
@@ -118,7 +149,7 @@ export interface LoopRequest {
   /** Quality-check override (tests); real defaults otherwise. */
   readonly checks?: readonly QualityCheck[];
   /**
-   * Force unlimited budget mode for this run [CLM-0075], overriding the
+   * Force unlimited budget mode for this run [CLM-0077], overriding the
    * overlay's `budgetMode`. The run never halts on budget; usage/cost is still
    * metered and reported, and the run is recorded honestly as unlimited.
    */
@@ -131,14 +162,14 @@ export interface LoopReport {
   readonly status: 'completed' | 'escalated' | 'failed';
   readonly nodeTrace: readonly TraceEntry[];
   /**
-   * Total model spend metered through the invoke seams [CLM-0075]. ALWAYS
+   * Total model spend metered through the invoke seams [CLM-0077]. ALWAYS
    * reported, identically in both budget modes — unlimited removes the
    * restriction, never the tracking.
    */
   readonly cost: Cost;
   /**
    * True when the run executed in unlimited budget mode (budget not enforced).
-   * Recorded honestly so a report never implies a cap was honored [CLM-0075].
+   * Recorded honestly so a report never implies a cap was honored [CLM-0077].
    */
   readonly unlimited: boolean;
   readonly outcome?: Outcome;
@@ -181,7 +212,7 @@ function report(
     runId: result.runId,
     status: result.status,
     nodeTrace: result.nodeTrace,
-    // Always-on reporting [CLM-0075]: metered spend rides in both modes.
+    // Always-on reporting [CLM-0077]: metered spend rides in both modes.
     cost: { tokens: totals.tokens, usd: totals.usd },
     unlimited,
     ...(result.outcome === undefined ? {} : { outcome: result.outcome }),
@@ -202,7 +233,7 @@ function ensureRunAdaptersAvailable(
   tierAdapters: TierAdapters | undefined,
 ): void {
   ensureAdapterAvailable(runAdapter);
-  for (const tier of ['cheap', 'frontier'] as const) {
+  for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
     const tierAdapter = tierAdapters?.[tier];
     if (tierAdapter !== undefined && tierAdapter !== runAdapter) {
       ensureAdapterAvailable(tierAdapter);
@@ -211,7 +242,7 @@ function ensureRunAdaptersAvailable(
 }
 
 /**
- * The runtime budget guard for one canonical-loop run [CLM-0075]. The limit is
+ * The runtime budget guard for one canonical-loop run [CLM-0077]. The limit is
  * the parent TaskContract's token/usd budget; `spent()` reads the live metered
  * `totals` (always-on tracking). In `enforce` mode the engine halts the run on
  * overspend; `unlimited` never halts but the spend is still metered. The
@@ -264,7 +295,7 @@ function buildLoopEngine(
     refs: LoopRefs;
     adapter: AdapterName;
     defaultInvoke: LoopInvoke;
-    invokeFor: (tier: ModelTier) => LoopInvoke;
+    invokeFor: (node: TieredNode) => NodeSeam;
     mode: BudgetMode;
     totals: { tokens: number; usd: number };
   },
@@ -292,7 +323,7 @@ function buildLoopEngine(
 }
 
 /**
- * Resolve the run's effective budget mode [CLM-0075]: a run-level --unlimited
+ * Resolve the run's effective budget mode [CLM-0077]: a run-level --unlimited
  * forces unlimited, else the overlay's budgetMode (default enforce). An
  * unlimited run is recorded honestly with a `loop.unlimited` audit event so no
  * report later implies a cap was honored when it wasn't.
@@ -336,14 +367,17 @@ export async function executeCanonicalLoop(
     primeRefs(refs, latest.state);
   }
   const totals = { tokens: 0, usd: 0 };
-  // Default + per-tier seams, both metered. An injected invoke makes every tier
-  // resolve to it; else each tier resolves to its overlay adapter [CLM-0068].
+  // Default + per-node seams, all metered. With a real run, each node derives
+  // its requirement and binds the adapter+model that serves it [CLM-0078]. An
+  // injected invoke routes every node through that one base, but still resolves
+  // the node's SERVED model+effort against the run adapter so provenance stays
+  // honest about what each node requested.
   const defaultInvoke = meteredInvoke(base, totals);
-  const invokeFor: (tier: ModelTier) => LoopInvoke =
+  const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
-      ? buildInvokeForTier(adapter, tierAdapters, totals)
-      : () => defaultInvoke;
-  // Effective budget mode [CLM-0075]: --unlimited forces unlimited; else the
+      ? buildInvokeForNode(adapter, kern.config, totals)
+      : injectedSeamFor(adapter, kern.config, base, totals);
+  // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
   const mode = resolveBudgetMode(kern, request, runId);
   const engine = buildLoopEngine(kern, request, {

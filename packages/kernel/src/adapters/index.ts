@@ -27,7 +27,16 @@ export {
   type AdapterCommandRequest,
   type AdapterUsage,
   type ParsedOutput,
+  type AdapterKind,
+  type AdapterEffortProfile,
+  type AdapterCommandEffort,
 } from './definitions.js';
+export {
+  resolveTierModel,
+  resolveEffort,
+  type ResolvedTierModel,
+  type ResolvedEffort,
+} from './translate.js';
 export {
   invokeAdapter,
   detectAdapter,

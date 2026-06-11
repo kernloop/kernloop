@@ -17,7 +17,12 @@
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { CostSchema, type Cost } from '@kernloop/contracts';
-import { adapterDefinitions, type AdapterName, type AdapterUsage } from './definitions.js';
+import {
+  adapterDefinitions,
+  type AdapterCommandEffort,
+  type AdapterName,
+  type AdapterUsage,
+} from './definitions.js';
 import {
   AdapterExecutionError,
   AdapterOutputError,
@@ -52,6 +57,13 @@ export interface AdapterInvocation {
   readonly timeoutMs: number;
   /** Model identifier chosen by the caller — no routing decisions here. */
   readonly model?: string;
+  /**
+   * Resolved effort knob the caller already translated (spec §8.4). The
+   * adapter shapes it into argv when its `via` is `arg`; omitted ⇒ no effort
+   * arg (dropped honestly). No translation happens here — the caller resolves
+   * the literal through the translation seam.
+   */
+  readonly effort?: AdapterCommandEffort;
   /** Environment for PATH probing and the child; default `process.env`. */
   readonly env?: AdapterEnv;
 }
@@ -161,10 +173,11 @@ export async function invokeAdapter(
     throw new AdapterUnavailableError(adapter, definition.command, availability.probedPaths);
   }
 
-  const request =
-    invocation.model === undefined
-      ? { prompt: invocation.prompt }
-      : { prompt: invocation.prompt, model: invocation.model };
+  const request = {
+    prompt: invocation.prompt,
+    ...(invocation.model === undefined ? {} : { model: invocation.model }),
+    ...(invocation.effort === undefined ? {} : { effort: invocation.effort }),
+  };
   const command = definition.buildCommand(request);
   const raw = await runSubprocess({
     command: availability.resolvedPath,

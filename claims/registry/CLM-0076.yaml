@@ -1,0 +1,20 @@
+id: CLM-0076
+statement: >-
+  A component's model demand is a two-axis ModelRequirement — model tier (frontier > large > medium >
+  small) and reasoning effort (low < medium < high < xhigh) plus required capabilities — with sensible
+  defaults, strict about unknown axes, declared on the Manifest and the five workforce templates,
+  superseding the shipped cheap|frontier tiering.
+evidence:
+  - 'test:packages/contracts/src/model.test.ts::applies defaults for every axis (medium tier, medium effort, no capabilities)'
+  - 'test:packages/contracts/src/model.test.ts::parses a fully specified requirement'
+  - 'test:packages/contracts/src/model.test.ts::fills only the unset axis (partial requirement)'
+  - 'test:packages/contracts/src/model.test.ts::rejects an unknown tier, effort, capability, or extra axis (strict)'
+  - 'test:packages/contracts/src/model.test.ts::tiers run richest → leanest (the downward degradation direction)'
+  - 'test:packages/contracts/src/model.test.ts::efforts run leanest → richest (the clamp ladder)'
+  - 'test:packages/contracts/src/manifest.test.ts::accepts the optional two-axis model requirement, defaulting its axes [CLM-0076]'
+  - 'test:packages/faculty-workforce/src/templates.test.ts::re-tiers the five templates onto the two-axis ModelRequirement [CLM-0076]'
+  - 'test:packages/faculty-workforce/src/templates.test.ts::declares a cost profile for each of the four model tiers, ordered by spend'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.7.0

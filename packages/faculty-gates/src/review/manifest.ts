@@ -15,8 +15,9 @@ import { PROMOTION_CRITERION } from './calibrate.js';
  * ratification point, never a default. Consumes TaskContract + Brief;
  * emits Verdict whose per-reviewer VoterRecords feed the fitness ledger's
  * precision series (CLM-0047). Expected cost: the default 3-reviewer
- * panel over a PR-sized diff on frontier-tier models (spec §8.4); actual
- * cost is metered by the injected adapters into each Verdict.
+ * panel over a PR-sized diff on a `medium`-tier model at high effort — the
+ * `model` requirement declares that demand (spec §8.4); actual cost is
+ * metered by the injected adapters into each Verdict.
  */
 export const reviewGateManifest: Manifest = ManifestSchema.parse({
   name: '@kernloop/faculty-gates/review',
@@ -42,4 +43,6 @@ export const reviewGateManifest: Manifest = ManifestSchema.parse({
   promotion: PROMOTION_CRITERION,
   claims: ['CLM-0047', 'CLM-0048'],
   maturity: 'stable',
+  // Adversarial diff reading is comprehension-led: medium tier, high effort.
+  model: { tier: 'medium', effort: 'high', capabilities: [] },
 });

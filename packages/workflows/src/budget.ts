@@ -1,5 +1,5 @@
 /**
- * Runtime budget enforcement for the canonical loop (spec §8) [CLM-0075].
+ * Runtime budget enforcement for the canonical loop (spec §8) [CLM-0077].
  * The kernel meters per-adapter spend; the engine reads a metered snapshot
  * through an injected `spent()` seam (workflows imports no kernel — it talks
  * a plain function) and decides whether a bounded run may continue.
@@ -15,7 +15,7 @@
 import { z } from 'zod';
 import type { Finding } from '@kernloop/contracts';
 
-/** Enforcement mode for a run's budget (spec §8) [CLM-0075]. */
+/** Enforcement mode for a run's budget (spec §8) [CLM-0077]. */
 export const BudgetModeSchema = z.enum(['enforce', 'unlimited']);
 export type BudgetMode = z.infer<typeof BudgetModeSchema>;
 
@@ -57,7 +57,7 @@ export function overBudget(guard: BudgetGuard | undefined): boolean {
   return spent.tokens > guard.limit.tokens || spent.usd > guard.limit.usd;
 }
 
-/** The structured finding recorded when an enforce-mode run halts on budget [CLM-0075]. */
+/** The structured finding recorded when an enforce-mode run halts on budget [CLM-0077]. */
 export function overspendFinding(guard: BudgetGuard): Finding {
   const spent = guard.spent();
   return {

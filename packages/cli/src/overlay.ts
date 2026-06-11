@@ -21,6 +21,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { EffortSchema, ModelTierSchema, type ModelRequirement } from '@kernloop/contracts';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
@@ -99,6 +100,10 @@ const GatesSchema = z.strictObject({
  *   loop's quality node at a repo-specific gate name).
  * - `specialists` — workforce template names added to the fan-out node's
  *   children.
+ * - `tier` / `effort` — override the model REQUIREMENT a model-calling node
+ *   derives from its template/manifest (spec §8.4). A node may raise or lower
+ *   either axis without forking the template; the loop resolves the overridden
+ *   requirement through the kernel translation seam exactly as a declared one.
  *
  * Deliberately absent: `skip` (a node you can turn off is a fail-closed
  * path), edge rewiring, and node duplication — the graph itself is not
@@ -108,25 +113,37 @@ export const NodeOverrideSchema = z
   .strictObject({
     gate: z.string().min(1).optional(),
     specialists: z.array(z.string().min(1)).optional(),
+    tier: ModelTierSchema.optional(),
+    effort: EffortSchema.optional(),
   })
-  .refine((o) => o.gate !== undefined || o.specialists !== undefined, {
-    message: 'a node override must set gate and/or specialists — an empty override hides intent',
-  });
+  .refine(
+    (o) =>
+      o.gate !== undefined ||
+      o.specialists !== undefined ||
+      o.tier !== undefined ||
+      o.effort !== undefined,
+    {
+      message:
+        'a node override must set gate, specialists, tier, and/or effort — an empty override hides intent',
+    },
+  );
 export type NodeOverride = z.infer<typeof NodeOverrideSchema>;
 
 /**
- * Tiered model adapters (spec §8.4 cost lever [CLM-0068]): the adapter the
- * loop binds for each declared node tier. BOTH keys are optional — when a
- * tier is unset, the loop falls back to the run's `--adapter`, so an overlay
- * with no `adapters` block is byte-identical to today's single-adapter
- * behavior (the backward-compat guarantee). Each value is one of the five
- * kernel adapter names. The map is consumed only at the loop composition root
- * (loop/index.ts), never by the Router — see loop/tiers.ts for the
+ * Per-tier model adapters (spec §8.4 cost lever [CLM-0078]): which adapter the
+ * loop binds for each model {@link ModelTierSchema} tier (frontier/large/
+ * medium/small). EVERY key is optional — an unset tier falls back to the run's
+ * `--adapter`, so an overlay with no `adapters` block is byte-identical to the
+ * single-adapter behavior (the backward-compat guarantee). Each value is one of
+ * the five kernel adapter names. Consumed only at the loop composition root
+ * (loop/index.ts), never by the Router — see loop/node-model.ts for the
  * loop-vs-Router honesty note.
  */
 const AdaptersSchema = z.strictObject({
-  cheap: z.enum(ADAPTER_NAMES).optional(),
   frontier: z.enum(ADAPTER_NAMES).optional(),
+  large: z.enum(ADAPTER_NAMES).optional(),
+  medium: z.enum(ADAPTER_NAMES).optional(),
+  small: z.enum(ADAPTER_NAMES).optional(),
 });
 export type TierAdapters = z.infer<typeof AdaptersSchema>;
 
@@ -150,7 +167,7 @@ export const OverlaySchema = z.strictObject({
    */
   Kc: z.number().int().min(1).default(3),
   /**
-   * Budget enforcement mode (spec §8) [CLM-0075]: `enforce` (default) HALTS a
+   * Budget enforcement mode (spec §8) [CLM-0077]: `enforce` (default) HALTS a
    * run whose metered spend exceeds the parent budget; `unlimited` lifts the
    * restriction but NOT the tracking — usage/cost is metered and reported
    * identically in both modes. A run-level `--unlimited` override forces
@@ -218,6 +235,29 @@ export function specialistsForNode(overlay: Overlay, node: string): readonly str
   return overlay.nodeOverrides[node]?.specialists ?? [];
 }
 
+/**
+ * Apply a node override's `tier`/`effort` onto a node's DERIVED model
+ * requirement (spec §8.4) — the override wins per axis, each axis independent;
+ * an unset axis keeps the template/manifest-declared value. Pure precedence,
+ * mirroring {@link gateForNode}; the loop resolves the result through the
+ * kernel translation seam.
+ */
+export function requirementForNode(
+  overlay: Overlay,
+  node: string,
+  derived: ModelRequirement,
+): ModelRequirement {
+  const override = overlay.nodeOverrides[node];
+  if (override === undefined || (override.tier === undefined && override.effort === undefined)) {
+    return derived;
+  }
+  return {
+    ...derived,
+    ...(override.tier === undefined ? {} : { tier: override.tier }),
+    ...(override.effort === undefined ? {} : { effort: override.effort }),
+  };
+}
+
 /** What `initOverlay` did, file by file. */
 export interface InitResult {
   readonly overlayDir: string;
@@ -247,13 +287,16 @@ function overlayTemplate(defaults: Overlay): string {
     `    panel: ${String(defaults.gates.vote.panel)} # 3 default; 7 at plan ratification (spec §8.6)`,
     '#  quality:',
     '#    timeoutMsPerCheck: 120000',
-    '# adapters:  # tiered model adapters (spec §8.4) — cheap for research/review, frontier for plan/vote/decompose/implement',
-    '#   cheap: codex      # any of: claude codex gemini opencode ollama; unset → falls back to --adapter',
-    '#   frontier: claude  # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',
-    "# nodeOverrides:  # swap a gate node's gate / add fanout specialists (spec §6) — never duplicate the graph",
+    '# adapters:  # per-tier model adapters (spec §8.4) — which adapter serves each model tier',
+    '#   frontier: claude  # any of: claude codex gemini opencode ollama; unset → falls back to --adapter',
+    '#   large: claude     # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',
+    '#   medium: codex',
+    '#   small: ollama',
+    "# nodeOverrides:  # swap a gate's gate / add fanout specialists / raise a node's model (spec §6, §8.4)",
     '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
     '#   quality: { gate: security-review }',
     '#   fanout: { specialists: [researcher] }',
+    '#   research: { tier: medium, effort: low }  # tier: frontier|large|medium|small; effort: low|medium|high|xhigh',
     '',
   ].join('\n');
 }

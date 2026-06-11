@@ -8,7 +8,7 @@ const BUDGET_KEYS = { tokens: 'tokens', usd: 'usd', wallclock: 'wallClockMin' } 
 
 /**
  * Parse a first-class `--budget tokens=N,usd=N,wallClock=N` flag into the run
- * tool's budget shape [CLM-0075]. All three dimensions are required (a partial
+ * tool's budget shape [CLM-0077]. All three dimensions are required (a partial
  * budget would silently default the rest — a lie about the cap). An unknown key
  * or non-numeric value fails loudly.
  */

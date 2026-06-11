@@ -24,6 +24,7 @@ import {
   AdapterUnavailableError,
   detectAdapter,
   invokeAdapter,
+  type AdapterCommandEffort,
   type AdapterName,
 } from '@kernloop/kernel';
 
@@ -32,11 +33,13 @@ export const LOOP_INVOKE_TIMEOUT_MS = 300_000;
 
 /**
  * The one injectable model call: fully assembled prompt in, raw text plus
- * the metered (or honestly-zero) Cost out. Default: {@link adapterInvoke}.
+ * the metered (or honestly-zero) Cost out. The optional `model` + `effort`
+ * are the SERVED model alias + resolved effort the composition root binds per
+ * node (spec §8.4). Default: {@link adapterInvoke}.
  */
 export type LoopInvoke = (
   prompt: string,
-  options?: { timeoutMs?: number; model?: string },
+  options?: { timeoutMs?: number; model?: string; effort?: AdapterCommandEffort },
 ) => Promise<{ output: string; cost: Cost }>;
 
 /** Typed failure parsing a model emission against its output contract. */
@@ -89,6 +92,7 @@ export function adapterInvoke(
       prompt,
       timeoutMs: options.timeoutMs ?? LOOP_INVOKE_TIMEOUT_MS,
       ...(options.model === undefined ? {} : { model: options.model }),
+      ...(options.effort === undefined ? {} : { effort: options.effort }),
       ...(env === undefined ? {} : { env }),
     });
     return { output: result.output, cost: result.cost };

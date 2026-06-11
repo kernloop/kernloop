@@ -70,7 +70,7 @@ export interface EngineDeps {
   readonly checkpoints: CheckpointStore;
   readonly config?: EngineConfigInput;
   /**
-   * Runtime budget guard (spec §8) [CLM-0075]. Absent → no budget enforcement
+   * Runtime budget guard (spec §8) [CLM-0077]. Absent → no budget enforcement
    * (Kc still bounds child iteration). In `enforce` mode the run escalates when
    * metered spend exceeds the parent budget; `unlimited` never halts on budget
    * but the spend is still tracked (always-on reporting). The CLI composition
@@ -180,7 +180,7 @@ class LoopEngine implements Engine {
     if (state.status === 'escalated') {
       // Vote escalation: the human edited the plan inputs; continue from plan
       // (cursor parked there) with a fresh K budget [CLM-0043]. Budget halt
-      // [CLM-0075]: the human raised the budget (or re-runs unlimited); continue
+      // [CLM-0077]: the human raised the budget (or re-runs unlimited); continue
       // from the cursor exactly where spend tripped the limit — iteration is NOT
       // reset (no plan re-edit happened), and the budget guard re-evaluates as
       // the run proceeds.
@@ -253,7 +253,7 @@ class LoopEngine implements Engine {
   }
 
   /**
-   * Runtime budget enforcement [CLM-0075]: in `enforce` mode a run that has now
+   * Runtime budget enforcement [CLM-0077]: in `enforce` mode a run that has now
    * overspent its parent budget HALTS as escalated (resumable). `unlimited`
    * never halts here; a finished run is not retro-halted — its cost is still
    * reported in full by the always-on metering.

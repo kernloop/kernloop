@@ -13,8 +13,24 @@
  * malformed output yields `null`, never a guess — and usage that the CLI
  * does not report is `null`, never fabricated (honesty over completeness).
  *
+ * Each definition ALSO carries a declarative MODEL-ROUTING profile (spec §8.4):
+ * how this harness binds a {@link ModelTier} to a concrete model/alias, whether
+ * it exposes an effort/reasoning param, and which model capabilities it
+ * advertises. These are pure data — the kernel imports only the
+ * ModelTier/Effort/ModelCapability TYPES from contracts (no runtime model
+ * code), and the PURE resolution over them lives in `./translate.ts`
+ * (CLM-0061: kernel originates no model call).
+ *
  * @module kernel/adapters/definitions
  */
+import type { Effort, ModelCapability, ModelTier } from '@kernloop/contracts';
+import {
+  parseClaudeOutput,
+  parseCodexOutput,
+  parseGeminiOutput,
+  parseOllamaOutput,
+  parseOpencodeOutput,
+} from './parsers.js';
 
 /** The five adapter names — the complete spec §3.1 set. */
 export const ADAPTER_NAMES = ['claude', 'codex', 'gemini', 'opencode', 'ollama'] as const;
@@ -48,12 +64,60 @@ export interface AdapterCommand {
   readonly stdin?: string;
 }
 
+/** A resolved effort knob ready to ride into argv (already translated). */
+export interface AdapterCommandEffort {
+  /** The CLI flag / body key (from the adapter's effort profile). */
+  readonly param: string;
+  /** The literal the CLI expects, already resolved by the translation seam. */
+  readonly value: string;
+  /** Where the value rides — only `arg` is delivered in this phase. */
+  readonly via: 'arg' | 'body';
+}
+
 /** Inputs a definition may shape into argv — nothing else exists here. */
 export interface AdapterCommandRequest {
   /** The fully assembled prompt, passed through verbatim. */
   readonly prompt: string;
   /** Model identifier chosen by the caller; passed through verbatim. */
   readonly model?: string;
+  /**
+   * Resolved effort knob, when the caller asked for one AND the adapter
+   * supports it (the translation seam decides). Omitted ⇒ no effort arg is
+   * added (dropped honestly). `via:'body'` is reserved for a future
+   * direct-API adapter and adds nothing to argv here.
+   */
+  readonly effort?: AdapterCommandEffort;
+}
+
+/** The `[param, value]` argv pair for an arg-delivered effort knob, else nothing. */
+function effortArgs(effort: AdapterCommandEffort | undefined): string[] {
+  return effort !== undefined && effort.via === 'arg' ? [effort.param, effort.value] : [];
+}
+
+/**
+ * How an adapter presents models (spec §8.4, declarative):
+ *  - `harness-routed` — the model is a stable ALIAS the harness resolves
+ *    (claude `opus`/`sonnet`, gemini family ids); `''` means let the harness
+ *    pick its own default.
+ *  - `concrete-id` — the model is a concrete id the CLI takes verbatim.
+ *  - `api` — a future direct-API adapter (no such adapter ships in this phase).
+ */
+export type AdapterKind = 'harness-routed' | 'concrete-id' | 'api';
+
+/**
+ * How an adapter exposes an effort/reasoning knob (declarative). `levels` maps
+ * each supported {@link Effort} to the literal the CLI expects; an omitted
+ * effort profile means the adapter has NO effort param and the setting is
+ * dropped honestly (never faked). `via` says whether the value rides as a CLI
+ * arg or (future) a request-body field.
+ */
+export interface AdapterEffortProfile {
+  /** The CLI flag / body key the effort value rides on. */
+  readonly param: string;
+  /** Where the value is placed for this adapter. */
+  readonly via: 'arg' | 'body';
+  /** Supported effort levels → the literal the CLI expects for each. */
+  readonly levels: Partial<Record<Effort, string>>;
 }
 
 /** One model-CLI adapter, declared as data. */
@@ -70,179 +134,22 @@ export interface AdapterDefinition {
   readonly buildCommand: (request: AdapterCommandRequest) => AdapterCommand;
   /** Read response text + usage out of captured stdout. */
   readonly parseOutput: (stdout: string) => ParsedOutput;
-}
-
-/** Narrow an unknown to a plain object record, else null. */
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-/** Read a non-negative integer field (token counts), else null. */
-function intField(record: Record<string, unknown>, key: string): number | null {
-  const value = record[key];
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
-}
-
-/** Read a non-negative finite number field (dollar amounts), else null. */
-function numField(record: Record<string, unknown>, key: string): number | null {
-  const value = record[key];
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-/** JSON.parse that returns null instead of throwing. */
-function tryJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-/** Split NDJSON into parsed records, silently skipping malformed lines. */
-function ndjsonRecords(raw: string): Record<string, unknown>[] {
-  const records: Record<string, unknown>[] = [];
-  for (const line of raw.split('\n')) {
-    if (line.trim() === '') continue;
-    const record = asRecord(tryJson(line));
-    if (record !== null) records.push(record);
-  }
-  return records;
-}
-
-/** Read `{input_tokens, output_tokens}`-shaped usage (claude, codex). */
-function usageFromSnakeTokens(
-  record: Record<string, unknown>,
-  usd: number | null,
-): AdapterUsage | null {
-  const inputTokens = intField(record, 'input_tokens');
-  const outputTokens = intField(record, 'output_tokens');
-  if (inputTokens === null || outputTokens === null) return null;
-  return { inputTokens, outputTokens, usd };
-}
-
-/**
- * claude CLI single-JSON output (v1 `claude-parser.ts`, claude 2.0.x):
- * `{"type":"result","is_error":false,"result":"…","usage":{"input_tokens":…,
- * "output_tokens":…},"total_cost_usd":0.0015}`. The only CLI of the five
- * that reports dollars directly.
- */
-function parseClaudeOutput(stdout: string): ParsedOutput {
-  const record = asRecord(tryJson(stdout));
-  if (record === null) return { output: null, usage: null };
-  const usageRecord = asRecord(record.usage);
-  const usage =
-    usageRecord === null
-      ? null
-      : usageFromSnakeTokens(usageRecord, numField(record, 'total_cost_usd'));
-  if (record.is_error === true) return { output: null, usage };
-  const result = record.result;
-  return { output: typeof result === 'string' ? result : null, usage };
-}
-
-/**
- * codex CLI NDJSON output (v1 `codex-parser.ts`, codex 0.7x `exec --json`):
- * `item.completed` events with `item.type === "agent_message"` carry the
- * response; the `turn.completed` event carries `usage.{input,output}_tokens`.
- * No dollar figure is reported.
- */
-function parseCodexOutput(stdout: string): ParsedOutput {
-  const messages: string[] = [];
-  let usage: AdapterUsage | null = null;
-  for (const record of ndjsonRecords(stdout)) {
-    if (record.type === 'item.completed') {
-      const item = asRecord(record.item);
-      if (item !== null && item.type === 'agent_message' && typeof item.text === 'string') {
-        messages.push(item.text);
-      }
-    } else if (record.type === 'turn.completed') {
-      const usageRecord = asRecord(record.usage);
-      if (usageRecord !== null) usage = usageFromSnakeTokens(usageRecord, null) ?? usage;
-    }
-  }
-  return { output: messages.length > 0 ? messages.join('\n') : null, usage };
-}
-
-/** Sum gemini per-model `tokens.{input,candidates}` stats into one usage. */
-function aggregateGeminiUsage(models: Record<string, unknown>): AdapterUsage | null {
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let sawAny = false;
-  for (const modelStats of Object.values(models)) {
-    const tokens = asRecord(asRecord(modelStats)?.tokens ?? null);
-    if (tokens === null) continue;
-    const input = intField(tokens, 'input');
-    const candidates = intField(tokens, 'candidates');
-    if (input !== null) {
-      inputTokens += input;
-      sawAny = true;
-    }
-    if (candidates !== null) {
-      outputTokens += candidates;
-      sawAny = true;
-    }
-  }
-  return sawAny ? { inputTokens, outputTokens, usd: null } : null;
-}
-
-/**
- * gemini CLI single-JSON output (v1 `gemini-parser.ts`, gemini 0.2x
- * `-o json`): `{"response":"…","stats":{"models":{"<model>":{"tokens":
- * {"input":…,"candidates":…}}}}}`. Per-model stats are aggregated; no
- * dollar figure is reported.
- */
-function parseGeminiOutput(stdout: string): ParsedOutput {
-  const record = asRecord(tryJson(stdout));
-  if (record === null) return { output: null, usage: null };
-  const models = asRecord(asRecord(record.stats)?.models ?? null);
-  const usage = models === null ? null : aggregateGeminiUsage(models);
-  const response = record.response;
-  return { output: typeof response === 'string' ? response : null, usage };
-}
-
-/** Read opencode `step_finish` part: `tokens.{input,output}` + `cost`. */
-function usageFromOpencodePart(part: Record<string, unknown>): AdapterUsage | null {
-  const tokens = asRecord(part.tokens);
-  if (tokens === null) return null;
-  const inputTokens = intField(tokens, 'input');
-  const outputTokens = intField(tokens, 'output');
-  if (inputTokens === null || outputTokens === null) return null;
-  return { inputTokens, outputTokens, usd: numField(part, 'cost') };
-}
-
-/**
- * opencode CLI NDJSON output (v1 `opencode-parser.ts`, opencode 1.2.x
- * `run --format json`): `text` events carry `part.text` fragments;
- * `step_finish` carries `part.tokens.{input,output}` and `part.cost` (usd).
- * `error` events void the response — a stream that errored is not a result.
- */
-function parseOpencodeOutput(stdout: string): ParsedOutput {
-  const fragments: string[] = [];
-  let usage: AdapterUsage | null = null;
-  let errored = false;
-  for (const record of ndjsonRecords(stdout)) {
-    const part = asRecord(record.part);
-    if (record.type === 'text' && part !== null && typeof part.text === 'string') {
-      fragments.push(part.text);
-    } else if (record.type === 'step_finish' && part !== null) {
-      usage = usageFromOpencodePart(part) ?? usage;
-    } else if (record.type === 'error') {
-      errored = true;
-    }
-  }
-  const output = !errored && fragments.length > 0 ? fragments.join('') : null;
-  return { output, usage };
-}
-
-/**
- * ollama CLI plain-text output (`ollama run <model>`): the response is raw
- * stdout, and NO usage is reported in non-interactive output — so usage is
- * always null here and the call is metered `false` upstream, never guessed.
- */
-function parseOllamaOutput(stdout: string): ParsedOutput {
-  const text = stdout.trim();
-  return { output: text === '' ? null : text, usage: null };
+  /** How this harness presents models (spec §8.4). */
+  readonly kind: AdapterKind;
+  /** True when the harness has its own auto-router (a model can be left ''). */
+  readonly hasAutoRouter: boolean;
+  /**
+   * Tier → model/alias for THIS harness (spec §8.4). A harness-routed adapter
+   * maps to a stable alias (`opus`) or `''` (let the harness default); a
+   * concrete-id adapter maps to a concrete model id. Partial: an unpopulated
+   * tier is what the translation seam degrades DOWNWARD past — the volatile
+   * concrete-model bindings belong in the overlay/catalog (a later phase).
+   */
+  readonly tierBinding: Partial<Record<ModelTier, string>>;
+  /** Effort knob, or omitted when the adapter has none (effort dropped). */
+  readonly effort?: AdapterEffortProfile;
+  /** Model capabilities this adapter advertises (spec §8.4). */
+  readonly capabilities: readonly ModelCapability[];
 }
 
 /** Append `[flag, model]` when the caller picked a model. */
@@ -261,11 +168,29 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     experimental: false,
     requiresModel: false,
     // Prompt via stdin to avoid argv escaping issues (v1 evidence).
-    buildCommand: ({ prompt, model }) => ({
-      args: ['-p', '--output-format', 'json', ...modelArgs('--model', model)],
+    buildCommand: ({ prompt, model, effort }) => ({
+      args: [
+        '-p',
+        '--output-format',
+        'json',
+        ...modelArgs('--model', model),
+        ...effortArgs(effort),
+      ],
       stdin: prompt,
     }),
     parseOutput: parseClaudeOutput,
+    // Harness-routed: stable aliases the claude CLI resolves to live models.
+    // These aliases are stable; the volatile concrete bindings (and any
+    // overrides) belong in the overlay/catalog (a later phase).
+    kind: 'harness-routed',
+    hasAutoRouter: true,
+    tierBinding: { frontier: 'fable', large: 'opus', medium: 'sonnet', small: 'haiku' },
+    effort: {
+      param: '--effort',
+      via: 'arg',
+      levels: { low: 'low', medium: 'medium', high: 'high', xhigh: 'max' },
+    },
+    capabilities: ['toolUse', 'vision', 'longContext', 'jsonMode'],
   },
   codex: {
     name: 'codex',
@@ -274,7 +199,7 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     requiresModel: false,
     // Read-only sandbox + skip-git-repo-check ported from v1 as safe
     // non-interactive defaults; prompt is positional (v1 evidence).
-    buildCommand: ({ prompt, model }) => ({
+    buildCommand: ({ prompt, model, effort }) => ({
       args: [
         'exec',
         '--json',
@@ -282,10 +207,22 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
         'read-only',
         '--skip-git-repo-check',
         ...modelArgs('-m', model),
+        ...effortArgs(effort),
         prompt,
       ],
     }),
     parseOutput: parseCodexOutput,
+    // Concrete-id: the CLI takes a concrete model id; no stable tier alias
+    // ships here (the catalog binds concrete ids in a later phase).
+    kind: 'concrete-id',
+    hasAutoRouter: false,
+    tierBinding: {},
+    effort: {
+      param: 'model_reasoning_effort',
+      via: 'arg',
+      levels: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+    },
+    capabilities: ['toolUse', 'jsonMode'],
   },
   gemini: {
     name: 'gemini',
@@ -297,6 +234,16 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
       args: [prompt, '-o', 'json', ...modelArgs('-m', model)],
     }),
     parseOutput: parseGeminiOutput,
+    // Harness-routed: gemini model family ids per tier; no effort param.
+    kind: 'harness-routed',
+    hasAutoRouter: false,
+    tierBinding: {
+      frontier: 'gemini-3.1-pro',
+      large: 'gemini-3.1-pro',
+      medium: 'gemini-3-flash',
+      small: 'gemini-3.1-flash-lite',
+    },
+    capabilities: ['toolUse', 'vision', 'longContext', 'jsonMode'],
   },
   opencode: {
     name: 'opencode',
@@ -309,6 +256,12 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
       stdin: prompt,
     }),
     parseOutput: parseOpencodeOutput,
+    // Passthrough harness: every tier defaults ('') unless an overlay binds a
+    // concrete model. Its own auto-router picks when none is named.
+    kind: 'harness-routed',
+    hasAutoRouter: true,
+    tierBinding: { frontier: '', large: '', medium: '', small: '' },
+    capabilities: ['toolUse', 'jsonMode'],
   },
   ollama: {
     name: 'ollama',
@@ -322,5 +275,11 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
       stdin: prompt,
     }),
     parseOutput: parseOllamaOutput,
+    // Concrete-id local models; NO effort param (effort is dropped honestly).
+    // No stable tier alias ships (local model names are overlay/catalog data).
+    kind: 'concrete-id',
+    hasAutoRouter: false,
+    tierBinding: {},
+    capabilities: ['toolUse'],
   },
 };

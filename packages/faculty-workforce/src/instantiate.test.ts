@@ -18,7 +18,9 @@ describe('instantiateAgent', () => {
       expect(manifest.version).toBe(WORKFORCE_VERSION);
       expect(manifest.capabilities.map((c) => c.name)).toEqual([`agent.${name}`]);
       expect(manifest.contracts).toEqual({ consumes: ['TaskContract'], emits: ['Outcome'] });
-      expect(manifest.cost).toEqual(MODEL_TIER_COST[template.modelTier]);
+      expect(manifest.cost).toEqual(MODEL_TIER_COST[template.model.tier]);
+      // The two-axis requirement is stamped onto the manifest [CLM-0076].
+      expect(manifest.model).toEqual(template.model);
     }
   });
 
@@ -50,11 +52,15 @@ describe('instantiateAgent', () => {
   it('any override makes the instantiation experimental, even keeping the shipped name', () => {
     const reviewer = SHIPPED_TEMPLATES['reviewer'];
     if (reviewer === undefined) throw new Error('missing shipped template reviewer');
-    const manifest = instantiateAgent(reviewer, { overlay, overrides: { modelTier: 'cheap' } });
+    const manifest = instantiateAgent(reviewer, {
+      overlay,
+      overrides: { model: { tier: 'small', effort: 'low', capabilities: [] } },
+    });
     expect(manifest.name).toBe('workforce/reviewer');
     expect(manifest.maturity).toBe('experimental');
     expect(manifest.tier).toBe('suggest');
-    expect(manifest.cost).toEqual(MODEL_TIER_COST.cheap);
+    expect(manifest.cost).toEqual(MODEL_TIER_COST.small);
+    expect(manifest.model).toEqual({ tier: 'small', effort: 'low', capabilities: [] });
   });
 
   it('a whole-cloth template not in the shipped library is experimental', () => {
@@ -63,7 +69,7 @@ describe('instantiateAgent', () => {
         name: 'triager',
         rolePrompt: 'Triage incoming issues.',
         skills: [],
-        modelTier: 'cheap',
+        model: { tier: 'small', effort: 'low', capabilities: [] },
         budgetShare: 0.05,
       },
       { overlay },
@@ -77,7 +83,8 @@ describe('instantiateAgent', () => {
     if (pm === undefined) throw new Error('missing shipped template pm');
     const manifest = instantiateAgent(pm, { overlay: 'repo-x' });
     expect(manifest.capabilities[0]?.description).toContain('overlay repo-x');
-    expect(manifest.capabilities[0]?.description).toContain('frontier tier');
+    expect(manifest.capabilities[0]?.description).toContain('large tier');
+    expect(manifest.capabilities[0]?.description).toContain('high effort');
   });
 
   it('rejects an invalid template and invalid options', () => {

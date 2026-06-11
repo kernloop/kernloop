@@ -1,4 +1,4 @@
-id: CLM-0075
+id: CLM-0077
 statement: >-
   Budget enforcement is a run-level MODE, not a contract change: in enforce mode (default) a run
   whose metered spend exceeds its parent budget escalates and halts (resumable) rather than silently
@@ -10,9 +10,9 @@ evidence:
   - 'test:packages/workflows/src/child-iterate.test.ts::an over-budget enforce run escalates a child before Kc instead of re-iterating'
   - 'test:packages/cli/src/loop-iteration.test.ts::an UNLIMITED run that exceeds the nominal budget COMPLETES, still reports full cost, and is recorded as unlimited'
   - 'test:packages/cli/src/loop-iteration.test.ts::a bounded (enforce) run that exceeds its budget escalates and is resumable, never silently continuing'
-  - 'test:packages/cli/src/overlay.test.ts::loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0075]'
-  - 'test:packages/cli/src/cli.test.ts::run --budget parses tokens=N,usd=N,wallClock=N into the task budget [CLM-0075]'
-  - 'test:packages/cli/src/cli.test.ts::run --unlimited is accepted (forces unlimited budget mode) [CLM-0075]'
+  - 'test:packages/cli/src/overlay.test.ts::loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0077]'
+  - 'test:packages/cli/src/cli.test.ts::run --budget parses tokens=N,usd=N,wallClock=N into the task budget [CLM-0077]'
+  - 'test:packages/cli/src/cli.test.ts::run --unlimited is accepted (forces unlimited budget mode) [CLM-0077]'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

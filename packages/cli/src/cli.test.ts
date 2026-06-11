@@ -97,7 +97,7 @@ describe('kernloop CLI', () => {
     });
   });
 
-  it('run --budget parses tokens=N,usd=N,wallClock=N into the task budget [CLM-0075]', async () => {
+  it('run --budget parses tokens=N,usd=N,wallClock=N into the task budget [CLM-0077]', async () => {
     const repo = repoDir();
     const c = capture(repo);
     expect(
@@ -134,7 +134,7 @@ describe('kernloop CLI', () => {
     expect(c.err()).toContain('--budget');
   });
 
-  it('run --unlimited is accepted (forces unlimited budget mode) [CLM-0075]', async () => {
+  it('run --unlimited is accepted (forces unlimited budget mode) [CLM-0077]', async () => {
     const repo = repoDir();
     const c = capture(repo);
     // --plan short-circuits before execution; the flag is parsed without error.

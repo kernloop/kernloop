@@ -59,7 +59,7 @@ export const RunInputSchema = z.strictObject({
   /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
   resume: z.string().min(1).optional(),
   /**
-   * Force `unlimited` budget mode for this run [CLM-0075]: the run never halts
+   * Force `unlimited` budget mode for this run [CLM-0077]: the run never halts
    * on budget (overriding the overlay's `budgetMode`). Usage/cost is STILL
    * metered and reported — unlimited removes the restriction, never the
    * tracking — and the run is recorded honestly as having run without budget
@@ -170,7 +170,7 @@ interface ExecutorOptions {
   adapter?: z.output<typeof RunInputSchema>['adapter'];
   invoke?: LoopInvoke;
   resumeRunId?: string;
-  /** Force unlimited budget mode for the canonical loop [CLM-0075]. */
+  /** Force unlimited budget mode for the canonical loop [CLM-0077]. */
   unlimited?: boolean;
 }
 

@@ -11,12 +11,11 @@
  */
 export {
   AgentTemplateSchema,
-  ModelTierSchema,
   MODEL_TIER_COST,
   SHIPPED_TEMPLATES,
   SHIPPED_TEMPLATE_NAMES,
 } from './templates.js';
-export type { AgentTemplate, ModelTier, ShippedTemplateName } from './templates.js';
+export type { AgentTemplate, ShippedTemplateName } from './templates.js';
 export { instantiateAgent, InstantiateOptionsSchema, WORKFORCE_VERSION } from './instantiate.js';
 export type { InstantiateOptions } from './instantiate.js';
 export { decomposePlan, SubtaskSpecSchema } from './decompose.js';

@@ -1,0 +1,24 @@
+id: CLM-0078
+statement: >-
+  Each model-calling loop node derives its ModelRequirement from the single template/manifest it
+  routes to — no parallel map — and the composition root resolves that to the served adapter, model
+  alias, and effort arg (via the overlay's per-tier adapter map, defaulting to the run adapter), then
+  names the served model+effort and any degradation in the node's Brief/Outcome provenance.
+evidence:
+  - 'test:packages/cli/src/loop/node-model.test.ts::covers exactly the six model-calling nodes'
+  - 'test:packages/cli/src/loop/node-model.test.ts::reads the real shipped templates + gate manifests'
+  - 'test:packages/cli/src/loop/node-model.test.ts::SINGLE SOURCE: flipping a template tier moves the derived node requirement'
+  - 'test:packages/cli/src/loop/node-model.test.ts::flipping a gate manifest tier moves its node requirement'
+  - 'test:packages/cli/src/loop/node-model.test.ts::a model-calling gate manifest with no declared model is a loud bug'
+  - 'test:packages/cli/src/loop/node-resolve.test.ts::binds the run adapter at each node’s declared tier alias, unchanged spend shape'
+  - 'test:packages/cli/src/loop/node-resolve.test.ts::a per-tier adapter map routes a node to a DIFFERENT adapter'
+  - 'test:packages/cli/src/loop/node-resolve.test.ts::a per-node tier/effort override changes what that node requests'
+  - 'test:packages/cli/src/loop/node-resolve.test.ts::a node sent to an effort-less adapter drops effort honestly'
+  - 'test:packages/cli/src/loop/node-seam.test.ts::passes the served model alias and effort arg to the bound invoke, metered'
+  - 'test:packages/cli/src/loop/node-seam.test.ts::records a dropped effort in the ref'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::provenance names the SERVED model+effort the node derived [CLM-0078]'
+  - 'test:packages/cli/src/overlay.test.ts::loads the optional per-tier adapters block [CLM-0078]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.7.0
