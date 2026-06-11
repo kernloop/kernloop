@@ -397,6 +397,7 @@ kernloop/                       # pnpm + turborepo, Node 22, MIT
 │   ├── faculty-workforce/
 │   ├── faculty-observer/
 │   ├── faculty-toolsmith/
+│   ├── faculty-models/         # model-identity normalization + vendored catalog
 │   ├── workflows/              # canonical graph + engine
 │   └── cli/                    # kernloop init/doctor/run/…
 ├── skills/                     # global skill library

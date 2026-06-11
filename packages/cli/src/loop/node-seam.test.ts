@@ -7,7 +7,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Cost, ModelRequirement } from '@kernloop/contracts';
 import type { LoopInvoke } from './invoke.js';
-import { adapterForTier, buildNodeSeam, resolveServed, servedRef } from './node-seam.js';
+import {
+  adapterForTier,
+  buildNodeSeam,
+  identityRef,
+  resolveServed,
+  servedIdentity,
+  servedRef,
+} from './node-seam.js';
 
 const COST: Cost = { tokens: 2, usd: 0.001 };
 const req = (over: Partial<ModelRequirement> = {}): ModelRequirement => ({
@@ -72,6 +79,26 @@ describe('servedRef — provenance names the served model + effort + degradation
     // the harness-default model name here.
     const ref = servedRef(resolveServed(req({ tier: 'small' }), 'codex'));
     expect(ref).toContain('model:codex/default@high');
+  });
+});
+
+describe('servedIdentity / identityRef — the normalized served model class [CLM-0081]', () => {
+  it('normalizes a catalogued served alias to the real model class (table)', () => {
+    const id = servedIdentity(resolveServed(req(), 'claude')); // large → opus
+    expect(id.resolvedBy).toBe('table');
+    expect(id.family).toBe('claude-opus');
+    expect(id.tier).toBe('large');
+    expect(identityRef(resolveServed(req(), 'claude'))).toBe(
+      'identity:claude-opus@4.8/large(table)',
+    );
+  });
+
+  it('a harness-default served model (empty alias) is honestly unknown', () => {
+    // codex ships no tier alias → served model '' → kernloop pinned nothing.
+    const served = resolveServed(req({ tier: 'small' }), 'codex');
+    expect(served.model).toBe('');
+    expect(servedIdentity(served).resolvedBy).toBe('unknown');
+    expect(identityRef(served)).toBe('identity:unknown(unknown)');
   });
 });
 

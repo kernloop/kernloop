@@ -18,7 +18,8 @@ import {
   type AdapterCommandEffort,
   type AdapterName,
 } from '@kernloop/kernel';
-import type { Effort, ModelRequirement, ModelTier } from '@kernloop/contracts';
+import type { Effort, ModelIdentity, ModelRequirement, ModelTier } from '@kernloop/contracts';
+import { catalog, resolveIdentity } from '@kernloop/faculty-models';
 import { meteredInvoke, type LoopInvoke } from './invoke.js';
 
 /** The per-tier adapter map an overlay declares (tier → adapter name). */
@@ -138,4 +139,32 @@ export function servedRef(served: ServedModel): string {
   // actually served is disclosed in the `(...)` note (dropped / x→y) above, so
   // the ref never implies a served level it didn't honor (prime directive).
   return `model:${served.adapter}/${model}@${served.requestedEffort}${suffix}`;
+}
+
+/**
+ * Normalize what served a node into a {@link ModelIdentity} [CLM-0081] (the
+ * SUPPLY side, spec §5.2/§8.4). The served `model` is the harness ALIAS the
+ * tier resolved to (`opus`, `gemini-3.1-pro`, or `''` = harness default); the
+ * models faculty's vendored catalog maps it to the real model class. A `''`
+ * (harness picked its own model — kernloop pinned none) normalizes to an honest
+ * `unknown`, never a guess. Pure: the catalog is loaded once.
+ */
+export function servedIdentity(served: ServedModel): ModelIdentity {
+  return resolveIdentity(served.model, catalog);
+}
+
+/**
+ * Compact provenance ref naming the NORMALIZED served identity [CLM-0081], e.g.
+ * `identity:claude-opus@4.8/large(table)` or, for a harness default,
+ * `identity:unknown(unknown)`. It rides ALONGSIDE {@link servedRef} so the
+ * trace records both the raw served alias and the real model class behind it —
+ * and admits `unknown` honestly when kernloop did not pin the model. The
+ * trailing `(resolvedBy)` discloses how confidently the class was named.
+ */
+export function identityRef(served: ServedModel): string {
+  const id = servedIdentity(served);
+  const variant = id.variant === null ? '' : `-${id.variant}`;
+  const known = id.resolvedBy === 'unknown';
+  const body = known ? id.family : `${id.family}${variant}@${id.generation}/${id.tier}`;
+  return `identity:${body}(${id.resolvedBy})`;
 }

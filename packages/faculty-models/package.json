@@ -1,0 +1,30 @@
+{
+  "name": "@kernloop/faculty-models",
+  "version": "0.1.0",
+  "description": "Kernloop Layer 2 — the models faculty (spec §5.2/§8.4). The SUPPLY dual of ModelRequirement: a pure, layered resolveIdentity (table→rule→unknown) that normalizes a served model alias/id into a ModelIdentity, backed by a vendored models.dev-pattern catalog snapshot. No network, no model call — discovery via /v1/models is a later phase.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ./scripts/copy-catalog.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@kernloop/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2"
+  }
+}

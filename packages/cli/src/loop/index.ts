@@ -58,6 +58,8 @@ export { TIERED_NODES, type TieredNode } from './node-model.js';
 export {
   resolveServed,
   servedRef,
+  identityRef,
+  servedIdentity,
   adapterForTier,
   type ServedModel,
   type NodeSeam,
