@@ -20,6 +20,9 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
+      # Wiring-complete gate (spec §1.1): no stub/TODO/not-implemented marker
+      # survives in shipped package source.
+      - run: pnpm wiring:check
       - run: pnpm format
       - run: pnpm test
       # Ran-and-passed gate: proves every claim's cited test actually executed

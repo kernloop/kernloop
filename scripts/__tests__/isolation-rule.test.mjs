@@ -45,6 +45,18 @@ test('no-cross-plugin-imports enforces spec §1.5 isolation', () => {
         code: "import { vote } from '@kernloop/faculty-gates';",
         filename: 'packages/faculty-gates/src/quality.ts',
       },
+      {
+        // a dynamic template-literal import whose static prefix is NOT a
+        // faculty specifier is out of reach and not flagged
+        code: 'const m = await import(`@kernloop/${name}`);',
+        filename: 'packages/faculty-memory/src/store.ts',
+      },
+      {
+        // a dynamic faculty-prefix import from a non-faculty package is not a
+        // cross-plugin import (the kernel may load faculties)
+        code: 'const m = await import(`@kernloop/faculty-${name}`);',
+        filename: 'packages/kernel/src/registry.ts',
+      },
     ],
     invalid: [
       {
@@ -82,6 +94,20 @@ test('no-cross-plugin-imports enforces spec §1.5 isolation', () => {
         code: "import { chain } from '@kernloop/kernel/src/audit/chain.js';",
         filename: 'scripts/audit-selftest.mjs',
         errors: [{ messageId: 'deepImport' }],
+      },
+      {
+        // a dynamic import building a faculty specifier via template literal
+        // from inside a faculty evades the literal check — flag it
+        code: 'const m = await import(`@kernloop/faculty-observer/${sub}`);',
+        filename: 'packages/faculty-toolsmith/src/forge.ts',
+        errors: [{ messageId: 'crossPlugin' }],
+      },
+      {
+        // a dynamic import building a faculty specifier via string concat
+        // from inside a faculty is likewise flagged on its static prefix
+        code: "const m = await import('@kernloop/faculty-memory' + suffix);",
+        filename: 'packages/faculty-compiler/src/index.ts',
+        errors: [{ messageId: 'crossPlugin' }],
       },
     ],
   });

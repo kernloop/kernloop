@@ -1,0 +1,10 @@
+id: CLM-0062
+statement: >-
+  No plugin imports another plugin: the isolation lint rejects static, deep,
+  relative-escape, and dynamic-faculty-prefix cross-plugin imports.
+evidence:
+  - 'test:scripts/__tests__/isolation-rule.test.mjs::no-cross-plugin-imports enforces spec §1.5 isolation'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

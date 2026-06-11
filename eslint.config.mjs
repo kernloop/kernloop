@@ -23,6 +23,16 @@ export default tseslint.config(
     },
   },
   {
+    // Constitutional rule 4: the kernel originates no model call. The rule's
+    // own filename guard exempts packages/kernel/src/adapters/** (the metering
+    // primitive), so turning it on for all kernel source is safe.
+    files: ['packages/kernel/src/**/*.ts'],
+    plugins: { kernloop },
+    rules: {
+      'kernloop/no-model-calls-in-kernel': 'error',
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.mts', '**/*.cts', '**/*.mjs'],
     rules: {
       'max-lines': ['error', { max: 400, skipBlankLines: false, skipComments: false }],

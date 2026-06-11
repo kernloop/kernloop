@@ -1,0 +1,14 @@
+id: CLM-0063
+statement: >-
+  File, function, and per-package LOC budgets are CI-enforced: an over-budget
+  package and an over-length file both fail the gate.
+evidence:
+  - 'test:scripts/__tests__/loc-check.test.mjs::contracts package over 800 LOC fails the gate'
+  - 'test:scripts/__tests__/loc-check.test.mjs::contracts package within budget passes'
+  - 'test:scripts/__tests__/loc-check.test.mjs::faculty packages get the 4000-LOC budget; kernel 5000'
+  - 'test:scripts/__tests__/file-loc-gate.test.mjs::a 401-line file fails eslint max-lines under the real repo config'
+  - 'test:scripts/__tests__/file-loc-gate.test.mjs::a 400-line file passes the LOC gate'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0
