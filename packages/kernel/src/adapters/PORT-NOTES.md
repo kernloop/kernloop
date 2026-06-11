@@ -90,10 +90,10 @@ wholesale and no v1 package is imported. This file records the deltas.
 **Dropped (and why):**
 
 - v1's dynamic model discovery, `resolveOpenCodeModel`, and model-not-found
-  fallback: those were *runtime routing decisions* (probe the world, pick a
+  fallback: those were _runtime routing decisions_ (probe the world, pick a
   model) — explicitly NOT the adapter's job (spec §3.1). They stay dropped.
   (Note: the `tierBinding` later added to `AdapterDefinition` — see §8.4 — is
-  NOT that: it is a *declarative, static* tier→stable-alias map the loop's pure
+  NOT that: it is a _declarative, static_ tier→stable-alias map the loop's pure
   translation seam reads as data; the adapter still makes no routing decision
   and still passes the resolved model string through verbatim. Static
   declaration ≠ runtime routing.)
