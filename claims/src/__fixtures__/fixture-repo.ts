@@ -43,8 +43,8 @@ export function claimYaml(overrides: Record<string, unknown> = {}): string {
 
 /** A vitest file containing the test the base claim references. */
 export const CAP_TEST_FILE = [
-  "import { it } from 'vitest';",
-  "it('proves the capability', () => {});",
+  "import { expect, it } from 'vitest';",
+  "it('proves the capability', () => { expect(true).toBe(true); });",
   '',
 ].join('\n');
 

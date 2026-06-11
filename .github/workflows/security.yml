@@ -1,0 +1,52 @@
+name: Security
+
+on:
+  push:
+    branches: [main, 'phase/**']
+  pull_request:
+  schedule:
+    - cron: '0 9 * * 1' # weekly, Mondays — catch newly-disclosed advisories
+
+# Advisory by design for now: these jobs report and fail visibly on findings
+# but are NOT in the branch-protection required-checks set, so a noisy scanner
+# cannot lock the repo while the rules are tuned. Promote to required once the
+# baseline is clean and stable (tracked in SECURITY.md).
+jobs:
+  secrets:
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      # The gitleaks GitHub Action requires a paid license for org repos; the
+      # CLI itself is free. Install a pinned release and scan directly.
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+      - run: gitleaks detect --source . --redact --no-banner
+
+  sca:
+    name: dependencies (pnpm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high
+
+  sast:
+    name: static analysis (semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v6
+      # Explicit rulesets (not --config auto, which requires metrics on);
+      # deterministic and tokenless.
+      - run: semgrep scan --config p/typescript --config p/javascript --config p/secrets --error --metrics=off

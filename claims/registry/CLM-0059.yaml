@@ -1,0 +1,13 @@
+id: CLM-0059
+statement: >-
+  Files written by the canonical loop cannot escape the workspace directory,
+  including through a pre-existing symlink.
+evidence:
+  - 'test:packages/cli/src/loop/invoke.test.ts::rejects a path escaping the workspace and writes NOTHING (checked before the first write)'
+  - 'test:packages/cli/src/loop/invoke.test.ts::rejects an absolute path outside the workspace'
+  - 'test:packages/cli/src/loop/invoke.test.ts::rejects a write through a pre-existing symlink that escapes the workspace'
+  - 'test:packages/cli/src/loop/invoke.test.ts::still writes when the workspace itself is under a symlink (realpath root)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

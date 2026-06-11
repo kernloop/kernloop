@@ -128,6 +128,18 @@ export class WorkshopNameError extends Error {
 }
 
 /**
+ * Thrown when a declared sandbox mount has an unsafe source or target —
+ * a path that could inject extra fields into the docker `-v` spec. Guards
+ * the otherwise-latent `-v` option-injection surface (a path with a colon).
+ */
+export class SandboxMountError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SandboxMountError';
+  }
+}
+
+/**
  * Thrown when a promotion skips a rung — `enforce` is reachable only from
  * `advisory`. The ladder is climbed one rung at a time (spec §3.2).
  */

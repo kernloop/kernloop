@@ -55,14 +55,59 @@ stop: per the constitution, it is wiring-complete or absent.
 7. **Audit everything.** If you add a behavior that acts, it appends audit
    events. No silent actions.
 
-## Definition of done (all five, no exceptions)
+## Definition of done (all six, no exceptions)
 
-1. Claim exists in `claims/` with evidence refs that resolve
-2. Tests written first or alongside; coverage ≥80% on touched packages
-3. Wired end-to-end — invocable through a real entry point, not just exported
-4. All gates green: build, typecheck, lint (incl. isolation + LOC), test,
-   `claims:check`, `governance:check`
-5. Docs updated in the same PR, capability statements tagged `[CLM-xxxx]`
+1. A tracking **GitHub issue** exists and the PR references it (`Closes #N`)
+2. Claim exists in `claims/` with evidence refs that resolve
+3. Tests written first or alongside; coverage ≥80% on touched packages
+4. Wired end-to-end — invocable through a real entry point, not just exported
+5. All gates green: build, typecheck, lint (incl. isolation + LOC), test,
+   `claims:check`, `claims:verify-ran` (every cited test ran and passed),
+   `governance:check`
+6. Docs updated in the same PR, capability statements tagged `[CLM-xxxx]`
+
+## Work tracking — issues are the durable record
+
+Memory and in-session todo lists do not survive a context reset; **issues
+do**. The registry tracks _capabilities_; issues track _work and problems_.
+
+- **Issue-first.** Any non-trivial unit of work (a feature, a fix, a phase, a
+  review-round finding) gets a GitHub issue before or as it starts. Trivial
+  mechanical edits (a typo, a format pass) do not. When unsure, file one —
+  cheap insurance against a lost thread.
+- **Findings become issues immediately.** Anything a QA / security /
+  cleanup round surfaces is filed as a labeled issue the moment it is found,
+  with file:line and a concrete fix — never left only in prose a reset will
+  erase. Labels: `review-finding`, `security`, `honesty`, `vestigial`.
+- **Closed by the PR that fixes it.** `Closes #N` in the PR body gives a
+  searchable, permanent record of completed work and the reasoning behind it.
+- **Triage into the backlog.** A finding that needs a new capability gets a
+  `planned` claim (the registry is the backlog); a finding that is a defect
+  in existing work gets fixed directly. Either way the issue is the anchor.
+
+## Standing review rounds (run by default, as appropriate)
+
+These are not optional polish — they are gates with triggers. Each round
+files issues for what it finds (above), and a phase exit PR may not merge
+with an open `security` or `honesty` finding it introduced.
+
+- **QA / claim-honesty round — every phase exit, and before any exit PR.**
+  Adversarially audit whether each claim's cited evidence _enforces_ the
+  claim or merely touches the same code. Verify `claims:verify-ran` is green
+  (cited tests actually ran and passed). Spot-check the load-bearing claims
+  by reading test bodies, not names.
+- **Security round — whenever the change executes generated or external
+  content, spawns a subprocess, handles paths, or touches secrets; mandatory
+  at the exit of any phase that did.** Trace the data flow adversarially;
+  prefer realpath/allowlist/sandbox defenses over lexical checks.
+- **Vestigial-cleanup round — every phase exit and after any large merge.**
+  Stale docs (especially capability prose _outside_ the claims-gated block),
+  dead exports, decorative `[CLM-]` tags beyond the lint's reach, orphaned
+  files, point-in-time reports presented as current.
+
+Independence matters: a system grading its own homework is the dishonesty
+this repo exists to prevent. Use external review (nexus-agents quarry-panel,
+adversarial subagents told to _refute_) for these rounds, not only self-audit.
 
 ## Commands
 
@@ -71,7 +116,8 @@ pnpm install            # bootstrap
 pnpm build              # turbo build all packages
 pnpm test               # all tests + coverage
 pnpm lint               # eslint incl. plugin-isolation + LOC limits
-pnpm claims:check       # verify every claim's evidence resolves
+pnpm claims:check       # statically verify every claim's evidence resolves
+pnpm claims:verify-ran  # prove every cited test actually ran and passed
 pnpm governance:check   # verify repo structure + charter match reality
 ```
 
@@ -83,10 +129,10 @@ A fresh clone must pass all of the above before and after your change.
 packages/contracts/   FROZEN FIVE (TaskContract, Brief, Verdict, Outcome,
                       Manifest) — ≤800 LOC total — protected path
 packages/kernel/      registry · router · audit · ladder · bus · adapters
-                      (P0: audit module only) — protected path
+                      — protected path
 packages/faculty-*/   compiler, memory, gates, workforce, observer,
-                      toolsmith (P1+; absent in P0 by design)
-packages/workflows/   canonical loop graph + engine (P2)
+                      toolsmith
+packages/workflows/   canonical loop graph + engine
 packages/cli/         kernloop init/doctor/run/…
 claims/               claims registry + schema — protected path
 skills/               global skill library

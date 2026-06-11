@@ -113,6 +113,21 @@ describe('lintCapabilityDocs', () => {
     expect(lintCapabilityDocs(badRoot, KNOWN).join('\n')).toContain('ARCHITECTURE.md');
   });
 
+  it('scans skills/README.md so its [CLM-] tags are not decorative', () => {
+    const okRoot = makeRepo({
+      'README.md': readme('Contracts validate. [CLM-0001]'),
+      'skills/README.md':
+        '# skills\n\n<!-- claims:begin -->\nA skill thing. [CLM-0001]\n<!-- claims:end -->\n',
+    });
+    expect(lintCapabilityDocs(okRoot, KNOWN)).toEqual([]);
+    // A tag in skills/README.md citing an unknown claim must be caught now.
+    const badRoot = makeRepo({
+      'README.md': readme('Contracts validate. [CLM-0001]'),
+      'skills/README.md': '# skills\n\nA stray tag [CLM-9999] verified by nothing.\n',
+    });
+    expect(lintCapabilityDocs(badRoot, KNOWN).join('\n')).toContain('skills/README.md');
+  });
+
   it('skips headings, comments, and code fences inside a claims block', () => {
     const root = repoWithReadme(
       readme(

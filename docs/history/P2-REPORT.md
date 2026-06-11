@@ -1,3 +1,9 @@
+> **Point-in-time snapshot.** This document recorded the state at its phase
+> exit and is preserved for history; it is not maintained. For current
+> capability see [README.md](../../README.md) — the live, claim-gated source
+> of truth. Statements here (e.g. tool counts, "current phase") were true at
+> the time and may since have been superseded.
+
 # P2 Report — The Canonical Loop, Live
 
 **Phase:** P2 (vote gate + workforce + canonical loop + overlay)

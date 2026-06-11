@@ -16,7 +16,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { SandboxUnavailableError } from './errors.js';
+import { SandboxMountError, SandboxUnavailableError } from './errors.js';
 import { SandboxProfileSchema, type SandboxProfile } from './profile.js';
 
 /** A declared input mount — always attached read-only. */
@@ -89,7 +89,20 @@ export function buildDockerArgs(
     profile.workdir,
   ];
   for (const mount of options.mounts ?? []) {
-    args.push('-v', `${path.resolve(mount.source)}:${mount.target}:ro`);
+    // The target is concatenated into the `-v src:target:ro` spec, so a `:`
+    // (or a relative path) would inject extra colon-delimited fields and the
+    // appended `:ro` would no longer land in the options slot. Require an
+    // absolute, colon-free container path; same for the resolved source.
+    const source = path.resolve(mount.source);
+    if (!mount.target.startsWith('/') || mount.target.includes(':')) {
+      throw new SandboxMountError(
+        `mount target must be an absolute, colon-free path: ${mount.target}`,
+      );
+    }
+    if (source.includes(':')) {
+      throw new SandboxMountError(`mount source path must not contain a colon: ${source}`);
+    }
+    args.push('-v', `${source}:${mount.target}:ro`);
   }
   args.push(profile.image, ...options.command);
   return args;

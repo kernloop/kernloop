@@ -1,0 +1,20 @@
+{
+  "claim": {
+    "id": "WS-0001",
+    "statement": "loc-probe reports non-blank line counts per file and in total for a directory tree, skipping node_modules and dist."
+  },
+  "acceptanceTest": "import test from 'node:test';\nimport assert from 'node:assert';\nimport fs from 'node:fs';\nimport { probe } from './tool.mjs';\n\ntest('counts non-blank lines per file and total', () => {\n  fs.mkdirSync('fixture/sub', { recursive: true });\n  fs.writeFileSync('fixture/a.js', 'one\\n\\ntwo\\n');\n  fs.writeFileSync('fixture/sub/b.ts', 'x\\ny\\nz\\n\\n');\n  const r = probe('fixture');\n  assert.equal(r.total, 5);\n  assert.equal(r.files.find((f) => f.path.endsWith('a.js')).loc, 2);\n  assert.equal(r.files.find((f) => f.path.endsWith('b.ts')).loc, 3);\n});\n\ntest('skips node_modules and dist', () => {\n  fs.mkdirSync('fixture2/node_modules', { recursive: true });\n  fs.mkdirSync('fixture2/dist', { recursive: true });\n  fs.writeFileSync('fixture2/node_modules/x.js', 'a\\nb\\n');\n  fs.writeFileSync('fixture2/dist/y.js', 'c\\n');\n  fs.writeFileSync('fixture2/real.js', 'keep\\n');\n  const r = probe('fixture2');\n  assert.equal(r.total, 1);\n  assert.equal(r.files.length, 1);\n});\n",
+  "manifest": {
+    "name": "workshop/loc-probe",
+    "version": "0.1.0",
+    "kind": "workshopTool",
+    "capabilities": [
+      { "name": "workshop.loc-probe", "description": "non-blank LOC counts for a directory tree" }
+    ],
+    "contracts": { "consumes": [], "emits": [] },
+    "cost": { "tokens": 0, "usd": 0, "latencyMs": 2000 },
+    "tier": "suggest",
+    "claims": [],
+    "maturity": "experimental"
+  }
+}

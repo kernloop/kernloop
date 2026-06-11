@@ -1,0 +1,14 @@
+id: CLM-0060
+statement: >-
+  No stub, TODO-wired, or not-implemented marker exists in shipped package
+  source — the wiring-complete rule is gated, not just asserted.
+evidence:
+  - 'test:scripts/__tests__/wiring-check.test.mjs::a TODO comment in package source fails the gate'
+  - 'test:scripts/__tests__/wiring-check.test.mjs::a fully-wired clean file passes the gate'
+  - 'test:scripts/__tests__/wiring-check.test.mjs::*.test.ts files are excluded even when they contain a TODO'
+  - "test:scripts/__tests__/wiring-check.test.mjs::a 'not implemented' string in package source fails the gate"
+  - 'test:scripts/__tests__/wiring-check.test.mjs::the REAL packages/ tree is wiring-complete: main(repoRoot) === 0'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

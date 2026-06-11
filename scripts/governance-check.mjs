@@ -106,7 +106,7 @@ export function checkCharterCommands(root) {
   const charter = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const scripts = pkg.scripts ?? {};
-  const commands = [...charter.matchAll(/^pnpm ([a-z:]+)/gm)].map((m) => m[1]);
+  const commands = [...charter.matchAll(/^pnpm ([a-z][a-z:-]*)/gm)].map((m) => m[1]);
   const errors = [];
   for (const cmd of commands) {
     if (cmd === 'install') continue; // pnpm built-in, not a script

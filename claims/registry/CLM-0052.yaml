@@ -9,6 +9,8 @@ evidence:
   - 'test:packages/faculty-toolsmith/src/forge.test.ts::refuses an active profile whose hash differs from the ratified hash'
   - 'test:packages/faculty-toolsmith/src/forge.docker.test.ts::installs a tool only after its acceptance test passes inside the sandbox'
   - 'test:packages/faculty-toolsmith/src/forge.docker.test.ts::a failing acceptance test installs nothing and preserves scratch for diagnosis'
+  - 'test:packages/faculty-toolsmith/src/sandbox.test.ts::rejects a mount target carrying a colon (-v option injection)'
+  - 'test:packages/faculty-toolsmith/src/sandbox.test.ts::rejects a relative mount target'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

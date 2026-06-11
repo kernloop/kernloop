@@ -1,17 +1,21 @@
 # skills/ — global skill library
 
-Empty in P0 by design. Skills (progressive-disclosure instruction documents,
-spec §3.4) enter only through the `distill` ratification path from P3 onward;
-depth ships as skills, never as MCP tool #12.
+Skills are progressive-disclosure instruction documents (spec §3.4): depth
+ships as skills, never as MCP tool #12. They enter the procedural library
+only through the `distill` ratification path (below).
 
-## Ratification path (P3)
+## Ratification path
 
-Distill proposes a SKILL.md from an episodic trace and writes it to
-`skills/proposed/<name>/`, entering the authority ladder at suggest tier
-[CLM-0049]. A proposed skill goes live only when a human moves
-`skills/proposed/<name>/` to `skills/<name>/` through a reviewed PR — that
-merge is the ratification, and skills enter the procedural library through
-no other path [CLM-0050].
+<!-- claims:begin -->
 
-Current example in the proposal queue:
-`skills/run-quality-gate-via-kernel/ (ratified into the live library by the P3 exit PR merge)`.
+Distill proposes a skill document from an episodic trace and writes it to the proposed area, entering the authority ladder at suggest tier [CLM-0049].
+A proposed skill goes live only through the distill ratification path — a human-reviewed move from proposed to live, and through no other path [CLM-0050].
+
+<!-- claims:end -->
+
+Concretely: `distill` writes to `skills/proposed/<name>/`; a human moves
+`skills/proposed/<name>/` to `skills/<name>/` through a reviewed PR, and that
+merge is the ratification. No runtime code path writes into the live library.
+
+Current live example: `skills/run-quality-gate-via-kernel/`, distilled from
+the trace of kernloop's first self-run and ratified by the P3 exit PR.

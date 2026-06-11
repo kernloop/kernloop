@@ -1,3 +1,9 @@
+> **Point-in-time snapshot.** This document recorded the state at its phase
+> exit and is preserved for history; it is not maintained. For current
+> capability see [README.md](../../README.md) — the live, claim-gated source
+> of truth. Statements here (e.g. tool counts, "current phase") were true at
+> the time and may since have been superseded.
+
 # P3 Report — Born Through Gates
 
 **Phase:** P3 (review gate + distill + forge/Toolsmith + Observer self-issue loop)

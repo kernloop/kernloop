@@ -10,7 +10,7 @@
  * Outcome and a semantic fact per signal (provenance `loop:retrospect`).
  * Every gate Verdict is published on the bus — audited (rule 7).
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   BriefSchema,
@@ -127,24 +127,40 @@ function coderPrompt(child: TaskContract): string {
 }
 
 /**
- * Write the coder's emitted files into the workspace. Path-traversal
- * guarded: every resolved path must stay strictly inside `workspaceDir`,
- * else a typed error and NOTHING is written (checked before the first write).
+ * Write the coder's emitted files into the workspace. Two-layer escape guard,
+ * checked before the first write so nothing lands on a partial failure:
+ *  1. lexical — the resolved path must stay strictly inside `workspaceDir`
+ *     (rejects `..` and absolute paths);
+ *  2. symlink — after creating each parent directory we `realpathSync` it and
+ *     re-check containment, because `path.resolve` does not follow symlinks.
+ *     A model-chosen path through a pre-existing symlink in the workspace
+ *     would otherwise escape it. The real workspace root is itself realpath'd
+ *     so a workspace that is legitimately under a symlink still works.
  */
 export function writeWorkspaceFiles(
   workspaceDir: string,
   files: ReadonlyArray<{ path: string; content: string }>,
 ): string[] {
-  const root = path.resolve(workspaceDir);
+  mkdirSync(path.resolve(workspaceDir), { recursive: true });
+  const root = realpathSync(path.resolve(workspaceDir));
   const resolved = files.map((file) => {
     const target = path.resolve(root, file.path);
-    if (!target.startsWith(root + path.sep)) {
+    if (target !== root && !target.startsWith(root + path.sep)) {
       throw new LoopParseError('files', `path escapes the workspace: ${file.path}`);
     }
-    return { target, content: file.content };
+    return { target, dir: path.dirname(target), content: file.content };
   });
   for (const file of resolved) {
-    mkdirSync(path.dirname(file.target), { recursive: true });
+    mkdirSync(file.dir, { recursive: true });
+    const realDir = realpathSync(file.dir);
+    if (realDir !== root && !realDir.startsWith(root + path.sep)) {
+      throw new LoopParseError(
+        'files',
+        `path resolves outside the workspace via a symlink: ${path.relative(root, file.target)}`,
+      );
+    }
+  }
+  for (const file of resolved) {
     writeFileSync(file.target, file.content, 'utf8');
   }
   return resolved.map((file) => path.relative(root, file.target));

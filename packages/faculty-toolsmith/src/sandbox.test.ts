@@ -87,6 +87,34 @@ describe('buildDockerArgs', () => {
       ),
     ).toThrow();
   });
+
+  it('rejects a mount target carrying a colon (-v option injection)', () => {
+    expect(() =>
+      buildDockerArgs(
+        {
+          scratchDir: tmpDir(),
+          command: ['true'],
+          mounts: [{ source: tmpDir(), target: '/x:rw' }],
+          profile: RATIFIED_SANDBOX_PROFILE,
+        },
+        'x',
+      ),
+    ).toThrow('colon-free');
+  });
+
+  it('rejects a relative mount target', () => {
+    expect(() =>
+      buildDockerArgs(
+        {
+          scratchDir: tmpDir(),
+          command: ['true'],
+          mounts: [{ source: tmpDir(), target: 'inputs' }],
+          profile: RATIFIED_SANDBOX_PROFILE,
+        },
+        'x',
+      ),
+    ).toThrow('absolute');
+  });
 });
 
 describe('runInSandbox refusal paths', () => {

@@ -1,0 +1,11 @@
+id: CLM-0061
+statement: >-
+  The kernel cannot originate a model call: referencing the adapter invocation
+  primitive anywhere in kernel source outside the adapters module is a lint
+  error.
+evidence:
+  - 'test:scripts/__tests__/kernel-no-intelligence-rule.test.mjs::no-model-calls-in-kernel enforces spec §1.4 (kernel originates no model call)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.4.0

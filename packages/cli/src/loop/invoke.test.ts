@@ -7,10 +7,12 @@
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -212,10 +214,35 @@ describe('writeWorkspaceFiles (path-traversal guard)', () => {
 
   it('rejects an absolute path outside the workspace', () => {
     const workspace = path.join(scratch, 'ws-abs');
-    const before = readdirSync(scratch).length;
+    mkdirSync(workspace, { recursive: true });
+    const before = readdirSync(workspace).length;
     expect(() =>
       writeWorkspaceFiles(workspace, [{ path: path.join(scratch, 'abs.ts'), content: 'evil' }]),
     ).toThrow('escapes the workspace');
-    expect(readdirSync(scratch)).toHaveLength(before);
+    expect(existsSync(path.join(scratch, 'abs.ts'))).toBe(false);
+    expect(readdirSync(workspace)).toHaveLength(before);
+  });
+
+  it('rejects a write through a pre-existing symlink that escapes the workspace', () => {
+    const workspace = path.join(scratch, 'ws-symlink');
+    const outside = path.join(scratch, 'outside-target');
+    mkdirSync(workspace, { recursive: true });
+    mkdirSync(outside, { recursive: true });
+    // An innocent-looking symlink already in the workspace points outside it.
+    symlinkSync(outside, path.join(workspace, 'link'));
+    expect(() =>
+      writeWorkspaceFiles(workspace, [{ path: 'link/pwned.ts', content: 'escaped' }]),
+    ).toThrow('symlink');
+    expect(existsSync(path.join(outside, 'pwned.ts'))).toBe(false);
+  });
+
+  it('still writes when the workspace itself is under a symlink (realpath root)', () => {
+    const realWorkspace = path.join(scratch, 'ws-real');
+    const linkedWorkspace = path.join(scratch, 'ws-link');
+    mkdirSync(realWorkspace, { recursive: true });
+    symlinkSync(realWorkspace, linkedWorkspace);
+    const written = writeWorkspaceFiles(linkedWorkspace, [{ path: 'a.ts', content: 'ok\n' }]);
+    expect(written).toEqual(['a.ts']);
+    expect(existsSync(path.join(realWorkspace, 'a.ts'))).toBe(true);
   });
 });

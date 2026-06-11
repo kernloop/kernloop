@@ -20,14 +20,17 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
+      # Wiring-complete gate (spec §1.1): no stub/TODO/not-implemented marker
+      # survives in shipped package source.
+      - run: pnpm wiring:check
       - run: pnpm format
       - run: pnpm test
+      # Ran-and-passed gate: proves every claim's cited test actually executed
+      # and passed in this run — not merely that its name exists in a file.
+      - run: pnpm claims:verify-ran
 
   claims_check:
     name: 'claims:check'
-    # Ordered after test: a green claims:check therefore implies every
-    # test-evidence ref it resolved also ran green (claims/src/resolve.ts).
-    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -38,6 +41,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm claims:check
+      # The README enforcement table is generated, never hand-edited — fail
+      # if it drifts from the registry.
+      - run: node scripts/render-claims.mjs --check
 
   governance:
     name: governance
