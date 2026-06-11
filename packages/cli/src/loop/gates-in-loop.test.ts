@@ -55,7 +55,14 @@ function bindingsFor(kern: Kernloop, refs: LoopRefs = {}): LoopBindings {
   const workspaceDir = path.join(scratch, 'unit-ws');
   mkdirSync(workspaceDir, { recursive: true });
   writeFileSync(path.join(workspaceDir, '.keep'), '');
-  return { kern, workspaceDir, invoke: scripted, adapter: 'claude', refs };
+  return {
+    kern,
+    workspaceDir,
+    invoke: scripted,
+    invokeFor: () => scripted,
+    adapter: 'claude',
+    refs,
+  };
 }
 
 function reviewCtx(): NodeContext {

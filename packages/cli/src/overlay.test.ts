@@ -89,6 +89,19 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.K).toBe(3);
     expect(overlay.gates).toEqual({ vote: { strategy: 'simple_majority', panel: 3 }, quality: {} });
     expect(overlay.nodeOverrides).toEqual({});
+    expect(overlay.adapters).toBeUndefined(); // tiered adapters are opt-in [CLM-0068]
+  });
+
+  it('loads the optional tiered-adapters block [CLM-0068]', () => {
+    const overlay = loadFrom('id: tiered\nadapters:\n  cheap: codex\n  frontier: claude\n');
+    expect(overlay.adapters).toEqual({ cheap: 'codex', frontier: 'claude' });
+  });
+
+  it('accepts a partial adapters block — either tier may be set alone [CLM-0068]', () => {
+    expect(loadFrom('id: x\nadapters:\n  cheap: gemini\n').adapters).toEqual({ cheap: 'gemini' });
+    expect(loadFrom('id: x\nadapters:\n  frontier: opencode\n').adapters).toEqual({
+      frontier: 'opencode',
+    });
   });
 
   it('file values win over defaults; unset knobs still default (precedence)', () => {
@@ -164,6 +177,8 @@ describe('loadOverlay rejection matrix', () => {
     ['empty node override (hides intent)', 'id: x\nnodeOverrides:\n  review: {}\n'],
     ['skip in a node override', 'id: x\nnodeOverrides:\n  review: { skip: true }\n'],
     ['empty gate name in an override', 'id: x\nnodeOverrides:\n  review: { gate: "" }\n'],
+    ['unknown adapter name in a tier', 'id: x\nadapters:\n  cheap: gpt5\n'],
+    ['unknown key inside adapters', 'id: x\nadapters:\n  medium: claude\n'],
   ])('rejects %s with a typed OverlayError carrying the zod issues', (_name, yaml) => {
     let caught: unknown;
     try {

@@ -21,6 +21,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { z } from 'zod';
 import YAML from 'yaml';
 
@@ -107,6 +108,22 @@ export const NodeOverrideSchema = z
 export type NodeOverride = z.infer<typeof NodeOverrideSchema>;
 
 /**
+ * Tiered model adapters (spec §8.4 cost lever [CLM-0068]): the adapter the
+ * loop binds for each declared node tier. BOTH keys are optional — when a
+ * tier is unset, the loop falls back to the run's `--adapter`, so an overlay
+ * with no `adapters` block is byte-identical to today's single-adapter
+ * behavior (the backward-compat guarantee). Each value is one of the five
+ * kernel adapter names. The map is consumed only at the loop composition root
+ * (loop/index.ts), never by the Router — see loop/tiers.ts for the
+ * loop-vs-Router honesty note.
+ */
+const AdaptersSchema = z.strictObject({
+  cheap: z.enum(ADAPTER_NAMES).optional(),
+  frontier: z.enum(ADAPTER_NAMES).optional(),
+});
+export type TierAdapters = z.infer<typeof AdaptersSchema>;
+
+/**
  * overlay.yaml schema (spec §7: "gate thresholds, K, budgets, node
  * overrides"). K is the vote-iterate bound — rejected plans loop at most K
  * times before escalating to the human (spec §6; default 3 adopted per
@@ -120,6 +137,7 @@ export const OverlaySchema = z.strictObject({
   K: z.number().int().min(1).default(3),
   gates: GatesSchema.prefault({}),
   nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
+  adapters: AdaptersSchema.optional(),
 });
 export type Overlay = z.infer<typeof OverlaySchema>;
 
@@ -203,6 +221,9 @@ function overlayTemplate(defaults: Overlay): string {
     `    panel: ${String(defaults.gates.vote.panel)} # 3 default; 7 at plan ratification (spec §8.6)`,
     '#  quality:',
     '#    timeoutMsPerCheck: 120000',
+    '# adapters:  # tiered model adapters (spec §8.4) — cheap for research/review, frontier for plan/vote/decompose/implement',
+    '#   cheap: codex      # any of: claude codex gemini opencode ollama; unset → falls back to --adapter',
+    '#   frontier: claude  # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',
     "# nodeOverrides:  # swap a gate node's gate / add fanout specialists (spec §6) — never duplicate the graph",
     '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
     '#   quality: { gate: security-review }',

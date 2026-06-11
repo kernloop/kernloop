@@ -88,10 +88,17 @@ const noop: QualityCheck = {
   parse: () => [],
 };
 
-function bindingsFor(kern: Kernloop, refs: LoopRefs = {}): LoopBindings {
+function bindingsFor(
+  kern: Kernloop,
+  refs: LoopRefs = {},
+  invoke: LoopInvoke = scripted,
+): LoopBindings {
   const workspaceDir = path.join(scratch, 'unit-ws');
   mkdirSync(workspaceDir, { recursive: true }); // quality checks spawn with cwd = workspace
-  return { kern, workspaceDir, invoke: scripted, adapter: 'claude', refs };
+  // Injected-invoke parity: every node tier resolves to the same injected
+  // invoke, so a custom invoke reaches per-tier executors too (the loop's
+  // injected-invoke backward-compat contract, [CLM-0068]).
+  return { kern, workspaceDir, invoke, invokeFor: () => invoke, adapter: 'claude', refs };
 }
 
 function ctxFor(panel: 3 | 7): NodeContext {
@@ -187,7 +194,7 @@ describe('output-contract violations (diagnosability, one honest attempt)', () =
     const kern = kernloopFor('implement-violation');
     const raw = 'Nothing to write for this "files" task.\n```json\n{"files":[],"notes":"n/a"}\n```';
     const invoke: LoopInvoke = () => Promise.resolve({ output: raw, cost: COST });
-    const executors = buildLoopExecutors({ ...bindingsFor(kern), invoke });
+    const executors = buildLoopExecutors(bindingsFor(kern, {}, invoke));
     const child = { ...task, id: 'task-unit.1' };
     await expect(executors['implement']?.(child, ctxFor(3))).rejects.toThrow(
       'raw model output preserved at',
@@ -209,7 +216,7 @@ describe('output-contract violations (diagnosability, one honest attempt)', () =
         output: prompt.includes('Proposal under vote') ? raw : 'unused',
         cost: COST,
       });
-    const executors = buildLoopExecutors({ ...bindingsFor(kern), invoke });
+    const executors = buildLoopExecutors(bindingsFor(kern, {}, invoke));
     const verdict = (await executors['vote']?.(planBrief, ctxFor(3))) as Verdict;
     expect(verdict.result).not.toBe('approve'); // abstains never become approval
     for (const voter of PANEL_DEFAULT) {
@@ -233,7 +240,7 @@ describe('hardened prompts (data, diff-reviewable)', () => {
       return scripted(prompt);
     };
     const refs: LoopRefs = { framedTask: task, planBrief };
-    const executors = buildLoopExecutors({ ...bindingsFor(kern, refs), invoke });
+    const executors = buildLoopExecutors(bindingsFor(kern, refs, invoke));
     await executors['decompose']?.({}, ctxFor(3));
     await executors['implement']?.({ ...task, id: 'task-unit.1' }, ctxFor(3));
     const [decompose, implement] = prompts;
