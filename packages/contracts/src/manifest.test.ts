@@ -47,6 +47,15 @@ describe('ManifestSchema', () => {
     expect(ManifestSchema.parse(JSON.parse(JSON.stringify(valid)))).toEqual(valid);
   });
 
+  it('accepts the optional two-axis model requirement, defaulting its axes [CLM-0076]', () => {
+    const withModel = ManifestSchema.parse({ ...valid, model: { tier: 'large' } });
+    expect(withModel.model).toEqual({ tier: 'large', effort: 'medium', capabilities: [] });
+    // The field is optional — a manifest with no model parses unchanged.
+    expect(ManifestSchema.parse(valid).model).toBeUndefined();
+    // An invalid requirement is rejected (strict).
+    expect(ManifestSchema.safeParse({ ...valid, model: { tier: 'huge' } }).success).toBe(false);
+  });
+
   it('rejects when a required field is missing', () => {
     for (const field of [
       'name',

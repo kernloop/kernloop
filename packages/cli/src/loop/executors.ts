@@ -51,7 +51,8 @@ import {
   writtenDiff,
 } from './prompts.js';
 import { childSignal, sumChildCosts } from './aggregate.js';
-import { NODE_TIERS, type ModelTier } from './tiers.js';
+import type { TieredNode } from './node-model.js';
+import { servedRef, type NodeSeam } from './node-seam.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -72,18 +73,18 @@ export interface LoopBindings {
   /** Workspace the children implement into and quality judges. */
   readonly workspaceDir: string;
   /** The default model seam — already metered by the caller. Used where no
-   * node tier applies; equals {@link invokeFor}('frontier') by default. */
+   * node requirement applies; the run adapter at its default. */
   readonly invoke: LoopInvoke;
   /**
-   * Per-tier model seam [CLM-0068]: the (already-metered) invoke bound to the
-   * adapter the overlay declares for `tier`, defaulting to the run adapter.
-   * Each model-calling executor picks its seam by its declared
-   * {@link NODE_TIERS} tier; the loop composition root (loop/index.ts) builds
-   * this from `overlay.adapters` — see loop/tiers.ts for the loop-vs-Router
-   * honesty note. When an explicit `invoke` is injected (tests), every tier
-   * resolves to that same invoke.
+   * Per-NODE model seam [CLM-0078]: each model-calling executor asks for its
+   * own node, and the composition root returns a metered invoke pre-bound to
+   * the model+effort that node's manifest/template requires (resolved through
+   * the kernel translation seam) plus the {@link NodeSeam.served} provenance.
+   * The node DERIVES its requirement from its single source — there is no
+   * parallel tier map (see loop/node-model.ts). When an explicit `invoke` is
+   * injected (tests), every node resolves to that same seam.
    */
-  readonly invokeFor: (tier: ModelTier) => LoopInvoke;
+  readonly invokeFor: (node: TieredNode) => NodeSeam;
   /** Adapter name, recorded as provenance on generated Brief sections. */
   readonly adapter: string;
   /** Quality-check override (tests); real defaults otherwise. */
@@ -141,7 +142,8 @@ function planExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const research = BriefSchema.parse(input);
     b.refs.researchBrief = research;
-    const { output } = await b.invokeFor(NODE_TIERS.plan)(planPrompt(research, ctx.findings));
+    const seam = b.invokeFor('plan');
+    const { output } = await seam.invoke(planPrompt(research, ctx.findings));
     const used = estimateTokens(output);
     const plan = BriefSchema.parse({
       taskId: ctx.taskId,
@@ -151,7 +153,11 @@ function planExecutor(b: LoopBindings): NodeExecutor {
           content: output,
           tokens: used,
           priority: 1,
-          provenance: [{ ref: `adapter:${b.adapter}` }, { ref: 'template:pm' }],
+          provenance: [
+            { ref: `adapter:${b.adapter}` },
+            { ref: 'template:pm' },
+            { ref: servedRef(seam.served) },
+          ],
         },
       ],
       budget: { allotted: b.kern.config.briefTokens, used },
@@ -175,7 +181,7 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
       invokeVoter: ballotInvoker({
         overlayDir: b.kern.paths.dir,
         runId: ctx.runId,
-        invoke: b.invokeFor(NODE_TIERS.vote),
+        invoke: b.invokeFor('vote').invoke,
       }),
     });
     await publishVerdict(b.kern, verdict);
@@ -213,7 +219,7 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
       invokeReviewer: reviewerInvoker({
         overlayDir: b.kern.paths.dir,
         runId: ctx.runId,
-        invoke: b.invokeFor(NODE_TIERS.review),
+        invoke: b.invokeFor('review').invoke,
       }),
     });
     await publishVerdict(b.kern, verdict);
@@ -229,9 +235,9 @@ function decomposeExecutor(b: LoopBindings): NodeExecutor {
     if (parent === undefined || plan === undefined) {
       throw new Error(`decompose reached without framed task + plan (run ${ctx.runId})`);
     }
-    const { output } = await b.invokeFor(NODE_TIERS.decompose)(
-      decomposePrompt(parent, briefText(plan)),
-    );
+    const { output } = await b
+      .invokeFor('decompose')
+      .invoke(decomposePrompt(parent, briefText(plan)));
     const sink = sinkFor(b, ctx.runId, 'decompose');
     const emission = parseEmission(output, SubtasksEmissionSchema, 'subtasks', sink);
     return decomposePlan({ parent, subtasks: emission.subtasks as SubtaskSpec[] });
@@ -245,9 +251,8 @@ function decomposeExecutor(b: LoopBindings): NodeExecutor {
 function implementExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const child = TaskContractSchema.parse(input);
-    const { output, cost } = await b.invokeFor(NODE_TIERS.implement)(
-      coderPrompt(child, ctx.findings),
-    );
+    const seam = b.invokeFor('implement');
+    const { output, cost } = await seam.invoke(coderPrompt(child, ctx.findings));
     const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
     const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
@@ -261,7 +266,9 @@ function implementExecutor(b: LoopBindings): NodeExecutor {
         {
           name: 'implement',
           passed: true,
-          detail: `wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
+          // Provenance names the model+effort that truly served (degradation
+          // recorded), so the trace never implies more than ran [CLM-0078].
+          detail: `[${servedRef(seam.served)}] wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
         },
       ],
       cost,
@@ -325,7 +332,8 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
   return async (input) => {
     const task = TaskContractSchema.parse(input);
     const base = await assembleBrief(b.kern, task);
-    const { output } = await b.invokeFor(NODE_TIERS.research)(researcherPrompt(task, base));
+    const seam = b.invokeFor('research');
+    const { output } = await seam.invoke(researcherPrompt(task, base));
     const findings = output.trim();
     if (findings.length === 0) return base;
     return BriefSchema.parse({
@@ -337,7 +345,11 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
           content: findings,
           tokens: estimateTokens(findings),
           priority: 2,
-          provenance: [{ ref: `adapter:${b.adapter}` }, { ref: 'template:researcher' }],
+          provenance: [
+            { ref: `adapter:${b.adapter}` },
+            { ref: 'template:researcher' },
+            { ref: servedRef(seam.served) },
+          ],
         },
       ],
     });

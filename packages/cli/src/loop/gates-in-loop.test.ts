@@ -17,6 +17,8 @@ import type { ChildResult, NodeContext } from '@kernloop/workflows';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { buildLoopExecutors, type LoopBindings, type LoopRefs } from './executors.js';
 import type { LoopInvoke } from './invoke.js';
+import { nodeRequirement } from './node-model.js';
+import { resolveServed } from './node-seam.js';
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-loop-gates-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -59,7 +61,10 @@ function bindingsFor(kern: Kernloop, refs: LoopRefs = {}): LoopBindings {
     kern,
     workspaceDir,
     invoke: scripted,
-    invokeFor: () => scripted,
+    invokeFor: () => ({
+      invoke: scripted,
+      served: resolveServed({ tier: 'medium', effort: 'medium', capabilities: [] }, 'claude'),
+    }),
     adapter: 'claude',
     refs,
   };
@@ -164,6 +169,24 @@ describe('research executor — folds Researcher findings into the Brief [CLM-00
     const research = brief.sections.find((s) => s.name === 'research');
     expect(research).toBeDefined();
     expect(research?.provenance.some((p) => p.ref === 'template:researcher')).toBe(true);
+    kern.close();
+  });
+
+  it('provenance names the SERVED model+effort the node derived [CLM-0078]', async () => {
+    const kern = kernloopFor('research-served');
+    // Per-node seam over the scripted base: research derives from the Researcher
+    // template (large/high) → claude opus, so the served ref names opus@high.
+    const b = bindingsFor(kern);
+    const served: LoopBindings = {
+      ...b,
+      invokeFor: (node) => ({
+        invoke: scripted,
+        served: resolveServed(nodeRequirement(node), 'claude'),
+      }),
+    };
+    const brief = BriefSchema.parse(await buildLoopExecutors(served)['research']?.(task, ctx()));
+    const research = brief.sections.find((s) => s.name === 'research');
+    expect(research?.provenance.some((p) => p.ref === 'model:claude/opus@high')).toBe(true);
     kern.close();
   });
 });

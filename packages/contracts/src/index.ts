@@ -55,6 +55,15 @@ export { OutcomeSchema, OutcomeStatusSchema } from './outcome.js';
 export type { Outcome, OutcomeStatus } from './outcome.js';
 export { ManifestSchema, ManifestKindSchema } from './manifest.js';
 export type { Manifest, ManifestKind } from './manifest.js';
+export {
+  ModelTierSchema,
+  EffortSchema,
+  ModelCapabilitySchema,
+  ModelRequirementSchema,
+  MODEL_TIER_ORDER,
+  EFFORT_ORDER,
+} from './model.js';
+export type { ModelTier, Effort, ModelCapability, ModelRequirement } from './model.js';
 export { contractsVersion } from './version.js';
 
 /**

@@ -23,6 +23,7 @@ import { JsonlCheckpointStore, type ChildResult, type NodeContext } from '@kernl
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { buildLoopExecutors, type LoopBindings, type LoopRefs } from './executors.js';
 import { adapterInvoke, type LoopInvoke } from './invoke.js';
+import { resolveServed, type NodeSeam } from './node-seam.js';
 import {
   LoopResumeError,
   checkpointFile,
@@ -32,6 +33,14 @@ import {
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-loop-exec-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+/** Wrap a scripted invoke as a NodeSeam with honest served provenance (medium/medium on claude). */
+function seamOf(invoke: LoopInvoke): NodeSeam {
+  return {
+    invoke,
+    served: resolveServed({ tier: 'medium', effort: 'medium', capabilities: [] }, 'claude'),
+  };
+}
 
 function kernloopFor(name: string, overlayYaml?: string): Kernloop {
   const repo = path.join(scratch, name);
@@ -95,10 +104,10 @@ function bindingsFor(
 ): LoopBindings {
   const workspaceDir = path.join(scratch, 'unit-ws');
   mkdirSync(workspaceDir, { recursive: true }); // quality checks spawn with cwd = workspace
-  // Injected-invoke parity: every node tier resolves to the same injected
-  // invoke, so a custom invoke reaches per-tier executors too (the loop's
-  // injected-invoke backward-compat contract, [CLM-0068]).
-  return { kern, workspaceDir, invoke, invokeFor: () => invoke, adapter: 'claude', refs };
+  // Injected-invoke parity: every node resolves to the same injected invoke,
+  // so a custom invoke reaches per-node executors too (the loop's
+  // injected-invoke backward-compat contract, [CLM-0078]).
+  return { kern, workspaceDir, invoke, invokeFor: () => seamOf(invoke), adapter: 'claude', refs };
 }
 
 function ctxFor(panel: 3 | 7): NodeContext {

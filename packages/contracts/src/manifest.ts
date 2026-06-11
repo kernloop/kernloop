@@ -8,6 +8,7 @@ import {
   MaturitySchema,
   TierSchema,
 } from './common.js';
+import { ModelRequirementSchema } from './model.js';
 
 /**
  * Manifest kind (spec §4): what category of component is being registered —
@@ -38,6 +39,11 @@ export type ManifestKind = z.infer<typeof ManifestKindSchema>;
  * - `promotion?` — the EvidenceThreshold that earns the next tier
  * - `claims` — backing evidence (ClaimRef[]); empty = experimental
  * - `maturity` — `experimental | stable`
+ * - `model?` — the component's two-axis model demand (tier + effort +
+ *   capabilities, spec §8.4); the single source a model-calling component
+ *   declares so the loop/Router can resolve which adapter+model serves it.
+ *   Optional and backward-compatible: a component that makes no model call (or
+ *   a pre-existing manifest) simply omits it.
  */
 export const ManifestSchema = z.strictObject({
   name: z.string().min(1),
@@ -53,6 +59,7 @@ export const ManifestSchema = z.strictObject({
   promotion: EvidenceThresholdSchema.optional(),
   claims: z.array(ClaimRefSchema),
   maturity: MaturitySchema,
+  model: ModelRequirementSchema.optional(),
 });
 
 /** Inferred Manifest type — see {@link ManifestSchema}. */

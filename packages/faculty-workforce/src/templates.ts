@@ -1,27 +1,25 @@
 /**
  * Agent templates as DATA (spec §5.4: "configuration, not generation").
  * An agent is a manifest instantiated from a template: role prompt + skill
- * set + model tier + budget slice. Nothing here calls a model — generative
- * work happens through an invoke function the composition root binds to the
- * kernel adapters later.
+ * set + model requirement + budget slice. Nothing here calls a model —
+ * generative work happens through an invoke function the composition root
+ * binds to the kernel adapters later.
  */
+import { ModelRequirementSchema, type ModelRequirement, type ModelTier } from '@kernloop/contracts';
 import { z } from 'zod';
 
 /**
- * Model tier of a template (spec §8.4: tiered adapters — Observer/triage on
- * cheap models, Plan/Vote on frontier; declared in manifests, enforced by
- * the Router). Mapping a tier to a concrete model id is a composition-root
- * concern; this faculty only declares the tier as configuration.
- */
-export const ModelTierSchema = z.enum(['cheap', 'frontier']);
-export type ModelTier = z.infer<typeof ModelTierSchema>;
-
-/**
  * One workforce agent template (spec §5.4): role prompt + skill set + model
- * tier + budget slice. `budgetShare` is the fraction of the parent task's
- * budget this role may receive by default when the PM slices budgets —
+ * requirement + budget slice. `budgetShare` is the fraction of the parent
+ * task's budget this role may receive by default when the PM slices budgets —
  * a default allocation hint, not a kernel-enforced ceiling (the kernel
  * meters, the PM allocates).
+ *
+ * `model` is the role's two-axis {@link ModelRequirement} (spec §8.4): the
+ * model `tier` (frontier > large > medium > small) and reasoning `effort` the
+ * role demands. Mapping a tier+effort to a concrete model id + effort arg is a
+ * composition-root concern resolved through the kernel translation seam; this
+ * faculty only declares the requirement as configuration.
  */
 export const AgentTemplateSchema = z.strictObject({
   /** Stable template name, e.g. `pm`; becomes `workforce/<name>` on instantiation. */
@@ -30,8 +28,8 @@ export const AgentTemplateSchema = z.strictObject({
   rolePrompt: z.string().min(1),
   /** Skill names from the skill library this role loads (spec §5.2 procedural memory). */
   skills: z.array(z.string().min(1)),
-  /** Which adapter tier serves this role (spec §8.4). */
-  modelTier: ModelTierSchema,
+  /** The role's two-axis model demand (spec §8.4): tier + effort + capabilities. */
+  model: ModelRequirementSchema,
   /** Default fraction (0, 1] of the parent budget this role may receive. */
   budgetShare: z.number().gt(0).max(1),
 });
@@ -40,12 +38,20 @@ export type AgentTemplate = z.infer<typeof AgentTemplateSchema>;
 /**
  * Expected cost profile per model tier, declared on instantiated manifests
  * for router budget-matching (spec §3.1). Expectations, not meters — the
- * kernel adapters meter actual spend per call.
+ * kernel adapters meter actual spend per call. Effort is noted, not separately
+ * priced: a tier's row is the expectation at its default effort; raising
+ * effort raises realized tokens, which the per-call meters capture.
  */
 export const MODEL_TIER_COST = {
-  cheap: { tokens: 8_000, usd: 0.02, latencyMs: 30_000 },
-  frontier: { tokens: 32_000, usd: 0.5, latencyMs: 120_000 },
+  frontier: { tokens: 48_000, usd: 0.8, latencyMs: 180_000 },
+  large: { tokens: 32_000, usd: 0.5, latencyMs: 120_000 },
+  medium: { tokens: 16_000, usd: 0.1, latencyMs: 60_000 },
+  small: { tokens: 8_000, usd: 0.02, latencyMs: 30_000 },
 } as const satisfies Record<ModelTier, { tokens: number; usd: number; latencyMs: number }>;
+
+/** Build a {@link ModelRequirement} from a partial, applying the schema defaults. */
+const model = (req: Partial<ModelRequirement>): ModelRequirement =>
+  ModelRequirementSchema.parse(req);
 
 const template = (t: AgentTemplate): AgentTemplate => AgentTemplateSchema.parse(t);
 
@@ -54,7 +60,9 @@ const template = (t: AgentTemplate): AgentTemplate => AgentTemplateSchema.parse(
  * Researcher. Research ships as a single Researcher template + the
  * `research` skill pack — NOT a faculty (spec §5.7). Shipped templates are
  * `stable`; anything else instantiates as `experimental` (see
- * instantiateAgent).
+ * instantiateAgent). Tiers reflect each role's load (spec §8.4): the
+ * load-bearing generation roles (Coder, PM, Researcher) on `large` at high
+ * effort; the judging/writing roles (Reviewer, Documenter) on `medium`.
  */
 export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
   pm: template({
@@ -65,7 +73,7 @@ export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
       'budget slice. Child budgets must sum within the parent budget on every ' +
       'dimension; the kernel meters, you allocate.',
     skills: ['plan-decomposition', 'budget-allocation'],
-    modelTier: 'frontier',
+    model: model({ tier: 'large', effort: 'high' }),
     budgetShare: 0.1,
   }),
   coder: template({
@@ -75,7 +83,7 @@ export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
       'assigned: satisfy its definition of done, produce its evidence, and ' +
       'respect its constraints and budget. Wiring-complete or absent.',
     skills: ['implementation', 'testing'],
-    modelTier: 'frontier',
+    model: model({ tier: 'large', effort: 'high' }),
     budgetShare: 0.5,
   }),
   reviewer: template({
@@ -85,7 +93,7 @@ export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
       'its contract: correctness, constraint violations, untested claims. ' +
       'Report severity-tagged findings; do not rewrite the work.',
     skills: ['diff-review'],
-    modelTier: 'frontier',
+    model: model({ tier: 'medium', effort: 'high' }),
     budgetShare: 0.15,
   }),
   documenter: template({
@@ -95,7 +103,7 @@ export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
       'every capability statement with its claim id. Documentation may state ' +
       'only verified capability.',
     skills: ['docs'],
-    modelTier: 'cheap',
+    model: model({ tier: 'medium', effort: 'high' }),
     budgetShare: 0.1,
   }),
   researcher: template({
@@ -105,7 +113,7 @@ export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
       'task needs — code, specs, prior art — with provenance on every finding. ' +
       'You produce inputs for others; you do not implement.',
     skills: ['research'],
-    modelTier: 'cheap',
+    model: model({ tier: 'large', effort: 'high' }),
     budgetShare: 0.15,
   }),
 };

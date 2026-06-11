@@ -13,9 +13,10 @@ import { ManifestSchema, type Manifest } from '@kernloop/contracts';
  * ratification, never a default (the tier is itself a P2-exit ratification
  * item). Consumes TaskContract (what to judge) and Brief (the one shared
  * compiled context every voter receives, CLM-0039); emits Verdict.
- * Expected cost: the default 3-voter panel on frontier-tier models —
- * declared per spec §8.4 so the Router can budget-match; actual cost is
- * metered by the injected adapters and summed into each Verdict.
+ * Expected cost: the default 3-voter panel on a `large`-tier model at high
+ * effort — the `model` requirement declares that demand per spec §8.4 so the
+ * loop/Router can resolve and budget-match; actual cost is metered by the
+ * injected adapters and summed into each Verdict.
  */
 export const voteGateManifest: Manifest = ManifestSchema.parse({
   name: '@kernloop/faculty-gates/vote',
@@ -40,4 +41,6 @@ export const voteGateManifest: Manifest = ManifestSchema.parse({
   tier: 'advisory',
   claims: ['CLM-0037', 'CLM-0038', 'CLM-0039'],
   maturity: 'stable',
+  // Plan ratification is load-bearing: large tier, high effort (spec §8.4).
+  model: { tier: 'large', effort: 'high', capabilities: [] },
 });
