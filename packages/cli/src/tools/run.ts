@@ -59,6 +59,14 @@ export const RunInputSchema = z.strictObject({
   /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
   resume: z.string().min(1).optional(),
   /**
+   * Force `unlimited` budget mode for this run [CLM-0075]: the run never halts
+   * on budget (overriding the overlay's `budgetMode`). Usage/cost is STILL
+   * metered and reported — unlimited removes the restriction, never the
+   * tracking — and the run is recorded honestly as having run without budget
+   * enforcement. Kc still bounds child iteration.
+   */
+  unlimited: z.boolean().default(false),
+  /**
    * Run in the background: create a `running` job, kick off the capability
    * without awaiting, and return its job id immediately [CLM-0074]. The
    * terminal state is recorded to the job registry when the work settles.
@@ -162,6 +170,8 @@ interface ExecutorOptions {
   adapter?: z.output<typeof RunInputSchema>['adapter'];
   invoke?: LoopInvoke;
   resumeRunId?: string;
+  /** Force unlimited budget mode for the canonical loop [CLM-0075]. */
+  unlimited?: boolean;
 }
 
 /** Close out one executed capability: publish + persist + audit the Outcome. */
@@ -347,6 +357,7 @@ function dispatchSelected(
     ...(options.invoke === undefined ? {} : { invoke: options.invoke }),
     adapter: parsed.adapter,
     ...(parsed.resume === undefined ? {} : { resumeRunId: parsed.resume }),
+    ...(parsed.unlimited ? { unlimited: true } : {}),
   };
   return runUnderJob(
     kern,

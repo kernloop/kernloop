@@ -87,9 +87,19 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.budgets).toEqual({ tokens: 100_000, usd: 1, wallClockMin: 30 });
     expect(overlay.briefTokens).toBe(4_000);
     expect(overlay.K).toBe(3);
+    expect(overlay.Kc).toBe(3); // child-iterate bound default [CLM-0043]
+    expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0075]
     expect(overlay.gates).toEqual({ vote: { strategy: 'simple_majority', panel: 3 }, quality: {} });
     expect(overlay.nodeOverrides).toEqual({});
     expect(overlay.adapters).toBeUndefined(); // tiered adapters are opt-in [CLM-0068]
+  });
+
+  it('loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0075]', () => {
+    const overlay = loadFrom('id: x\nKc: 5\nbudgetMode: unlimited\n');
+    expect(overlay.Kc).toBe(5);
+    expect(overlay.budgetMode).toBe('unlimited');
+    expect(() => loadFrom('id: x\nKc: 0\n')).toThrow(); // Kc floor is 1
+    expect(() => loadFrom('id: x\nbudgetMode: yolo\n')).toThrow(); // enforce | unlimited only
   });
 
   it('loads the optional tiered-adapters block [CLM-0068]', () => {

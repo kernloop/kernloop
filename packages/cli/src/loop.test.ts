@@ -9,113 +9,31 @@
  * durable JSONL; the audit chain verifies; escalate/resume is proven at the
  * composition-root level [CLM-0043, CLM-0044].
  */
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import type { Cost } from '@kernloop/contracts';
 import { verifyChain } from '@kernloop/kernel';
-import { parseTscOutput, type QualityCheck } from '@kernloop/faculty-gates';
-import { createKernloop, type Kernloop } from './kernel.js';
 import { checkpointFile, type LoopInvoke, type LoopReport } from './loop/index.js';
 import { runTool } from './tools/run.js';
 import { statusTool } from './tools/status.js';
 import { readEnvelopes } from './tools/audit.js';
+import {
+  BROKEN_TS,
+  COST,
+  GREET_TS,
+  fixtureRepo as makeFixtureRepo,
+  kernloopFor,
+  loopScratch,
+  scriptedInvoke,
+  typecheck,
+} from './loop-fixtures.js';
 
-/** The monorepo root's real TypeScript compiler (a root devDependency). */
-const monoRoot = path.resolve(import.meta.dirname, '../../..');
-const tscJs = createRequire(path.join(monoRoot, 'package.json')).resolve('typescript/lib/tsc.js');
-
-const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-loop-'));
+const scratch = loopScratch();
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
-/** A REAL repository: git-initialized, with a tiny real TypeScript package. */
-function fixtureRepo(name: string, overlayYaml?: string): string {
-  const repo = path.join(scratch, name);
-  mkdirSync(path.join(repo, 'src'), { recursive: true });
-  writeFileSync(
-    path.join(repo, 'package.json'),
-    JSON.stringify({ name: `fixture-${name}`, version: '0.0.0', type: 'module' }, null, 2),
-  );
-  writeFileSync(
-    path.join(repo, 'tsconfig.json'),
-    JSON.stringify({ compilerOptions: { strict: true, noEmit: true }, include: ['src'] }, null, 2),
-  );
-  writeFileSync(path.join(repo, 'src', 'index.ts'), 'export const fixture = true;\n');
-  if (overlayYaml !== undefined) {
-    mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
-    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), overlayYaml);
-  }
-  execFileSync('git', ['init', '-q'], { cwd: repo });
-  execFileSync('git', ['add', '-A'], { cwd: repo });
-  execFileSync(
-    'git',
-    ['-c', 'user.name=fixture', '-c', 'user.email=fixture@test', 'commit', '-q', '-m', 'seed'],
-    { cwd: repo },
-  );
-  return repo;
-}
-
-function kernloopFor(repo: string): Kernloop {
-  return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
-}
-
-/** The fixture's real quality check: the monorepo's actual tsc binary. */
-const typecheck: QualityCheck = {
-  name: 'typecheck',
-  command: process.execPath,
-  args: [tscJs, '--noEmit', '--pretty', 'false', '-p', 'tsconfig.json'],
-  parse: parseTscOutput,
-};
-
-const GREET_TS = 'export function greet(name: string): string {\n  return `hello ${name}`;\n}\n';
-const BROKEN_TS =
-  'export function greet(name: string): string {\n' +
-  "  const broken: number = 'not a number';\n  return broken;\n}\n";
-
-const COST: Cost = { tokens: 7, usd: 0.001 };
-
-/**
- * The scripted model — an honest double for the external CLI, dispatching
- * on the prompts the REAL executors assemble. `vote` is consulted once per
- * voter; `files` is what the coder "writes".
- */
-function scriptedInvoke(script: {
-  vote: () => 'approve' | 'reject';
-  files: Array<{ path: string; content: string }>;
-}): LoopInvoke {
-  return (prompt) => {
-    let output: string;
-    if (prompt.includes('Diff under review')) {
-      // Advisory reviewer: no blocking findings → the review gate approves.
-      output = JSON.stringify({ findings: [], summary: 'no blocking issues found' });
-    } else if (prompt.includes('Investigate the prior art')) {
-      // The Researcher template's findings, folded into the Brief.
-      output = 'Research: greet() is a small typed function; no prior-art conflicts.';
-    } else if (prompt.includes('Proposal under vote')) {
-      const vote = script.vote();
-      const reasoning = vote === 'approve' ? 'sound, scoped plan' : 'scope is too vague to ship';
-      output = `My ballot follows.\n${JSON.stringify({ vote, reasoning })}`;
-    } else if (prompt.includes('"subtasks"')) {
-      output = JSON.stringify({
-        subtasks: [
-          {
-            goal: 'implement the greet feature in src/greet.ts',
-            budget: { tokens: 1_000, usd: 0.01, wallClockMin: 5 },
-            assignTo: 'coder',
-          },
-        ],
-      });
-    } else if (prompt.includes('"files"')) {
-      output = `Change set:\n${JSON.stringify({ files: script.files, notes: 'adds greet()' })}`;
-    } else {
-      output = 'Plan: add src/greet.ts exporting a typed greet(name); verify with tsc.';
-    }
-    return Promise.resolve({ output, cost: COST });
-  };
-}
+/** Build a fixture repo under this file's scratch dir. */
+const fixtureRepo = (name: string, overlayYaml?: string): string =>
+  makeFixtureRepo(scratch, name, overlayYaml);
 
 const MAIN_TRACE = [
   'frame',
@@ -290,8 +208,13 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
     kern.close();
   }, 120_000);
 
-  it('propagates a child quality failure honestly: the loop completes with a failure Outcome', async () => {
-    const repo = fixtureRepo('fail');
+  it('propagates a child quality failure honestly: a persistently-broken child escalates at Kc and the loop completes with a failure Outcome', async () => {
+    // Kc: 1 → the child re-runs implement once on the quality reject, then
+    // escalates at the bound (initial + 1 re-iteration = 2 attempts). The
+    // coder always emits the same broken file, so quality keeps failing
+    // [CLM-0043]: the child escalates WITHOUT failing the run, and integrate
+    // reports the stuck child honestly.
+    const repo = fixtureRepo('fail', 'id: fixture-fail\nKc: 1\n');
     const kern = kernloopFor(repo);
 
     const result = await runTool(
@@ -321,10 +244,27 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       {
         name: 'child:task-loop-fail.1',
         passed: false,
-        detail: 'implement success; quality fail; review approve (advisory)',
+        // On escalation at the quality bound the child advances without running
+        // review — so the detail carries no review verdict, honestly.
+        detail: 'implement success; quality fail — ESCALATED after 2 attempt(s)',
       },
     ]);
     expect(report.outcome?.distillCandidates).toEqual([]);
+    // The child re-ran implement before escalating: implement appears twice.
+    expect(report.nodeTrace.filter((t) => t.node === 'implement')).toHaveLength(2);
+    // The hash chain recorded the refine history (loop.child.iterate per re-entry).
+    const iterateEvents = readEnvelopes(kern.paths.audit)
+      .filter((e) => e.type === 'loop.child.iterate')
+      .map((e) => e.payload as { childId: string; iteration: number; gate: string });
+    expect(iterateEvents).toEqual([
+      {
+        runId: expect.any(String),
+        childId: 'task-loop-fail.1',
+        iteration: 1,
+        gate: 'quality',
+        findingCount: expect.any(Number),
+      },
+    ]);
     const trace = statusTool(kern, { taskId: 'task-loop-fail' });
     expect(trace.found && trace.trace.status === 'failure').toBe(true);
     kern.close();

@@ -22,6 +22,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
+import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
 import YAML from 'yaml';
 
@@ -141,6 +142,21 @@ export const OverlaySchema = z.strictObject({
   budgets: BudgetsSchema.prefault({}),
   briefTokens: z.number().int().positive().default(4_000),
   K: z.number().int().min(1).default(3),
+  /**
+   * Child-iterate bound (spec §6, §8) [CLM-0043]: a child's implement re-runs
+   * at most Kc times on a quality reject before the child escalates. Bounds
+   * child iteration in BOTH budget modes — unlimited budget is not unlimited
+   * iterations; raising Kc is how you allow more.
+   */
+  Kc: z.number().int().min(1).default(3),
+  /**
+   * Budget enforcement mode (spec §8) [CLM-0075]: `enforce` (default) HALTS a
+   * run whose metered spend exceeds the parent budget; `unlimited` lifts the
+   * restriction but NOT the tracking — usage/cost is metered and reported
+   * identically in both modes. A run-level `--unlimited` override forces
+   * `unlimited` regardless of this default.
+   */
+  budgetMode: BudgetModeSchema.default('enforce'),
   gates: GatesSchema.prefault({}),
   nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
   adapters: AdaptersSchema.optional(),
@@ -221,6 +237,10 @@ function overlayTemplate(defaults: Overlay): string {
     `briefTokens: ${String(defaults.briefTokens)}`,
     '# vote-iterate bound: rejected plans loop at most K times, then escalate to the human (spec §6)',
     `K: ${String(defaults.K)}`,
+    '# child-iterate bound: a child re-runs implement at most Kc times on a quality reject, then escalates (spec §6, §8)',
+    `Kc: ${String(defaults.Kc)}`,
+    '# budget mode: enforce halts a run that exceeds its budget; unlimited never halts but still tracks/reports cost (spec §8)',
+    `budgetMode: ${defaults.budgetMode} # enforce | unlimited (Kc still bounds child iteration in unlimited)`,
     'gates:',
     '  vote:',
     `    strategy: ${defaults.gates.vote.strategy} # simple_majority | supermajority | unanimous`,

@@ -1,6 +1,8 @@
 id: CLM-0041
 statement: >-
-  The PM decomposes a ratified plan into child TaskContracts whose budgets must sum within the parent's budget.
+  The PM decomposes a ratified plan into child TaskContracts whose budgets must sum within the
+  parent's budget — a static decompose-time invariant on the declared budget, independent of the
+  run's budget-enforcement mode (the runtime enforce/unlimited halt is CLM-0075).
 evidence:
   - 'test:packages/faculty-workforce/src/decompose.test.ts::child budgets summing exactly to the parent budget pass on every dimension'
   - 'test:packages/faculty-workforce/src/decompose.test.ts::a token-sum violation throws BudgetExceededError naming the dimension and amounts'

@@ -17,13 +17,21 @@ export function childSignal(result: ChildResult): Signal {
   }
   const implemented = OutcomeSchema.safeParse(result.output);
   const implementStatus = implemented.success ? implemented.data.status : 'missing';
-  const passed = implementStatus === 'success' && result.verdict?.result === 'pass';
+  // An escalated child hit the Kc/budget bound still failing [CLM-0043]: it is
+  // never `passed`, and the signal says so honestly (with how many iterations
+  // were spent), so integrate reports the stuck child rather than hiding it.
+  const passed =
+    result.escalated !== true && implementStatus === 'success' && result.verdict?.result === 'pass';
   const review =
     result.reviewVerdict === undefined ? '' : `; review ${result.reviewVerdict.result} (advisory)`;
+  const escalated =
+    result.escalated === true
+      ? ` — ESCALATED after ${String(result.iteration + 1)} attempt(s)`
+      : '';
   return {
     name: `child:${result.child.id}`,
     passed,
-    detail: `implement ${implementStatus}; quality ${result.verdict?.result ?? 'not run'}${review}`,
+    detail: `implement ${implementStatus}; quality ${result.verdict?.result ?? 'not run'}${review}${escalated}`,
   };
 }
 

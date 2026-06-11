@@ -1,12 +1,20 @@
 id: CLM-0043
 statement: >-
-  The vote-iterate cycle is bounded at K iterations (default 3) before escalating to the human.
+  The vote-iterate cycle is bounded at K iterations (default 3) before escalating to the human; and
+  the child fan-out re-runs implement on a quality reject, bounded by Kc (default 3), folding the
+  gate findings into the coder prompt — at the Kc/budget bound the child escalates without failing
+  the sibling children or the whole run, and each re-iteration is audited.
 evidence:
   - 'test:packages/workflows/src/engine.test.ts::a rejected vote re-enters plan with findings and an incremented iteration, then completes on approval'
   - 'test:packages/workflows/src/engine.test.ts::escalates after exhausting K=1 with the accumulated findings'
   - 'test:packages/workflows/src/engine.test.ts::escalates after exhausting K=3 re-entries (the spec §6 default)'
   - 'test:packages/workflows/src/engine.test.ts::an abstaining panel does not approve — the rejected edge is taken'
   - 'test:packages/workflows/src/resume.test.ts::resume after escalation continues from plan with a fresh iteration budget'
+  - 'test:packages/workflows/src/child-iterate.test.ts::a quality reject re-runs implement once with the findings folded, then passes'
+  - 'test:packages/workflows/src/child-iterate.test.ts::a child failing Kc times escalates WITHOUT failing its sibling or the run'
+  - 'test:packages/workflows/src/child-iterate.test.ts::the review gate is advisory: a rejecting review does NOT re-run implement by default'
+  - 'test:packages/cli/src/loop-iteration.test.ts::a child whose quality fails once then passes re-runs implement with the findings folded into the coder prompt'
+  - 'test:packages/cli/src/loop.test.ts::propagates a child quality failure honestly: a persistently-broken child escalates at Kc and the loop completes with a failure Outcome'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

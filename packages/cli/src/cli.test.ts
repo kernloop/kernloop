@@ -97,6 +97,56 @@ describe('kernloop CLI', () => {
     });
   });
 
+  it('run --budget parses tokens=N,usd=N,wallClock=N into the task budget [CLM-0075]', async () => {
+    const repo = repoDir();
+    const c = capture(repo);
+    expect(
+      await runCli(
+        [
+          'run',
+          '--goal',
+          'budgeted',
+          '--capability',
+          'gate.quality',
+          '--plan',
+          '--id',
+          't-cli-budget',
+          '--budget',
+          'tokens=5000,usd=2.5,wallClock=15',
+        ],
+        c.io,
+      ),
+    ).toBe(0);
+    expect(c.json()).toMatchObject({
+      kind: 'routing',
+      task: { budget: { tokens: 5000, usd: 2.5, wallClockMin: 15 } },
+    });
+  });
+
+  it('run --budget rejects a malformed value loudly', async () => {
+    const c = capture(repoDir());
+    expect(
+      await runCli(
+        ['run', '--goal', 'g', '--capability', 'gate.quality', '--plan', '--budget', 'tokens=oops'],
+        c.io,
+      ),
+    ).toBe(1);
+    expect(c.err()).toContain('--budget');
+  });
+
+  it('run --unlimited is accepted (forces unlimited budget mode) [CLM-0075]', async () => {
+    const repo = repoDir();
+    const c = capture(repo);
+    // --plan short-circuits before execution; the flag is parsed without error.
+    expect(
+      await runCli(
+        ['run', '--goal', 'g', '--capability', 'gate.quality', '--plan', '--unlimited'],
+        c.io,
+      ),
+    ).toBe(0);
+    expect(c.json()).toMatchObject({ kind: 'routing' });
+  });
+
   it('status reports not-found as JSON', async () => {
     const c = capture(repoDir());
     expect(await runCli(['status', '--task-id', 'nope'], c.io)).toBe(0);

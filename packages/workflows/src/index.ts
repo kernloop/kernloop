@@ -18,6 +18,7 @@ export {
 export {
   createEngine,
   EngineConfigSchema,
+  BudgetModeSchema,
   type Engine,
   type EngineConfig,
   type EngineConfigInput,
@@ -25,6 +26,9 @@ export {
   type NodeContext,
   type NodeExecutor,
   type RunOptions,
+  type BudgetGuard,
+  type BudgetMode,
+  type ChildIterateEvent,
 } from './engine.js';
 export {
   InMemoryCheckpointStore,
