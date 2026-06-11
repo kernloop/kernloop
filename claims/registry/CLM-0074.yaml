@@ -1,0 +1,12 @@
+id: CLM-0074
+statement: >-
+  run --async returns a job id immediately and runs the work in the resident
+  process, recording the terminal state to the job registry — a failed
+  background run is recorded as failed, never an unhandled rejection.
+evidence:
+  - 'test:packages/cli/src/tools/run.test.ts::run --async returns a job id immediately and settles the job done with a traceRef [CLM-0074]'
+  - 'test:packages/cli/src/tools/run.test.ts::records a failing async run as failed — never an unhandled rejection [CLM-0074]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

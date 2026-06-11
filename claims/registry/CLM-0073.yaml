@@ -1,0 +1,15 @@
+id: CLM-0073
+statement: >-
+  Every run is recorded in a persisted job registry, and status resolves a job
+  id to its state — running, done, or failed — cross-session from a fresh
+  process over the same overlay.
+evidence:
+  - 'test:packages/cli/src/jobs.test.ts::resolves a job written by a prior handle from a FRESH handle over the same file (cross-session)'
+  - 'test:packages/cli/src/jobs.test.ts::creates a running job, settles it done with a traceRef, and reads it back'
+  - 'test:packages/cli/src/tools/status.test.ts::resolves a job id to its recorded state (done + traceRef) [CLM-0073]'
+  - 'test:packages/cli/src/tools/status.test.ts::resolves a prior run job from a FRESH Kernloop over the same overlay (cross-session) [CLM-0073]'
+  - 'test:packages/cli/src/tools/run.test.ts::records a synchronous run as a job (running → done) so status --job can inspect it [CLM-0073]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

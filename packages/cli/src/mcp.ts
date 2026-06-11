@@ -51,12 +51,13 @@ interface ToolEntry {
 export const TOOL_TABLE: Readonly<Record<KernelToolName, ToolEntry>> = {
   run: {
     description:
-      'The entry point: route a goal/TaskContract via manifests and execute the selected capability, returning an Outcome. execute:false returns the routing decision only.',
+      'The entry point: route a goal/TaskContract via manifests and execute the selected capability, returning an Outcome. execute:false returns the routing decision only. async:true returns a job id immediately and runs the work in this resident process; inspect it with status --job.',
     schema: RunInputSchema,
     handler: (kern, args) => runTool(kern, RunInputSchema.parse(args)),
   },
   status: {
-    description: 'Inspect a task cross-session: its recorded episodic trace summary.',
+    description:
+      'Inspect cross-session, by task id (its recorded episodic trace summary) OR by job id (the persisted job registry: running/done/failed, with traceRef or error). Exactly one of taskId or job.',
     schema: StatusInputSchema,
     handler: (kern, args) => statusTool(kern, StatusInputSchema.parse(args)),
   },

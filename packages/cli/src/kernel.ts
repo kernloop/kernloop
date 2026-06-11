@@ -37,6 +37,7 @@ import { workflowsManifest } from '@kernloop/workflows';
 import type { Manifest } from '@kernloop/contracts';
 import { loadOverlay, overlayPaths, type Overlay, type OverlayPaths } from './overlay.js';
 import { buildExecutors, type CapabilityExecutor } from './executors.js';
+import { createJobStore, type JobStore } from './jobs.js';
 
 /** The three P1 faculty manifests this root registers (spec §5.1–5.3). */
 export const P1_FACULTY_MANIFESTS: readonly Manifest[] = [
@@ -71,9 +72,13 @@ export interface Kernloop {
   /** The observer faculty over the same overlay database file (spec §3.3,
    * §5.5) — table-prefix ownership keeps it out of memory's tables. */
   readonly observer: Observer;
+  /** The persisted job registry (spec §3.4) — every run is recorded here so
+   * `status --job` inspects any run cross-session, and `run --async` returns
+   * a job id immediately. File-backed, so a fresh handle resolves prior jobs. */
+  readonly jobs: JobStore;
   /** Capability name → executor, for capabilities `run` can execute. */
   readonly executors: ReadonlyMap<string, CapabilityExecutor>;
-  /** Close held resources (the memory and observer database handles). */
+  /** Close held resources (the memory, observer, and job-registry handles). */
   close(): void;
 }
 
@@ -91,6 +96,19 @@ export interface CreateKernloopOptions {
 function seedTier(ladder: Ladder, manifest: Manifest): void {
   if (manifest.tier === 'observe') return; // observe is the ladder floor — nothing to record
   ladder.setTier(manifest.name, 'observe', manifest.tier);
+}
+
+/** The faculties' epoch-ms clock option, derived from the optional Date clock. */
+function msClockOption(clock: (() => Date) | undefined): { clock?: () => number } {
+  return clock === undefined ? {} : { clock: () => clock().getTime() };
+}
+
+/** Register every faculty manifest (audited) and seed its ladder tier. */
+function registerFaculties(registry: ManifestRegistry, ladder: Ladder): void {
+  for (const manifest of [...P1_FACULTY_MANIFESTS, ...P2_MANIFESTS, ...P3_MANIFESTS]) {
+    registry.register(manifest);
+    seedTier(ladder, manifest);
+  }
 }
 
 /**
@@ -112,20 +130,14 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
       ? { registry, ladder, store }
       : { registry, ladder, store, rng: options.rng },
   );
-  const memory = createMemory(
-    paths.memory,
-    clock === undefined ? {} : { clock: () => clock().getTime() },
-  );
+  const memory = createMemory(paths.memory, msClockOption(clock));
   // Observer shares the overlay DB file; `observer_*` table prefix is the
   // ownership boundary (proven safe in faculty-observer's store tests).
-  const observer = createObserver(
-    paths.memory,
-    clock === undefined ? {} : { clock: () => clock().getTime() },
-  );
-  for (const manifest of [...P1_FACULTY_MANIFESTS, ...P2_MANIFESTS, ...P3_MANIFESTS]) {
-    registry.register(manifest);
-    seedTier(ladder, manifest);
-  }
+  const observer = createObserver(paths.memory, msClockOption(clock));
+  // The job registry is its own SQLite file in the overlay dir (spec §3.4):
+  // every run is recorded here, so status resolves a job id cross-session.
+  const jobs = createJobStore(paths.jobs, msClockOption(clock));
+  registerFaculties(registry, ladder);
   const kernloop: Kernloop = {
     paths,
     config,
@@ -136,10 +148,12 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
     router,
     memory,
     observer,
+    jobs,
     executors: new Map(),
     close: () => {
       memory.close();
       observer.close();
+      jobs.close();
     },
   };
   // The executor map closes over the assembled system; build it last.
