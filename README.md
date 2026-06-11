@@ -41,7 +41,7 @@ The manifest registry is the single source of capability truth and rejects inval
 The authority ladder blocks any action above its manifest's tier or the task's ceiling [CLM-0016], and every tier transition is audited, with automatic demotion on threshold breach [CLM-0017].
 Adapter subprocess calls capture all output, enforce wall-clock timeouts [CLM-0019], and meter every call honestly — measured duration always, tokens and dollars only when the CLI reports them [CLM-0020].
 An unavailable model CLI is reported as unavailable, never stubbed [CLM-0021].
-Semantic memory rejects writes without provenance [CLM-0022] and ranks recall by provenance and recency with a decay clock [CLM-0023].
+Semantic memory rejects writes without provenance [CLM-0022] and ranks recall by relevance and recency with a decay clock [CLM-0023].
 Episodic memory persists each Outcome as a summary plus trace pointer, retrievable by task id [CLM-0024], in repo-local SQLite that functions empty if deleted [CLM-0025].
 The router matches tasks to manifests by capability and budget [CLM-0026], never routes above the task's authority ceiling [CLM-0027], and guarantees demoted capabilities an exploration floor [CLM-0028].
 The context compiler is deterministic — identical inputs produce byte-identical Briefs [CLM-0029] — with hard per-section token budgets, priority-ordered drop, and provenance on every section [CLM-0030].

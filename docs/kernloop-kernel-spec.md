@@ -91,10 +91,14 @@ requires human ratification regardless of fitness score.
 
 ### 3.3 Storage
 
-Local-first per machine: SQLite for memory/outcomes/fitness (one DB per
-overlay + one global), append-only JSONL for the audit chain, filesystem for
-skills and workshop tools. No daemon; the MCP server is the only resident
-process, per session.
+Local-first per machine: SQLite for memory/outcomes/fitness — **one DB per
+overlay** — append-only JSONL for the audit chain, filesystem for skills and
+workshop tools. No daemon; the MCP server is the only resident process, per
+session. (A per-machine *global* cross-overlay DB — memory/fitness that
+compounds across repos — is a deferred extension that returns through a claim
+when a real cross-overlay use case exists, not before; ratified 2026-06-11.
+As realized, every fact lives in its overlay's DB and is repo-local by
+construction.)
 
 ### 3.4 The kernel eleven (complete MCP tool surface)
 
@@ -196,8 +200,20 @@ Voters at a gate share one Brief — never per-voter recompilation.
 | Store | Form | Write policy | Read policy |
 |---|---|---|---|
 | **Episodic** | Replayable traces; compressed summary + pointer to full | Auto on Outcome; summarized at write time | Compiler pulls summaries; full trace only on demand |
-| **Semantic** | Typed facts in SQLite | Provenance mandatory; confidence; **decay clock** — unrefreshed facts fade | Ranked by provenance × recency × repo-locality |
-| **Procedural** | SKILL.md library (global + overlay) | Only via `distill` ratification path | Progressive disclosure via Brief skill index |
+| **Semantic** | Typed facts in SQLite | Provenance mandatory; confidence; **decay clock** — unrefreshed facts fade | Ranked by relevance × recency (provenance mandatory at write; repo-locality is intrinsic — the DB is per-overlay) |
+| **Procedural** | SKILL.md library, realized as the `skills/` library | Only via the `distill` ratification path (proposal → human-reviewed move to live) | Progressive disclosure via the compiler's Brief skill index |
+
+> **As-realized note (ratified 2026-06-11).** Procedural memory is **not** a
+> store inside the memory faculty; it is realized as the `distill` tool (writes
+> proposals to `skills/proposed/`), the human-reviewed PR that moves a proposal
+> to the live `skills/` library, and the context compiler's skill index that
+> reads it. The write and read halves are coherent and gated; the spec keeps
+> the three-store *model* but the procedural store's mechanism is this, not a
+> SQLite table. The "global + overlay" SKILL.md scoping (overlay-local skill
+> overrides) is a deferred extension. Semantic ranking is relevance × recency:
+> within a per-overlay DB every fact is already repo-local, so the original
+> "× repo-locality" factor is intrinsic, and provenance is enforced at write
+> rather than weighted at read.
 
 No other memory types. The compounding loop: trace → distill → skill →
 better Brief → better Outcome → better trace.
@@ -206,11 +222,22 @@ better Brief → better Outcome → better trace.
 
 Ship three: `vote` (panel from agent templates; **default 3 voters; 7 only at
 plan ratification**; strategies: simple/super-majority, unanimous —
-others return via claims), `quality` (typecheck/lint/test/coverage/security
-over a workspace), `review` (adversarial diff review with per-voter precision
-recorded into the fitness ledger — **advisory tier until the v1 Epic-E
-promotion criterion is met**; the n=10 eval set and labeling rubric port from
-v1 as the seed).
+others return via claims), `quality` (typecheck/lint/test/coverage over a
+workspace — mechanical, model-free; **security is covered out-of-band** rather
+than as a per-child mechanical check, see note), `review` (adversarial diff
+review with per-voter precision recorded into the fitness ledger — **advisory
+tier until the v1 Epic-E promotion criterion is met**; the n=10 eval set and
+labeling rubric port from v1 as the seed).
+
+> **As-realized note (ratified 2026-06-11).** The quality gate ships
+> typecheck/lint/test (coverage rides the test exit code); it does **not** run
+> a per-child security scanner — no real local, model-free security tool exists
+> to wire without violating "wiring-complete or absent," and running a scanner
+> on every fan-out child would be prohibitively slow. Security is covered
+> out-of-band instead: the dedicated `Security` CI workflow (gitleaks · `pnpm
+> audit` · semgrep) on every push/PR, plus the review gate's adversarial
+> `security` reviewer lens. A per-workspace security QualityCheck returns
+> through a claim if a suitable local tool is adopted.
 
 ### 5.4 Workforce — configuration, not generation
 
