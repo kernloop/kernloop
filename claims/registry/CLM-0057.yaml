@@ -9,6 +9,8 @@ evidence:
   - 'eval:.kernloop/workshop/loc-probe/tool.mjs'
   - 'eval:skills/run-quality-gate-via-kernel/SKILL.md'
   - 'eval:evals/p3-exit/audit.jsonl'
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::%s verifies hash-chain integrity end to end'
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::a single-byte mutation of a committed eval chain fails verification'
 status: verified
 owner: williamzujkowski
 since: 0.4.0

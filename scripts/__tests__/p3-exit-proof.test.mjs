@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { createAuditStore, verifyChain } from '@kernloop/kernel';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const workshop = path.join(repoRoot, '.kernloop/workshop/loc-probe');
@@ -68,5 +69,29 @@ describe('distilled skill (born through the distill ratification path)', () => {
     expect(types.has('cli.distill.proposed')).toBe(true);
     expect(types.has('cli.forge.build')).toBe(true);
     expect(types.has('governance.ratification.vote')).toBe(true);
+  });
+});
+
+// A repo whose thesis is tamper-evidence must tamper-check its own committed
+// proof. The eval chains behind CLM-0046 and CLM-0057 are verified here with
+// the shipped verifier — not merely parsed for the right event names.
+describe('committed eval audit chains verify against the shipped verifier', () => {
+  test.each([
+    ['evals/p2-live-run/audit.jsonl', 66],
+    ['evals/p3-exit/audit.jsonl', 102],
+  ])('%s verifies hash-chain integrity end to end', (rel, length) => {
+    const store = createAuditStore(path.join(repoRoot, rel));
+    expect(verifyChain(store, { expectedLength: length })).toEqual({ ok: true, length });
+  });
+
+  test('a single-byte mutation of a committed eval chain fails verification', () => {
+    const src = fs.readFileSync(path.join(repoRoot, 'evals/p3-exit/audit.jsonl'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-eval-tamper-'));
+    const file = path.join(dir, 'audit.jsonl');
+    const mutated = Buffer.from(src);
+    const mid = Math.floor(mutated.length / 2);
+    mutated[mid] = mutated[mid] === 0x61 ? 0x62 : 0x61;
+    fs.writeFileSync(file, mutated);
+    expect(verifyChain(createAuditStore(file)).ok).toBe(false);
   });
 });

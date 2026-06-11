@@ -4,6 +4,7 @@ statement: >-
 evidence:
   - eval:evals/p2-live-run/audit.jsonl
   - eval:evals/p2-live-run/checkpoints.jsonl
+  - 'test:scripts/__tests__/p3-exit-proof.test.mjs::%s verifies hash-chain integrity end to end'
   - 'test:packages/cli/src/loop.test.ts::runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory'
   - 'test:packages/cli/src/loop.test.ts::escalates after K rejected votes with findings, then resumes from the checkpoint to completion'
   - 'test:packages/cli/src/loop.test.ts::propagates a child quality failure honestly: the loop completes with a failure Outcome'
