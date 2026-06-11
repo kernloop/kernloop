@@ -1,0 +1,11 @@
+id: CLM-0067
+statement: >-
+  The loop's research node invokes the Researcher template through the model
+  seam, folding gathered findings into the Brief as a provenance-tagged
+  section.
+evidence:
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::appends a research section carrying template:researcher provenance'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

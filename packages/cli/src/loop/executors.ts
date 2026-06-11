@@ -16,19 +16,19 @@ import {
   BriefSchema,
   OutcomeSchema,
   TaskContractSchema,
+  VerdictSchema,
   type Brief,
-  type Cost,
-  type Finding,
-  type Signal,
   type TaskContract,
 } from '@kernloop/contracts';
 import {
   PANEL_DEFAULT,
   PANEL_RATIFICATION,
+  REVIEW_PANEL_DEFAULT,
+  runReviewGate,
   runVoteGate,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
-import { SHIPPED_TEMPLATES, decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
+import { decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
 import { estimateTokens } from '@kernloop/faculty-compiler';
 import type { ChildResult, NodeExecutor } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
@@ -42,7 +42,15 @@ import {
   type LoopInvoke,
   type ViolationSink,
 } from './invoke.js';
-import { ballotInvoker, briefText } from './seams.js';
+import { ballotInvoker, briefText, reviewerInvoker } from './seams.js';
+import {
+  coderPrompt,
+  decomposePrompt,
+  planPrompt,
+  researcherPrompt,
+  writtenDiff,
+} from './prompts.js';
+import { childSignal, sumChildCosts } from './aggregate.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -50,6 +58,11 @@ export interface LoopRefs {
   framedTask?: TaskContract;
   researchBrief?: Brief;
   planBrief?: Brief;
+  /** Files each child's implement step wrote, keyed by child id — the diff
+   * the advisory review gate reads. Not checkpointed: on a resume that lands
+   * after implement but before review, the stash is empty and review abstains
+   * honestly (it is advisory, so the run is unaffected). */
+  writtenByChild?: Record<string, ReadonlyArray<{ path: string; content: string }>>;
 }
 
 /** What the executor set is bound to for one run. */
@@ -64,66 +77,6 @@ export interface LoopBindings {
   /** Quality-check override (tests); real defaults otherwise. */
   readonly checks?: readonly QualityCheck[];
   readonly refs: LoopRefs;
-}
-
-/** A shipped workforce template, or a loud failure naming the gap. */
-function shippedTemplate(name: string) {
-  const template = SHIPPED_TEMPLATES[name];
-  if (template === undefined) throw new Error(`workforce template "${name}" is not shipped`);
-  return template;
-}
-
-/** The plan prompt: PM role + compiled brief + prior vote findings. */
-function planPrompt(research: Brief, findings: readonly Finding[]): string {
-  const parts = [shippedTemplate('pm').rolePrompt, '## Compiled brief', briefText(research)];
-  if (findings.length > 0) {
-    parts.push(
-      '## Prior vote findings (address every one)',
-      findings.map((f) => `- [${f.severity}] ${f.message}`).join('\n'),
-    );
-  }
-  parts.push(
-    'Write the implementation plan for this task as concise, reviewable prose. Plain text, no JSON.',
-  );
-  return parts.join('\n\n');
-}
-
-/** The PM decomposition prompt with the strict subtasks contract. */
-function decomposePrompt(parent: TaskContract, planText: string): string {
-  return [
-    shippedTemplate('pm').rolePrompt,
-    '## Parent task',
-    JSON.stringify(
-      { id: parent.id, goal: parent.goal, constraints: parent.constraints, budget: parent.budget },
-      null,
-      2,
-    ),
-    '## Ratified plan',
-    planText,
-    'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
-      'commentary before or after. Exact shape: ' +
-      '{"subtasks":[{"goal":"…","budget":{"tokens":N,"usd":N,"wallClockMin":N},' +
-      '"assignTo":"pm|coder|reviewer|documenter|researcher"}]}. Subtask budgets must sum ' +
-      'within the parent budget on every dimension. Every subtask must be implementable as ' +
-      'concrete file changes in the workspace — no review-only, research-only, or process ' +
-      'subtasks. Do NOT create verification, test-running, or QA subtasks: an automatic ' +
-      'quality gate (typecheck, lint, tests) already runs after every subtask. Create the ' +
-      'FEWEST subtasks that produce the file changes — usually one or two.',
-  ].join('\n\n');
-}
-
-/** The coder prompt with the strict files contract. */
-function coderPrompt(child: TaskContract): string {
-  return [
-    shippedTemplate('coder').rolePrompt,
-    '## Child task',
-    JSON.stringify({ id: child.id, goal: child.goal, constraints: child.constraints }, null, 2),
-    'Output contract (STRICT): output ONLY one raw JSON object — no markdown fences, no ' +
-      'commentary before or after. Exact shape: ' +
-      '{"files":[{"path":"relative/path.ts","content":"<COMPLETE file content>"}],"notes":"…"}. ' +
-      '"files" MUST contain at least one entry; each entry carries the complete final ' +
-      'content of that file; paths are relative to the workspace root.',
-  ].join('\n\n');
 }
 
 /**
@@ -169,39 +122,6 @@ export function writeWorkspaceFiles(
 /** A violation sink under this run's overlay, labelled with the node. */
 function sinkFor(b: LoopBindings, runId: string, node: string): ViolationSink {
   return { overlayDir: b.kern.paths.dir, runId, node };
-}
-
-/** Mechanical per-child verdict signal for integrate. */
-function childSignal(result: ChildResult): Signal {
-  if (result.error !== undefined) {
-    return { name: `child:${result.child.id}`, passed: false, detail: result.error };
-  }
-  const implemented = OutcomeSchema.safeParse(result.output);
-  const implementStatus = implemented.success ? implemented.data.status : 'missing';
-  const passed = implementStatus === 'success' && result.verdict?.result === 'pass';
-  return {
-    name: `child:${result.child.id}`,
-    passed,
-    detail: `implement ${implementStatus}; quality ${result.verdict?.result ?? 'not run'}`,
-  };
-}
-
-/** Sum the real child costs (implement outcomes + quality verdicts). */
-function sumChildCosts(results: readonly ChildResult[]): Cost {
-  const sum = { tokens: 0, usd: 0, wallClockMs: 0 };
-  for (const result of results) {
-    const implemented = OutcomeSchema.safeParse(result.output);
-    for (const cost of [
-      implemented.success ? implemented.data.cost : undefined,
-      result.verdict?.cost,
-    ]) {
-      if (cost === undefined) continue;
-      sum.tokens += cost.tokens;
-      sum.usd += cost.usd;
-      sum.wallClockMs += cost.wallClockMs ?? 0;
-    }
-  }
-  return sum;
 }
 
 /** The plan node: PM template over the research Brief → a plan-Brief. */
@@ -251,6 +171,44 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
+/**
+ * The review child node (spec §6 "implement → quality gate → review gate").
+ * ADVISORY: an adversarial reviewer panel judges the diff this child wrote;
+ * its Verdict is published (audited) but never blocks integration. If the
+ * diff stash is empty (a resume that landed after implement), the gate
+ * abstains honestly rather than reviewing nothing.
+ */
+function reviewExecutor(b: LoopBindings): NodeExecutor {
+  return async (_input, ctx) => {
+    const childId = ctx.child?.id ?? ctx.taskId;
+    const files = b.refs.writtenByChild?.[childId] ?? [];
+    if (files.length === 0) {
+      const verdict = VerdictSchema.parse({
+        taskId: childId,
+        gate: 'review',
+        result: 'abstain',
+        confidence: 0,
+        findings: [],
+        cost: { tokens: 0, usd: 0, wallClockMs: 0 },
+      });
+      await publishVerdict(b.kern, verdict);
+      return verdict;
+    }
+    const verdict = await runReviewGate({
+      taskId: childId,
+      diff: writtenDiff(files),
+      panel: REVIEW_PANEL_DEFAULT,
+      invokeReviewer: reviewerInvoker({
+        overlayDir: b.kern.paths.dir,
+        runId: ctx.runId,
+        invoke: b.invoke,
+      }),
+    });
+    await publishVerdict(b.kern, verdict);
+    return verdict;
+  };
+}
+
 /** The decompose node: PM via invoke, then the MECHANICAL budget invariant. */
 function decomposeExecutor(b: LoopBindings): NodeExecutor {
   return async (_input, ctx) => {
@@ -274,6 +232,8 @@ function implementExecutor(b: LoopBindings): NodeExecutor {
     const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
     const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
+    // Stash what this child wrote so the advisory review gate can diff it.
+    (b.refs.writtenByChild ??= {})[child.id] = emission.files;
     const notes = emission.notes === '' ? '' : ` — ${emission.notes}`;
     return OutcomeSchema.parse({
       taskId: child.id,
@@ -336,6 +296,36 @@ function retrospectExecutor(b: LoopBindings): NodeExecutor {
 }
 
 /**
+ * The research node (spec §6 Research / §5.7 Researcher template). Compiles
+ * the deterministic context Brief, then invokes the Researcher template
+ * through the model seam and folds its findings in as a provenance-tagged
+ * `research` section. If the Researcher returns nothing, the mechanical Brief
+ * stands on its own (additive, never fail-closed).
+ */
+function researchExecutor(b: LoopBindings): NodeExecutor {
+  return async (input) => {
+    const task = TaskContractSchema.parse(input);
+    const base = await assembleBrief(b.kern, task);
+    const { output } = await b.invoke(researcherPrompt(task, base));
+    const findings = output.trim();
+    if (findings.length === 0) return base;
+    return BriefSchema.parse({
+      ...base,
+      sections: [
+        ...base.sections,
+        {
+          name: 'research',
+          content: findings,
+          tokens: estimateTokens(findings),
+          priority: 2,
+          provenance: [{ ref: `adapter:${b.adapter}` }, { ref: 'template:researcher' }],
+        },
+      ],
+    });
+  };
+}
+
+/**
  * The complete executor set for the CANONICAL_LOOP — every executable node
  * resolves (the engine refuses to start otherwise: wiring-complete or
  * absent). `fanout` is structural; the engine runs the child chain itself.
@@ -352,7 +342,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
       b.refs.framedTask = framed;
       return Promise.resolve(framed);
     },
-    research: (input) => assembleBrief(b.kern, TaskContractSchema.parse(input)),
+    research: researchExecutor(b),
     plan: planExecutor(b),
     vote: voteExecutor(b),
     decompose: decomposeExecutor(b),
@@ -366,6 +356,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
           ? {}
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),
       }),
+    review: reviewExecutor(b),
     integrate: integrateExecutor(),
     retrospect: retrospectExecutor(b),
   };

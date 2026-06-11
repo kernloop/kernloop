@@ -33,13 +33,15 @@ export type Cursor = z.infer<typeof CursorSchema>;
 /**
  * One fan-out child's honest result. A child that fails mid-implement gets
  * `error` and no verdict; a child whose quality gate ran gets its Verdict
- * (pass or fail — a failing verdict is a result, not an engine error). Both
- * shapes aggregate into integrate's input unfiltered.
+ * (pass or fail — a failing verdict is a result, not an engine error). The
+ * `reviewVerdict` is the advisory review gate's verdict (recorded, never
+ * blocking). All shapes aggregate into integrate's input unfiltered.
  */
 export const ChildResultSchema = z.strictObject({
   child: TaskContractSchema,
   output: z.unknown().optional(),
   verdict: VerdictSchema.optional(),
+  reviewVerdict: VerdictSchema.optional(),
   error: z.string().min(1).optional(),
 });
 export type ChildResult = z.infer<typeof ChildResultSchema>;

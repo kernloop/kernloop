@@ -55,6 +55,8 @@ function scripted(): Record<string, NodeExecutor> {
     implement: (input) => Promise.resolve(outcome((input as TaskContract).id)),
     quality: (_input, ctx) =>
       Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'quality', 'pass')),
+    review: (_input, ctx) =>
+      Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'review', 'approve')),
     integrate: () => Promise.resolve(outcome(task.id)),
     retrospect: (input) => Promise.resolve(input),
   };
@@ -163,7 +165,9 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
       checkpoints: new InMemoryCheckpointStore(),
       config: { nodeOverrides: { fanout: { specialists: ['api-designer'] } } },
     }).run(task);
-    expect(withSpecialist.nodeTrace.length).toBe(plain.nodeTrace.length + 2);
+    // One specialist = one extra child = one full child sub-chain
+    // (implement → quality → review) = three more trace entries.
+    expect(withSpecialist.nodeTrace.length).toBe(plain.nodeTrace.length + 3);
   });
 
   it('EngineConfigSchema mirrors the overlay: K defaults to 3, vote gate defaults, strict keys', () => {

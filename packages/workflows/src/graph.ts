@@ -18,8 +18,8 @@ import type { ContractRef } from '@kernloop/contracts';
 /** Node kinds in the canonical loop (spec §6). */
 export type LoopNodeKind = 'task' | 'gate' | 'decompose' | 'fanout' | 'integrate' | 'retrospect';
 
-/** The gates the loop invokes (review joins in P3 — absent, not stubbed). */
-export type LoopGateName = 'vote' | 'quality';
+/** The gates the loop invokes. */
+export type LoopGateName = 'vote' | 'quality' | 'review';
 
 /**
  * One node of the loop. `consumes` is the contract of the node's primary
@@ -116,6 +116,7 @@ export const CANONICAL_LOOP: LoopGraph = freezeGraph({
   childChain: [
     { name: 'implement', kind: 'task', consumes: 'TaskContract', emits: 'Outcome' },
     { name: 'quality', kind: 'gate', consumes: 'Outcome', emits: 'Verdict', gate: 'quality' },
+    { name: 'review', kind: 'gate', consumes: 'Outcome', emits: 'Verdict', gate: 'review' },
   ],
 });
 

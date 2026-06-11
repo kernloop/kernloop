@@ -1,0 +1,15 @@
+id: CLM-0064
+statement: >-
+  The canonical loop runs a review gate per child after the quality gate
+  (implement then quality then review); the review Verdict is advisory,
+  audited, and does not block integration.
+evidence:
+  - 'test:packages/workflows/src/graph.test.ts::declares the spec §6 shape: the chain, the vote branch, and the child sub-chain'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::reviews the child diff, returns an advisory Verdict, and audits it'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::abstains honestly when no diff was stashed (a resume that landed after implement)'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::is advisory: a rejecting review does NOT block the child or the run'
+  - 'test:packages/cli/src/loop.test.ts::runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0
