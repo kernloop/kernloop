@@ -47,6 +47,13 @@ describe('ManifestSchema', () => {
     expect(ManifestSchema.parse(JSON.parse(JSON.stringify(valid)))).toEqual(valid);
   });
 
+  it('accepts an optional modelTier (spec §8.4 single source of truth)', () => {
+    expect(ManifestSchema.parse({ ...valid, modelTier: 'cheap' }).modelTier).toBe('cheap');
+    expect(ManifestSchema.parse({ ...valid, modelTier: 'frontier' }).modelTier).toBe('frontier');
+    expect(ManifestSchema.parse(valid).modelTier).toBeUndefined();
+    expect(ManifestSchema.safeParse({ ...valid, modelTier: 'luxury' }).success).toBe(false);
+  });
+
   it('rejects when a required field is missing', () => {
     for (const field of [
       'name',

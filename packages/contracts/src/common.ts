@@ -26,6 +26,16 @@ export const MaturitySchema = z.enum(['experimental', 'stable']);
 export type Maturity = z.infer<typeof MaturitySchema>;
 
 /**
+ * The model tier a manifest declares (spec §8.4): `cheap` for triage/observe
+ * work, `frontier` for plan/vote/generation. This is the SINGLE source of
+ * truth for tiered-adapter routing — the kernel resolves a declared tier to a
+ * configured adapter (a pure lookup, never a model call). A manifest that
+ * makes no model call omits it.
+ */
+export const ModelTierSchema = z.enum(['cheap', 'frontier']);
+export type ModelTier = z.infer<typeof ModelTierSchema>;
+
+/**
  * The names of the frozen five (spec §4). Doubles as the value space for
  * {@link ContractRefSchema}.
  */

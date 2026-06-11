@@ -6,6 +6,7 @@ import {
   CostProfileSchema,
   EvidenceThresholdSchema,
   MaturitySchema,
+  ModelTierSchema,
   TierSchema,
 } from './common.js';
 
@@ -38,6 +39,9 @@ export type ManifestKind = z.infer<typeof ManifestKindSchema>;
  * - `promotion?` — the EvidenceThreshold that earns the next tier
  * - `claims` — backing evidence (ClaimRef[]); empty = experimental
  * - `maturity` — `experimental | stable`
+ * - `modelTier?` — the declared model tier (spec §8.4: cheap | frontier); the
+ *   SINGLE source of truth for tiered-adapter routing. Omitted by manifests
+ *   that make no model call.
  */
 export const ManifestSchema = z.strictObject({
   name: z.string().min(1),
@@ -53,6 +57,7 @@ export const ManifestSchema = z.strictObject({
   promotion: EvidenceThresholdSchema.optional(),
   claims: z.array(ClaimRefSchema),
   maturity: MaturitySchema,
+  modelTier: ModelTierSchema.optional(),
 });
 
 /** Inferred Manifest type — see {@link ManifestSchema}. */

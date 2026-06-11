@@ -15,6 +15,7 @@ import { VerdictSchema } from './verdict.js';
 export {
   TierSchema,
   MaturitySchema,
+  ModelTierSchema,
   CONTRACT_NAMES,
   ContractRefSchema,
   ClaimRefSchema,
@@ -32,6 +33,7 @@ export {
 export type {
   Tier,
   Maturity,
+  ModelTier,
   ContractRef,
   ClaimRef,
   EvidenceRequirement,

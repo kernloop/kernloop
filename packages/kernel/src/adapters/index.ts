@@ -44,3 +44,4 @@ export {
   AdapterExecutionError,
   AdapterOutputError,
 } from './errors.js';
+export { adapterForTier, UnknownModelTierError, type TierAdapters } from './tier.js';
