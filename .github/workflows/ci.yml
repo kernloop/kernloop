@@ -41,6 +41,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm claims:check
+      # The README enforcement table is generated, never hand-edited — fail
+      # if it drifts from the registry.
+      - run: node scripts/render-claims.mjs --check
 
   governance:
     name: governance

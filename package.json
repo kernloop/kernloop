@@ -14,6 +14,7 @@
     "lint": "eslint . --max-warnings 0 && node scripts/loc-check.mjs",
     "wiring:check": "node scripts/wiring-check.mjs",
     "claims:check": "tsx claims/src/check.ts",
+    "claims:render": "node scripts/render-claims.mjs",
     "claims:verify-ran": "node scripts/verify-claim-tests.mjs",
     "governance:check": "node scripts/governance-check.mjs",
     "audit:selftest": "node scripts/audit-selftest.mjs",
