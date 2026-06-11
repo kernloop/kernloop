@@ -82,7 +82,7 @@ wholesale and no v1 package is imported. This file records the deltas.
   has a no-new-runtime-deps rule and a CLI-subprocess layer, so ollama is
   defined over `ollama run <model>` with prompt via stdin, plain-text
   output, **no usage reported** (the CLI prints none non-interactively) and
-  `experimental: true` per spec §5.7. It requires an explicit model — no
+  `experimental: true` per spec §5.8. It requires an explicit model — no
   default model ships, because choosing one would be a routing decision.
 - opencode `part.cost` is read as reported usd; v1 parsed tokens but ignored
   the cost field.

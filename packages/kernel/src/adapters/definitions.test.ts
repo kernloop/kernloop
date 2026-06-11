@@ -71,7 +71,7 @@ describe('uniform adapter interface (CLM-0021)', () => {
     }
   });
 
-  it('marks only ollama experimental (spec §5.7)', () => {
+  it('marks only ollama experimental (spec §5.8)', () => {
     for (const name of ADAPTER_NAMES) {
       expect(adapterDefinitions[name].experimental).toBe(name === 'ollama');
     }
@@ -244,7 +244,7 @@ describe('opencode definition', () => {
   });
 });
 
-describe('ollama definition (experimental, spec §5.7)', () => {
+describe('ollama definition (experimental, spec §5.8)', () => {
   const definition = adapterDefinitions.ollama;
 
   it('requires an explicit model — no default exists', () => {

@@ -1,6 +1,6 @@
 /**
  * The five model-CLI adapter definitions as data (spec §3.1 Adapters):
- * claude, codex, gemini, opencode, and ollama (experimental per spec §5.7).
+ * claude, codex, gemini, opencode, and ollama (experimental per spec §5.8).
  *
  * A definition records the command name, how to shape argv/stdin for one
  * prompt, and how to read response text + token/cost usage back out of the
@@ -126,7 +126,7 @@ export interface AdapterDefinition {
   readonly name: AdapterName;
   /** Executable looked up on PATH. */
   readonly command: string;
-  /** True for adapters shipped at the `experimental` tier (spec §5.7). */
+  /** True for adapters shipped at the `experimental` tier (spec §5.8). */
   readonly experimental: boolean;
   /** True when the CLI cannot run without an explicit model (ollama). */
   readonly requiresModel: boolean;
@@ -266,7 +266,7 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
   ollama: {
     name: 'ollama',
     command: 'ollama',
-    // Experimental until claimed (spec §5.7) — reported honestly, not hidden.
+    // Experimental until claimed (spec §5.8) — reported honestly, not hidden.
     experimental: true,
     // `ollama run` has no default model; the caller must name one.
     requiresModel: true,

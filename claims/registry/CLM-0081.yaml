@@ -1,0 +1,15 @@
+id: CLM-0081
+statement: >-
+  The canonical loop records the NORMALIZED served model identity — the real model class behind the
+  served alias, named family, generation, tier, and resolvedBy — in each model-calling node's
+  provenance alongside the raw served ref, admitting an honest unknown for a harness-default node
+  where kernloop pinned no model.
+evidence:
+  - 'test:packages/cli/src/loop/node-seam.test.ts::normalizes a catalogued served alias to the real model class (table)'
+  - 'test:packages/cli/src/loop/node-seam.test.ts::a harness-default served model (empty alias) is honestly unknown'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::provenance also names the NORMALIZED served identity (table hit) [CLM-0081]'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::a harness-default served model normalizes to an honest unknown identity [CLM-0081]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.8.0

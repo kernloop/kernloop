@@ -131,7 +131,7 @@ packages/contracts/   FROZEN FIVE (TaskContract, Brief, Verdict, Outcome,
 packages/kernel/      registry · router · audit · ladder · bus · adapters
                       — protected path
 packages/faculty-*/   compiler, memory, gates, workforce, observer,
-                      toolsmith
+                      toolsmith, models
 packages/workflows/   canonical loop graph + engine
 packages/cli/         kernloop init/doctor/run/…
 claims/               claims registry + schema — protected path

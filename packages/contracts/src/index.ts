@@ -60,10 +60,17 @@ export {
   EffortSchema,
   ModelCapabilitySchema,
   ModelRequirementSchema,
+  ModelIdentitySchema,
   MODEL_TIER_ORDER,
   EFFORT_ORDER,
 } from './model.js';
-export type { ModelTier, Effort, ModelCapability, ModelRequirement } from './model.js';
+export type {
+  ModelTier,
+  Effort,
+  ModelCapability,
+  ModelRequirement,
+  ModelIdentity,
+} from './model.js';
 export { contractsVersion } from './version.js';
 
 /**

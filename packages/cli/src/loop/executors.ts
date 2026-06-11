@@ -52,7 +52,7 @@ import {
 } from './prompts.js';
 import { childSignal, sumChildCosts } from './aggregate.js';
 import type { TieredNode } from './node-model.js';
-import { servedRef, type NodeSeam } from './node-seam.js';
+import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -157,6 +157,7 @@ function planExecutor(b: LoopBindings): NodeExecutor {
             { ref: `adapter:${b.adapter}` },
             { ref: 'template:pm' },
             { ref: servedRef(seam.served) },
+            { ref: identityRef(seam.served) },
           ],
         },
       ],
@@ -267,8 +268,9 @@ function implementExecutor(b: LoopBindings): NodeExecutor {
           name: 'implement',
           passed: true,
           // Provenance names the model+effort that truly served (degradation
-          // recorded), so the trace never implies more than ran [CLM-0078].
-          detail: `[${servedRef(seam.served)}] wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
+          // recorded) AND the normalized model class behind the served alias
+          // [CLM-0081], so the trace never implies more than ran [CLM-0078].
+          detail: `[${servedRef(seam.served)} ${identityRef(seam.served)}] wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
         },
       ],
       cost,
@@ -322,7 +324,7 @@ function retrospectExecutor(b: LoopBindings): NodeExecutor {
 }
 
 /**
- * The research node (spec §6 Research / §5.7 Researcher template). Compiles
+ * The research node (spec §6 Research / §5.8 Researcher template). Compiles
  * the deterministic context Brief, then invokes the Researcher template
  * through the model seam and folds its findings in as a provenance-tagged
  * `research` section. If the Researcher returns nothing, the mechanical Brief
@@ -349,6 +351,7 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
             { ref: `adapter:${b.adapter}` },
             { ref: 'template:researcher' },
             { ref: servedRef(seam.served) },
+            { ref: identityRef(seam.served) },
           ],
         },
       ],

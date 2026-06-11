@@ -280,7 +280,23 @@ Per decision: ships in v2.0, under the strictest regime in the system.
 - **Audit:** every build, test run, and invocation appends full provenance
   (spec hash, generator model, sandbox profile) to the chain.
 
-### 5.7 Day-one deferrals inside faculties
+### 5.7 Models — supply-side identity normalization
+
+A small faculty (`faculty-models`) that turns a served model alias/id into a
+normalized **`ModelIdentity`** — the SUPPLY dual of the `ModelRequirement`
+demand (§8.4). `resolveIdentity` is a pure, layered lookup: a vendored
+catalog snapshot (the models.dev pattern, models the adapters actually emit) →
+a rule-parse of the canonical `provider/family-generation-variant` shape → an
+honest UNKNOWN (family `unknown`, tier defaulted DOWN, all metadata `null`).
+Every metadata field is nullable and carries a `resolvedBy: table | rule |
+unknown` provenance; it never throws, never guesses cost/context, and makes no
+cross-provider "newer-than" comparison (generation is an opaque label). The
+loop records the normalized identity in Brief provenance so a report names the
+real model class — or admits `unknown` (a harness-default pick) honestly. The
+faculty acts at `observe` tier: it normalizes, it does not route or call a
+model. Discovery (live `/v1/models` enumeration) is a deferred extension.
+
+### 5.8 Day-one deferrals inside faculties
 
 Research ships as a single Researcher template + a `research` skill pack —
 not a faculty. Graph-engine checkpoint/resume ships; cross-machine anything
@@ -397,6 +413,7 @@ kernloop/                       # pnpm + turborepo, Node 22, MIT
 │   ├── faculty-workforce/
 │   ├── faculty-observer/
 │   ├── faculty-toolsmith/
+│   ├── faculty-models/         # model-identity normalization + vendored catalog
 │   ├── workflows/              # canonical graph + engine
 │   └── cli/                    # kernloop init/doctor/run/…
 ├── skills/                     # global skill library

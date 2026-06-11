@@ -1,0 +1,136 @@
+{
+  "snapshot": "2026-06-11",
+  "note": "Pinned models.dev-pattern snapshot. Vendored, not fetched (discovery via /v1/models is a later phase). Keys are the served aliases/ids kernloop's five adapters actually emit; values carry family/generation/variant/tier and (nullable) context+cost. Hand-maintained; refresh by re-pinning, never at runtime.",
+  "models": {
+    "fable": {
+      "provider": "anthropic",
+      "family": "claude-opus",
+      "generation": "5",
+      "variant": "fable",
+      "tier": "frontier",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 15,
+      "outputCostPerMTok": 75
+    },
+    "opus": {
+      "provider": "anthropic",
+      "family": "claude-opus",
+      "generation": "4.8",
+      "variant": null,
+      "tier": "large",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 15,
+      "outputCostPerMTok": 75
+    },
+    "sonnet": {
+      "provider": "anthropic",
+      "family": "claude-sonnet",
+      "generation": "4.5",
+      "variant": null,
+      "tier": "medium",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 3,
+      "outputCostPerMTok": 15
+    },
+    "haiku": {
+      "provider": "anthropic",
+      "family": "claude-haiku",
+      "generation": "4.5",
+      "variant": null,
+      "tier": "small",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 1,
+      "outputCostPerMTok": 5
+    },
+    "gpt-5.5": {
+      "provider": "openai",
+      "family": "gpt",
+      "generation": "5.5",
+      "variant": null,
+      "tier": "large",
+      "contextWindow": 400000,
+      "inputCostPerMTok": 10,
+      "outputCostPerMTok": 30
+    },
+    "gpt-5.4": {
+      "provider": "openai",
+      "family": "gpt",
+      "generation": "5.4",
+      "variant": null,
+      "tier": "medium",
+      "contextWindow": 400000,
+      "inputCostPerMTok": 5,
+      "outputCostPerMTok": 15
+    },
+    "gpt-5.5-mini": {
+      "provider": "openai",
+      "family": "gpt",
+      "generation": "5.5",
+      "variant": "mini",
+      "tier": "small",
+      "contextWindow": 400000,
+      "inputCostPerMTok": 1,
+      "outputCostPerMTok": 4
+    },
+    "gpt-5.5-nano": {
+      "provider": "openai",
+      "family": "gpt",
+      "generation": "5.5",
+      "variant": "nano",
+      "tier": "small",
+      "contextWindow": 400000,
+      "inputCostPerMTok": 0.5,
+      "outputCostPerMTok": 2
+    },
+    "gemini-3.1-pro": {
+      "provider": "google",
+      "family": "gemini-pro",
+      "generation": "3.1",
+      "variant": null,
+      "tier": "large",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 7,
+      "outputCostPerMTok": 21
+    },
+    "gemini-3-flash": {
+      "provider": "google",
+      "family": "gemini-flash",
+      "generation": "3",
+      "variant": null,
+      "tier": "medium",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 0.5,
+      "outputCostPerMTok": 1.5
+    },
+    "gemini-3.1-flash-lite": {
+      "provider": "google",
+      "family": "gemini-flash",
+      "generation": "3.1",
+      "variant": "lite",
+      "tier": "small",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 0.1,
+      "outputCostPerMTok": 0.4
+    },
+    "llama3.3": {
+      "provider": "local",
+      "family": "llama",
+      "generation": "3.3",
+      "variant": null,
+      "tier": "medium",
+      "contextWindow": 128000,
+      "inputCostPerMTok": 0,
+      "outputCostPerMTok": 0
+    },
+    "qwen3": {
+      "provider": "local",
+      "family": "qwen",
+      "generation": "3",
+      "variant": null,
+      "tier": "medium",
+      "contextWindow": 256000,
+      "inputCostPerMTok": 0,
+      "outputCostPerMTok": 0
+    }
+  }
+}

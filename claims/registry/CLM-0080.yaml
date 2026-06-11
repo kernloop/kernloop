@@ -1,0 +1,24 @@
+id: CLM-0080
+statement: >-
+  resolveIdentity normalizes a served model alias/id into a ModelIdentity by a pure, layered,
+  honest lookup against a vendored offline catalog — a table hit yields full metadata, a well-formed
+  uncatalogued id is rule-parsed with null metadata, and garbage or the empty string resolves to
+  unknown with its tier defaulted DOWN to small — never throwing, never guessing metadata, and
+  treating generation as an opaque label with no cross-provider arithmetic.
+evidence:
+  - 'test:packages/faculty-models/src/resolve.test.ts::resolves a catalogued alias to full metadata, resolvedBy table'
+  - 'test:packages/faculty-models/src/resolve.test.ts::every served alias the catalog pins resolves by table (parses ModelIdentity)'
+  - 'test:packages/faculty-models/src/resolve.test.ts::rule-parses a well-formed uncatalogued id: family/generation right, metadata null'
+  - 'test:packages/faculty-models/src/resolve.test.ts::rule-parses a trailing :variant suffix off the id'
+  - 'test:packages/faculty-models/src/resolve.test.ts::does NOT default a tier upward: an uncatalogued small-hinted id stays small'
+  - 'test:packages/faculty-models/src/resolve.test.ts::garbage resolves to unknown: tier small, all metadata null, no throw'
+  - 'test:packages/faculty-models/src/resolve.test.ts::the empty string (harness default) resolves to unknown honestly'
+  - 'test:packages/faculty-models/src/resolve.test.ts::NEVER throws on adversarial inputs (control chars, long, only-slash)'
+  - 'test:packages/faculty-models/src/resolve.test.ts::generation is a string, never coerced or compared numerically'
+  - 'test:packages/faculty-models/src/catalog.test.ts::loads the vendored snapshot and stamps the hardcoded pin date'
+  - 'test:packages/faculty-models/src/catalog.test.ts::rejects a malformed snapshot at the zod boundary (honesty over half-load)'
+  - 'test:packages/faculty-models/src/manifest.test.ts::is a valid Manifest at the observe tier'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.8.0

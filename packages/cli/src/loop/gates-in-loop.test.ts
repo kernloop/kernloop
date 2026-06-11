@@ -1,6 +1,6 @@
 /**
  * The advisory review gate (spec §6 child chain) and the Researcher-driven
- * research node (spec §5.7), as loop executors [CLM-0064, CLM-0067].
+ * research node (spec §5.8), as loop executors [CLM-0064, CLM-0067].
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -187,6 +187,45 @@ describe('research executor — folds Researcher findings into the Brief [CLM-00
     const brief = BriefSchema.parse(await buildLoopExecutors(served)['research']?.(task, ctx()));
     const research = brief.sections.find((s) => s.name === 'research');
     expect(research?.provenance.some((p) => p.ref === 'model:claude/opus@high')).toBe(true);
+    kern.close();
+  });
+
+  it('provenance also names the NORMALIZED served identity (table hit) [CLM-0081]', async () => {
+    const kern = kernloopFor('research-identity');
+    // research → Researcher template (large) → claude opus alias, which the
+    // vendored catalog resolves to the claude-opus class @4.8/large by TABLE.
+    const b = bindingsFor(kern);
+    const served: LoopBindings = {
+      ...b,
+      invokeFor: (node) => ({
+        invoke: scripted,
+        served: resolveServed(nodeRequirement(node), 'claude'),
+      }),
+    };
+    const brief = BriefSchema.parse(await buildLoopExecutors(served)['research']?.(task, ctx()));
+    const research = brief.sections.find((s) => s.name === 'research');
+    expect(
+      research?.provenance.some((p) => p.ref === 'identity:claude-opus@4.8/large(table)'),
+    ).toBe(true);
+    kern.close();
+  });
+
+  it('a harness-default served model normalizes to an honest unknown identity [CLM-0081]', async () => {
+    const kern = kernloopFor('research-identity-default');
+    // codex ships no tier alias → the served model is '' (harness default):
+    // kernloop pinned no model, so the identity is honestly unknown, not guessed.
+    const b = bindingsFor(kern);
+    const served: LoopBindings = {
+      ...b,
+      invokeFor: (node) => ({
+        invoke: scripted,
+        served: resolveServed(nodeRequirement(node), 'codex'),
+      }),
+    };
+    const brief = BriefSchema.parse(await buildLoopExecutors(served)['research']?.(task, ctx()));
+    const research = brief.sections.find((s) => s.name === 'research');
+    expect(research?.provenance.some((p) => p.ref === 'identity:unknown(unknown)')).toBe(true);
+    expect(research?.provenance.some((p) => p.ref.startsWith('identity:'))).toBe(true);
     kern.close();
   });
 });

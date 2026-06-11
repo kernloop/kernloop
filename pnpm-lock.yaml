@@ -84,6 +84,9 @@ importers:
       '@kernloop/faculty-memory':
         specifier: workspace:*
         version: link:../faculty-memory
+      '@kernloop/faculty-models':
+        specifier: workspace:*
+        version: link:../faculty-models
       '@kernloop/faculty-observer':
         specifier: workspace:*
         version: link:../faculty-observer
@@ -162,6 +165,19 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      '@types/node':
+        specifier: ^25.9.2
+        version: 25.9.2
+
+  packages/faculty-models:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
       '@types/node':
         specifier: ^25.9.2
         version: 25.9.2
