@@ -69,6 +69,8 @@ function scripted(voteSeq: Array<Verdict['result']> = ['approve']): Record<strin
     implement: (input) => Promise.resolve(outcome((input as TaskContract).id)),
     quality: (_input, ctx) =>
       Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'quality', 'pass')),
+    review: (_input, ctx) =>
+      Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'review', 'approve')),
     integrate: () => Promise.resolve(outcome(task.id)),
     retrospect: (input) => Promise.resolve(input),
   };
@@ -100,18 +102,19 @@ describe('checkpoint content [CLM-0044]', () => {
     const engine = createEngine({ executors: scripted(), checkpoints: store });
     await engine.run(task, { runId: 'run-shape' });
     const records = await store.list('run-shape');
-    expect(records).toHaveLength(11);
+    // 7 main nodes + 2 children × 3-node sub-chain (implement, quality, review).
+    expect(records).toHaveLength(13);
     for (const record of records) {
       expect(() => CheckpointRecordSchema.parse(record)).not.toThrow();
       expect(record.runId).toBe('run-shape');
     }
-    expect(records.map((r) => r.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(records.map((r) => r.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     const first = records[0] as CheckpointRecord;
     expect(first.node).toBe('frame');
     expect(first.iteration).toBe(0);
     // The persisted state already points PAST the completed node.
     expect(first.state.cursor).toEqual({ phase: 'main', node: 'research' });
-    const last = records[10] as CheckpointRecord;
+    const last = records[12] as CheckpointRecord;
     expect(last.node).toBe('retrospect');
     expect(last.state.status).toBe('completed');
     expect(last.state.cursor).toEqual({ phase: 'done' });
@@ -128,8 +131,9 @@ describe('kill and resume [CLM-0044]', () => {
     });
     expect(firstResult.status).toBe('failed');
     expect(firstResult.error?.code).toBe('aborted');
-    // The kill left the last checkpoint intact: the final fan-out child.
-    expect((await store.latest('run-kill'))?.node).toBe('quality');
+    // The kill left the last checkpoint intact: the final fan-out child's
+    // last sub-node (review, the advisory gate) completed before integrate.
+    expect((await store.latest('run-kill'))?.node).toBe('review');
 
     const { executors, calls } = counted(scripted());
     const resumed = await createEngine({ executors, checkpoints: store }).resume('run-kill');
@@ -146,8 +150,10 @@ describe('kill and resume [CLM-0044]', () => {
       'decompose',
       'implement',
       'quality',
+      'review',
       'implement',
       'quality',
+      'review',
       'integrate',
       'retrospect',
     ]);

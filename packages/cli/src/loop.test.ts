@@ -88,7 +88,13 @@ function scriptedInvoke(script: {
 }): LoopInvoke {
   return (prompt) => {
     let output: string;
-    if (prompt.includes('Proposal under vote')) {
+    if (prompt.includes('Diff under review')) {
+      // Advisory reviewer: no blocking findings → the review gate approves.
+      output = JSON.stringify({ findings: [], summary: 'no blocking issues found' });
+    } else if (prompt.includes('Investigate the prior art')) {
+      // The Researcher template's findings, folded into the Brief.
+      output = 'Research: greet() is a small typed function; no prior-art conflicts.';
+    } else if (prompt.includes('Proposal under vote')) {
       const vote = script.vote();
       const reasoning = vote === 'approve' ? 'sound, scoped plan' : 'scope is too vague to ship';
       output = `My ballot follows.\n${JSON.stringify({ vote, reasoning })}`;
@@ -119,6 +125,7 @@ const MAIN_TRACE = [
   'decompose',
   'implement',
   'quality',
+  'review',
   'integrate',
   'retrospect',
 ];
@@ -155,7 +162,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       {
         name: 'child:task-loop-pass.1',
         passed: true,
-        detail: 'implement success; quality pass',
+        detail: 'implement success; quality pass; review approve (advisory)',
       },
     ]);
     expect(report.outcome?.distillCandidates).toEqual([`loop:${report.runId}`]);
@@ -167,7 +174,8 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
     const checkpoints = readFileSync(checkpointFile(kern.paths.dir, report.runId), 'utf8');
     expect(checkpoints.trim().split('\n')).toHaveLength(MAIN_TRACE.length);
 
-    // Audit: the chain verifies and carries both gate verdicts (vote + quality)
+    // Audit: the chain verifies and carries all three gate verdicts
+    // (vote + quality + the advisory review).
     expect(verifyChain(kern.store).ok).toBe(true);
     const gateEvents = readEnvelopes(kern.paths.audit)
       .filter((e) => e.type === 'cli.gate.verdict')
@@ -187,6 +195,14 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
         findings: 0,
         taskId: 'task-loop-pass.1',
         voters: [],
+        wallClockMs: expect.any(Number) as number,
+      },
+      {
+        gate: 'review',
+        result: 'approve',
+        findings: 0,
+        taskId: 'task-loop-pass.1',
+        voters: ['correctness', 'security', 'maintainability'],
         wallClockMs: expect.any(Number) as number,
       },
     ]);
@@ -265,6 +281,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       'decompose',
       'implement',
       'quality',
+      'review',
       'integrate',
       'retrospect',
     ]);
@@ -304,7 +321,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       {
         name: 'child:task-loop-fail.1',
         passed: false,
-        detail: 'implement success; quality fail',
+        detail: 'implement success; quality fail; review approve (advisory)',
       },
     ]);
     expect(report.outcome?.distillCandidates).toEqual([]);

@@ -153,10 +153,15 @@ function advanceChild(graph: LoopGraph, state: RunState, output: unknown): void 
   const { childIndex, sub } = state.cursor;
   const result = state.childResults[childIndex];
   if (result === undefined) return;
-  if (sub === 0) {
-    result.output = output;
-  } else {
+  // Route the sub-node's output to the right slot by its role, not its index,
+  // so the chain can grow (quality → review) without positional assumptions.
+  const subNode = graph.childChain[sub];
+  if (subNode?.gate === 'review') {
+    result.reviewVerdict = output as Verdict;
+  } else if (subNode?.kind === 'gate') {
     result.verdict = output as Verdict;
+  } else {
+    result.output = output;
   }
   if (sub + 1 < graph.childChain.length) {
     state.cursor = { phase: 'fanout', childIndex, sub: sub + 1 };

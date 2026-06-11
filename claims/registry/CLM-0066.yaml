@@ -1,0 +1,12 @@
+id: CLM-0066
+statement: >-
+  A research skill pack ships in the global skill library, so the Researcher
+  template's research skill reference resolves.
+evidence:
+  - 'test:scripts/__tests__/research-skill.test.mjs::the Researcher template references a research skill'
+  - 'test:scripts/__tests__/research-skill.test.mjs::skills/research/SKILL.md exists and is non-empty'
+  - 'eval:skills/research/SKILL.md'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

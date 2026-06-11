@@ -40,7 +40,7 @@ describe('CANONICAL_LOOP as data (spec §6) [CLM-0042]', () => {
     const gates = [...CANONICAL_LOOP.nodes, ...CANONICAL_LOOP.childChain].filter(
       (n) => n.kind === 'gate',
     );
-    expect(gates.map((g) => g.name).sort()).toEqual(['quality', 'vote']);
+    expect(gates.map((g) => g.name).sort()).toEqual(['quality', 'review', 'vote']);
     for (const gate of gates) {
       expect(gate.gate).toBeDefined();
       expect(gate.emits).toBe('Verdict');
@@ -63,8 +63,12 @@ describe('CANONICAL_LOOP as data (spec §6) [CLM-0042]', () => {
     expect(successor(CANONICAL_LOOP, 'vote', 'approved')?.to).toBe('decompose');
     expect(successor(CANONICAL_LOOP, 'vote', 'rejected')?.to).toBe('plan');
     expect(successor(CANONICAL_LOOP, 'vote', 'rejected')?.contract).toBe('Verdict');
-    // Each fan-out child runs implement → quality gate.
-    expect(CANONICAL_LOOP.childChain.map((n) => n.name)).toEqual(['implement', 'quality']);
+    // Each fan-out child runs implement → quality gate → review gate.
+    expect(CANONICAL_LOOP.childChain.map((n) => n.name)).toEqual([
+      'implement',
+      'quality',
+      'review',
+    ]);
     // Terminal node has no successor.
     expect(successor(CANONICAL_LOOP, 'retrospect')).toBeUndefined();
   });

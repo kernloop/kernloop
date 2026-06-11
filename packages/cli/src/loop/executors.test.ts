@@ -58,7 +58,11 @@ const COST: Cost = { tokens: 3, usd: 0.001 };
 /** Scripted invoke for the direct executor tests (always approves). */
 const scripted: LoopInvoke = (prompt) => {
   let output = 'Plan: do the thing.';
-  if (prompt.includes('Proposal under vote')) {
+  if (prompt.includes('Diff under review')) {
+    output = JSON.stringify({ findings: [], summary: 'clean' });
+  } else if (prompt.includes('Investigate the prior art')) {
+    output = 'Research: no prior-art conflicts; the change is self-contained.';
+  } else if (prompt.includes('Proposal under vote')) {
     output = JSON.stringify({ vote: 'approve', reasoning: 'sound' });
   } else if (prompt.includes('"subtasks"')) {
     output = JSON.stringify({
