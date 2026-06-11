@@ -19,9 +19,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The gitleaks GitHub Action requires a paid license for org repos; the
+      # CLI itself is free. Install a pinned release and scan directly.
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+      - run: gitleaks detect --source . --redact --no-banner
 
   sca:
     name: dependencies (pnpm audit)
@@ -43,4 +47,6 @@ jobs:
       image: semgrep/semgrep
     steps:
       - uses: actions/checkout@v6
-      - run: semgrep scan --config auto --error --metrics=off
+      # Explicit rulesets (not --config auto, which requires metrics on);
+      # deterministic and tokenless.
+      - run: semgrep scan --config p/typescript --config p/javascript --config p/secrets --error --metrics=off
