@@ -252,7 +252,14 @@ describe('per-node seam selection through the real executors [CLM-0068]', () => 
     const refs: LoopRefs = { framedTask: task, planBrief, researchBrief: planBrief };
     const ws = path.join(scratch, 'node-seams-ws');
     mkdirSync(ws, { recursive: true });
-    const b: LoopBindings = { kern, workspaceDir: ws, invokeFor, adapter: 'claude', refs };
+    const b: LoopBindings = {
+      kern,
+      workspaceDir: ws,
+      invokeFor,
+      adapter: 'claude',
+      adapterFor: () => 'claude',
+      refs,
+    };
     const ex = buildLoopExecutors(b);
     await ex['research']?.(task, ctx3());
     await ex['plan']?.(planBrief, ctx3());

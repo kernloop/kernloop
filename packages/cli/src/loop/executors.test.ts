@@ -98,7 +98,14 @@ function bindingsFor(
   // Injected-invoke parity: every node resolves to the same injected invoke,
   // so a custom invoke reaches the per-node executors too (the loop's
   // injected-invoke backward-compat contract, [CLM-0068, CLM-0076]).
-  return { kern, workspaceDir, invokeFor: () => invoke, adapter: 'claude', refs };
+  return {
+    kern,
+    workspaceDir,
+    invokeFor: () => invoke,
+    adapter: 'claude',
+    adapterFor: () => 'claude',
+    refs,
+  };
 }
 
 function ctxFor(panel: 3 | 7): NodeContext {
@@ -137,6 +144,22 @@ describe('frame executor', () => {
     expect(framed.goal).toBe('add a greet feature');
     expect(framed.constraints).toEqual(['small', 'typed']);
     expect(refs.framedTask).toEqual(framed); // decompose's parent is the framed task
+    kern.close();
+  });
+});
+
+describe('plan executor provenance is honest about the bound adapter', () => {
+  it('names the per-node resolved adapter (adapterFor), not the run adapter', async () => {
+    const kern = kernloopFor('plan-prov');
+    // A tiered overlay routes the plan node to a different adapter than the run
+    // adapter; the Brief must name the one that truly served it (prime directive).
+    const executors = buildLoopExecutors({ ...bindingsFor(kern), adapterFor: () => 'codex' });
+    const plan = (await executors['plan']?.(planBrief, ctxFor(3))) as {
+      sections: Array<{ provenance: Array<{ ref: string }> }>;
+      compilerVersion: string;
+    };
+    expect(plan.sections[0]?.provenance).toContainEqual({ ref: 'adapter:codex' });
+    expect(plan.compilerVersion).toBe('loop-plan/codex');
     kern.close();
   });
 });

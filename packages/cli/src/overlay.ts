@@ -120,7 +120,7 @@ export type NodeOverride = z.infer<typeof NodeOverrideSchema>;
  * with no `adapters` block is byte-identical to today's single-adapter
  * behavior (the backward-compat guarantee). Each value is one of the five
  * kernel adapter names. The map is consumed only at the loop composition root
- * (loop/index.ts), never by the Router — see loop/tiers.ts for the
+ * (loop/index.ts), never by the Router — see loop/node-tiers.ts for the
  * loop-vs-Router honesty note.
  */
 const AdaptersSchema = z.strictObject({

@@ -77,12 +77,15 @@ describe('instantiateAgent', () => {
     expect(manifest.tier).toBe('suggest');
   });
 
-  it('records overlay and model tier in the capability description', () => {
+  it('records the overlay in the capability description and the tier first-class', () => {
     const pm = SHIPPED_TEMPLATES['pm'];
     if (pm === undefined) throw new Error('missing shipped template pm');
     const manifest = instantiateAgent(pm, { overlay: 'repo-x' });
     expect(manifest.capabilities[0]?.description).toContain('overlay repo-x');
-    expect(manifest.capabilities[0]?.description).toContain('frontier tier');
+    // The model tier is the first-class field, not re-encoded in the prose
+    // (single source of truth, spec §8.4).
+    expect(manifest.modelTier).toBe('frontier');
+    expect(manifest.capabilities[0]?.description).not.toContain('tier');
   });
 
   it('rejects an invalid template and invalid options', () => {

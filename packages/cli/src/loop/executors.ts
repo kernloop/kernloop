@@ -82,8 +82,15 @@ export interface LoopBindings {
    * resolves to that same invoke.
    */
   readonly invokeFor: (node: TieredNode) => LoopInvoke;
-  /** Adapter name, recorded as provenance on generated Brief sections. */
+  /** The run (default) adapter name. */
   readonly adapter: string;
+  /**
+   * The adapter actually bound for a node — its tier's resolved adapter, which
+   * may differ from {@link adapter} under a tiered overlay. Recorded as Brief
+   * provenance so the Brief names the model that truly served the node (the
+   * prime directive: provenance never lies about behavior).
+   */
+  readonly adapterFor: (node: TieredNode) => string;
   /** Quality-check override (tests); real defaults otherwise. */
   readonly checks?: readonly QualityCheck[];
   readonly refs: LoopRefs;
@@ -149,11 +156,11 @@ function planExecutor(b: LoopBindings): NodeExecutor {
           content: output,
           tokens: used,
           priority: 1,
-          provenance: [{ ref: `adapter:${b.adapter}` }, { ref: 'template:pm' }],
+          provenance: [{ ref: `adapter:${b.adapterFor('plan')}` }, { ref: 'template:pm' }],
         },
       ],
       budget: { allotted: b.kern.config.briefTokens, used },
-      compilerVersion: `loop-plan/${b.adapter}`,
+      compilerVersion: `loop-plan/${b.adapterFor('plan')}`,
     });
     b.refs.planBrief = plan;
     return plan;
@@ -328,7 +335,10 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
           content: findings,
           tokens: estimateTokens(findings),
           priority: 2,
-          provenance: [{ ref: `adapter:${b.adapter}` }, { ref: 'template:researcher' }],
+          provenance: [
+            { ref: `adapter:${b.adapterFor('research')}` },
+            { ref: 'template:researcher' },
+          ],
         },
       ],
     });

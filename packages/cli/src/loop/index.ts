@@ -221,6 +221,31 @@ function ensureRunAdaptersAvailable(
  * default invoke requires the chosen adapter's CLI on PATH — probed up
  * front; unavailable is a typed error, never a stub.
  */
+/**
+ * The per-node model seam + its honest adapter-name companion. An injected
+ * invoke makes every node resolve to it (tests unaffected) and reports the run
+ * adapter; otherwise each node's adapter is DERIVED from the manifest/template
+ * it routes to, resolved through the kernel tier resolver, defaulting to the
+ * run adapter [CLM-0068, CLM-0076]. `adapterFor` names the bound adapter so the
+ * Brief provenance never lies about which model served a node.
+ */
+function buildSeams(
+  request: LoopRequest,
+  adapter: AdapterName,
+  tierAdapters: TierAdapters | undefined,
+  base: LoopInvoke,
+  totals: { tokens: number; usd: number },
+): { invokeFor: (node: TieredNode) => LoopInvoke; adapterFor: (node: TieredNode) => string } {
+  if (request.invoke !== undefined) {
+    const injected = meteredInvoke(base, totals);
+    return { invokeFor: () => injected, adapterFor: () => adapter };
+  }
+  return {
+    invokeFor: buildInvokeForNode(adapter, tierAdapters, totals),
+    adapterFor: (node) => nodeAdapter(adapter, tierAdapters, node),
+  };
+}
+
 export async function executeCanonicalLoop(
   kern: Kernloop,
   request: LoopRequest,
@@ -240,21 +265,14 @@ export async function executeCanonicalLoop(
     primeRefs(refs, latest.state);
   }
   const totals = { tokens: 0, usd: 0 };
-  // Default + per-node seams, both metered. An injected invoke makes every
-  // node resolve to it (tests unaffected); else each node's adapter is derived
-  // from the manifest/template it routes to, resolved through the kernel tier
-  // resolver, defaulting to the run adapter [CLM-0068, CLM-0076].
-  const defaultInvoke = meteredInvoke(base, totals);
-  const invokeFor: (node: TieredNode) => LoopInvoke =
-    request.invoke === undefined
-      ? buildInvokeForNode(adapter, tierAdapters, totals)
-      : () => defaultInvoke;
+  const { invokeFor, adapterFor } = buildSeams(request, adapter, tierAdapters, base, totals);
   const engine = createEngine({
     executors: buildLoopExecutors({
       kern,
       workspaceDir: request.workspaceDir,
       invokeFor,
       adapter,
+      adapterFor,
       refs,
       ...(request.checks === undefined ? {} : { checks: request.checks }),
     }),
