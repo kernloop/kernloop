@@ -1,6 +1,6 @@
 /**
  * @kernloop/faculty-models — Layer 2 model-identity normalization faculty
- * (spec §5.2 normalization, §8.4 two-axis model design) [CLM-0080].
+ * (spec §5.7 (Models), §8.4 two-axis model design) [CLM-0080].
  *
  * The SUPPLY side of the model story: where {@link
  * import('@kernloop/contracts').ModelRequirement} is the DEMAND a component

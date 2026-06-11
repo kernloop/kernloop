@@ -143,7 +143,7 @@ export function servedRef(served: ServedModel): string {
 
 /**
  * Normalize what served a node into a {@link ModelIdentity} [CLM-0081] (the
- * SUPPLY side, spec §5.2/§8.4). The served `model` is the harness ALIAS the
+ * SUPPLY side, spec §5.7/§8.4). The served `model` is the harness ALIAS the
  * tier resolved to (`opus`, `gemini-3.1-pro`, or `''` = harness default); the
  * models faculty's vendored catalog maps it to the real model class. A `''`
  * (harness picked its own model — kernloop pinned none) normalizes to an honest

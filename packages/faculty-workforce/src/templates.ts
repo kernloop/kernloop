@@ -58,7 +58,7 @@ const template = (t: AgentTemplate): AgentTemplate => AgentTemplateSchema.parse(
 /**
  * The five shipped templates (spec §5.4): PM, Coder, Reviewer, Documenter,
  * Researcher. Research ships as a single Researcher template + the
- * `research` skill pack — NOT a faculty (spec §5.7). Shipped templates are
+ * `research` skill pack — NOT a faculty (spec §5.8). Shipped templates are
  * `stable`; anything else instantiates as `experimental` (see
  * instantiateAgent). Tiers reflect each role's load (spec §8.4): the
  * load-bearing generation roles (Coder, PM, Researcher) on `large` at high

@@ -1,6 +1,6 @@
 /**
  * resolveIdentity [CLM-0080] — normalize a served model alias/id into a
- * {@link ModelIdentity} (spec §5.2 normalization, the SUPPLY dual of §8.4's
+ * {@link ModelIdentity} (spec §5.7 (Models), the SUPPLY dual of §8.4's
  * ModelRequirement). PURE: no I/O, no model call, no network; it reads only its
  * `rawId` argument and the supplied catalog.
  *
@@ -35,9 +35,12 @@ const UNKNOWN_TIER = 'small' as const;
  */
 function tierFromText(text: string): ModelIdentity['tier'] {
   const t = text.toLowerCase();
-  if (/\b(opus|pro|frontier)\b/.test(t)) return 'large';
-  if (/\b(sonnet|gpt|flash)\b/.test(t)) return 'medium';
+  // Size-DOWN modifiers are checked FIRST so they win over a family word — e.g.
+  // `gpt-5.5-mini` is `small`, not `medium` (the `gpt` family word must not mask
+  // the `mini` size modifier). Defaulting DOWN, never up, is the honest choice.
   if (/\b(haiku|mini|nano|lite|small)\b/.test(t)) return 'small';
+  if (/\b(opus|pro|frontier|max|ultra)\b/.test(t)) return 'large';
+  if (/\b(sonnet|gpt|flash|medium)\b/.test(t)) return 'medium';
   return UNKNOWN_TIER;
 }
 
@@ -76,13 +79,21 @@ function stripVariantSuffix(body: string): { body: string; suffix: string | null
     : { body: body.slice(0, colon), suffix: body.slice(colon + 1) || null };
 }
 
-/** Trailing version token → generation (opaque); the leading words → family. */
-function parseFamilyGeneration(name: string): { family: string; generation: string } | null {
-  // family is one-or-more leading words; generation is a trailing dotted/number
-  // token, optionally followed by a non-numeric variant word we keep on family.
-  const match = /^(.*?)[-\s]?(\d+(?:\.\d+)*)(?:[-_].*)?$/.exec(name);
+/**
+ * Leading words → family; trailing version token → generation (opaque); a
+ * trailing alphabetic suffix after the version → variant (e.g. `gpt-5.5-mini`
+ * → family `gpt`, generation `5.5`, variant `mini`). Captured, not dropped.
+ */
+function parseFamilyGeneration(
+  name: string,
+): { family: string; generation: string; variant: string | null } | null {
+  const match = /^(.*?)[-\s]?(\d+(?:\.\d+)*)(?:[-_]([a-z]+))?$/i.exec(name);
   if (match === null || match[1] === undefined || match[1].length === 0) return null;
-  return { family: match[1].replace(/[-_]+$/, ''), generation: match[2] ?? '0' };
+  return {
+    family: match[1].replace(/[-_]+$/, ''),
+    generation: match[2] ?? '0',
+    variant: match[3] ?? null,
+  };
 }
 
 /**
@@ -103,7 +114,8 @@ function ruleParse(rawId: string): ModelIdentity | null {
       provider,
       family: fg.family,
       generation: fg.generation,
-      variant: suffix,
+      // an explicit `:variant` suffix wins; else the dashed variant from the name
+      variant: suffix ?? fg.variant,
       tier: tierFromText(body),
     },
     'rule',

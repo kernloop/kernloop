@@ -1,5 +1,5 @@
 /**
- * The models faculty's registration record (spec §4, §5.2/§8.4). Parsed
+ * The models faculty's registration record (spec §4, §5.7/§8.4). Parsed
  * through `ManifestSchema` at module load so an invalid manifest fails fast.
  */
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';

@@ -1,6 +1,6 @@
 /**
  * The advisory review gate (spec §6 child chain) and the Researcher-driven
- * research node (spec §5.7), as loop executors [CLM-0064, CLM-0067].
+ * research node (spec §5.8), as loop executors [CLM-0064, CLM-0067].
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

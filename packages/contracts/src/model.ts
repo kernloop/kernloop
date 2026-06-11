@@ -65,7 +65,7 @@ export type ModelRequirement = z.infer<typeof ModelRequirementSchema>;
 
 /**
  * ModelIdentity — the SUPPLY dual of {@link ModelRequirement} [CLM-0080] (spec
- * §5.2 normalization / §8.4 two-axis model design). Where a requirement is the
+ * §5.7 (Models) / §8.4 two-axis model design). Where a requirement is the
  * DEMAND a component declares, an identity is the NORMALIZED description of the
  * model that actually served it: the model class behind a served alias/id, so
  * provenance and (a later phase) fitness name a real model rather than a raw,

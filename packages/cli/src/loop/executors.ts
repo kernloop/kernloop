@@ -324,7 +324,7 @@ function retrospectExecutor(b: LoopBindings): NodeExecutor {
 }
 
 /**
- * The research node (spec §6 Research / §5.7 Researcher template). Compiles
+ * The research node (spec §6 Research / §5.8 Researcher template). Compiles
  * the deterministic context Brief, then invokes the Researcher template
  * through the model seam and folds its findings in as a provenance-tagged
  * `research` section. If the Researcher returns nothing, the mechanical Brief
