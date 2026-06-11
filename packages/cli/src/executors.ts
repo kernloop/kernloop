@@ -41,7 +41,7 @@ export interface ExecutionContext {
   readonly invoke?: LoopInvoke;
   /** Resume this checkpointed loop run instead of starting fresh. */
   readonly resumeRunId?: string;
-  /** Force unlimited budget mode for the canonical loop [CLM-0075]. */
+  /** Force unlimited budget mode for the canonical loop [CLM-0077]. */
   readonly unlimited?: boolean;
 }
 
@@ -221,7 +221,7 @@ function loopExecutionResult(report: LoopReport): ExecutionResult {
       : report.status === 'escalated'
         ? 'partial'
         : 'failure';
-  // Always-on reporting [CLM-0075]: the metered cost rides in BOTH modes; an
+  // Always-on reporting [CLM-0077]: the metered cost rides in BOTH modes; an
   // unlimited run is recorded honestly so no report implies a cap was honored.
   const budgetNote = report.unlimited ? ' (ran without budget enforcement)' : '';
   const signals: Signal[] = [

@@ -149,7 +149,7 @@ export interface LoopRequest {
   /** Quality-check override (tests); real defaults otherwise. */
   readonly checks?: readonly QualityCheck[];
   /**
-   * Force unlimited budget mode for this run [CLM-0075], overriding the
+   * Force unlimited budget mode for this run [CLM-0077], overriding the
    * overlay's `budgetMode`. The run never halts on budget; usage/cost is still
    * metered and reported, and the run is recorded honestly as unlimited.
    */
@@ -162,14 +162,14 @@ export interface LoopReport {
   readonly status: 'completed' | 'escalated' | 'failed';
   readonly nodeTrace: readonly TraceEntry[];
   /**
-   * Total model spend metered through the invoke seams [CLM-0075]. ALWAYS
+   * Total model spend metered through the invoke seams [CLM-0077]. ALWAYS
    * reported, identically in both budget modes — unlimited removes the
    * restriction, never the tracking.
    */
   readonly cost: Cost;
   /**
    * True when the run executed in unlimited budget mode (budget not enforced).
-   * Recorded honestly so a report never implies a cap was honored [CLM-0075].
+   * Recorded honestly so a report never implies a cap was honored [CLM-0077].
    */
   readonly unlimited: boolean;
   readonly outcome?: Outcome;
@@ -212,7 +212,7 @@ function report(
     runId: result.runId,
     status: result.status,
     nodeTrace: result.nodeTrace,
-    // Always-on reporting [CLM-0075]: metered spend rides in both modes.
+    // Always-on reporting [CLM-0077]: metered spend rides in both modes.
     cost: { tokens: totals.tokens, usd: totals.usd },
     unlimited,
     ...(result.outcome === undefined ? {} : { outcome: result.outcome }),
@@ -242,7 +242,7 @@ function ensureRunAdaptersAvailable(
 }
 
 /**
- * The runtime budget guard for one canonical-loop run [CLM-0075]. The limit is
+ * The runtime budget guard for one canonical-loop run [CLM-0077]. The limit is
  * the parent TaskContract's token/usd budget; `spent()` reads the live metered
  * `totals` (always-on tracking). In `enforce` mode the engine halts the run on
  * overspend; `unlimited` never halts but the spend is still metered. The
@@ -323,7 +323,7 @@ function buildLoopEngine(
 }
 
 /**
- * Resolve the run's effective budget mode [CLM-0075]: a run-level --unlimited
+ * Resolve the run's effective budget mode [CLM-0077]: a run-level --unlimited
  * forces unlimited, else the overlay's budgetMode (default enforce). An
  * unlimited run is recorded honestly with a `loop.unlimited` audit event so no
  * report later implies a cap was honored when it wasn't.
@@ -377,7 +377,7 @@ export async function executeCanonicalLoop(
     request.invoke === undefined
       ? buildInvokeForNode(adapter, kern.config, totals)
       : injectedSeamFor(adapter, kern.config, base, totals);
-  // Effective budget mode [CLM-0075]: --unlimited forces unlimited; else the
+  // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
   const mode = resolveBudgetMode(kern, request, runId);
   const engine = buildLoopEngine(kern, request, {

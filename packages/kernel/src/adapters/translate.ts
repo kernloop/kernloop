@@ -1,5 +1,5 @@
 /**
- * The kernel translation seam [CLM-0077] (spec §8.4) — PURE, fail-closed resolution of a
+ * The kernel translation seam [CLM-0079] (spec §8.4) — PURE, fail-closed resolution of a
  * {@link ModelRequirement}'s `tier`/`effort` axes against an adapter's
  * declarative model-routing profile (`tierBinding` / `effort` on
  * {@link AdapterDefinition}).

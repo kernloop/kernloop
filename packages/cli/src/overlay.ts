@@ -167,7 +167,7 @@ export const OverlaySchema = z.strictObject({
    */
   Kc: z.number().int().min(1).default(3),
   /**
-   * Budget enforcement mode (spec §8) [CLM-0075]: `enforce` (default) HALTS a
+   * Budget enforcement mode (spec §8) [CLM-0077]: `enforce` (default) HALTS a
    * run whose metered spend exceeds the parent budget; `unlimited` lifts the
    * restriction but NOT the tracking — usage/cost is metered and reported
    * identically in both modes. A run-level `--unlimited` override forces

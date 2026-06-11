@@ -1,5 +1,5 @@
 /**
- * Kernel translation seam acceptance tests (CLM-0077): the PURE resolution of
+ * Kernel translation seam acceptance tests (CLM-0079): the PURE resolution of
  * a ModelRequirement's tier/effort against an adapter's declarative profile.
  *
  * Pins the honesty contract: tier resolution degrades DOWNWARD ONLY and records

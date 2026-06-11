@@ -1,21 +1,19 @@
 id: CLM-0077
 statement: >-
-  The kernel translates a ModelRequirement against an adapter's declarative profile by a PURE
-  fail-closed lookup — tier resolves to the bound model, degrading DOWNWARD only to the nearest
-  populated tier and recording it; effort maps to the adapter's literal, clamping to the nearest
-  supported level or dropping honestly when the adapter has none — synthesizing nothing.
+  Budget enforcement is a run-level MODE, not a contract change: in enforce mode (default) a run
+  whose metered spend exceeds its parent budget escalates and halts (resumable) rather than silently
+  continuing; in unlimited mode the budget never halts the run, but usage and cost are STILL metered
+  and reported identically, and the run is recorded honestly as having run without budget enforcement.
 evidence:
-  - 'test:packages/kernel/src/adapters/translate.test.ts::returns the exact bound model for a populated tier, not degraded'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::steps DOWNWARD to the nearest populated tier and records degraded'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::NEVER steps upward: a request below the only populated tier defaults the harness'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::maps a supported effort to the adapter literal, not clamped'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::clamps an unsupported level to the nearest supported AT-OR-BELOW, recording clamped'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::clamps UP to the highest supported only when none is at-or-below'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::DROPS effort honestly for an adapter with no effort param (ollama)'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::claude is harness-routed with a full tier ladder + effort + capabilities'
-  - 'test:packages/kernel/src/adapters/translate.test.ts::ollama is concrete-id with NO effort param'
-  - 'test:packages/kernel/src/adapters/definitions.test.ts::rides a resolved arg-effort into argv, and omits it when absent (spec §8.4)'
+  - 'test:packages/workflows/src/child-iterate.test.ts::a bounded run that exceeds its budget escalates (resumable), not silently continues'
+  - 'test:packages/workflows/src/child-iterate.test.ts::an unlimited run that exceeds the nominal budget COMPLETES and never halts on budget'
+  - 'test:packages/workflows/src/child-iterate.test.ts::an over-budget enforce run escalates a child before Kc instead of re-iterating'
+  - 'test:packages/cli/src/loop-iteration.test.ts::an UNLIMITED run that exceeds the nominal budget COMPLETES, still reports full cost, and is recorded as unlimited'
+  - 'test:packages/cli/src/loop-iteration.test.ts::a bounded (enforce) run that exceeds its budget escalates and is resumable, never silently continuing'
+  - 'test:packages/cli/src/overlay.test.ts::loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0077]'
+  - 'test:packages/cli/src/cli.test.ts::run --budget parses tokens=N,usd=N,wallClock=N into the task budget [CLM-0077]'
+  - 'test:packages/cli/src/cli.test.ts::run --unlimited is accepted (forces unlimited budget mode) [CLM-0077]'
   - 'ci:test'
 status: verified
 owner: williamzujkowski
-since: 0.7.0
+since: 0.6.0

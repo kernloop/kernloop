@@ -81,7 +81,7 @@ export const RunStateSchema = z.strictObject({
    * Why an escalated run halted: `vote` (the K vote-iterate bound — resume
    * re-plans with a fresh K after the human edit [CLM-0043]) or `budget` (the
    * run exceeded its budget in enforce mode — resume continues from the cursor
-   * once the human raises the budget or re-runs unlimited [CLM-0075]). Absent
+   * once the human raises the budget or re-runs unlimited [CLM-0077]). Absent
    * while running/completed.
    */
   haltReason: z.enum(['vote', 'budget']).optional(),
