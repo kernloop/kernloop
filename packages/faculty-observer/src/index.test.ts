@@ -21,7 +21,6 @@ describe('the no-privileged-path property (CLM-0056)', () => {
       'LOW_FITNESS_FLOOR',
       'LOW_FITNESS_MIN_INVOCATIONS',
       'LifecycleProposalSchema',
-      'ObserverTrackerUnavailableError',
       'PriorsExportSchema',
       'RoutingPriorSchema',
       'SCHEMA_DDL',

@@ -28,25 +28,13 @@ export class InvalidVerdictError extends Error {
 }
 
 /**
- * Thrown when an issue proposal is malformed (empty title/body/goal) or a
- * filing request references a proposal that does not exist or was already
- * filed.
+ * Thrown when an issue proposal is malformed (empty title/body/goal), or when
+ * marking a proposal filed references a proposal that does not exist, was
+ * already filed, or carries a non-http(s) url (CLM-0056).
  */
 export class InvalidIssueProposalError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'InvalidIssueProposalError';
-  }
-}
-
-/**
- * Thrown when the issue tracker is unreachable: `gh` is absent from PATH,
- * unauthenticated, or exits nonzero (CLM-0056; design note: the Observer
- * reports unavailable — it never silently skips, never stubs success).
- */
-export class ObserverTrackerUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ObserverTrackerUnavailableError';
   }
 }

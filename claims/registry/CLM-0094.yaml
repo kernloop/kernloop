@@ -1,0 +1,24 @@
+id: CLM-0094
+statement: >-
+  The kernloop observer CLI turns lifecycle proposals into tracker issues
+  through a dry-run-default, enforce-tier-gated, audited path: proposals are a
+  pure read, propose snapshots one into observer_issues (de-duped by title),
+  and file builds the tracker CreateIssueInput and acts ONLY at the enforce tier
+  with --execute — at suggest an --execute is refused and stays dry-run (never
+  defaults upward). A real execute files via the tracker and records the
+  returned url onto the proposal (markIssueFiled); the audit event for every op
+  omits the body verbatim (only a bounded char count). The self-filed issue's
+  task-shaped payload re-enters via the ordinary run loop — no auto-action.
+evidence:
+  - 'test:packages/cli/src/observer-commands.test.ts::file with no --execute prints a DRY RUN proposal, spawns nothing, marks nothing'
+  - 'test:packages/cli/src/observer-commands.test.ts::refuses --execute at the suggest tier (stays dry-run, marks nothing)'
+  - 'test:packages/cli/src/observer-commands.test.ts::honors --execute at enforce: files via the tracker AND marks the row filed'
+  - 'test:packages/cli/src/observer-commands.test.ts::an execute-mode tracker failure exits 1 and leaves the row proposed (not filed)'
+  - 'test:packages/cli/src/observer-commands.test.ts::surfaces a boundary rejection in DRY RUN too (oversize title → exit 1, not a green preview)'
+  - 'test:packages/cli/src/observer-commands.test.ts::audits cli.observer.file without the body verbatim (only bodyChars)'
+  - 'test:packages/cli/src/observer-commands.test.ts::propose <n> persists the n-th proposal and audits cli.observer.propose'
+  - 'code:packages/cli/src/observer-commands.ts#observerCommand@doc:/CLM-0094/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

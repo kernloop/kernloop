@@ -5,12 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   createObserver,
   InvalidIssueProposalError,
-  ObserverTrackerUnavailableError,
-  type IssueExec,
   type IssueProposalInput,
   type Observer,
 } from './index.js';
-import { defaultGhExec, spawnCapture } from './issues.js';
 
 const tmpDirs: string[] = [];
 function tmpDir(): string {
@@ -37,34 +34,6 @@ function makeProposalInput(overrides: Partial<IssueProposalInput> = {}): IssuePr
     },
     ...overrides,
   };
-}
-
-/**
- * A REAL fake-gh subprocess (no mock): a node script that asserts the argv
- * shape `gh issue create --title … --body …`, captures what it received to
- * `capturePath`, and prints an issue URL — or misbehaves on demand.
- */
-function fakeGh(behavior: 'ok' | 'unauthed' | 'no-url'): { exec: IssueExec; capturePath: string } {
-  const dir = tmpDir();
-  const capturePath = path.join(dir, 'capture.json');
-  const script = path.join(dir, 'fake-gh.mjs');
-  fs.writeFileSync(
-    script,
-    `import fs from 'node:fs';
-const args = process.argv.slice(2);
-fs.writeFileSync(${JSON.stringify(capturePath)}, JSON.stringify(args));
-if (${JSON.stringify(behavior)} === 'unauthed') {
-  process.stderr.write('gh: To get started with GitHub CLI, please run: gh auth login\\n');
-  process.exit(4);
-}
-if (args[0] !== 'issue' || args[1] !== 'create') { process.stderr.write('unexpected subcommand\\n'); process.exit(2); }
-if (args[2] !== '--title' || args[4] !== '--body' || args.length !== 6) { process.stderr.write('unexpected flags\\n'); process.exit(2); }
-if (${JSON.stringify(behavior)} === 'no-url') { process.stdout.write('Creating issue...\\n'); process.exit(0); }
-process.stdout.write('https://github.com/kernloop/kernloop/issues/123\\n');
-`,
-  );
-  const exec: IssueExec = (args) => spawnCapture(process.execPath, [script, ...args]);
-  return { exec, capturePath };
 }
 
 describe('self-issue proposals (CLM-0056)', () => {
@@ -105,81 +74,57 @@ describe('self-issue proposals (CLM-0056)', () => {
   });
 });
 
-describe('filing via gh (CLM-0056)', () => {
-  it('persists a proposal at suggest tier and files it through a real gh subprocess, storing the issue url', async () => {
+describe('markIssueFiled (CLM-0056) — the PURE DB write the gated CLI calls', () => {
+  it('marks a proposed row filed with the url + filedAt', () => {
     const observer = observerWithTicker();
-    const { exec, capturePath } = fakeGh('ok');
     const proposal = observer.proposeIssue(makeProposalInput());
-    const filed = await observer.fileIssue(proposal, { exec });
+    const url = 'https://github.com/kernloop/kernloop/issues/123';
+    const filed = observer.markIssueFiled(proposal.id, url);
     expect(filed.status).toBe('filed');
-    expect(filed.url).toBe('https://github.com/kernloop/kernloop/issues/123');
+    expect(filed.url).toBe(url);
     expect(filed.filedAt).toBe(1002);
-    expect(observer.getIssue(proposal.id)?.status).toBe('filed');
-
-    // The subprocess really received gh-shaped argv, and the body carries the
-    // ordinary task-shaped payload that re-enters through `run`.
-    const argv = JSON.parse(fs.readFileSync(capturePath, 'utf8')) as string[];
-    expect(argv.slice(0, 3)).toEqual(['issue', 'create', '--title']);
-    expect(argv[3]).toBe(proposal.title);
-    expect(argv[5]).toContain(proposal.body);
-    expect(argv[5]).toContain('"goal"');
-    expect(argv[5]).toContain('feed this to `run` as an ordinary goal');
+    expect(observer.getIssue(proposal.id)).toEqual(filed);
     observer.close();
   });
 
-  it('throws ObserverTrackerUnavailableError when gh is absent', async () => {
+  it('rejects an unknown id', () => {
     const observer = observerWithTicker();
-    const proposal = observer.proposeIssue(makeProposalInput());
-    // A real spawn of a binary that cannot exist — the default-exec code path.
-    const exec: IssueExec = (args) => spawnCapture('kernloop-definitely-no-such-gh', args);
-    await expect(observer.fileIssue(proposal, { exec })).rejects.toThrow(
-      ObserverTrackerUnavailableError,
-    );
-    // Never a silent skip: the proposal stays honestly unfiled.
-    expect(observer.getIssue(proposal.id)?.status).toBe('proposed');
+    expect(() =>
+      observer.markIssueFiled(99, 'https://github.com/kernloop/kernloop/issues/1'),
+    ).toThrow(InvalidIssueProposalError);
     observer.close();
   });
 
-  it('throws ObserverTrackerUnavailableError when gh exits nonzero (unauthenticated)', async () => {
+  it('rejects an already-filed row (idempotency guard, never a silent overwrite)', () => {
     const observer = observerWithTicker();
-    const { exec } = fakeGh('unauthed');
     const proposal = observer.proposeIssue(makeProposalInput());
-    await expect(observer.fileIssue(proposal, { exec })).rejects.toThrow(
-      ObserverTrackerUnavailableError,
-    );
-    await expect(observer.fileIssue(proposal, { exec })).rejects.toThrow(/auth login/);
-    expect(observer.getIssue(proposal.id)?.status).toBe('proposed');
+    const url = 'https://github.com/kernloop/kernloop/issues/123';
+    observer.markIssueFiled(proposal.id, url);
+    expect(() => observer.markIssueFiled(proposal.id, url)).toThrow(InvalidIssueProposalError);
     observer.close();
   });
 
-  it('throws ObserverTrackerUnavailableError when gh succeeds without printing a URL', async () => {
+  it('rejects a non-https url (no garbage stored as the issue reference)', () => {
     const observer = observerWithTicker();
-    const { exec } = fakeGh('no-url');
     const proposal = observer.proposeIssue(makeProposalInput());
-    await expect(observer.fileIssue(proposal, { exec })).rejects.toThrow(
-      ObserverTrackerUnavailableError,
-    );
-    observer.close();
-  });
-
-  it('default executor reports spawn failure or exit status as data, never throws', async () => {
-    // Read-only probe of whatever `gh` is (or is not) on PATH: either a real
-    // version exit or a spawn error captured as data — both are valid shapes.
-    const result = await defaultGhExec(['--version']);
-    expect(typeof result.stdout).toBe('string');
-    expect(typeof result.stderr).toBe('string');
-    expect(result.exitCode === null || typeof result.exitCode === 'number').toBe(true);
-  });
-
-  it('rejects filing an unknown or already-filed proposal', async () => {
-    const observer = observerWithTicker();
-    const { exec } = fakeGh('ok');
-    const proposal = observer.proposeIssue(makeProposalInput());
-    const filed = await observer.fileIssue(proposal, { exec });
-    await expect(observer.fileIssue(filed, { exec })).rejects.toThrow(InvalidIssueProposalError);
-    await expect(observer.fileIssue({ ...proposal, id: 99 }, { exec })).rejects.toThrow(
+    expect(() => observer.markIssueFiled(proposal.id, 'not-a-url')).toThrow(
       InvalidIssueProposalError,
     );
+    expect(() => observer.markIssueFiled(proposal.id, '')).toThrow(InvalidIssueProposalError);
+    expect(observer.getIssue(proposal.id)?.status).toBe('proposed');
+    observer.close();
+  });
+
+  it('treats a malicious url/title as ordinary data — no injection (it is a pure parameterized write)', () => {
+    const observer = observerWithTicker();
+    const hostile = "t'; DROP TABLE observer_issues;--";
+    const proposal = observer.proposeIssue(makeProposalInput({ title: hostile }));
+    const hostileUrl = "https://example.com/1'; DROP TABLE observer_issues;--";
+    const filed = observer.markIssueFiled(proposal.id, hostileUrl);
+    expect(filed.url).toBe(hostileUrl);
+    expect(filed.title).toBe(hostile);
+    // The table still exists and the row is intact — bound parameters, no SQL.
+    expect(observer.listIssues()).toHaveLength(1);
     observer.close();
   });
 });

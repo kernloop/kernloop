@@ -1,17 +1,18 @@
 /**
- * The self-issue path (spec §5.5, CLM-0056): the Observer files issues at
- * `suggest` tier — including issues about the system itself — into the
- * overlay repo's tracker via the `gh` CLI. The proposal carries an ordinary
- * task-shaped payload (goal + constraints) that a human or scheduler feeds
- * to `run`; self-filed issues re-enter through the same canonical loop as
- * user work. There is NO Observer→engine invocation anywhere in this
- * package — the Observer proposes, it never acts above `suggest`, and it
- * mutates nothing outside its own `observer_*` tables.
+ * The self-issue seam (spec §5.5, CLM-0056): the Observer PROPOSES issues
+ * about the system itself at `suggest` tier — persisting them as ordinary,
+ * task-shaped payloads in its own `observer_issues` table — and NEVER acts
+ * above `suggest`. This package holds NO subprocess and NO tracker seam: it
+ * mutates nothing outside `observer_*`, files nothing, and spawns nothing.
+ * Filing is a separate, human-ratified, enforce-tier-gated action routed
+ * through the tracker by the `kernloop observer` CLI; {@link markIssueFiled}
+ * is the PURE DB write that CLI calls once the tracker confirms a filing.
+ * Self-filed issues re-enter through the same canonical `run` loop as user
+ * work — there is no Observer→engine path anywhere in this faculty.
  */
-import { spawn } from 'node:child_process';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
-import { InvalidIssueProposalError, ObserverTrackerUnavailableError } from './errors.js';
+import { InvalidIssueProposalError } from './errors.js';
 
 /** Boundary schema for {@link proposeIssue} input. */
 const IssueProposalInputSchema = z.strictObject({
@@ -39,36 +40,6 @@ export interface IssueProposal {
   readonly createdAt: number;
   readonly filedAt: number | undefined;
 }
-
-/** Captured result of one tracker-CLI invocation. */
-export interface ExecResult {
-  readonly exitCode: number | null;
-  readonly stdout: string;
-  readonly stderr: string;
-  /** Set when the process could not even start (e.g. gh absent). */
-  readonly spawnError?: string;
-}
-
-/** Injectable tracker executor; the default spawns the real `gh`. */
-export type IssueExec = (args: readonly string[]) => Promise<ExecResult>;
-
-/** Spawn `command args`, capture output; never throws — errors are data. */
-export function spawnCapture(command: string, args: readonly string[]): Promise<ExecResult> {
-  return new Promise((resolve) => {
-    const child = spawn(command, [...args], { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-    child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
-    child.on('error', (error) =>
-      resolve({ exitCode: null, stdout, stderr, spawnError: error.message }),
-    );
-    child.on('close', (exitCode) => resolve({ exitCode, stdout, stderr }));
-  });
-}
-
-/** The default executor: the real `gh` CLI on PATH. */
-export const defaultGhExec: IssueExec = (args) => spawnCapture('gh', args);
 
 interface IssueRow {
   id: number;
@@ -142,53 +113,38 @@ export function issueBody(proposal: IssueProposal): string {
 }
 
 /**
- * File a persisted proposal via `gh issue create` (CLM-0056). The executor
- * is injectable for tests; the default spawns the real `gh`. `gh` absent or
- * exiting nonzero (unauthenticated, no repo) throws
- * {@link ObserverTrackerUnavailableError} — never a silent skip, never a
- * stubbed success. On success the row gains the tracker URL and `filed`.
+ * Mark a persisted proposal `filed` once an EXTERNAL actor (the tracker, via
+ * the gated `kernloop observer file` CLI) has created the real issue
+ * (CLM-0056). This is a PURE DB write — it spawns nothing, reaches no tracker,
+ * and holds no `gh` seam; the faculty never acts above `suggest`, so the
+ * acting edge lives entirely in the CLI/tracker. `url` is validated as a
+ * non-empty `https?://` string and treated as ordinary data (a hostile url or
+ * title is bound as a parameter, never interpolated). Throws
+ * {@link InvalidIssueProposalError} when the id is unknown, the row is already
+ * `filed`, or `url` is not an http(s) URL; otherwise returns the updated row.
  */
-export async function fileIssue(
+export function markIssueFiled(
   db: Database.Database,
   now: number,
-  proposal: IssueProposal,
-  exec: IssueExec = defaultGhExec,
-): Promise<IssueProposal> {
-  const current = getIssue(db, proposal.id);
+  id: number,
+  url: string,
+): IssueProposal {
+  const current = getIssue(db, id);
   if (current === undefined) {
-    throw new InvalidIssueProposalError(`no proposal with id ${String(proposal.id)}`);
+    throw new InvalidIssueProposalError(`no proposal with id ${String(id)}`);
   }
   if (current.status === 'filed') {
-    throw new InvalidIssueProposalError(`proposal ${String(proposal.id)} is already filed`);
+    throw new InvalidIssueProposalError(`proposal ${String(id)} is already filed`);
   }
-  const result = await exec([
-    'issue',
-    'create',
-    '--title',
-    current.title,
-    '--body',
-    issueBody(current),
-  ]);
-  if (result.spawnError !== undefined) {
-    throw new ObserverTrackerUnavailableError(
-      `gh could not be started (is the GitHub CLI installed?): ${result.spawnError}`,
-    );
-  }
-  if (result.exitCode !== 0) {
-    throw new ObserverTrackerUnavailableError(
-      `gh issue create exited ${String(result.exitCode)} (unauthenticated or no tracker?): ${result.stderr.trim()}`,
-    );
-  }
-  const url = result.stdout.trim().split('\n').at(-1) ?? '';
-  if (!/^https?:\/\//.test(url)) {
-    throw new ObserverTrackerUnavailableError(
-      `gh issue create succeeded but printed no issue URL: ${result.stdout.trim()}`,
+  if (typeof url !== 'string' || !/^https?:\/\//.test(url)) {
+    throw new InvalidIssueProposalError(
+      `filed url must be a non-empty http(s) URL: ${String(url)}`,
     );
   }
   db.prepare("UPDATE observer_issues SET status = 'filed', url = ?, filedAt = ? WHERE id = ?").run(
     url,
     now,
-    current.id,
+    id,
   );
-  return getIssue(db, current.id) as IssueProposal;
+  return getIssue(db, id) as IssueProposal;
 }
