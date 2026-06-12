@@ -102,6 +102,9 @@ importers:
       '@kernloop/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@kernloop/tracker':
+        specifier: workspace:*
+        version: link:../tracker
       '@kernloop/workflows':
         specifier: workspace:*
         version: link:../workflows
@@ -234,6 +237,16 @@ importers:
       '@kernloop/contracts':
         specifier: workspace:*
         version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.2
+        version: 25.9.2
+
+  packages/tracker:
+    dependencies:
       zod:
         specifier: ^4.4.3
         version: 4.4.3

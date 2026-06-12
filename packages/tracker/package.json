@@ -1,0 +1,29 @@
+{
+  "name": "@kernloop/tracker",
+  "version": "0.1.0",
+  "description": "Kernloop shared issue-tracker abstraction (spec §5.5): a provider-agnostic TrackerProvider interface + a secure, dry-run-first GitHub provider that builds gh invocations as args-arrays (no shell), guards flag injection, allowlists subcommands, and scopes the repo from validated config. A non-faculty shared lib — faculties and the CLI may import it.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2"
+  }
+}

@@ -33,6 +33,7 @@
     "@kernloop/faculty-toolsmith": "workspace:*",
     "@kernloop/faculty-workforce": "workspace:*",
     "@kernloop/kernel": "workspace:*",
+    "@kernloop/tracker": "workspace:*",
     "@kernloop/workflows": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.10.0",

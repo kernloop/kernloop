@@ -35,6 +35,7 @@ export const ALLOWED_PACKAGES = new Set([
   'faculty-observer',
   'faculty-toolsmith',
   'faculty-models',
+  'tracker',
   'workflows',
   'cli',
 ]);
