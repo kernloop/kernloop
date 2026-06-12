@@ -56,12 +56,13 @@ the verified summary table.
 
 ## Evidence ref grammar
 
-| Form                       | Resolves when                                                                       |
-| -------------------------- | ----------------------------------------------------------------------------------- |
-| `test:<path>::<test name>` | file exists and contains `test('name')`/`it('name')` with that exact string literal |
-| `ci:<job>`                 | a job with that key or display name exists in `.github/workflows/*.yml`             |
-| `doc:<path>#<anchor>`      | file exists and contains the anchor (GitHub-slugged heading or explicit `<a id=…>`) |
-| `eval:<artifact path>`     | the artifact file exists                                                            |
+| Form                                 | Resolves when                                                                                                                                                                                                              |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test:<path>::<test name>`           | file exists and contains `test('name')`/`it('name')` with that exact string literal                                                                                                                                        |
+| `ci:<job>`                           | a job with that key or display name exists in `.github/workflows/*.yml`                                                                                                                                                    |
+| `doc:<path>#<anchor>`                | file exists and contains the anchor (GitHub-slugged heading or explicit `<a id=…>`)                                                                                                                                        |
+| `eval:<artifact path>`               | the artifact file exists                                                                                                                                                                                                   |
+| `code:<path>#<symbol>[@doc:/regex/]` | the symbol exists in the file and (with `@doc`) its doc-comment matches the regex — **additive**: proves the implementing function + asserting doc exist, never that the code behaves; never substitutes for a `test:` ref |
 
 Template-literal test names are deliberately unresolvable — a name the checker
 cannot read statically is not evidence. `claims:check` verifies test
