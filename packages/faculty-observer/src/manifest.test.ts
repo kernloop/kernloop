@@ -11,10 +11,11 @@ describe('observerManifest (spec §4, §5.5)', () => {
       'observer.ingest',
       'observer.fitness',
       'observer.issues',
+      'observer.lifecycle',
     ]);
     expect(parsed.contracts).toEqual({ consumes: ['Outcome', 'Verdict'], emits: [] });
     expect(parsed.tier).toBe('suggest');
     expect(parsed.maturity).toBe('stable');
-    expect(parsed.claims).toEqual(['CLM-0055', 'CLM-0056']);
+    expect(parsed.claims).toEqual(['CLM-0055', 'CLM-0056', 'CLM-0092']);
   });
 });

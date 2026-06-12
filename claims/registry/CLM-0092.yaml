@@ -1,0 +1,19 @@
+id: CLM-0092
+statement: >-
+  The Observer turns its fitness ledger and drift signals into suggest-tier
+  deprecation and distill proposals, surfaced through the observe tool, and
+  never auto-acts: computing them files no issue, demotes nothing, distills
+  nothing, and leaves every proposal for human ratification.
+evidence:
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::returns no proposals on a fresh, empty ledger — never crashes'
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::proposes deprecation for a drifting subject (recent window below lifetime)'
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::proposes deprecation for a below-floor subject (no drift, low lifetime)'
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::proposes distilling a high-fitness subject and cites a real successful trace'
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::every emitted proposal validates as a suggest-tier proposal'
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::THE INVARIANT: computing proposals files no issue and demotes nothing'
+  - 'test:packages/cli/src/tools/observe.test.ts::surfaces suggest-tier lifecycle proposals from the real ledger (CLM-0092)'
+  - 'code:packages/faculty-observer/src/lifecycle.ts#lifecycleProposals@doc:/CLM-0092/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

@@ -83,6 +83,7 @@ describe('observeTool', () => {
       costPerGovernedDecision: [],
       driftSignals: [],
       voterSeries: [],
+      lifecycleProposals: [],
     });
     kern.close();
   });
@@ -127,6 +128,30 @@ describe('observeTool', () => {
       { voter: 'security', votes: 1 },
     ]);
     expect(report.observer.driftSignals).toEqual([]); // no drift on a 1-outcome history
+    kern.close();
+  });
+
+  it('surfaces suggest-tier lifecycle proposals from the real ledger (CLM-0092)', () => {
+    const kern = freshKernloop();
+    const base = {
+      signals: [],
+      cost: { tokens: 1, usd: 0, wallClockMs: 1 },
+      traceRef: 'trace://x',
+      distillCandidates: [],
+    } as const;
+    // A high-fitness subject → a distill proposal; the observe tool surfaces it.
+    for (let i = 0; i < 4; i += 1) {
+      kern.observer.ingestOutcome(
+        { taskId: `star-${String(i)}`, status: 'success', ...base },
+        { subject: 'star-tool' },
+      );
+    }
+    const report = observeTool(kern, {});
+    const distill = report.observer.lifecycleProposals.find((p) => p.subject === 'star-tool');
+    expect(distill?.kind).toBe('distill');
+    expect(distill?.tier).toBe('suggest');
+    // Surfacing the proposals filed no issue and mutated nothing.
+    expect(kern.observer.listIssues()).toEqual([]);
     kern.close();
   });
 

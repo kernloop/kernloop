@@ -10,7 +10,12 @@
  */
 import { z } from 'zod';
 import { ADAPTER_NAMES, detectAdapter, verifyChain } from '@kernloop/kernel';
-import type { DriftSignal, FitnessRecord, GateDecisionCost } from '@kernloop/faculty-observer';
+import type {
+  DriftSignal,
+  FitnessRecord,
+  GateDecisionCost,
+  LifecycleProposal,
+} from '@kernloop/faculty-observer';
 import type { Kernloop } from '../kernel.js';
 import { readEnvelopes } from './audit.js';
 
@@ -44,6 +49,13 @@ export interface ObserveResult {
     driftSignals: DriftSignal[];
     /** Per-voter series presence: every voter seen and their vote count. */
     voterSeries: Array<{ voter: string; votes: number }>;
+    /**
+     * Suggest-tier deprecation + distill proposals derived from the ledger
+     * (CLM-0092). Surfaced alongside fitness so a human sees both; computing
+     * them files/demotes/distills nothing — every proposal awaits human
+     * ratification. Empty ledger → empty array.
+     */
+    lifecycleProposals: LifecycleProposal[];
   };
 }
 
@@ -98,6 +110,7 @@ function observerReport(
     voterSeries: [...voters]
       .sort()
       .map((voter) => ({ voter, votes: kern.observer.voterSeries(voter).length })),
+    lifecycleProposals: kern.observer.lifecycleProposals(),
   };
 }
 
