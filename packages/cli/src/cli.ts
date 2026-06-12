@@ -34,6 +34,7 @@ import { memoryCommand, priorsCommand, type CommandHelpers } from './portability
 import { workshopCommand } from './workshop-commands.js';
 import { modelsCommand } from './models-commands.js';
 import { trackerCommand } from './tracker-commands.js';
+import { observerCommand } from './observer-commands.js';
 
 /** Injectable I/O so tests can capture output. */
 export interface CliIo {
@@ -72,6 +73,8 @@ const USAGE = [
   '  tracker   create --title T --body-file F [--label L]   file an issue (DRY RUN by default)',
   '            close <ref> [--reason R] | comment <ref> --body-file F | label <ref> --add L',
   '            [--execute]   perform the mutation — honored ONLY at the enforce tier (spec §5.5)',
+  '  observer  proposals | propose <n> | list           the self-issue loop (spec §5.5)',
+  '            file <id> [--execute]   file a proposal via the tracker (DRY RUN by default; enforce-gated)',
 ].join('\n');
 
 /** Common string- and boolean-flag declarations, spread into command options. */
@@ -330,6 +333,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   workshop: (args, io) => workshopCommand(args, io, commandHelpers),
   tracker: (args, io) => trackerCommand(args, io, commandHelpers),
+  observer: (args, io) => observerCommand(args, io, commandHelpers),
 };
 
 /** Dispatch one CLI invocation; returns the process exit code. */

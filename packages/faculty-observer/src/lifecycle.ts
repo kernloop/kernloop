@@ -51,7 +51,8 @@ export type LifecycleProposalKind = 'deprecation' | 'distill';
  * One suggest-tier lifecycle proposal. Shaped as the `proposeIssue` input
  * (`title`, `body`, `taskShaped`) plus the always-`suggest` tier, the kind,
  * and the subject — so a human (never this function) may feed it to
- * `proposeIssue`/`fileIssue`. It is a SUGGESTION, not an action.
+ * `proposeIssue` and, later, file it through the gated `kernloop observer` CLI.
+ * It is a SUGGESTION, not an action.
  */
 export interface LifecycleProposal extends IssueProposalInput {
   readonly kind: LifecycleProposalKind;

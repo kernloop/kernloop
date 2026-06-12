@@ -267,6 +267,19 @@ canonical loop as user work; there is no privileged self-modification path.
 > read that NEVER auto-acts (no gh write, no auto-distill, no auto-removal, no
 > auto-merge) — the safe half of the compounding loop [CLM-0092].
 
+> **As-realized note (2026-06-12).** The self-issue CLOSURE path is wired and
+> gated [CLM-0094]. The faculty stays PURE — it proposes (`proposeIssue`, a DB
+> write) and never holds a `gh`/subprocess seam. The `kernloop observer` CLI is
+> the sole actor: `proposals` is a pure read of the live `lifecycleProposals`;
+> `propose <n>` snapshots one into `observer_issues` (de-duped by title); `file
+> <id>` routes through `@kernloop/tracker` and is DRY-RUN BY DEFAULT — it files a
+> real issue ONLY at `tracker.tier: enforce` with `--execute` (a `--execute` at
+> `suggest` is refused and stays dry-run; never defaults upward, spec §3.2), and
+> on success records the tracker url back onto the proposal (`markIssueFiled`).
+> Every acting op is audited (`cli.observer.<op>`) with a bounded body char
+> count, never the body verbatim; the self-filed issue re-enters via the
+> ordinary `run` loop — no privileged path, no auto-action.
+
 ### 5.6 Toolsmith — in the first build, caged
 
 Per decision: ships in v2.0, under the strictest regime in the system.

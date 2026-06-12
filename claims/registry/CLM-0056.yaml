@@ -1,10 +1,14 @@
 id: CLM-0056
 statement: >-
-  The Observer files issues about the system itself at suggest tier, and self-filed issues re-enter the canonical loop with no privileged path.
+  The Observer PROPOSES self-issues about the system itself at suggest tier — persisted in its own observer_issues table, never auto-filed. FILING is a separate, human-ratified, enforce-tier-gated action routed through the tracker via the kernloop observer CLI (dry-run by default); the faculty stays pure (no subprocess, no gh seam) and only markIssueFiled records the tracker url back onto a proposal. Self-filed issues re-enter the canonical loop with no privileged path.
 evidence:
-  - 'test:packages/faculty-observer/src/issues.test.ts::persists a proposal at suggest tier and files it through a real gh subprocess, storing the issue url'
-  - 'test:packages/faculty-observer/src/issues.test.ts::throws ObserverTrackerUnavailableError when gh is absent'
+  - 'test:packages/faculty-observer/src/issues.test.ts::persists a proposal at suggest tier with status proposed'
+  - 'test:packages/faculty-observer/src/issues.test.ts::marks a proposed row filed with the url + filedAt'
+  - 'test:packages/faculty-observer/src/issues.test.ts::rejects an already-filed row (idempotency guard, never a silent overwrite)'
+  - 'test:packages/faculty-observer/src/issues.test.ts::rejects a non-https url (no garbage stored as the issue reference)'
   - 'test:packages/faculty-observer/src/index.test.ts::exposes no privileged observer-to-engine path — the task-shaped payload re-enters via the ordinary run entry'
+  - 'test:packages/cli/src/observer-commands.test.ts::file with no --execute prints a DRY RUN proposal, spawns nothing, marks nothing'
+  - 'test:packages/cli/src/observer-commands.test.ts::honors --execute at enforce: files via the tracker AND marks the row filed'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

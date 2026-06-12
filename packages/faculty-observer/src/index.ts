@@ -33,30 +33,24 @@ import {
   type VoterSeriesEntry,
 } from './voters.js';
 import {
-  fileIssue,
   getIssue,
   listIssues,
+  markIssueFiled,
   proposeIssue,
-  type IssueExec,
   type IssueProposal,
   type IssueProposalInput,
 } from './issues.js';
 import { exportPriors, type PriorsExport } from './priors.js';
 import { lifecycleProposals, type LifecycleOptions, type LifecycleProposal } from './lifecycle.js';
 
-export {
-  InvalidOutcomeError,
-  InvalidVerdictError,
-  InvalidIssueProposalError,
-  ObserverTrackerUnavailableError,
-} from './errors.js';
+export { InvalidOutcomeError, InvalidVerdictError, InvalidIssueProposalError } from './errors.js';
 export { SCHEMA_DDL } from './store.js';
 export { DEFAULT_DRIFT_WINDOW_N, DEFAULT_DRIFT_MIN_DROP } from './ledger.js';
 export type { DriftOptions, DriftSignal, FitnessCost, FitnessRecord } from './ledger.js';
 export { DEFAULT_PRECISION_WINDOW_N } from './voters.js';
 export type { GateDecisionCost, RunningPrecision, VoterSeriesEntry } from './voters.js';
 export { issueBody } from './issues.js';
-export type { ExecResult, IssueExec, IssueProposal, IssueProposalInput } from './issues.js';
+export type { IssueProposal, IssueProposalInput } from './issues.js';
 export { PriorsExportSchema, RoutingPriorSchema } from './priors.js';
 export type { PriorsExport, RoutingPrior } from './priors.js';
 export {
@@ -111,8 +105,12 @@ export interface Observer {
   getIssue(id: number): IssueProposal | undefined;
   /** All proposals, newest first. */
   listIssues(): IssueProposal[];
-  /** File a proposal via `gh issue create`; typed error when gh is unavailable. */
-  fileIssue(proposal: IssueProposal, options?: { exec?: IssueExec }): Promise<IssueProposal>;
+  /**
+   * Mark a proposal `filed` with its tracker `url` — a PURE DB write the gated
+   * `kernloop observer file` CLI calls AFTER the tracker confirms the issue
+   * (CLM-0056). The faculty never spawns or reaches a tracker itself.
+   */
+  markIssueFiled(id: number, url: string): IssueProposal;
   /** Close the underlying database handle. */
   close(): void;
 }
@@ -143,7 +141,7 @@ export function createObserver(dbPath: string, options: CreateObserverOptions = 
     proposeIssue: (input) => proposeIssue(db, clock(), input),
     getIssue: (id) => getIssue(db, id),
     listIssues: () => listIssues(db),
-    fileIssue: (proposal, opts) => fileIssue(db, clock(), proposal, opts?.exec),
+    markIssueFiled: (id, url) => markIssueFiled(db, clock(), id, url),
     close: () => db.close(),
   };
 }
