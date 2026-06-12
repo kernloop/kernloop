@@ -9,7 +9,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/workflows. Consumes a TaskContract (the run
+ * The workflows registration manifest. Consumes a TaskContract (the run
  * entry), emits an Outcome (retrospect's close). Tier `suggest`: the engine
  * orchestrates and proposes; every blocking decision inside the loop is a
  * gate's, under the gate's own tier. Zero token cost — the engine never

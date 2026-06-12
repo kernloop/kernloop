@@ -1,0 +1,24 @@
+id: CLM-0090
+statement: >-
+  docs/API.md is DERIVED, never hand-written: render-api-docs mines each gated package's
+  public API surface — following its index.ts barrel re-exports to the definition files —
+  and emits per exported symbol only STRUCTURE already present in the code (the symbol name,
+  its kind, the FIRST sentence of its existing JSDoc, and any [CLM-] / spec § references the
+  comment already carries), synthesizing no new capability prose. The block is drift-checked
+  in CI the way the README enforcement table is: `docs:render -- --check` regenerates it in
+  memory under a whitespace-normalized compare and fails the build if the committed doc has
+  gone stale relative to the source comments. It is DERIVED documentation, not claim evidence
+  — a mined sentence proves a symbol is documented, never that it behaves.
+evidence:
+  - 'test:scripts/__tests__/render-api-docs.test.mjs::follows a barrel re-export to the definition and mines its doc'
+  - 'test:scripts/__tests__/render-api-docs.test.mjs::mines name, kind, first sentence, and refs from the symbol JSDoc'
+  - 'test:scripts/__tests__/render-api-docs.test.mjs::extracts CLM and spec § references already present, deduped'
+  - 'test:scripts/__tests__/render-api-docs.test.mjs::keeps only the first sentence and escapes table pipes'
+  - 'test:scripts/__tests__/render-api-docs.test.mjs::green when committed API.md matches, red after the source JSDoc changes'
+  - 'test:scripts/__tests__/render-api-docs.test.mjs::main writes then is --check green against the real repo'
+  - 'test:claims/src/symbols.test.ts::lists exactly the exported declarations, each with kind, line, and doc presence'
+  - 'code:scripts/render-api-docs.mjs#renderApiTable@doc:/row per public symbol/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

@@ -118,6 +118,8 @@ pnpm test               # all tests + coverage
 pnpm lint               # eslint incl. plugin-isolation + LOC limits
 pnpm claims:check       # statically verify every claim's evidence resolves
 pnpm claims:verify-ran  # prove every cited test actually ran and passed
+pnpm docs:render        # regenerate docs/API.md from package JSDoc (--check drift-gates it)
+pnpm docs:coverage      # every value export of a gated package carries a doc-comment
 pnpm governance:check   # verify repo structure + charter match reality
 ```
 

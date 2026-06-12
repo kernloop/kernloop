@@ -6,7 +6,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-toolsmith. Tier is `suggest` — forge output
+ * The faculty-toolsmith registration manifest. Tier is `suggest` — forge output
  * is proposed, not acted on; everything it births starts at `suggest` too
  * (spec §5.6). Consumes TaskContract (a forge request is a task); emits
  * Outcome (the build report).

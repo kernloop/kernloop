@@ -6,7 +6,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-workforce. Tier is `suggest` — the
+ * The faculty-workforce registration manifest. Tier is `suggest` — the
  * workforce stands behind the PM, a generative role, and anything
  * generative enters at `suggest` (spec §3.2); promotion needs evidence +
  * ratification. Consumes TaskContract (the parent plan) and emits

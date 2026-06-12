@@ -6,7 +6,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-memory. Tier is `suggest` — the
+ * The faculty-memory registration manifest. Tier is `suggest` — the
  * conservative entry default for anything generative-adjacent (spec §3.2);
  * tier assignment is under ratification review and the orchestrator may
  * adjust at integration. Consumes Outcome (episodic auto-write); emits

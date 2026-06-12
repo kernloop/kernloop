@@ -6,7 +6,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-compiler. Tier is `observe` — the compiler
+ * The faculty-compiler registration manifest. Tier is `observe` — the compiler
  * only reads its typed inputs and assembles a Brief; it never acts, mutates,
  * or calls a model (spec §3.2). Cost profile is zero tokens/usd: assembly is
  * pure local computation.

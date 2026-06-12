@@ -1,0 +1,25 @@
+id: CLM-0091
+statement: >-
+  The doc-coverage gate (#64) requires every VALUE export — function, const, class, enum — on a
+  gated package's public API surface to carry a real, non-placeholder doc-comment, resolving each
+  package's index.ts barrel re-exports to their definition files via listExportedSymbols/findSymbol
+  and rejecting trivially-empty docs and docs that merely restate the symbol name. Seven packages
+  are gated (contracts, faculty-compiler, faculty-gates, faculty-memory, faculty-observer,
+  faculty-toolsmith, faculty-workforce); a gap exits 1 with a per-package report, and the gate runs
+  in CI. Its scope is recorded, never silently weakened: type-only re-exports (z.infer companions)
+  and the nested-barrel packages (cli, workflows, kernel) are excluded with a stated reason. It is a
+  QUALITY gate, not claim evidence — a doc-comment proves a symbol is documented, never that it
+  behaves; tests remain the verified bar.
+evidence:
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::every gated package has zero undocumented value exports (the CI invariant)'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::flags an undocumented exported function, ignores documented ones'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::a placeholder doc that restates the name still counts as a gap'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::type-only re-exports are excluded from the value-export gate'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::a doc that merely restates the symbol name is trivial'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::main exits 1 when a gated package has an undocumented value export'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::main exits 0 against the real repo'
+  - 'code:scripts/docs-coverage.mjs#gapsForPackage@doc:/lack a real doc-comment/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

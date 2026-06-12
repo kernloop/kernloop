@@ -44,6 +44,12 @@ jobs:
       # The README enforcement table is generated, never hand-edited — fail
       # if it drifts from the registry.
       - run: node scripts/render-claims.mjs --check
+      # docs/API.md is DERIVED from each gated package's JSDoc — fail if the
+      # committed reference drifted from the source comments (#51).
+      - run: pnpm docs:render -- --check
+      # Doc-coverage gate (#64): every value export of a gated package must
+      # carry a real, non-placeholder doc-comment.
+      - run: pnpm docs:coverage
 
   governance:
     name: governance

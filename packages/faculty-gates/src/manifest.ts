@@ -6,7 +6,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-gates. P1 surface is the quality gate
+ * The faculty-gates registration manifest. P1 surface is the quality gate
  * only. Tier is `advisory` (spec §3.2: may cast non-blocking Verdicts) —
  * verdict emission is non-blocking until the gate is wired into an
  * enforcing path; promotion to `enforce` needs evidence + ratification,
