@@ -40,6 +40,7 @@ export interface FitnessRecord {
  *   at n=10.
  */
 export const DEFAULT_DRIFT_WINDOW_N = 10;
+/** Default minimum window-vs-lifetime success-rate gap that counts as drift. */
 export const DEFAULT_DRIFT_MIN_DROP = 0.2;
 
 /** One drift signal: a subject whose recent window underperforms lifetime. */

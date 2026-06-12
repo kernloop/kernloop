@@ -99,6 +99,9 @@ Every run is recorded in a persisted job registry, and `status` resolves a job i
 
 A claim may anchor to a function and its doc-comment with `code:path#symbol[@doc:/regex/]`: the symbol must exist and, with `@doc`, its doc-comment must assert the claim — additive evidence that pins the implementation, while `claims:check` still requires a `test:` ref before any claim is verified [CLM-0089].
 
+The generated public-API reference under `docs/` is derived, never hand-written: it is mined from each gated package's existing JSDoc — symbol name, kind, the first sentence of the comment, and the `[CLM-]`/`spec §` refs already present — and drift-checked in CI so a stale reference fails the build [CLM-0090].
+Every value export — function, const, class, enum — on a gated package's public API surface carries a real, non-placeholder doc-comment, enforced by a CI doc-coverage gate over seven packages whose excluded scope is recorded rather than silently weakened [CLM-0091].
+
 <!-- claims:end -->
 
 ## The claims registry
@@ -209,6 +212,8 @@ and `claims:verify-ran`, which proves the cited test actually ran and passed).
 | [CLM-0087](claims/registry/CLM-0087.yaml) | [`packages/faculty-models/src/discovered.test.ts`](packages/faculty-models/src/discovered.test.ts), [`packages/cli/src/loop/node-seam.test.ts`](packages/cli/src/loop/node-seam.test.ts), CI `test`                                                                                                                                                                                                                                                       |
 | [CLM-0088](claims/registry/CLM-0088.yaml) | [`packages/cli/src/tools/models.test.ts`](packages/cli/src/tools/models.test.ts), [`packages/cli/src/overlay.test.ts`](packages/cli/src/overlay.test.ts), CI `test`                                                                                                                                                                                                                                                                                       |
 | [CLM-0089](claims/registry/CLM-0089.yaml) | [`claims/src/symbols.test.ts`](claims/src/symbols.test.ts), [`claims/src/resolve.test.ts`](claims/src/resolve.test.ts), [`claims/src/check.test.ts`](claims/src/check.test.ts), [`claims/src/resolve.ts#resolveCodeRef`](claims/src/resolve.ts), CI `test`                                                                                                                                                                                                |
+| [CLM-0090](claims/registry/CLM-0090.yaml) | [`scripts/__tests__/render-api-docs.test.mjs`](scripts/__tests__/render-api-docs.test.mjs), [`claims/src/symbols.test.ts`](claims/src/symbols.test.ts), [`scripts/render-api-docs.mjs#renderApiTable`](scripts/render-api-docs.mjs), CI `test`                                                                                                                                                                                                            |
+| [CLM-0091](claims/registry/CLM-0091.yaml) | [`scripts/__tests__/docs-coverage.test.mjs`](scripts/__tests__/docs-coverage.test.mjs), [`scripts/docs-coverage.mjs#gapsForPackage`](scripts/docs-coverage.mjs), CI `test`                                                                                                                                                                                                                                                                                |
 
 <!-- enforcement:end -->
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { findSymbol } from './symbols.js';
+import { findSymbol, listExportedSymbols } from './symbols.js';
 
 /** Materialize one source file in a temp dir and return its absolute path. */
 function fileWith(source: string, name = 'mod.ts'): string {
@@ -104,5 +104,67 @@ describe('findSymbol — single-file symbol resolution', () => {
     const result = findSymbol(fileWith(SOURCE), '');
     expect(result.found).toBe(false);
     expect(result.reason).toContain('empty symbol path');
+  });
+});
+
+const EXPORT_SOURCE = [
+  '/** A documented exported function. */',
+  'export function documented(): void {}',
+  '',
+  'export function undocumented(): void {}',
+  '',
+  '/** A documented exported const. */',
+  'export const DOCUMENTED_CONST = 1;',
+  '',
+  'export const UNDOCUMENTED_CONST = 2;',
+  '',
+  '/** A documented exported interface. */',
+  'export interface DocumentedShape {',
+  '  id: string;',
+  '}',
+  '',
+  '/** A non-exported helper — must NOT appear in the export list. */',
+  'function privateHelper(): void {}',
+  '',
+  '/** A non-exported const — must NOT appear either. */',
+  'const PRIVATE_CONST = 3;',
+  '',
+].join('\n');
+
+describe('listExportedSymbols — exported declarations + doc presence', () => {
+  it('lists exactly the exported declarations, each with kind, line, and doc presence', () => {
+    const symbols = listExportedSymbols(fileWith(EXPORT_SOURCE));
+    const names = symbols.map((s) => s.name);
+    expect(names).toEqual([
+      'documented',
+      'undocumented',
+      'DOCUMENTED_CONST',
+      'UNDOCUMENTED_CONST',
+      'DocumentedShape',
+    ]);
+    // Non-exported declarations are excluded.
+    expect(names).not.toContain('privateHelper');
+    expect(names).not.toContain('PRIVATE_CONST');
+  });
+
+  it('reports a real doc-comment for documented exports and null for bare ones', () => {
+    const byName = new Map(listExportedSymbols(fileWith(EXPORT_SOURCE)).map((s) => [s.name, s]));
+    expect(byName.get('documented')?.doc).toContain('documented exported function');
+    expect(byName.get('DOCUMENTED_CONST')?.doc).toContain('documented exported const');
+    expect(byName.get('DocumentedShape')?.doc).toContain('documented exported interface');
+    expect(byName.get('undocumented')?.doc).toBeNull();
+    expect(byName.get('UNDOCUMENTED_CONST')?.doc).toBeNull();
+  });
+
+  it('carries the kind label and a 1-based line for each export', () => {
+    const byName = new Map(listExportedSymbols(fileWith(EXPORT_SOURCE)).map((s) => [s.name, s]));
+    expect(byName.get('documented')?.kind).toBe('FunctionDeclaration');
+    expect(byName.get('DOCUMENTED_CONST')?.kind).toBe('VariableDeclaration');
+    expect(byName.get('DocumentedShape')?.kind).toBe('InterfaceDeclaration');
+    expect(byName.get('documented')?.line).toBe(2);
+  });
+
+  it('returns an empty list for a missing file', () => {
+    expect(listExportedSymbols('/no/such/file.ts')).toEqual([]);
   });
 });

@@ -6,8 +6,10 @@
  *
  * Single-file by design — a `code:` anchor is `path#symbol`, so no cross-file
  * program (no type checker, no module graph) is needed. This keeps the module
- * fast and reusable: the doc-coverage gate (#64) reuses `findSymbol` plus a
- * future `listExportedSymbols(filePath)` over the same parsed source.
+ * fast and reusable: the doc-coverage gate (#64) and the JSDoc-mined API doc
+ * (#51) both reuse `findSymbol` plus `listExportedSymbols(filePath)` over the
+ * same parsed source — the latter enumerates a file's exported top-level
+ * declarations and surfaces each one's doc-comment presence.
  *
  * SCOPE, stated honestly: this module proves a symbol EXISTS and surfaces its
  * doc-comment text. It does NOT prove the symbol's behavior — that is what a
@@ -15,6 +17,18 @@
  */
 import fs from 'node:fs';
 import ts from 'typescript';
+
+/** One exported, named top-level declaration with its doc-comment presence. */
+export interface ExportedSymbol {
+  /** The exported binding name (function/class/interface/type/enum/const). */
+  name: string;
+  /** Syntax-kind label of the declaration (e.g. `FunctionDeclaration`). */
+  kind: string;
+  /** Leading JSDoc/doc-comment text, or null when the symbol carries none. */
+  doc: string | null;
+  /** 1-based line number of the declaration in the source file. */
+  line: number;
+}
 
 /** Result of resolving a dotted symbol path within one source file. */
 export interface SymbolResult {
@@ -144,4 +158,39 @@ export function findSymbol(filePath: string, symbolPath: string): SymbolResult {
   return doc === undefined
     ? { found: true, kind: ts.SyntaxKind[resolved.kind] }
     : { found: true, kind: ts.SyntaxKind[resolved.kind], doc };
+}
+
+/** True when a node (or its host statement) carries the `export` modifier. */
+function hasExportModifier(node: ts.Node): boolean {
+  const host =
+    ts.isVariableDeclaration(node) && node.parent?.parent !== undefined ? node.parent.parent : node;
+  if (!ts.canHaveModifiers(host)) return false;
+  return (ts.getModifiers(host) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+}
+
+/**
+ * Enumerate the EXPORTED, named top-level declarations of one source file:
+ * each one's binding name, syntax-kind label, 1-based line, and leading
+ * doc-comment text (or `null` when it carries none). Pure: reads and parses
+ * the file once over the same AST machinery `findSymbol` uses, so a `code:`
+ * anchor, the doc-coverage gate (#64), and the JSDoc-mined API doc (#51) all
+ * agree on what a file exports and whether it is documented.
+ *
+ * Re-exports (`export { x } from './y'`) and `export *` are NOT declarations
+ * here — they bind nothing in this file — so they are deliberately skipped;
+ * the gate and the doc-miner walk a declaration's actual definition file.
+ * Like `findSymbol`, this surfaces a doc's PRESENCE, never proves behavior.
+ */
+export function listExportedSymbols(filePath: string): ExportedSymbol[] {
+  if (!fs.existsSync(filePath)) return [];
+  const sourceFile = parseSourceFile(filePath, fs.readFileSync(filePath, 'utf8'));
+  const out: ExportedSymbol[] = [];
+  for (const decl of childDeclarations(sourceFile)) {
+    const name = declaredName(decl);
+    if (name === undefined || !hasExportModifier(decl)) continue;
+    const doc = leadingDoc(decl, sourceFile);
+    const line = sourceFile.getLineAndCharacterOfPosition(decl.getStart(sourceFile)).line + 1;
+    out.push({ name, kind: ts.SyntaxKind[decl.kind] as string, doc: doc ?? null, line });
+  }
+  return out;
 }
