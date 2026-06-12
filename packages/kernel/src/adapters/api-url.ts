@@ -14,7 +14,8 @@
 import { isIP } from 'node:net';
 import { ApiEndpointError } from './errors.js';
 
-/** The fixed request path — never user-templated (baseUrl is host only). */
+/** The fixed request-path SUFFIX appended to the operator-trusted baseUrl (whose
+ * path prefix the operator controls; this suffix is never user-templated). */
 export const CHAT_PATH = '/chat/completions';
 
 /**

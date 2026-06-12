@@ -1,7 +1,7 @@
 /**
  * Model DISCOVERY [CLM-0086] — enumerate the models an endpoint actually serves
  * via its stable PUBLIC contract (OpenAI `GET /v1/models`, ollama
- * `GET /api/tags`), the deferred extension spec §5.7 names ("Discovery (live
+ * `GET /api/tags`), the discovery extension spec §5.7 describes ("Discovery (live
  * `/v1/models` enumeration)"). This is a SIBLING of {@link
  * import('./api.js').invokeApiAdapter} that READS the catalog instead of calling
  * a model — and it REUSES that path's security primitives rather than
@@ -13,7 +13,7 @@
  *    in its error body cannot leak the key (the discovery no-leak test).
  *  - BASEURL GUARD: {@link assertSafeBaseUrl} validates the operator baseUrl
  *    (scheme/credentials) BEFORE any egress; the request path is the FIXED
- *    {@link MODELS_PATH} / {@link OLLAMA_TAGS_PATH}, never user-templated;
+ *    the fixed {@link MODELS_PATH} / {@link OLLAMA_TAGS_PATH} SUFFIX (the operator baseUrl prefix rides along);
  *    cross-host redirects are refused (`redirect: 'error'`).
  *  - STREAMED SIZE CAP: the body is read via {@link readCappedBody} (the SAME
  *    reader the model-call path uses) so an oversized listing is a typed error,
