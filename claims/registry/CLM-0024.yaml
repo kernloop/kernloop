@@ -5,6 +5,7 @@ evidence:
   - 'test:packages/faculty-memory/src/episodic.test.ts::persists an outcome as summary plus traceRef pointer, retrievable by task id'
   - 'test:packages/faculty-memory/src/episodic.test.ts::lists summaries newest-first'
   - 'test:packages/faculty-memory/src/episodic.test.ts::rejects an invalid outcome at the boundary'
+  - 'code:packages/faculty-memory/src/episodic.ts#recordOutcome@doc:/CLM-0024|trace summary/'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

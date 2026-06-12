@@ -23,6 +23,14 @@ describe('renderEvidence', () => {
   test('eval ref → backticked artifact link', () => {
     expect(renderEvidence('eval:evals/x.jsonl')).toBe('[`evals/x.jsonl`](evals/x.jsonl)');
   });
+  test('doc ref → backticked file link', () => {
+    expect(renderEvidence('doc:README.md#claims')).toBe('[`README.md#claims`](README.md#claims)');
+  });
+  test('code ref → backticked path#symbol link, stripping the @doc suffix', () => {
+    expect(renderEvidence('code:src/loop.ts#CANONICAL_LOOP@doc:/canonical loop/')).toBe(
+      '[`src/loop.ts#CANONICAL_LOOP`](src/loop.ts)',
+    );
+  });
 });
 
 describe('renderTable + spliceBlock + drift', () => {

@@ -282,6 +282,46 @@ describe('runClaimsCheck — registry structure', () => {
     expect(result.errors.join('\n')).toContain('"verified" but the claim has zero test evidence');
   });
 
+  it('fails a verified claim whose only non-ci evidence is code: (additive, not a substitute)', () => {
+    // The honesty boundary of issue #51: a code: anchor proves the symbol +
+    // doc EXIST, never that the code DOES what the claim says. So a verified
+    // claim with code:+ci: but no test: must still FAIL verified⇒test, even
+    // though every individual evidence ref resolves cleanly.
+    const root = repoWith(
+      {
+        'CLM-0001.yaml': claimYaml({
+          evidence: ['code:src/impl.ts#doThing@doc:/does the thing/', 'ci:test'],
+        }),
+      },
+      {
+        'src/impl.ts': '/** does the thing. */\nexport function doThing(): number { return 1; }\n',
+      },
+    );
+    const result = runClaimsCheck({ repoRoot: root });
+    // The code: and ci: refs resolve — the ONLY error is the missing test.
+    expect(result.errors).toEqual([
+      'CLM-0001.yaml (CLM-0001): status is "verified" but the claim has zero test evidence',
+    ]);
+    expect(result.ok).toBe(false);
+  });
+
+  it('accepts a verified claim that pairs code: evidence WITH a test: ref', () => {
+    const root = repoWith(
+      {
+        'CLM-0001.yaml': claimYaml({
+          evidence: [
+            'test:src/cap.test.ts::proves the capability',
+            'code:src/impl.ts#doThing@doc:/does the thing/',
+          ],
+        }),
+      },
+      {
+        'src/impl.ts': '/** does the thing. */\nexport function doThing(): number { return 1; }\n',
+      },
+    );
+    expect(runClaimsCheck({ repoRoot: root }).ok).toBe(true);
+  });
+
   it('fails on duplicate claim ids', () => {
     const root = repoWith({
       'CLM-0001.yaml': claimYaml(),

@@ -69,6 +69,9 @@ importers:
       '@types/node':
         specifier: ^25.9.2
         version: 25.9.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/cli:
     dependencies:

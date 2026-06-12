@@ -9,6 +9,7 @@ evidence:
   - 'test:packages/workflows/src/overrides.test.ts::rejects a malformed Verdict at the vote edge with a typed error naming node and contract'
   - 'test:packages/workflows/src/overrides.test.ts::rejects a malformed child TaskContract at the decompose edge'
   - 'test:packages/workflows/src/overrides.test.ts::rejects a malformed quality Verdict inside the fan-out as a run failure, not a child failure'
+  - 'code:packages/workflows/src/graph.ts#CANONICAL_LOOP@doc:/canonical loop/'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

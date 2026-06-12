@@ -86,3 +86,57 @@ describe('resolveEvidence — disabled and empty tests are not evidence', () => 
     expect(check(repoWith("it('other', () => {})"), 'real')).toContain('no test named');
   });
 });
+
+describe('resolveEvidence — code: anchors a symbol and (optionally) its doc', () => {
+  const SRC = [
+    '/** Records an Outcome as a trace summary (code-anchor doc). */',
+    'export function recordOutcome(): number {',
+    '  return 1;',
+    '}',
+    '',
+    '/** A const with no asserting words. */',
+    'export const PLAIN = 2;',
+    '',
+    'export const UNDOCUMENTED = 3;',
+    '',
+  ].join('\n');
+
+  function repoWith(source: string): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-code-'));
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'mod.ts'), source);
+    return root;
+  }
+  function check(root: string, ref: string): string | null {
+    const parsed = parseEvidenceRef(ref);
+    if ('error' in parsed) throw new Error(parsed.error);
+    return resolveEvidence(parsed, root);
+  }
+
+  it('resolves when the symbol exists (no @doc)', () => {
+    expect(check(repoWith(SRC), 'code:src/mod.ts#recordOutcome')).toBeNull();
+  });
+
+  it('reports a precise error when the symbol is missing', () => {
+    const msg = check(repoWith(SRC), 'code:src/mod.ts#noSuchSymbol');
+    expect(msg).toContain('no exported/declared symbol "noSuchSymbol"');
+  });
+
+  it('resolves when the @doc regex matches the doc-comment', () => {
+    expect(check(repoWith(SRC), 'code:src/mod.ts#recordOutcome@doc:/trace summary/')).toBeNull();
+  });
+
+  it('fails when the @doc regex does not match the doc-comment', () => {
+    const msg = check(repoWith(SRC), 'code:src/mod.ts#PLAIN@doc:/asserts the claim/');
+    expect(msg).toContain('does not match');
+  });
+
+  it('fails when @doc is required but the symbol has no doc-comment', () => {
+    const msg = check(repoWith(SRC), 'code:src/mod.ts#UNDOCUMENTED@doc:/anything/');
+    expect(msg).toContain('no doc-comment');
+  });
+
+  it('fails when the anchored file does not exist', () => {
+    expect(check(repoWith(SRC), 'code:src/gone.ts#recordOutcome')).toContain('file not found');
+  });
+});

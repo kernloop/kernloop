@@ -17,11 +17,20 @@
  * (a no-op-but-named test that throws nothing "passes"). The empty-body check
  * here catches the blatant case; assertion quality is a code-review concern,
  * and the gate does not pretend otherwise.
+ *
+ * The honesty boundary for `code:` evidence (issue #51, READ BEFORE EDITING):
+ * a `code:path#symbol[@doc:/regex/]` ref proves only that the symbol EXISTS in
+ * that file and, with `@doc:`, that its doc-comment ASSERTS the claim (matches
+ * the regex). It NEVER proves the symbol DOES what the claim says — that is the
+ * exclusive job of a `test:` ref. `code:` is ADDITIVE: it is a code-anchor, not
+ * a behavior proof, and `claims:check` (check.ts) still requires a `test:` ref
+ * for any `verified` claim. Do not let `code:` satisfy the verified⇒test rule.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import type { EvidenceRef } from './schema.js';
+import { findSymbol } from './symbols.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -200,6 +209,37 @@ function resolveEvalRef(
   return null;
 }
 
+/**
+ * `code:<path>#<symbol>[@doc:/regex/]` — the symbol must EXIST in the file, and
+ * with `@doc:` its doc-comment must exist and match the regex. This proves the
+ * code-anchor (symbol + asserting doc) only; behavior is a `test:` ref's job
+ * (see the honesty boundary in this module's header). `null` = resolves.
+ */
+function resolveCodeRef(
+  ref: Extract<EvidenceRef, { kind: 'code' }>,
+  repoRoot: string,
+): string | null {
+  const file = path.resolve(repoRoot, ref.path);
+  const result = findSymbol(file, ref.symbol);
+  if (!result.found) {
+    return `${ref.raw}: no exported/declared symbol "${ref.symbol}" in ${ref.path} (${result.reason ?? 'not found'})`;
+  }
+  if (ref.docPattern === undefined) return null;
+  if (result.doc === undefined) {
+    return `${ref.raw}: symbol "${ref.symbol}" has no doc-comment to match /${ref.docPattern}/`;
+  }
+  let re: RegExp;
+  try {
+    re = new RegExp(ref.docPattern);
+  } catch (err) {
+    return `${ref.raw}: invalid @doc regex /${ref.docPattern}/: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  if (!re.test(result.doc)) {
+    return `${ref.raw}: doc-comment of "${ref.symbol}" does not match /${ref.docPattern}/ — code: must anchor a doc that ASSERTS the claim`;
+  }
+  return null;
+}
+
 /** Resolve one evidence ref against the repo. `null` = resolves; string = why not. */
 export function resolveEvidence(ref: EvidenceRef, repoRoot: string): string | null {
   switch (ref.kind) {
@@ -211,5 +251,7 @@ export function resolveEvidence(ref: EvidenceRef, repoRoot: string): string | nu
       return resolveDocRef(ref, repoRoot);
     case 'eval':
       return resolveEvalRef(ref, repoRoot);
+    case 'code':
+      return resolveCodeRef(ref, repoRoot);
   }
 }

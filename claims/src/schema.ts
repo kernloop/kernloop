@@ -20,6 +20,11 @@ export const CLAIM_ID_PATTERN = /^CLM-\d{4}$/;
  * - `ci:<job>`                 — a job in `.github/workflows/*.yml`
  * - `doc:<path>#<anchor>`      — a GitHub-slugged heading or `<a id=…>` anchor
  * - `eval:<artifact path>`     — an eval artifact file that must exist
+ * - `code:<path>#<symbolPath>[@doc:/regex/]` — a function/const/class-method/
+ *   interface that must EXIST, and (with `@doc:`) whose doc-comment must match
+ *   the regex. Code evidence is ADDITIVE (issue #51): it proves a symbol +
+ *   doc exist, NEVER that the code does what the claim says — only a `test:`
+ *   ref proves behavior, and `claims:check` still requires one for `verified`.
  *
  * Parsed into a discriminated union so resolvers can switch on `kind`.
  */
@@ -27,7 +32,8 @@ export type EvidenceRef =
   | { kind: 'test'; raw: string; path: string; testName: string }
   | { kind: 'ci'; raw: string; job: string }
   | { kind: 'doc'; raw: string; path: string; anchor: string }
-  | { kind: 'eval'; raw: string; path: string };
+  | { kind: 'eval'; raw: string; path: string }
+  | { kind: 'code'; raw: string; path: string; symbol: string; docPattern?: string };
 
 /**
  * Parse a raw evidence string into its discriminated form.
@@ -62,7 +68,41 @@ export function parseEvidenceRef(raw: string): EvidenceRef | { error: string } {
       return { error: `eval ref must be "eval:<artifact path>", got "${raw}"` };
     return { kind: 'eval', raw, path };
   }
-  return { error: `unknown evidence kind in "${raw}" (expected test:|ci:|doc:|eval:)` };
+  if (raw.startsWith('code:')) {
+    return parseCodeRef(raw);
+  }
+  return { error: `unknown evidence kind in "${raw}" (expected test:|ci:|doc:|eval:|code:)` };
+}
+
+/**
+ * Parse `code:<path>#<symbolPath>` or `code:<path>#<symbolPath>@doc:/regex/`.
+ * The optional `@doc:` suffix carries an unanchored, slash-delimited regex; a
+ * missing `#`, an empty path/symbol, or an unterminated `/regex/` is rejected
+ * with a precise message (mirrors the test:/doc: parsers).
+ */
+function parseCodeRef(raw: string): EvidenceRef | { error: string } {
+  const body = raw.slice('code:'.length);
+  const docMarker = '@doc:';
+  const docAt = body.indexOf(docMarker);
+  const anchor = docAt === -1 ? body : body.slice(0, docAt);
+  const hash = anchor.indexOf('#');
+  if (hash <= 0 || hash === anchor.length - 1) {
+    return { error: `code ref must be "code:<path>#<symbol>[@doc:/regex/]", got "${raw}"` };
+  }
+  const path = anchor.slice(0, hash);
+  const symbol = anchor.slice(hash + 1);
+  if (docAt === -1) {
+    return { kind: 'code', raw, path, symbol };
+  }
+  const docBody = body.slice(docAt + docMarker.length);
+  if (docBody.length < 2 || docBody[0] !== '/' || !docBody.endsWith('/')) {
+    return { error: `code ref @doc pattern must be a "/regex/", got "${raw}"` };
+  }
+  const docPattern = docBody.slice(1, -1);
+  if (docPattern.length === 0) {
+    return { error: `code ref @doc pattern is empty in "${raw}"` };
+  }
+  return { kind: 'code', raw, path, symbol, docPattern };
 }
 
 /** Zod schema that validates AND parses a raw evidence string. */

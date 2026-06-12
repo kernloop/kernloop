@@ -30,6 +30,12 @@ export function renderEvidence(raw) {
     const p = raw.slice('doc:'.length);
     return `[\`${p}\`](${p})`;
   }
+  if (raw.startsWith('code:')) {
+    // `code:<path>#<symbol>[@doc:/regex/]` → link the file, label `path#symbol`.
+    const anchor = raw.slice('code:'.length).split('@doc:')[0];
+    const file = anchor.split('#')[0];
+    return `[\`${anchor}\`](${file})`;
+  }
   return raw;
 }
 
