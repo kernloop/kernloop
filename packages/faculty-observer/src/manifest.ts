@@ -6,7 +6,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-observer. Tier is `suggest` — the Observer
+ * The faculty-observer registration manifest. Tier is `suggest` — the Observer
  * may file issues and proposals but never blocks, acts, or mutates anything
  * outside its own tables (spec §3.2, §5.5). Consumes every Outcome and
  * Verdict off the bus (subscription wired at the composition root); emits

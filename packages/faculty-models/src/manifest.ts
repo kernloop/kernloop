@@ -5,7 +5,7 @@
 import { ManifestSchema, type Manifest } from '@kernloop/contracts';
 
 /**
- * Manifest for @kernloop/faculty-models. Tier is `observe` — the lowest rung:
+ * The faculty-models registration manifest. Tier is `observe` — the lowest rung:
  * this faculty NORMALIZES a served model id into a {@link
  * import('@kernloop/contracts').ModelIdentity}, it does not act, block, file an
  * issue, or mutate anything. It makes no model call and carries no `model`

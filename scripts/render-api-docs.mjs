@@ -23,15 +23,25 @@ const BEGIN = '<!-- api:begin -->';
 const END = '<!-- api:end -->';
 
 /** Collapse a JSDoc body to its first sentence, single-spaced, table-cell-safe. */
+/** Common abbreviations whose trailing period does NOT end a sentence. */
+const ABBREVIATIONS = new Set(['e.g', 'i.e', 'etc', 'vs', 'cf', 'al', 'approx', 'incl']);
+
 export function firstSentence(doc) {
   if (doc === null) return '';
   const flat = doc.replace(/\s+/g, ' ').trim();
   if (flat.length === 0) return '';
-  // First sentence: up to the first period that ends a word (not a decimal or
-  // an abbreviation like `e.g.`). Fall back to the whole flattened comment.
-  const m = flat.match(/^.*?[.!?](?=\s|$)/);
-  const sentence = (m ? m[0] : flat).replace(/\|/g, '\\|');
-  return sentence;
+  // First sentence: up to the first `.`/`!`/`?` that ends a word — skipping a
+  // decimal (digit before AND after the dot) and a known abbreviation like
+  // `e.g.`. Falls back to the whole flattened comment.
+  const re = /[.!?](?=\s|$)/g;
+  let match;
+  while ((match = re.exec(flat)) !== null) {
+    const end = match.index + 1;
+    const word = (flat.slice(0, match.index).match(/[\w.]+$/) ?? [''])[0];
+    if (match[0] === '.' && ABBREVIATIONS.has(word.replace(/\.$/, '').toLowerCase())) continue;
+    return flat.slice(0, end).replace(/\|/g, '\\|');
+  }
+  return flat.replace(/\|/g, '\\|');
 }
 
 /** Extract the `[CLM-NNNN]` and `spec §N(.N)` references present in a doc-comment. */
