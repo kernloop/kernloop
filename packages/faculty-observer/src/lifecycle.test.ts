@@ -99,6 +99,19 @@ describe('lifecycle proposals (CLM-0092)', () => {
     observer.close();
   });
 
+  it('distill cites the last SUCCESSFUL run, skipping a trailing failure', () => {
+    const observer = observerWithTicker();
+    // 9 successes then a recent failure → 90% (≥ the 0.9 bar) still distill-worthy;
+    // the cited trace must be the last SUCCESS (run 8), never the trailing failure.
+    feed(observer, 'star-tool', [ok, ok, ok, ok, ok, ok, ok, ok, ok, bad]);
+    const distill = observer.lifecycleProposals().find((p) => p.subject === 'star-tool');
+    expect(distill?.kind).toBe('distill');
+    expect(distill?.title).toContain('star-tool-8'); // the last success, not star-tool-9
+    expect(distill?.title).not.toContain('star-tool-9');
+    expect(distill?.taskShaped.goal).toContain('star-tool-8');
+    observer.close();
+  });
+
   it('emits no distill proposal below the high-fitness invocation minimum', () => {
     const observer = observerWithTicker();
     feed(observer, 'green-tool', [ok, ok]); // 100% but only 2 invocations < 3

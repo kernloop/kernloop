@@ -9,6 +9,7 @@ evidence:
   - 'test:packages/faculty-observer/src/lifecycle.test.ts::proposes deprecation for a drifting subject (recent window below lifetime)'
   - 'test:packages/faculty-observer/src/lifecycle.test.ts::proposes deprecation for a below-floor subject (no drift, low lifetime)'
   - 'test:packages/faculty-observer/src/lifecycle.test.ts::proposes distilling a high-fitness subject and cites a real successful trace'
+  - 'test:packages/faculty-observer/src/lifecycle.test.ts::distill cites the last SUCCESSFUL run, skipping a trailing failure'
   - 'test:packages/faculty-observer/src/lifecycle.test.ts::every emitted proposal validates as a suggest-tier proposal'
   - 'test:packages/faculty-observer/src/lifecycle.test.ts::THE INVARIANT: computing proposals files no issue and demotes nothing'
   - 'test:packages/cli/src/tools/observe.test.ts::surfaces suggest-tier lifecycle proposals from the real ledger (CLM-0092)'

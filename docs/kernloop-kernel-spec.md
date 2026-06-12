@@ -258,6 +258,15 @@ Files issues at `suggest` tier into the overlay repo's tracker — including
 issues about the system itself. Self-filed issues re-enter through the same
 canonical loop as user work; there is no privileged self-modification path.
 
+> **As-realized note (ratified 2026-06-12).** `lifecycleProposals` turns the
+> fitness ledger + drift signals into **suggest-tier proposals** surfaced via
+> the `observe` tool — *deprecate* a low-fitness/drifting capability (proposes a
+> human review; demotes nothing, leaves the ladder + exploration floor
+> untouched) and *distill* a high-fitness subject's most recent successful run
+> into a skill (feeds the `distill` tool, human-PR to go live). It is a pure
+> read that NEVER auto-acts (no gh write, no auto-distill, no auto-removal, no
+> auto-merge) — the safe half of the compounding loop [CLM-0092].
+
 ### 5.6 Toolsmith — in the first build, caged
 
 Per decision: ships in v2.0, under the strictest regime in the system.

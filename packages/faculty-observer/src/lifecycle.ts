@@ -29,19 +29,13 @@ import { z } from 'zod';
 import { driftSignals, fitnessLedger, type DriftSignal, type FitnessRecord } from './ledger.js';
 import type { IssueProposalInput } from './issues.js';
 
-/**
- * Lifecycle thresholds — fitness floor, low-fitness window, high-fitness bar.
- * Deliberate, documented defaults; every field is injectable per call:
- * - `LOW_FITNESS_FLOOR = 0.5` — below an even coin-flip success rate, a
- *   subject is worth a human's review; above it, deprecation is premature.
- * - `LOW_FITNESS_MIN_INVOCATIONS = 10` — a subject must have a full window
- *   of outcomes before its rate is signal rather than sampling noise (mirrors
- *   the drift window so a floor breach and a drift signal speak the same n).
- * - `HIGH_FITNESS_BAR = 0.9` — a subject this reliable is worth distilling;
- *   the bar is high so distill proposals stay scarce and load-bearing.
- * - `HIGH_FITNESS_MIN_INVOCATIONS = 3` — enough successful runs to trust the
- *   subject is repeatable, not a single lucky outcome.
- */
+// Lifecycle thresholds — deliberate, documented heuristics (not principled
+// science); every one is injectable per call. The MIN_INVOCATIONS gates keep a
+// proposal from firing on sampling noise; LOW_FITNESS_MIN_INVOCATIONS mirrors
+// the drift window so a floor breach and a drift signal speak the same n.
+
+/** Lifetime success rate below which (an even coin-flip) a subject is worth a
+ * human's deprecation review; at or above it, deprecation is premature. */
 export const LOW_FITNESS_FLOOR = 0.5;
 /** Minimum invocations before a low-fitness floor breach is assessed. */
 export const LOW_FITNESS_MIN_INVOCATIONS = 10;
@@ -144,7 +138,13 @@ function distillProposal(record: FitnessRecord, traceId: string): LifecyclePropo
   };
 }
 
-/** The most recent successful run's task id for a subject, or `undefined`. */
+/**
+ * The most recent SUCCESSFUL run's task id for a subject, or `undefined`. The
+ * `success = 1` filter means a trailing FAILED run is skipped — distill always
+ * cites a real success, never a failure. Recency is keyed on `id` (the log is
+ * append-only AUTOINCREMENT), the monotonic insert order; if that ever changes
+ * (reorder/backfill), this recency semantics must move to the `at` clock.
+ */
 function recentSuccessTrace(db: Database.Database, subject: string): string | undefined {
   const row = db
     .prepare(
