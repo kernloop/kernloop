@@ -24,6 +24,7 @@ import {
 } from '@kernloop/contracts';
 import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
+import { loadDiscoveredCache } from '@kernloop/faculty-models';
 import {
   JsonlCheckpointStore,
   createEngine,
@@ -252,6 +253,10 @@ function buildLoopEngine(
       invokeFor: seams.invokeFor,
       adapter: seams.adapter,
       refs: seams.refs,
+      // The discovered cache is loaded ONCE per run; a synced served model then
+      // normalizes by table in provenance (loadDiscoveredCache degrades a
+      // missing/corrupt cache to empty, so an unsynced run is unaffected).
+      discovered: loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString()),
       ...(request.checks === undefined ? {} : { checks: request.checks }),
     }),
     checkpoints: seams.checkpoints,

@@ -49,12 +49,19 @@ export {
 export {
   invokeApiAdapter,
   scrub,
+  readCappedBody,
   MAX_RESPONSE_BYTES,
   type ApiInvocation,
   type ApiAdapterResult,
   type ApiRawObservation,
 } from './api.js';
-export { assertSafeBaseUrl, CHAT_PATH } from './api-url.js';
+export {
+  discoverApiModels,
+  discoverOllamaModels,
+  DISCOVERY_TIMEOUT_MS,
+  DEFAULT_OLLAMA_HOST,
+} from './discover.js';
+export { assertSafeBaseUrl, CHAT_PATH, MODELS_PATH, OLLAMA_TAGS_PATH } from './api-url.js';
 export {
   API_EFFORT_PARAM,
   API_EFFORT_PROFILE,

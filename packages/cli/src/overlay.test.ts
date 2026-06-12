@@ -53,6 +53,8 @@ describe('initOverlay', () => {
     expect(config).toContain(`id: ${path.basename(repo)}`);
     const gitignore = readFileSync(path.join(repo, '.kernloop', '.gitignore'), 'utf8');
     expect(gitignore).toContain('memory.sqlite');
+    // the machine-local discovered model cache is gitignored too (spec §5.7)
+    expect(gitignore).toContain('models-cache.json');
     expect(existsSync(path.join(repo, '.kernloop', 'audit.jsonl'))).toBe(false);
   });
 

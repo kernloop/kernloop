@@ -11,9 +11,14 @@
  *
  * Pure and offline by construction: `resolveIdentity` does no I/O and no model
  * call; the catalog is a VENDORED JSON snapshot, not a fetch (no HTTP, no
- * secrets, no network — discovery via `/v1/models` is a later phase). The
- * faculty imports only @kernloop/contracts and external deps (constitutional
- * rule 5); the loop wiring lives in @kernloop/cli, which composes faculties.
+ * secrets, no network). The discovered-cache module (`discovered.ts`) is the
+ * persistence + lookup side of model discovery [CLM-0087] — it normalizes the
+ * ids an endpoint served through the SAME pure resolver and reads a
+ * machine-local cache file, but makes NO HTTP call and has no clock itself: the
+ * actual `/v1/models` / `/api/tags` enumeration lives in the kernel adapter, and
+ * the CLI (which has a clock) stamps the cache. The faculty imports only
+ * @kernloop/contracts and external deps (constitutional rule 5); the loop wiring
+ * lives in @kernloop/cli, which composes faculties.
  */
 export { resolveIdentity } from './resolve.js';
 export {
@@ -26,4 +31,16 @@ export {
   type CatalogEntry,
 } from './catalog.js';
 export { modelsManifest } from './manifest.js';
+export {
+  mergeDiscovered,
+  upsertSource,
+  loadDiscoveredCache,
+  emptyDiscoveredCache,
+  discoveredIndex,
+  resolveWithDiscovered,
+  DiscoveredCacheSchema,
+  DiscoveredSourceSchema,
+  type DiscoveredCache,
+  type DiscoveredSource,
+} from './discovered.js';
 export { ModelIdentitySchema, type ModelIdentity } from '@kernloop/contracts';
