@@ -24,6 +24,11 @@ export const observerManifest: Manifest = ManifestSchema.parse({
       description: 'Fitness ledger, voter precision series, cost per governed decision, drift',
     },
     { name: 'observer.issues', description: 'File self-issues at suggest tier via gh' },
+    {
+      name: 'observer.lifecycle',
+      description:
+        'Suggest-tier deprecation + distill proposals from fitness/drift, never auto-acted',
+    },
   ],
   contracts: {
     consumes: ['Outcome', 'Verdict'],
@@ -35,6 +40,6 @@ export const observerManifest: Manifest = ManifestSchema.parse({
     latencyMs: 50,
   },
   tier: 'suggest',
-  claims: ['CLM-0055', 'CLM-0056'],
+  claims: ['CLM-0055', 'CLM-0056', 'CLM-0092'],
   maturity: 'stable',
 });

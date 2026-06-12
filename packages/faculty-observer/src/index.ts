@@ -42,6 +42,7 @@ import {
   type IssueProposalInput,
 } from './issues.js';
 import { exportPriors, type PriorsExport } from './priors.js';
+import { lifecycleProposals, type LifecycleOptions, type LifecycleProposal } from './lifecycle.js';
 
 export {
   InvalidOutcomeError,
@@ -58,6 +59,14 @@ export { issueBody } from './issues.js';
 export type { ExecResult, IssueExec, IssueProposal, IssueProposalInput } from './issues.js';
 export { PriorsExportSchema, RoutingPriorSchema } from './priors.js';
 export type { PriorsExport, RoutingPrior } from './priors.js';
+export {
+  HIGH_FITNESS_BAR,
+  HIGH_FITNESS_MIN_INVOCATIONS,
+  LOW_FITNESS_FLOOR,
+  LOW_FITNESS_MIN_INVOCATIONS,
+  LifecycleProposalSchema,
+} from './lifecycle.js';
+export type { LifecycleOptions, LifecycleProposal, LifecycleProposalKind } from './lifecycle.js';
 export { observerManifest } from './manifest.js';
 
 /** Options for {@link createObserver}. */
@@ -89,6 +98,11 @@ export interface Observer {
   costPerGovernedDecision(gate: string): GateDecisionCost | undefined;
   /** Subjects whose recent window underperforms lifetime (spec §5.5). */
   driftSignals(options?: DriftOptions): DriftSignal[];
+  /**
+   * Suggest-tier deprecation + distill proposals from fitness/drift, NEVER
+   * auto-acted (CLM-0092). Pure read — files/demotes/distills nothing.
+   */
+  lifecycleProposals(options?: LifecycleOptions): LifecycleProposal[];
   /** Export learned routing priors from the fitness ledger (CLM-0070). */
   exportPriors(): PriorsExport;
   /** Persist a self-issue proposal at suggest tier (CLM-0056). */
@@ -124,6 +138,7 @@ export function createObserver(dbPath: string, options: CreateObserverOptions = 
     runningPrecision: (voter, opts) => runningPrecision(db, voter, opts),
     costPerGovernedDecision: (gate) => costPerGovernedDecision(db, gate),
     driftSignals: (opts) => driftSignals(db, opts),
+    lifecycleProposals: (opts) => lifecycleProposals(db, opts),
     exportPriors: () => exportPriors(db),
     proposeIssue: (input) => proposeIssue(db, clock(), input),
     getIssue: (id) => getIssue(db, id),
