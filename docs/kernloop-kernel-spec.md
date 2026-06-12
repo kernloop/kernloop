@@ -264,6 +264,23 @@ contract's budget — the kernel meters, the PM allocates.
 > (no GitHub, no loop enforcement — those are later increments) and writes only a
 > single `cli.program.decompose` audit event (goalChars, never the goal verbatim).
 
+> **As-realized note (2026-06-12).** Increment 2 (emit) wires the GitHub
+> emission edge [CLM-0098]: `kernloop program emit` re-decomposes the same tree
+> and FILES each child node as a labeled GitHub issue through the EXISTING
+> hardened `@kernloop/tracker` (no new `gh` seam). It is DRY-RUN FIRST: a real
+> mutation happens ONLY at `tracker.tier: enforce` AND `--execute`; at `suggest`
+> an `--execute` is refused and the op stays dry-run (never defaults upward). A
+> #52 vote condition — the issue-spam guard — runs BEFORE any provider is built:
+> emitting more than the limit (20) needs an explicit `--confirm-count N`
+> matching the exact child count. The constraint-tag → label map lives in
+> `@kernloop/faculty-scrum` as ONE table [CLM-0097] (`assign:agent.<t>` →
+> `agent:<t>`; `altitude`/`track`/`sprint` pass through; free-form constraints
+> emit no label), so the GitHub view and future loop routing cannot diverge; the
+> faculty asserts each label against the tracker charset without importing the
+> tracker (isolation). Emit is audited ONCE as `cli.program.emit` with
+> counts/refs only — never the node goal/body verbatim. Native parent-child
+> sub-issue LINKING is deferred to Increment 2b.
+
 ### 5.5 Observer — telemetry and the self-issue loop
 
 Consumes every Outcome and Verdict. Maintains the **tool/skill/template

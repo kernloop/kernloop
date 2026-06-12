@@ -1,0 +1,24 @@
+id: CLM-0097
+statement: >-
+  faculty-scrum prepares the pure, GitHub-free half of program emission.
+  programLabels maps a TaskContract's constraint tags to GitHub labels through
+  one map — the single source of truth (assign:agent.<t> → agent:<t>, with
+  altitude/track/sprint passing through) so the GitHub view and future loop
+  routing never diverge; the reverse direction (label → tag) is Increment 4. It
+  emits only tracker-label-safe values: free-form constraints produce no label,
+  the output is deduped, and every emitted label satisfies the tracker
+  LabelSchema charset (asserted inline, as a typed error, so faculty-scrum never
+  imports the tracker). programIssueBody renders the node goal plus the
+  replayable task-shaped payload.
+evidence:
+  - 'test:packages/faculty-scrum/src/labels.test.ts::maps assign:agent.coder to the agent:coder label (assign→agent, .→:)'
+  - 'test:packages/faculty-scrum/src/labels.test.ts::maps altitude, track, and sprint to pass-through labels'
+  - 'test:packages/faculty-scrum/src/labels.test.ts::emits NO label for free-form / unknown constraints (the other bucket)'
+  - 'test:packages/faculty-scrum/src/labels.test.ts::returns a deduped label set (no label appears twice)'
+  - 'test:packages/faculty-scrum/src/labels.test.ts::every emitted label satisfies the tracker LabelSchema charset (≤80, leading alnum)'
+  - 'test:packages/faculty-scrum/src/labels.test.ts::contains the goal and a parseable JSON payload carrying the node id'
+  - 'code:packages/faculty-scrum/src/labels.ts#programLabels@doc:/CLM-0097/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0
