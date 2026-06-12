@@ -29,6 +29,23 @@ jobs:
       # and passed in this run — not merely that its name exists in a file.
       - run: pnpm claims:verify-ran
 
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The e2e suite drives the REAL built CLI as a subprocess — build first.
+      - run: pnpm build
+      # End-to-end functional gate: the AGILE pipeline + the hard invariants
+      # against a hermetic gh stub (no network, no real GitHub).
+      - run: pnpm e2e
+
   claims_check:
     name: 'claims:check'
     runs-on: ubuntu-latest

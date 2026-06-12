@@ -109,7 +109,9 @@ export function checkCharterCommands(root) {
   const charter = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const scripts = pkg.scripts ?? {};
-  const commands = [...charter.matchAll(/^pnpm ([a-z][a-z:-]*)/gm)].map((m) => m[1]);
+  // Command names may contain digits (e.g. `e2e`); the charset includes 0-9 so
+  // a digit-bearing script name is parsed whole, not truncated at the digit.
+  const commands = [...charter.matchAll(/^pnpm ([a-z][a-z0-9:-]*)/gm)].map((m) => m[1]);
   const errors = [];
   for (const cmd of commands) {
     if (cmd === 'install') continue; // pnpm built-in, not a script
