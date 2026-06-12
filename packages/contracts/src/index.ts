@@ -71,6 +71,9 @@ export type {
   ModelRequirement,
   ModelIdentity,
 } from './model.js';
+export { AltitudeSchema, constraintTag, parseConstraintTags } from './constraints.js';
+export type { Altitude, ParsedConstraintTags } from './constraints.js';
+export { InvalidConstraintTagError } from './errors.js';
 export { contractsVersion } from './version.js';
 
 /**

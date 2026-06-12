@@ -1,0 +1,27 @@
+{
+  "name": "@kernloop/faculty-scrum",
+  "version": "0.1.0",
+  "description": "Kernloop scrum/program-decomposition faculty (spec §5.4). Decomposes a goal into an epic/story TaskContract tree one altitude up from the PM's plan decomposition: child budgets must sum within the parent's on every dimension, and each child carries altitude/track/sprint constraint tags. GitHub-free and model-free — pure, mechanical decomposition surfaced through the suggest-tier `kernloop program decompose` CLI.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@kernloop/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  }
+}

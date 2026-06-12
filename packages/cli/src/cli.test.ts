@@ -163,7 +163,7 @@ describe('kernloop CLI', () => {
     const repo = repoDir();
     const list = capture(repo);
     expect(await runCli(['manifest', '--op', 'list'], list.io)).toBe(0);
-    expect((list.json() as { manifests: unknown[] }).manifests).toHaveLength(8);
+    expect((list.json() as { manifests: unknown[] }).manifests).toHaveLength(9);
     const get = capture(repo);
     expect(
       await runCli(['manifest', '--op', 'get', '--name', '@kernloop/faculty-memory'], get.io),

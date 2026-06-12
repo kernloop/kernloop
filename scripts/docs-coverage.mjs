@@ -27,6 +27,7 @@ export const GATED_PACKAGES = [
   'faculty-gates',
   'faculty-memory',
   'faculty-observer',
+  'faculty-scrum',
   'faculty-toolsmith',
   'faculty-workforce',
   'tracker',

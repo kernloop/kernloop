@@ -30,6 +30,7 @@
     "@kernloop/faculty-memory": "workspace:*",
     "@kernloop/faculty-models": "workspace:*",
     "@kernloop/faculty-observer": "workspace:*",
+    "@kernloop/faculty-scrum": "workspace:*",
     "@kernloop/faculty-toolsmith": "workspace:*",
     "@kernloop/faculty-workforce": "workspace:*",
     "@kernloop/kernel": "workspace:*",
