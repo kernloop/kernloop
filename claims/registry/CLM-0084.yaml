@@ -1,0 +1,25 @@
+id: CLM-0084
+statement: >-
+  The api adapter validates the operator-configured baseUrl before any network egress — requiring
+  https except for an explicit localhost/loopback/private host, rejecting any other scheme and any
+  embedded credentials — appends only the fixed /chat/completions path (never user-templated),
+  refuses cross-host redirects, caps the response read with a streamed size limit that aborts past
+  the cap, and enforces a wall-clock timeout via one AbortController spanning both the request and
+  the body read on every call. The guard trusts the overlay as operator config (an https baseUrl
+  may reach any host the operator points it at) — it is NOT SSRF immunity against a hostile overlay.
+evidence:
+  - 'test:packages/kernel/src/adapters/api.test.ts::allows https to any host'
+  - 'test:packages/kernel/src/adapters/api.test.ts::allows http ONLY to localhost / loopback / private hosts'
+  - 'test:packages/kernel/src/adapters/api.test.ts::REJECTS http to a non-local (public) host'
+  - 'test:packages/kernel/src/adapters/api.test.ts::REJECTS a non-http(s) scheme (file/ftp/etc.)'
+  - 'test:packages/kernel/src/adapters/api.test.ts::REJECTS a baseUrl that embeds credentials (user:pass@)'
+  - 'test:packages/kernel/src/adapters/api.test.ts::throws ApiEndpointError for an http public baseUrl (no network egress)'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::REFUSES a 3xx redirect and makes no second request to the redirect target'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::POSTs to exactly the fixed /chat/completions path appended to the configured base'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::rejects a response body over the size cap (streamed, no OOM)'
+  - 'test:packages/kernel/src/adapters/api.test.ts::aborts and throws AdapterTimeoutError when the endpoint is too slow'
+  - 'test:packages/kernel/src/adapters/api-security.test.ts::aborts and throws AdapterTimeoutError when the response BODY is too slow'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

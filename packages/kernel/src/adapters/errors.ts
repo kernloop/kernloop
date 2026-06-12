@@ -102,3 +102,47 @@ export class AdapterOutputError extends Error {
     this.stderr = stderr;
   }
 }
+
+/**
+ * The env var an api adapter reads its key from is unset or empty (spec §3.1:
+ * adapters are the model-invocation layer, the one place a key is held). The
+ * error names the ENV VAR ONLY — never any value — so a missing-key failure
+ * can never leak a partially-set or look-alike secret. Fail-closed: a missing
+ * key is a typed refusal, never a stubbed "success".
+ */
+export class ApiKeyMissingError extends Error {
+  override readonly name = 'ApiKeyMissingError';
+  /** Endpoint id the call was addressed to. */
+  readonly adapter: string;
+  /** The NAME of the env var that was empty/unset (never the value). */
+  readonly apiKeyEnv: string;
+
+  constructor(adapter: string, apiKeyEnv: string) {
+    super(
+      `api adapter "${adapter}": environment variable ${apiKeyEnv} is unset or empty — ` +
+        `set it to the endpoint's key (the key is never read from config)`,
+    );
+    this.adapter = adapter;
+    this.apiKeyEnv = apiKeyEnv;
+  }
+}
+
+/**
+ * An api adapter's `baseUrl` is not a usable endpoint (SSRF guard, spec §3.1):
+ * a non-http(s) scheme, or plain `http:` to a non-local host. The lexical
+ * config is validated BEFORE any network call so a hostile baseUrl never
+ * reaches `fetch`. Carries only the reason — no secret is involved.
+ */
+export class ApiEndpointError extends Error {
+  override readonly name = 'ApiEndpointError';
+  /** Endpoint id the bad config belongs to. */
+  readonly adapter: string;
+  /** Why the baseUrl/request was rejected. */
+  readonly reason: string;
+
+  constructor(adapter: string, reason: string) {
+    super(`api adapter "${adapter}": ${reason}`);
+    this.adapter = adapter;
+    this.reason = reason;
+  }
+}

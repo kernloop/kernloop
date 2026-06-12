@@ -161,6 +161,90 @@ describe('loadOverlay defaults and precedence', () => {
       expect(overlay.gates.vote.strategy).toBe(strategy);
     }
   });
+
+  it('loads the optional endpoints block and an adapter that references one [CLM-0083]', () => {
+    const overlay = loadFrom(
+      [
+        'id: api',
+        'adapters: { large: internal-provider }',
+        'endpoints:',
+        '  internal-provider:',
+        '    baseUrl: https://api.example.com/v1',
+        '    apiKeyEnv: INTERNAL_PROVIDER_KEY',
+        '    models: { large: big-model }',
+        '    metersUsd: true',
+        '',
+      ].join('\n'),
+    );
+    expect(overlay.adapters?.large).toBe('internal-provider');
+    expect(overlay.endpoints['internal-provider']?.apiKeyEnv).toBe('INTERNAL_PROVIDER_KEY');
+    expect(overlay.endpoints['internal-provider']?.models).toEqual({ large: 'big-model' });
+  });
+
+  it('REJECTS a literal key in apiKeyEnv — secrets never live in overlay.yaml [CLM-0083]', () => {
+    expect(() =>
+      loadFrom(
+        [
+          'id: leak',
+          'endpoints:',
+          '  p:',
+          '    baseUrl: https://api.example.com/v1',
+          '    apiKeyEnv: sk-or-deadbeef0123456789',
+          '    models: { large: m }',
+          '',
+        ].join('\n'),
+      ),
+    ).toThrow(OverlayError);
+  });
+
+  it('REJECTS an adapter that names an unregistered endpoint id [CLM-0083]', () => {
+    expect(() => loadFrom('id: x\nadapters: { large: not-registered }\n')).toThrow(OverlayError);
+  });
+
+  it('REJECTS a tier→endpoint that serves no model for the routed tier — fails fast [CLM-0084]', () => {
+    // QA-P1: the `small` tier is routed to an endpoint that only serves
+    // `frontier`. resolveTierModel degrades DOWNWARD only, so a small request
+    // finds no model at or below it → empty model id → fatal for an api
+    // endpoint. It must fail at PARSE, not mid-loop, naming tier + endpoint.
+    let caught: unknown;
+    try {
+      loadFrom(
+        [
+          'id: mismatch',
+          'adapters: { small: internal-provider }',
+          'endpoints:',
+          '  internal-provider:',
+          '    baseUrl: https://api.example.com/v1',
+          '    apiKeyEnv: INTERNAL_PROVIDER_KEY',
+          '    models: { frontier: big-model }', // serves frontier only; small finds nothing below
+          '',
+        ].join('\n'),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(OverlayError);
+    expect((caught as OverlayError).message).toContain('serves no model for the small tier');
+    expect((caught as OverlayError).message).toContain('internal-provider');
+  });
+
+  it('ACCEPTS a tier→endpoint that serves a LOWER tier (degrades downward) [CLM-0084]', () => {
+    // `frontier` routed to an endpoint serving `medium` is fine: frontier
+    // degrades downward to medium, a populated model id — not the empty failure.
+    const overlay = loadFrom(
+      [
+        'id: degrade',
+        'adapters: { frontier: internal-provider }',
+        'endpoints:',
+        '  internal-provider:',
+        '    baseUrl: https://api.example.com/v1',
+        '    apiKeyEnv: INTERNAL_PROVIDER_KEY',
+        '    models: { medium: mid-model }',
+        '',
+      ].join('\n'),
+    );
+    expect(overlay.adapters?.frontier).toBe('internal-provider');
+  });
 });
 
 describe('loadOverlay rejection matrix', () => {
