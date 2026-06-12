@@ -27,6 +27,7 @@ import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
 import YAML from 'yaml';
 import { EndpointsSchema } from './endpoints.js';
+import { TRACKER_TEMPLATE_LINES, TrackerSchema } from './tracker-config.js';
 
 /** Name of the overlay directory committed with each repo (spec §7). */
 export const OVERLAY_DIR_NAME = '.kernloop';
@@ -195,6 +196,8 @@ export const OverlaySchema = z
      * an env var (`apiKeyEnv`); a literal key is rejected at parse (see endpoints.ts).
      */
     endpoints: EndpointsSchema.default({}),
+    /** Issue-tracker config (spec §5.5) [CLM-0093]; see {@link TrackerSchema}. */
+    tracker: TrackerSchema.optional(),
   })
   .superRefine((overlay, ctx) => {
     // Every per-tier adapter must be a built-in CLI name OR a registered endpoint id.
@@ -348,6 +351,7 @@ function overlayTemplate(defaults: Overlay): string {
     '#     models: { frontier: some-frontier-model, medium: some-medium-model }  # tier → concrete model id',
     '#     metersUsd: true       # the endpoint reports per-call USD cost (usage.cost) — meter it; a 2xx with no cost then fails closed',
     '#     maxUsdPerCall: 0.50   # optional fail-closed per-call spend cap (requires metersUsd: true)',
+    ...TRACKER_TEMPLATE_LINES,
     "# nodeOverrides:  # swap a gate's gate / add fanout specialists / raise a node's model (spec §6, §8.4)",
     '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
     '#   quality: { gate: security-review }',

@@ -1,0 +1,42 @@
+id: CLM-0093
+statement: >-
+  The provider-agnostic TrackerProvider abstraction and its GitHub provider
+  build gh invocations securely — args-array with no shell, the body via a
+  bounded temp file, flag injection guarded, the close reason allowlisted, the
+  gh subcommand allowlisted, the repo scoped from validated config, and every
+  issue ref bound to that repo (a URL ref must be a github.com URL in the
+  configured repo and only its number, never the URL, reaches gh — no
+  cross-repo action, no SSRF) — publish an honest capability descriptor, and
+  gate every mutation to the enforce tier (dry-run is the default and spawns
+  nothing) through the audited kernloop tracker CLI; errors are always data.
+evidence:
+  - 'test:packages/tracker/src/provider.test.ts::declares every core op supported (honest descriptor)'
+  - 'test:packages/tracker/src/provider.test.ts::createIssue builds gh issue create with --title= and a --body-file, repo from config'
+  - 'test:packages/tracker/src/provider.test.ts::closeIssue builds gh issue close with the ref after a -- separator'
+  - 'test:packages/tracker/src/provider.test.ts::comment routes the body through a --body-file, ref behind --'
+  - 'test:packages/tracker/src/provider.test.ts::addLabels builds gh issue edit with --add-label= per label, ref behind --'
+  - 'test:packages/tracker/src/provider.test.ts::a body starting with - is written to a file, never passed as an arg that could be a flag'
+  - 'test:packages/tracker/src/provider.test.ts::a title starting with - is bound via --title= so it cannot be read as a flag'
+  - 'test:packages/tracker/src/provider.test.ts::rejects a label outside the safe charset (no leading -, no shell metachars)'
+  - 'test:packages/tracker/src/provider.test.ts::rejects an issue ref that is not a number or URL (no flag smuggling via ref)'
+  - 'test:packages/tracker/src/provider.test.ts::accepts a same-repo github.com URL and passes gh the bare NUMBER, never the URL'
+  - 'test:packages/tracker/src/provider.test.ts::rejects a CROSS-REPO github URL — no cross-repo action, never spawns'
+  - 'test:packages/tracker/src/provider.test.ts::rejects a non-github host URL — no SSRF to an arbitrary host, never spawns'
+  - 'test:packages/tracker/src/provider.test.ts::accepts only completed / not planned; rejects anything else without spawning'
+  - 'test:packages/tracker/src/provider.test.ts::rejects an oversize create body at the boundary, never spawns'
+  - 'test:packages/tracker/src/provider.test.ts::turns an unexpected throw (e.g. a failed body-file write) into a typed io-failed, never propagates'
+  - 'test:packages/tracker/src/provider.test.ts::every op builds only an allowlisted gh issue subcommand'
+  - 'test:packages/tracker/src/provider.test.ts::createIssue in dry-run never calls the exec and records a proposal'
+  - 'test:packages/tracker/src/provider.test.ts::all four ops in dry-run spawn nothing'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces a nonzero gh exit as a scrubbed, typed failure (never throws)'
+  - 'test:packages/tracker/src/exec.test.ts::passes an arg with shell metacharacters through verbatim (no shell expansion)'
+  - 'test:packages/tracker/src/exec.test.ts::passes a leading-dash arg as a literal argument, not a flag'
+  - 'test:packages/cli/src/tracker-commands.test.ts::create with no --execute prints a DRY RUN proposal and spawns nothing'
+  - 'test:packages/cli/src/tracker-commands.test.ts::audits the op as cli.tracker.create without the body verbatim'
+  - 'test:packages/cli/src/tracker-commands.test.ts::refuses --execute at the suggest tier (stays dry-run)'
+  - 'test:packages/cli/src/tracker-commands.test.ts::honors --execute at the enforce tier and runs the allowlisted gh op'
+  - 'code:packages/tracker/src/provider.ts#githubProvider@doc:/CLM-0093/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

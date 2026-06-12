@@ -29,6 +29,7 @@ export const GATED_PACKAGES = [
   'faculty-observer',
   'faculty-toolsmith',
   'faculty-workforce',
+  'tracker',
 ];
 
 /**
