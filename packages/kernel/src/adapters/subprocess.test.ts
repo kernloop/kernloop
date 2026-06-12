@@ -120,7 +120,12 @@ describe('runSubprocess', () => {
       'const g = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);' +
       'process.stdout.write(String(g.pid));' +
       'setTimeout(() => {}, 30_000);';
-    const result = await runNode(script, { timeoutMs: 300 });
+    // 2s (not 300ms) so the child reliably spawns the grandchild and FLUSHES its
+    // pid to stdout before the timeout kill — under CI load 300ms could kill the
+    // child mid-write, leaving stdout empty and flaking this on the pid parse.
+    // The grandchild lives 30s, so the timeout still fires and the tree-kill is
+    // what's actually under test.
+    const result = await runNode(script, { timeoutMs: 2_000 });
     expect(result.timedOut).toBe(true);
     const grandchildPid = Number.parseInt(result.stdout, 10);
     expect(Number.isInteger(grandchildPid)).toBe(true);
