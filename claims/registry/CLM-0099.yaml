@@ -1,0 +1,26 @@
+id: CLM-0099
+statement: >-
+  the program ledger persists a decomposed program + its nodes in a
+  cross-session .kernloop/programs.sqlite (parameterized queries only),
+  advancing each node ONE rung forward at a time through planned → emitted →
+  done with the filed issue ref — never inventing a program, rejecting a
+  duplicate program id and a backward, rung-skipping, or ref-less transition (so
+  a node cannot reach done unemitted).
+evidence:
+  - 'test:packages/cli/src/program-store.test.ts::persists the program + all nodes at the planned state'
+  - 'test:packages/cli/src/program-store.test.ts::resolves a program written by a prior handle from a FRESH handle (cross-session)'
+  - 'test:packages/cli/src/program-store.test.ts::reports an absent program as undefined — never invented'
+  - 'test:packages/cli/src/program-store.test.ts::refuses a duplicate program id with DuplicateProgramError (no silent overwrite)'
+  - 'test:packages/cli/src/program-store.test.ts::advances a node planned → emitted (requires ref) → done, stamping updatedAt'
+  - 'test:packages/cli/src/program-store.test.ts::rejects advancing an unknown node with UnknownProgramNodeError'
+  - 'test:packages/cli/src/program-store.test.ts::rejects a backward transition (done → planned) with InvalidNodeTransitionError'
+  - 'test:packages/cli/src/program-store.test.ts::rejects skipping a rung (planned → done) — a node cannot reach done unemitted'
+  - 'test:packages/cli/src/program-store.test.ts::rejects a non-https URL ref, an over-long ref, and a ref with control characters'
+  - 'test:packages/cli/src/program-store.test.ts::rejects advancing to emitted without an issue ref'
+  - 'test:packages/cli/src/program-store.test.ts::lists nodes in nodeId order with labels parsed back to string[]'
+  - 'test:packages/cli/src/program-store.test.ts::stores a SQL-injection-shaped goal/nodeId as DATA (parameterized)'
+  - 'code:packages/cli/src/program-store.ts#createProgramStore@doc:/CLM-0099/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

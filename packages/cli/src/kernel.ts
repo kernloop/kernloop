@@ -39,6 +39,7 @@ import type { Manifest } from '@kernloop/contracts';
 import { loadOverlay, overlayPaths, type Overlay, type OverlayPaths } from './overlay.js';
 import { buildExecutors, type CapabilityExecutor } from './executors.js';
 import { createJobStore, type JobStore } from './jobs.js';
+import { createProgramStore, type ProgramStore } from './program-store.js';
 
 /** The three P1 faculty manifests this root registers (spec §5.1–5.3). */
 export const P1_FACULTY_MANIFESTS: readonly Manifest[] = [
@@ -85,9 +86,14 @@ export interface Kernloop {
    * `status --job` inspects any run cross-session, and `run --async` returns
    * a job id immediately. File-backed, so a fresh handle resolves prior jobs. */
   readonly jobs: JobStore;
+  /** The persisted program ledger (spec §5.4) — a decomposed program + its
+   * nodes, advanced one poll-driven step at a time (no daemon). File-backed,
+   * so a fresh handle resumes a prior program cross-session [CLM-0099]. */
+  readonly programs: ProgramStore;
   /** Capability name → executor, for capabilities `run` can execute. */
   readonly executors: ReadonlyMap<string, CapabilityExecutor>;
-  /** Close held resources (the memory, observer, and job-registry handles). */
+  /** Close held resources (the memory, observer, job-registry, and program
+   * ledger handles). */
   close(): void;
 }
 
@@ -151,6 +157,9 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
   // The job registry is its own SQLite file in the overlay dir (spec §3.4):
   // every run is recorded here, so status resolves a job id cross-session.
   const jobs = createJobStore(paths.jobs, msClockOption(clock));
+  // The program ledger is its own SQLite file in the overlay dir (spec §5.4):
+  // a decomposed program is recorded here, so a fresh handle resumes it.
+  const programs = createProgramStore(paths.programs, msClockOption(clock));
   registerFaculties(registry, ladder);
   const kernloop: Kernloop = {
     paths,
@@ -163,11 +172,13 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
     memory,
     observer,
     jobs,
+    programs,
     executors: new Map(),
     close: () => {
       memory.close();
       observer.close();
       jobs.close();
+      programs.close();
     },
   };
   // The executor map closes over the assembled system; build it last.

@@ -17,6 +17,11 @@ import {
 } from '@kernloop/faculty-scrum';
 import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
+import {
+  DuplicateProgramError,
+  InvalidNodeTransitionError,
+  UnknownProgramNodeError,
+} from './program-store.js';
 
 /** Max length of a `--id`/`--parent` value (it is audited verbatim as parentId). */
 export const ID_MAX = 256;
@@ -34,14 +39,18 @@ export class ProgramInputError extends Error {
   }
 }
 
-/** The typed errors the program verbs surface as a clean nonzero exit. */
+/** The typed errors the program verbs (decompose/emit + the ledger verbs)
+ * surface as a clean nonzero exit, never an unhandled throw. */
 export function isCleanError(error: unknown): error is Error {
   return (
     error instanceof ScrumBudgetExceededError ||
     error instanceof InvalidParentError ||
     error instanceof InvalidStorySpecError ||
     error instanceof UnsafeLabelError ||
-    error instanceof ProgramInputError
+    error instanceof ProgramInputError ||
+    error instanceof DuplicateProgramError ||
+    error instanceof UnknownProgramNodeError ||
+    error instanceof InvalidNodeTransitionError
   );
 }
 
