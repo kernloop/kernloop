@@ -41,17 +41,41 @@ describe('parseEvidenceRef', () => {
     });
   });
 
+  it('parses a code ref into a path and symbol (no doc pattern)', () => {
+    expect(parseEvidenceRef('code:src/router.ts#Router.route')).toEqual({
+      kind: 'code',
+      raw: 'code:src/router.ts#Router.route',
+      path: 'src/router.ts',
+      symbol: 'Router.route',
+    });
+  });
+
+  it('parses a code ref with an @doc regex', () => {
+    expect(parseEvidenceRef('code:src/loop.ts#CANONICAL_LOOP@doc:/canonical loop/')).toEqual({
+      kind: 'code',
+      raw: 'code:src/loop.ts#CANONICAL_LOOP@doc:/canonical loop/',
+      path: 'src/loop.ts',
+      symbol: 'CANONICAL_LOOP',
+      docPattern: 'canonical loop',
+    });
+  });
+
   it('rejects refs with an unknown kind prefix', () => {
     expect(parseEvidenceRef('bench:foo')).toHaveProperty('error');
   });
 
-  it('rejects malformed test, ci, doc, and eval refs', () => {
+  it('rejects malformed test, ci, doc, eval, and code refs', () => {
     expect(parseEvidenceRef('test:no-separator')).toHaveProperty('error');
     expect(parseEvidenceRef('test:::name-without-path')).toHaveProperty('error');
     expect(parseEvidenceRef('ci:')).toHaveProperty('error');
     expect(parseEvidenceRef('doc:README.md')).toHaveProperty('error');
     expect(parseEvidenceRef('doc:README.md#')).toHaveProperty('error');
     expect(parseEvidenceRef('eval:')).toHaveProperty('error');
+    expect(parseEvidenceRef('code:src/router.ts')).toHaveProperty('error');
+    expect(parseEvidenceRef('code:src/router.ts#')).toHaveProperty('error');
+    expect(parseEvidenceRef('code:#Router')).toHaveProperty('error');
+    expect(parseEvidenceRef('code:src/a.ts#Foo@doc:/unterminated')).toHaveProperty('error');
+    expect(parseEvidenceRef('code:src/a.ts#Foo@doc://')).toHaveProperty('error');
   });
 });
 

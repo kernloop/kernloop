@@ -4,6 +4,7 @@ statement: >-
 evidence:
   - 'test:packages/kernel/src/router/exploration.test.ts::a demoted manifest with rock-bottom fitness is still selectable via the exploration floor'
   - 'test:packages/kernel/src/router/exploration.test.ts::exploration selects uniformly among ceiling-allowed candidates including over-budget ones'
+  - 'code:packages/kernel/src/router/router.ts#EXPLORATION_EPSILON@doc:/exploration/'
 status: verified
 owner: williamzujkowski
 since: 0.2.0

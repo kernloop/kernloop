@@ -1,0 +1,18 @@
+id: CLM-0089
+statement: >-
+  A claim may anchor to a function and its doc-comment via
+  code:path#symbol[@doc:/regex/] — the symbol must exist and, with @doc, its
+  doc-comment must assert the claim; this is ADDITIVE evidence and claims:check
+  still requires a test ref for verified.
+evidence:
+  - 'test:claims/src/symbols.test.ts::resolves an exported function and extracts its doc-comment'
+  - 'test:claims/src/symbols.test.ts::resolves a class method via a dotted path and reads its doc'
+  - 'test:claims/src/resolve.test.ts::resolves when the @doc regex matches the doc-comment'
+  - 'test:claims/src/resolve.test.ts::fails when the @doc regex does not match the doc-comment'
+  - 'test:claims/src/resolve.test.ts::reports a precise error when the symbol is missing'
+  - 'test:claims/src/check.test.ts::fails a verified claim whose only non-ci evidence is code: (additive, not a substitute)'
+  - 'code:claims/src/resolve.ts#resolveCodeRef@doc:/code-?anchor|symbol/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
