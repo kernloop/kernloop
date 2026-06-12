@@ -78,6 +78,10 @@ const USAGE = [
   '            file <id> [--execute]   file a proposal via the tracker (DRY RUN by default; enforce-gated)',
   '  program   decompose --goal G --spec F [--parent ID] [--id ID]   decompose a goal into an epic/story tree (preview; spec §5.4)',
   '            emit --goal G --spec F [--id ID] [--execute] [--confirm-count N]   file each child as a labeled issue (DRY RUN by default; enforce-gated, spam-guarded)',
+  '            create --goal G --spec F [--id ID]   persist the decomposed plan to the resumable ledger (.kernloop/programs.sqlite)',
+  '            list   the persisted programs in the ledger (id + goal)',
+  '            status --program ID   the ledger rollup: planned/emitted/done counts + per-node state',
+  '            advance --program ID --node NODE --state emitted|done [--ref URL]   advance one node forward (no daemon; spec §5.4)',
 ].join('\n');
 
 /** Common string- and boolean-flag declarations, spread into command options. */

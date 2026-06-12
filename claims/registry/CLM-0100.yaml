@@ -1,0 +1,25 @@
+id: CLM-0100
+statement: >-
+  kernloop program create|list|status|advance persists a decomposed plan to the
+  resumable .kernloop/programs.sqlite ledger, lists the persisted programs,
+  reports a program's planned/emitted/done rollup, and advances a node one
+  poll-driven step at a time (no daemon) — a duplicate id, an unknown
+  program/node, a backward transition, an out-of-range --state, and an
+  emitted-without-ref each exit 1 cleanly, and each op is audited
+  (cli.program.{create,list,status,advance}) without the goal verbatim.
+evidence:
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::list shows the persisted programs (id + goal)'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::advance rejects a --state outside emitted|done with a clean usage error'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::create persists a program; status shows N planned nodes with the right counts'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::create with a duplicate id exits 1 with a clean DuplicateProgramError'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::status of an unknown program exits 1 with a clear message'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::advance planned → emitted (with --ref) then status shows it emitted with the ref'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::advance to emitted WITHOUT --ref exits 1'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::advance an unknown node exits 1'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::a backward transition (done → emitted) exits 1'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::each op writes its audit event without the goal verbatim'
+  - 'code:packages/cli/src/program-commands.ts#programCommand@doc:/CLM-0100/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

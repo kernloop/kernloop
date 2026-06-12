@@ -281,6 +281,21 @@ contract's budget — the kernel meters, the PM allocates.
 > counts/refs only — never the node goal/body verbatim. Native parent-child
 > sub-issue LINKING is deferred to Increment 2b.
 
+> **As-realized note (2026-06-12).** Increment 3a wires the program LEDGER
+> [CLM-0099, CLM-0100]: a resumable, poll-driven, NO-daemon record of a
+> decomposed program (root goal → story nodes) in a cross-session
+> `.kernloop/programs.sqlite` (its own SQLite file at the CLI composition root,
+> mirroring the job registry; parameterized queries only). `kernloop program
+> create` decomposes the same parent/spec the preview/emit verbs do and records
+> each child as a `planned` node; `status` reports the `planned/emitted/done`
+> rollup; `advance` moves ONE node FORWARD-ONLY (`planned → emitted → done`) per
+> CLI invocation — requiring the filed issue ref to reach `emitted`, rejecting a
+> backward move or an unknown program/node as a clean exit 1. Each op is audited
+> (`cli.program.{create,status,advance}`) with counts/ids only — never the goal
+> verbatim. DEFERRED: GitHub-state RECONCILIATION (reading issue state back into
+> the ledger, blocked on a tracker READ op) and auto-linking `program emit` into
+> the ledger — this increment is the LOCAL ledger only.
+
 ### 5.5 Observer — telemetry and the self-issue loop
 
 Consumes every Outcome and Verdict. Maintains the **tool/skill/template

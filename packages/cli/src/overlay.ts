@@ -44,6 +44,8 @@ export interface OverlayPaths {
   readonly memory: string;
   /** Repo-local SQLite job registry (spec §3.4: status async/cross-session). */
   readonly jobs: string;
+  /** Repo-local SQLite program ledger (spec §5.4: resumable, poll-driven). */
+  readonly programs: string;
   /** Overlay configuration: id, budgets, gate thresholds, K, overrides. */
   readonly config: string;
   /** Exported, reviewable learned routing priors (spec §7 priors.yaml). */
@@ -61,6 +63,7 @@ export function overlayPaths(overlayDir: string): OverlayPaths {
     audit: path.join(dir, 'audit.jsonl'),
     memory: path.join(dir, 'memory.sqlite'),
     jobs: path.join(dir, 'jobs.sqlite'),
+    programs: path.join(dir, 'programs.sqlite'),
     config: path.join(dir, 'overlay.yaml'),
     priors: path.join(dir, 'priors.yaml'),
     modelsCache: path.join(dir, 'models-cache.json'),
@@ -378,14 +381,9 @@ export function initOverlay(repoRoot: string): InitResult {
     [paths.config, overlayTemplate(defaults)],
     [
       path.join(paths.dir, '.gitignore'),
-      '# spec §12.4: gitignore the memory database (privacy over portability)\n' +
-        'memory.sqlite\n' +
-        '# the job registry is a machine-local run ledger, never repo identity\n' +
-        'jobs.sqlite\n' +
-        '# loop run checkpoints are machine-local, never repo identity\n' +
-        'checkpoints/\n' +
-        '# the discovered model catalog is a machine-local sync result (spec §5.7)\n' +
-        'models-cache.json\n',
+      // spec §12.4: gitignore machine-local state (privacy over portability) —
+      // the memory DB, job registry, program ledger, loop checkpoints, model cache.
+      'memory.sqlite\njobs.sqlite\nprograms.sqlite\ncheckpoints/\nmodels-cache.json\n',
     ],
   ];
   for (const [file, content] of files) {

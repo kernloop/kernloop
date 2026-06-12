@@ -28,15 +28,18 @@ import { createKernloop, type Kernloop } from './kernel.js';
 import type { CommandHelpers } from './portability-commands.js';
 import { buildProgramParent, checkIdLength, isCleanError, readSpecFile } from './program-shared.js';
 import { emitOp } from './program-emit.js';
+import { advanceOp, createOp, listOp, statusOp } from './program-ledger-commands.js';
 
 export { ProgramInputError } from './program-shared.js';
 
-/** The program verbs this surface exposes (decompose is inc 1, emit is inc 2). */
-export const PROGRAM_OPS = ['decompose', 'emit'] as const;
+/** The program verbs this surface exposes (decompose=inc1, emit=inc2, the
+ * ledger verbs create|list|status|advance=inc3). */
+export const PROGRAM_OPS = ['decompose', 'emit', 'create', 'list', 'status', 'advance'] as const;
 
 /** The shared usage line every program entry point rejects bad input with. */
 const PROGRAM_USAGE =
-  'usage: kernloop program decompose|emit --goal G --spec F [--parent ID] [--id ID] [--execute] [--confirm-count N]';
+  'usage: kernloop program decompose|emit --goal G --spec F [--parent ID] [--id ID] [--execute] [--confirm-count N]\n' +
+  '       kernloop program create --goal G --spec F [--id ID] | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]';
 
 /** Run `program decompose`: build the parent, decompose, print the tree, audit. */
 function decomposeOp(
@@ -75,11 +78,15 @@ function decomposeOp(
 }
 
 /**
- * `kernloop program <op> ...` — the program decomposition + emission CLI.
- * `decompose` [CLM-0096] prints the proposed epic/story child tree (a pure
+ * `kernloop program <op> ...` — the program decomposition, emission, and LEDGER
+ * CLI. `decompose` [CLM-0096] prints the proposed epic/story child tree (a pure
  * preview, no GitHub). `emit` [CLM-0097] files each child as a labeled GitHub
  * issue through the gated tracker (dry-run by default; enforce-tier + --execute
- * to act; issue-spam-guarded). `options.exec` is the tracker test seam.
+ * to act; issue-spam-guarded). The LEDGER verbs [CLM-0100] `create|status|advance`
+ * persist a decomposed plan to the resumable `.kernloop/programs.sqlite` ledger,
+ * report its rollup, and advance a node one poll-driven step at a time (no
+ * daemon) — each op audited without the goal verbatim. `options.exec` is the
+ * tracker test seam.
  */
 export async function programCommand(
   args: string[],
@@ -91,12 +98,20 @@ export async function programCommand(
   if (op === undefined || !(PROGRAM_OPS as readonly string[]).includes(op)) {
     throw new Error(PROGRAM_USAGE);
   }
-  const v = h.mixedFlags(rest, ['goal', 'spec', 'parent', 'id', 'confirm-count'], ['execute']);
+  const v = h.mixedFlags(
+    rest,
+    ['goal', 'spec', 'parent', 'id', 'confirm-count', 'program', 'node', 'state', 'ref'],
+    ['execute'],
+  );
   const kern = createKernloop({
     overlayDir: path.join(path.resolve(io.cwd, h.str(v.dir) ?? '.'), '.kernloop'),
   });
   try {
     if (op === 'emit') return await emitOp(kern, io, v, h.str, options.exec);
+    if (op === 'create') return createOp(kern, io, v, h.str);
+    if (op === 'list') return listOp(kern, io);
+    if (op === 'status') return statusOp(kern, io, v, h.str);
+    if (op === 'advance') return advanceOp(kern, io, v, h.str);
     return decomposeOp(kern, io, v, h.str);
   } finally {
     kern.close();
