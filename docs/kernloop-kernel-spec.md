@@ -249,6 +249,21 @@ existing templates at `enforce`; **new templates** enter at `suggest` and are
 ratified into the library. Fan-out parallelism is bounded by the parent
 contract's budget — the kernel meters, the PM allocates.
 
+> **As-realized note (2026-06-12).** `@kernloop/faculty-scrum` Increment 1 wires
+> the GitHub-free foundation of agile/scrum program management [CLM-0096]: PM
+> decomposition "one altitude up". `decomposeGoal` mirrors the workforce's
+> `decomposePlan` exactly — parent-chain identity, the per-dimension budget-sum
+> invariant, and the `suggest` ceiling clamp — but splits a program GOAL into an
+> epic/story TaskContract tree, tagging each child with its program
+> altitude/track/sprint as constraint tags. Those tags are a typed READER over
+> the existing `constraints: string[]` (no new contract, no new field) —
+> `altitude:` is the `epic|story|task` enum, and `track:`/`sprint:` are
+> charset-restricted so they are safe as later labels [CLM-0095]. It is pure and
+> model-free; the capability has no run-executor and is surfaced through the
+> suggest-tier `kernloop program decompose` CLI as a PREVIEW that mutates nothing
+> (no GitHub, no loop enforcement — those are later increments) and writes only a
+> single `cli.program.decompose` audit event (goalChars, never the goal verbatim).
+
 ### 5.5 Observer — telemetry and the self-issue loop
 
 Consumes every Outcome and Verdict. Maintains the **tool/skill/template

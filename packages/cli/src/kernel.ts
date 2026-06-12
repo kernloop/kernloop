@@ -33,6 +33,7 @@ import { compilerManifest } from '@kernloop/faculty-compiler';
 import { qualityGateManifest, reviewGateManifest, voteGateManifest } from '@kernloop/faculty-gates';
 import { createObserver, observerManifest, type Observer } from '@kernloop/faculty-observer';
 import { toolsmithManifest } from '@kernloop/faculty-toolsmith';
+import { scrumManifest } from '@kernloop/faculty-scrum';
 import { workflowsManifest } from '@kernloop/workflows';
 import type { Manifest } from '@kernloop/contracts';
 import { loadOverlay, overlayPaths, type Overlay, type OverlayPaths } from './overlay.js';
@@ -58,6 +59,14 @@ export const P3_MANIFESTS: readonly Manifest[] = [
   observerManifest,
   toolsmithManifest,
 ];
+
+/** The scrum/program-decomposition faculty (spec §5.4, tier `suggest`) — its
+ * capability has no run-executor; it is surfaced through `kernloop program
+ * decompose`, registered here for observability + its ladder tier [CLM-0096].
+ * NOTE: named for its faculty, NOT a kernloop spec phase — the `P1/P2/P3`
+ * manifest groups above track spec phases P0–P3 (§11); this is a separate axis
+ * (the AGILE epic) and deliberately not `P4/P5` to avoid implying a phase. */
+export const SCRUM_MANIFESTS: readonly Manifest[] = [scrumManifest];
 
 /** The assembled system every tool operates on. */
 export interface Kernloop {
@@ -105,7 +114,12 @@ function msClockOption(clock: (() => Date) | undefined): { clock?: () => number 
 
 /** Register every faculty manifest (audited) and seed its ladder tier. */
 function registerFaculties(registry: ManifestRegistry, ladder: Ladder): void {
-  for (const manifest of [...P1_FACULTY_MANIFESTS, ...P2_MANIFESTS, ...P3_MANIFESTS]) {
+  for (const manifest of [
+    ...P1_FACULTY_MANIFESTS,
+    ...P2_MANIFESTS,
+    ...P3_MANIFESTS,
+    ...SCRUM_MANIFESTS,
+  ]) {
     registry.register(manifest);
     seedTier(ladder, manifest);
   }

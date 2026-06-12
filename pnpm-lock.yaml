@@ -93,6 +93,9 @@ importers:
       '@kernloop/faculty-observer':
         specifier: workspace:*
         version: link:../faculty-observer
+      '@kernloop/faculty-scrum':
+        specifier: workspace:*
+        version: link:../faculty-scrum
       '@kernloop/faculty-toolsmith':
         specifier: workspace:*
         version: link:../faculty-toolsmith
@@ -206,6 +209,15 @@ importers:
       '@types/node':
         specifier: ^25.9.2
         version: 25.9.2
+
+  packages/faculty-scrum:
+    dependencies:
+      '@kernloop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/faculty-toolsmith:
     dependencies:

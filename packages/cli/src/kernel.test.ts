@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { verifyChain } from '@kernloop/kernel';
-import { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS, P3_MANIFESTS } from './kernel.js';
+import {
+  createKernloop,
+  P1_FACULTY_MANIFESTS,
+  P2_MANIFESTS,
+  P3_MANIFESTS,
+  SCRUM_MANIFESTS,
+} from './kernel.js';
 import { readEnvelopes } from './tools/audit.js';
 
 const dirs: string[] = [];
@@ -29,10 +35,12 @@ describe('createKernloop', () => {
       '@kernloop/faculty-gates/review',
       '@kernloop/faculty-observer',
       '@kernloop/faculty-toolsmith',
+      '@kernloop/faculty-scrum',
     ]);
     expect(P1_FACULTY_MANIFESTS).toHaveLength(3);
     expect(P2_MANIFESTS).toHaveLength(2);
     expect(P3_MANIFESTS).toHaveLength(3);
+    expect(SCRUM_MANIFESTS).toHaveLength(1);
     kern.close();
   });
 
@@ -55,6 +63,7 @@ describe('createKernloop', () => {
       ['@kernloop/faculty-gates/review', 'advisory', null],
       ['@kernloop/faculty-observer', 'suggest', null],
       ['@kernloop/faculty-toolsmith', 'suggest', null],
+      ['@kernloop/faculty-scrum', 'suggest', null],
     ]);
     kern.close();
   });

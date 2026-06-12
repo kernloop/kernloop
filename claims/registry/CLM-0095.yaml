@@ -1,0 +1,20 @@
+id: CLM-0095
+statement: >-
+  TaskContract constraint-tags (altitude/track/sprint) are a typed reader over
+  the existing constraints string[] — parsed and validated (an altitude value
+  outside epic|story|task or a duplicate altitude is rejected, and a track/sprint
+  value with spaces or metacharacters or a duplicate is rejected so it is safe as
+  a later label) — never a new contract and never a new TaskContract field.
+evidence:
+  - 'test:packages/contracts/src/constraints.test.ts::parses each recognized tag into its typed field'
+  - 'test:packages/contracts/src/constraints.test.ts::passes free-form constraints and unknown keys through to other'
+  - 'test:packages/contracts/src/constraints.test.ts::rejects an altitude value outside the enum'
+  - 'test:packages/contracts/src/constraints.test.ts::rejects a duplicate altitude tag'
+  - 'test:packages/contracts/src/constraints.test.ts::rejects track/sprint values with spaces or metacharacters'
+  - 'test:packages/contracts/src/constraints.test.ts::rejects a duplicate track and a duplicate sprint'
+  - 'test:packages/contracts/src/constraints.test.ts::round-trips constraintTag through parseConstraintTags'
+  - 'code:packages/contracts/src/constraints.ts#parseConstraintTags@doc:/CLM-0095/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

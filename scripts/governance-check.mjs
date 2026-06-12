@@ -33,6 +33,7 @@ export const ALLOWED_PACKAGES = new Set([
   'faculty-gates',
   'faculty-workforce',
   'faculty-observer',
+  'faculty-scrum',
   'faculty-toolsmith',
   'faculty-models',
   'tracker',
