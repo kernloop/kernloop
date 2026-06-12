@@ -33,12 +33,11 @@
  *    body is a typed error, never an OOM, crash, or a guess.
  *  - SPEND CEILING: a bounded `max_tokens` is ALWAYS sent; the metered cost
  *    flows into the run budget; an optional per-endpoint `maxUsdPerCall` fails
- *    closed if a call's reported cost would exceed it. An endpoint that
- *    declares `metersUsd` but reports NO cost on a 2xx fails closed rather than
- *    silently meter $0 — a report never implies $0 spend when spend is unknown.
+ *    closed if a call's reported cost would exceed it. An endpoint that declares
+ *    `metersUsd` but reports NO cost on a 2xx fails closed rather than silently
+ *    meter $0 — a report never implies $0 spend when spend is unknown.
  *  - TIMEOUT: ONE {@link AbortController} enforces a wall-clock budget over both
  *    the request AND the streamed body read, so a slow body is bounded too.
- *
  * @module kernel/adapters/api
  */
 import { CostSchema, type Cost } from '@kernloop/contracts';
@@ -99,11 +98,10 @@ export interface ApiAdapterResult {
 }
 
 /**
- * The untrusted response shape, validated DEFENSIVELY. `passthrough` is avoided
- * — only the fields we read are kept, and every numeric usage field is coerced
- * to a finite non-negative number or rejected. `usage.cost`/`usage.total_cost`
- * (reported by some OpenAI-compatible endpoints) is the dollar amount; absence
- * means cost is unmetered.
+ * The untrusted response shape, validated DEFENSIVELY. `passthrough` is avoided —
+ * only the fields we read are kept, every numeric usage field coerced to a finite
+ * non-negative number or rejected. `usage.cost`/`usage.total_cost` (some
+ * OpenAI-compatible endpoints) is the dollar amount; absence means unmetered.
  */
 const UsageSchema = z
   .object({
@@ -128,9 +126,9 @@ const ResponseSchema = z.object({
 
 /**
  * Redact `key` from any surfaced string. Defence-in-depth: the key should never
- * reach a surfaced string in the first place, but error bodies are untrusted
- * and could echo a sent header, so every string we surface is scrubbed. An
- * empty key scrubs nothing (there is no secret to hide).
+ * reach a surfaced string in the first place, but error bodies are untrusted and
+ * could echo a sent header, so every surfaced string is scrubbed. An empty key
+ * scrubs nothing (no secret to hide).
  */
 export function scrub(text: string, key: string): string {
   if (key === '') return text;
@@ -171,13 +169,15 @@ function checkInvocation(def: ApiAdapterDefinition, invocation: ApiInvocation): 
 }
 
 /**
- * Read the response body via the STREAM under the size cap, aborting the
- * request and throwing once {@link MAX_RESPONSE_BYTES} is exceeded — the whole
- * body is never buffered, so a multi-GB body cannot OOM or hang the process.
- * UNscrubbed (parsed before surfacing). `abort` cancels the underlying request
- * so a slow/oversized stream cannot keep the socket open past the cap.
+ * Read the response body via the STREAM under the size cap, aborting the request
+ * and throwing once {@link MAX_RESPONSE_BYTES} is exceeded — the whole body is
+ * never buffered, so a multi-GB body cannot OOM or hang. UNscrubbed (parsed
+ * before surfacing). `abort` cancels the underlying request so a slow/oversized
+ * stream cannot keep the socket open past the cap. Exported
+ * so the discovery path (`discover.ts`) reads its bodies under the SAME cap —
+ * one size-limit primitive, not a second prone to drift (spec §5.7 discovery).
  */
-async function readCappedBody(
+export async function readCappedBody(
   adapter: string,
   response: Response,
   abort: () => void,

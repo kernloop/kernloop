@@ -14,6 +14,7 @@ import {
   resolveServed,
   servedIdentity,
   servedRef,
+  type ServedModel,
 } from './node-seam.js';
 
 const COST: Cost = { tokens: 2, usd: 0.001 };
@@ -99,6 +100,46 @@ describe('servedIdentity / identityRef — the normalized served model class [CL
     expect(served.model).toBe('');
     expect(servedIdentity(served).resolvedBy).toBe('unknown');
     expect(identityRef(served)).toBe('identity:unknown(unknown)');
+  });
+
+  it('a DISCOVERED served model normalizes by the cache, NOT a bare rule parse [CLM-0087]', () => {
+    // An uncatalogued served alias that `models sync` enumerated from an endpoint.
+    const served: ServedModel = {
+      adapter: 'internal',
+      model: 'acme/llama-3',
+      requestedTier: 'large',
+      servedTier: 'large',
+      degraded: false,
+      requestedEffort: 'high',
+      servedEffort: 'high',
+      effortClamped: false,
+      effortArg: undefined,
+    };
+    // Without a cache it falls through to a bare rule parse.
+    expect(servedIdentity(served).resolvedBy).toBe('rule');
+    expect(servedIdentity(served).family).toBe('llama');
+    // The cache holds a DISTINCT normalized identity for that id (here, a richer
+    // one the discovered index returns verbatim) — proving the cache is consulted
+    // rather than the id being re-derived by the rule layer.
+    const cached = {
+      provider: 'acme',
+      family: 'acme-llama',
+      generation: '3',
+      variant: null,
+      tier: 'large' as const,
+      raw: 'acme/llama-3',
+      resolvedBy: 'table' as const,
+      contextWindow: 128000,
+      inputCostPerMTok: 1,
+      outputCostPerMTok: 2,
+    };
+    const cache = {
+      snapshot: 'test',
+      sources: { internal: { syncedAt: 'test', models: [cached] } },
+    };
+    const id = servedIdentity(served, cache);
+    expect(id).toEqual(cached); // the cached identity, returned verbatim (not re-parsed)
+    expect(identityRef(served, cache)).toBe('identity:acme-llama@3/large(table)');
   });
 });
 

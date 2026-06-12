@@ -11,7 +11,7 @@ import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
-import { OVERLAY_DIR_NAME, VOTE_STRATEGIES, initOverlay } from './overlay.js';
+import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
 import { parseBudget } from './cli-flags.js';
 import { doctor } from './doctor.js';
 import { createKernloop, type Kernloop } from './kernel.js';
@@ -28,10 +28,11 @@ import {
   rememberTool,
   runTool,
   statusTool,
-  type GateInput,
 } from './tools/index.js';
+import { gateInputFrom } from './gate-flags.js';
 import { memoryCommand, priorsCommand, type CommandHelpers } from './portability-commands.js';
 import { workshopCommand } from './workshop-commands.js';
+import { modelsCommand } from './models-commands.js';
 
 /** Injectable I/O so tests can capture output. */
 export interface CliIo {
@@ -66,14 +67,14 @@ const USAGE = [
   '  memory    export [--out <file>]                 portable memory export (JSON; default stdout)',
   '            import <file>                          load a memory export (upserts, audited)',
   '  priors    export [--out <file>]                 routing priors → .kernloop/priors.yaml (YAML)',
+  '  models    sync [--ollama-host <H>] [--no-ollama] | list   discover/list the model catalog',
 ].join('\n');
 
-/** Common string-flag declaration, spread into each command's options. */
+/** Common string- and boolean-flag declarations, spread into command options. */
 const S = { type: 'string' } as const;
-/** Flag value spaces: `--adapter` (spec §3.1), `--panel` / `--strategy` (spec §5.3). */
+const B = { type: 'boolean' } as const;
+/** `--adapter` flag space (spec §3.1); panel/strategy schemas live in gate-flags.ts. */
 const AdapterFlagSchema = z.enum(ADAPTER_NAMES);
-const PanelFlagSchema = z.union([z.literal(3), z.literal(7)]);
-const StrategyFlagSchema = z.enum(VOTE_STRATEGIES);
 
 /** Parse flags for one command; unknown flags fail loudly. */
 function flags<const O extends Record<string, { type: 'string' | 'boolean' }>>(
@@ -148,47 +149,16 @@ function manifestOp(
   throw new Error(`unknown manifest op "${op}" — use list, get, or register`);
 }
 
-/** Map gate flags onto the gate tool's discriminated input (spec §5.3). */
-function gateInputFrom(io: CliIo, v: Record<string, string | boolean | undefined>): GateInput {
-  const gateName = str(v.gate) ?? 'quality';
-  const taskId = str(v['task-id']);
-  const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
-  if (gateName === 'vote') {
-    const [briefGoal, panel, strategy] = [str(v['brief-goal']), str(v.panel), str(v.strategy)];
-    return {
-      gateName,
-      proposal: required(v.proposal, '--proposal'),
-      ...(taskId === undefined ? {} : { taskId }),
-      ...(briefGoal === undefined ? {} : { briefGoal }),
-      ...(panel === undefined ? {} : { panel: PanelFlagSchema.parse(Number(panel)) }),
-      ...(strategy === undefined ? {} : { strategy: StrategyFlagSchema.parse(strategy) }),
-      ...(adapter === undefined ? {} : { adapter }),
-    };
-  }
-  if (gateName === 'review') {
-    const [diff, diffFile, context] = [str(v.diff), str(v['diff-file']), str(v.context)];
-    return {
-      gateName,
-      ...(taskId === undefined ? {} : { taskId }),
-      ...(diff === undefined ? {} : { diff }),
-      ...(diffFile === undefined ? {} : { diffFile: path.resolve(io.cwd, diffFile) }),
-      ...(context === undefined ? {} : { context }),
-      ...(adapter === undefined ? {} : { adapter }),
-    };
-  }
-  // quality (or an unknown name the tool rejects with its typed error)
-  return {
-    gateName: gateName as 'quality',
-    taskId: required(v['task-id'], '--task-id'),
-    workspaceDir: path.resolve(io.cwd, required(v.workspace, '--workspace')),
-  };
-}
-
 /** Dispatch helpers shared with the extracted portability subcommands. */
 const commandHelpers: CommandHelpers = {
   outFlags: (args) => flags(args, { out: S }),
   strFlags: (args, names) =>
     flags(args, Object.fromEntries(names.map((n) => [n, S]))) as Record<string, string | boolean>,
+  mixedFlags: (args, strs, bools) =>
+    flags(args, {
+      ...Object.fromEntries(strs.map((n) => [n, S])),
+      ...Object.fromEntries(bools.map((n) => [n, B])),
+    }) as Record<string, string | boolean>,
   withKernloop,
   str,
 };
@@ -221,9 +191,9 @@ const HANDLERS: Record<string, Handler> = {
       adapter: S,
       resume: S,
       budget: S,
-      plan: { type: 'boolean' },
-      async: { type: 'boolean' },
-      unlimited: { type: 'boolean' },
+      plan: B,
+      async: B,
+      unlimited: B,
     });
     const [workspace, id, resume] = [str(v.workspace), str(v.id), str(v.resume)];
     // `--resume` replaces `--goal` (the checkpointed task is the truth).
@@ -286,7 +256,8 @@ const HANDLERS: Record<string, Handler> = {
       context: S,
       adapter: S,
     });
-    return withKernloop(io, v.dir, (kern) => gateTool(kern, gateInputFrom(io, v)));
+    const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
+    return withKernloop(io, v.dir, (kern) => gateTool(kern, gateInputFrom(io.cwd, v, adapter)));
   },
   recall: (args, io) => {
     const v = flags(args, { query: S, limit: S });
@@ -332,6 +303,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   memory: (args, io) => memoryCommand(args, io, commandHelpers),
   priors: (args, io) => priorsCommand(args, io, commandHelpers),
+  models: (args, io) => modelsCommand(args, io, commandHelpers),
   distill: (args, io) => {
     const v = flags(args, { trace: S, adapter: S });
     const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);

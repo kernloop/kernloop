@@ -14,6 +14,7 @@ import {
   type Verdict,
 } from '@kernloop/contracts';
 import type { ChildResult, NodeContext } from '@kernloop/workflows';
+import { emptyDiscoveredCache } from '@kernloop/faculty-models';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { buildLoopExecutors, type LoopBindings, type LoopRefs } from './executors.js';
 import type { LoopInvoke } from './invoke.js';
@@ -67,6 +68,7 @@ function bindingsFor(kern: Kernloop, refs: LoopRefs = {}): LoopBindings {
     }),
     adapter: 'claude',
     refs,
+    discovered: emptyDiscoveredCache('test'),
   };
 }
 

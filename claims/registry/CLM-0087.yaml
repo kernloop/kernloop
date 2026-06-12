@@ -1,0 +1,24 @@
+id: CLM-0087
+statement: >-
+  Discovered model ids normalize through faculty-models' unchanged resolveIdentity — a vendored
+  table hit yields full metadata, a well-formed uncatalogued id is rule-parsed, garbage is an honest
+  unknown — and persist to a machine-local discovered cache keyed by source, each source carrying its
+  own sync timestamp. The cache is validated by zod at load and a missing or corrupt cache degrades
+  to empty rather than crashing or fabricating a model, a re-sync REPLACES a source's set so a model
+  that vanished does not persist, and resolveWithDiscovered consults the cache (vendored table →
+  discovered cache → rule → unknown) so the loop's provenance normalizes a discovered served model by
+  the cache rather than a bare rule parse.
+evidence:
+  - 'test:packages/faculty-models/src/discovered.test.ts::normalizes a vendored id by table, an uncatalogued id by rule, garbage by unknown'
+  - 'test:packages/faculty-models/src/discovered.test.ts::de-duplicates ids and drops the empty string (never a fabricated model)'
+  - 'test:packages/faculty-models/src/discovered.test.ts::a re-sync of a source replaces its whole set, dropping a model no longer served'
+  - 'test:packages/faculty-models/src/discovered.test.ts::a missing file degrades to the empty cache stamped with now'
+  - 'test:packages/faculty-models/src/discovered.test.ts::a corrupt (non-JSON) file degrades to the empty cache, not a throw'
+  - 'test:packages/faculty-models/src/discovered.test.ts::a schema-invalid cache degrades to the empty cache (honesty over half-load)'
+  - 'test:packages/faculty-models/src/discovered.test.ts::a vendored table hit always wins (the reviewed snapshot is most trusted)'
+  - 'test:packages/faculty-models/src/discovered.test.ts::a DISCOVERED uncatalogued id normalizes by the cache, not a bare rule parse'
+  - 'test:packages/cli/src/loop/node-seam.test.ts::a DISCOVERED served model normalizes by the cache, NOT a bare rule parse [CLM-0087]'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

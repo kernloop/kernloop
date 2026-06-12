@@ -14,8 +14,25 @@
 import { isIP } from 'node:net';
 import { ApiEndpointError } from './errors.js';
 
-/** The fixed request path — never user-templated (baseUrl is host only). */
+/** The fixed request-path SUFFIX appended to the operator-trusted baseUrl (whose
+ * path prefix the operator controls; this suffix is never user-templated). */
 export const CHAT_PATH = '/chat/completions';
+
+/**
+ * The fixed model-enumeration path (OpenAI `GET /v1/models`) — like
+ * {@link CHAT_PATH}, appended by the caller to a guarded origin, NEVER
+ * user-templated. Discovery (spec §5.7 "live `/v1/models` enumeration") reuses
+ * the SAME {@link assertSafeBaseUrl} scheme/credential/redirect guards. The
+ * `/v1` segment rides on the operator's `baseUrl`, so only `/models` is appended.
+ */
+export const MODELS_PATH = '/models';
+
+/**
+ * The fixed ollama model-listing path (`GET /api/tags`) — a LOCAL, no-secret
+ * enumeration. The ollama host is a plain origin (e.g. `http://localhost:11434`)
+ * with NO `/v1` prefix, so this path is appended to the origin directly.
+ */
+export const OLLAMA_TAGS_PATH = '/api/tags';
 
 /**
  * Validate the OPERATOR-configured api endpoint `baseUrl` BEFORE any network

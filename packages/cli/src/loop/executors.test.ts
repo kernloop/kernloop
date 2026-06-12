@@ -19,6 +19,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { BriefSchema, TaskContractSchema, type Cost, type Verdict } from '@kernloop/contracts';
 import { PANEL_DEFAULT, type QualityCheck } from '@kernloop/faculty-gates';
+import { emptyDiscoveredCache } from '@kernloop/faculty-models';
 import { JsonlCheckpointStore, type ChildResult, type NodeContext } from '@kernloop/workflows';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { buildLoopExecutors, type LoopBindings, type LoopRefs } from './executors.js';
@@ -107,7 +108,15 @@ function bindingsFor(
   // Injected-invoke parity: every node resolves to the same injected invoke,
   // so a custom invoke reaches per-node executors too (the loop's
   // injected-invoke backward-compat contract, [CLM-0078]).
-  return { kern, workspaceDir, invoke, invokeFor: () => seamOf(invoke), adapter: 'claude', refs };
+  return {
+    kern,
+    workspaceDir,
+    invoke,
+    invokeFor: () => seamOf(invoke),
+    adapter: 'claude',
+    refs,
+    discovered: emptyDiscoveredCache('test'),
+  };
 }
 
 function ctxFor(panel: 3 | 7): NodeContext {

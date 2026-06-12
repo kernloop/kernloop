@@ -47,6 +47,8 @@ export interface OverlayPaths {
   readonly config: string;
   /** Exported, reviewable learned routing priors (spec §7 priors.yaml). */
   readonly priors: string;
+  /** Machine-local discovered model catalog (spec §5.7 discovery) — gitignored. */
+  readonly modelsCache: string;
 }
 
 /** Resolve the overlay file layout for an overlay directory. */
@@ -60,6 +62,7 @@ export function overlayPaths(overlayDir: string): OverlayPaths {
     jobs: path.join(dir, 'jobs.sqlite'),
     config: path.join(dir, 'overlay.yaml'),
     priors: path.join(dir, 'priors.yaml'),
+    modelsCache: path.join(dir, 'models-cache.json'),
   };
 }
 
@@ -376,7 +379,9 @@ export function initOverlay(repoRoot: string): InitResult {
         '# the job registry is a machine-local run ledger, never repo identity\n' +
         'jobs.sqlite\n' +
         '# loop run checkpoints are machine-local, never repo identity\n' +
-        'checkpoints/\n',
+        'checkpoints/\n' +
+        '# the discovered model catalog is a machine-local sync result (spec §5.7)\n' +
+        'models-cache.json\n',
     ],
   ];
   for (const [file, content] of files) {

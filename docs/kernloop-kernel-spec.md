@@ -294,7 +294,15 @@ cross-provider "newer-than" comparison (generation is an opaque label). The
 loop records the normalized identity in Brief provenance so a report names the
 real model class — or admits `unknown` (a harness-default pick) honestly. The
 faculty acts at `observe` tier: it normalizes, it does not route or call a
-model. Discovery (live `/v1/models` enumeration) is a deferred extension.
+model. **Discovery** (as-realized, ratified 2026-06-11): `kernloop models sync`
+enumerates an endpoint's models via the stable public contracts — an
+OpenAI-compatible `/v1/models` (reusing the §8.4 api adapter's env-only
+secret + SSRF + timeout + no-leak handling) and ollama `/api/tags` — normalizes
+each id through `resolveIdentity`, and persists a **machine-local** discovered
+cache (gitignored) that `resolveIdentity` then consults. CLI adapters that
+can't enumerate honestly declare so (curated static lists; kernloop never
+parses another tool's private config). `models sync`/`list` are CLI verbs, not
+a twelfth MCP tool. Live `models.dev` catalog enrichment remains deferred.
 
 ### 5.8 Day-one deferrals inside faculties
 

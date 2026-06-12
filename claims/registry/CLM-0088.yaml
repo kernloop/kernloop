@@ -1,0 +1,24 @@
+id: CLM-0088
+statement: >-
+  kernloop models sync discovers every registered overlay endpoint plus a local ollama daemon,
+  normalizes the served ids through faculty-models, REPLACES each source's set in the machine-local
+  discovered cache, and audits a cli.models.sync event carrying per-source counts but NEVER the key —
+  honestly: a source that fails (no key, unreachable, malformed) is reported as failed for that source
+  with a key-free reason while the others proceed and its prior set is left untouched, and the key
+  never reaches the result, the audit, or stdout. kernloop models list prints the merged vendored plus
+  discovered catalog with each row's id, family, generation, tier, and resolvedBy, stating the
+  discovered cache's freshness per source. These are CLI verbs, not a twelfth MCP tool.
+evidence:
+  - 'test:packages/cli/src/tools/models.test.ts::syncs an endpoint + ollama into the cache and reports per-source counts'
+  - 'test:packages/cli/src/tools/models.test.ts::audits a cli.models.sync event with counts but NEVER the key'
+  - 'test:packages/cli/src/tools/models.test.ts::the key NEVER leaks into the sync RESULT (no-leak on the discovery path)'
+  - 'test:packages/cli/src/tools/models.test.ts::isolates a failed source: the endpoint fails, ollama still proceeds'
+  - 'test:packages/cli/src/tools/models.test.ts::fails the source (not a crash) when its key env var is unset'
+  - 'test:packages/cli/src/tools/models.test.ts::a re-sync REPLACES a source set — a vanished model does not persist'
+  - 'test:packages/cli/src/tools/models.test.ts::lists vendored rows always, and discovered rows with source + syncedAt'
+  - 'test:packages/cli/src/tools/models.test.ts::with no cache, lists only vendored rows and a null discovered snapshot'
+  - 'test:packages/cli/src/overlay.test.ts::scaffolds overlay.yaml and gitignores the memory database'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

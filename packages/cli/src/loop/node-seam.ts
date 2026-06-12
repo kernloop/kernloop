@@ -19,8 +19,22 @@ import {
   type AdapterName,
 } from '@kernloop/kernel';
 import type { Effort, ModelIdentity, ModelRequirement, ModelTier } from '@kernloop/contracts';
-import { catalog, resolveIdentity } from '@kernloop/faculty-models';
+import {
+  catalog,
+  emptyDiscoveredCache,
+  resolveWithDiscovered,
+  type DiscoveredCache,
+} from '@kernloop/faculty-models';
 import { meteredInvoke, type LoopInvoke } from './invoke.js';
+
+/**
+ * The empty discovered cache used when the loop runs WITHOUT a synced cache —
+ * `resolveWithDiscovered` against it behaves exactly like the bare vendored
+ * resolution (table → rule → unknown). The `snapshot` stamp is inert here (no
+ * I/O), so a fixed placeholder is honest. Threaded as the default so existing
+ * callers keep their behavior; a real run loads the overlay's cache (loop/index).
+ */
+const NO_DISCOVERED: DiscoveredCache = emptyDiscoveredCache('n/a');
 
 /** The per-tier adapter map an overlay declares (tier → adapter name). */
 export type TierAdapters = Partial<Record<ModelTier, AdapterName | undefined>>;
@@ -142,15 +156,21 @@ export function servedRef(served: ServedModel): string {
 }
 
 /**
- * Normalize what served a node into a {@link ModelIdentity} [CLM-0081] (the
- * SUPPLY side, spec §5.7/§8.4). The served `model` is the harness ALIAS the
- * tier resolved to (`opus`, `gemini-3.1-pro`, or `''` = harness default); the
- * models faculty's vendored catalog maps it to the real model class. A `''`
- * (harness picked its own model — kernloop pinned none) normalizes to an honest
- * `unknown`, never a guess. Pure: the catalog is loaded once.
+ * Normalize what served a node into a {@link ModelIdentity} [CLM-0081, CLM-0087]
+ * (the SUPPLY side, spec §5.7/§8.4). The served `model` is the harness ALIAS the
+ * tier resolved to (`opus`, `gemini-3.1-pro`, or `''` = harness default). It is
+ * normalized through {@link resolveWithDiscovered}: the vendored catalog TABLE
+ * wins, else the DISCOVERED cache (an id `models sync` saw the endpoint serve)
+ * names it, else rule, else an honest `unknown` — so a discovered model
+ * normalizes by the cache, not a bare rule parse. A `''` (kernloop pinned no
+ * model) normalizes to `unknown`, never a guess. `discovered` defaults to the
+ * empty cache (identical to bare vendored resolution).
  */
-export function servedIdentity(served: ServedModel): ModelIdentity {
-  return resolveIdentity(served.model, catalog);
+export function servedIdentity(
+  served: ServedModel,
+  discovered: DiscoveredCache = NO_DISCOVERED,
+): ModelIdentity {
+  return resolveWithDiscovered(served.model, catalog, discovered);
 }
 
 /**
@@ -159,10 +179,14 @@ export function servedIdentity(served: ServedModel): ModelIdentity {
  * `identity:unknown(unknown)`. It rides ALONGSIDE {@link servedRef} so the
  * trace records both the raw served alias and the real model class behind it —
  * and admits `unknown` honestly when kernloop did not pin the model. The
- * trailing `(resolvedBy)` discloses how confidently the class was named.
+ * trailing `(resolvedBy)` discloses how confidently the class was named. The
+ * discovered cache (default empty) lets a synced model name by table, not rule.
  */
-export function identityRef(served: ServedModel): string {
-  const id = servedIdentity(served);
+export function identityRef(
+  served: ServedModel,
+  discovered: DiscoveredCache = NO_DISCOVERED,
+): string {
+  const id = servedIdentity(served, discovered);
   const variant = id.variant === null ? '' : `-${id.variant}`;
   const known = id.resolvedBy === 'unknown';
   const body = known ? id.family : `${id.family}${variant}@${id.generation}/${id.tier}`;

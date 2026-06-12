@@ -29,6 +29,7 @@ import {
   type QualityCheck,
 } from '@kernloop/faculty-gates';
 import { decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
+import type { DiscoveredCache } from '@kernloop/faculty-models';
 import { estimateTokens } from '@kernloop/faculty-compiler';
 import type { ChildResult, NodeExecutor } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
@@ -90,6 +91,8 @@ export interface LoopBindings {
   /** Quality-check override (tests); real defaults otherwise. */
   readonly checks?: readonly QualityCheck[];
   readonly refs: LoopRefs;
+  /** Discovered model cache [CLM-0087] — `identityRef` consults it so a synced model normalizes by table. */
+  readonly discovered: DiscoveredCache;
 }
 
 /**
@@ -157,7 +160,7 @@ function planExecutor(b: LoopBindings): NodeExecutor {
             { ref: `adapter:${b.adapter}` },
             { ref: 'template:pm' },
             { ref: servedRef(seam.served) },
-            { ref: identityRef(seam.served) },
+            { ref: identityRef(seam.served, b.discovered) },
           ],
         },
       ],
@@ -270,7 +273,7 @@ function implementExecutor(b: LoopBindings): NodeExecutor {
           // Provenance names the model+effort that truly served (degradation
           // recorded) AND the normalized model class behind the served alias
           // [CLM-0081], so the trace never implies more than ran [CLM-0078].
-          detail: `[${servedRef(seam.served)} ${identityRef(seam.served)}] wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
+          detail: `[${servedRef(seam.served)} ${identityRef(seam.served, b.discovered)}] wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
         },
       ],
       cost,
@@ -351,7 +354,7 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
             { ref: `adapter:${b.adapter}` },
             { ref: 'template:researcher' },
             { ref: servedRef(seam.served) },
-            { ref: identityRef(seam.served) },
+            { ref: identityRef(seam.served, b.discovered) },
           ],
         },
       ],

@@ -14,4 +14,6 @@ paths = [
   '''packages/cli/src/endpoints\.test\.ts''',
   '''packages/kernel/src/adapters/api\.test\.ts''',
   '''packages/kernel/src/adapters/api-security\.test\.ts''',
+  '''packages/kernel/src/adapters/discover\.test\.ts''',
+  '''packages/cli/src/tools/models\.test\.ts''',
 ]
