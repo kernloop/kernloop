@@ -12,6 +12,12 @@
  */
 export { decomposeGoal, StorySpecSchema } from './decompose.js';
 export type { StorySpec, DecomposeGoalInput } from './decompose.js';
-export { InvalidParentError, InvalidStorySpecError, ScrumBudgetExceededError } from './errors.js';
+export { programLabels, programIssueBody } from './labels.js';
+export {
+  InvalidParentError,
+  InvalidStorySpecError,
+  ScrumBudgetExceededError,
+  UnsafeLabelError,
+} from './errors.js';
 export type { BudgetDimension } from './errors.js';
 export { scrumManifest } from './manifest.js';

@@ -1,0 +1,21 @@
+id: CLM-0098
+statement: >-
+  kernloop program emit files each decomposed child node as a labeled GitHub
+  issue through the hardened tracker — dry-run by default, enforce-tier-gated
+  (an --execute at suggest is refused and stays dry-run), issue-spam-guarded (a
+  child count beyond the limit needs an explicit --confirm-count matching it),
+  and audited once as cli.program.emit without the node goal/body verbatim. It
+  mutates nothing in dry-run and re-uses the existing tracker (no new gh seam);
+  an execute-mode createIssue failure is errors-as-data → a clean nonzero exit.
+evidence:
+  - 'test:packages/cli/src/program-commands.test.ts::dry-run prints per-node proposals + mapped labels and spawns nothing'
+  - 'test:packages/cli/src/program-commands.test.ts::refuses --execute at the suggest tier (stays dry-run, spawns nothing)'
+  - 'test:packages/cli/src/program-commands.test.ts::files one issue per node at enforce with the mapped labels and prints the refs'
+  - 'test:packages/cli/src/program-commands.test.ts::the spam guard refuses >20 nodes without --confirm-count, and proceeds with the exact count'
+  - 'test:packages/cli/src/program-commands.test.ts::audits cli.program.emit once and never the node goal/body verbatim'
+  - 'test:packages/cli/src/program-commands.test.ts::an execute-mode tracker failure exits 1 (errors-as-data, not a throw)'
+  - 'code:packages/cli/src/program-emit.ts#emitOp@doc:/CLM-0098/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

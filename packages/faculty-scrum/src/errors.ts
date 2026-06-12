@@ -58,3 +58,17 @@ export class InvalidStorySpecError extends Error {
     this.index = index;
   }
 }
+
+/**
+ * Thrown by {@link programLabels} when an emitted label would not satisfy the
+ * tracker's label charset. Unreachable from valid decomposed input (altitude is
+ * an enum; track/sprint/assign are charset-bound upstream) — it is a typed
+ * invariant guard so a FUTURE label source that slips an unsafe value surfaces
+ * as a clean, discriminable error rather than escaping as a raw throw.
+ */
+export class UnsafeLabelError extends Error {
+  constructor(label: string) {
+    super(`program label "${label}" is not tracker-label-safe`);
+    this.name = 'UnsafeLabelError';
+  }
+}
