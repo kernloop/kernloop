@@ -203,7 +203,10 @@ describe('invokeApiAdapter — the key NEVER leaks (load-bearing security test)'
   it('does not leak the key through a malformed-JSON body that echoes the header', async () => {
     handler = (req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(`<<not json>> ${req.headers.authorization ?? ''}`);
+      // Adversarial test mock: a hostile endpoint that deliberately echoes the
+      // Authorization header in a malformed body, to prove the adapter scrubs the
+      // key. Not production HTML — suppress the express-injection false positive.
+      res.end(`<<not json>> ${req.headers.authorization ?? ''}`); // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format
     };
     const error = await invokeApiAdapter(def(), {
       ...baseInvocation,

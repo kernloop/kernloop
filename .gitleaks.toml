@@ -1,0 +1,17 @@
+# gitleaks config — extend the default rules, allowlist only deliberate FAKE
+# secrets used as test fixtures. These files exist to PROVE the api adapter
+# (a) never leaks a real-shaped key and (b) rejects a literal key in config,
+# so they intentionally contain key-shaped strings. They are never real
+# secrets. The CI runs `gitleaks detect --source . --redact` over history, so
+# this allowlist is config-based (history-wide), scoped to exactly these
+# secret-handling test files.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Deliberate fake API keys in the adapter/endpoint test fixtures"
+paths = [
+  '''packages/cli/src/endpoints\.test\.ts''',
+  '''packages/kernel/src/adapters/api\.test\.ts''',
+  '''packages/kernel/src/adapters/api-security\.test\.ts''',
+]
