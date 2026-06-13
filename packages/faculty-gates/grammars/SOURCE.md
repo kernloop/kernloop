@@ -10,11 +10,11 @@ build step, so a fresh clone and CI need only the committed `.wasm` files.
 Sourced verbatim from [`tree-sitter-wasms`](https://www.npmjs.com/package/tree-sitter-wasms)
 `0.1.13`, which publishes prebuilt parsers for the upstream grammars:
 
-| file                      | upstream grammar      |
-| ------------------------- | --------------------- |
-| `tree-sitter-python.wasm` | `tree-sitter-python`  |
-| `tree-sitter-go.wasm`     | `tree-sitter-go`      |
-| `tree-sitter-rust.wasm`   | `tree-sitter-rust`    |
+| file                      | upstream grammar     |
+| ------------------------- | -------------------- |
+| `tree-sitter-python.wasm` | `tree-sitter-python` |
+| `tree-sitter-go.wasm`     | `tree-sitter-go`     |
+| `tree-sitter-rust.wasm`   | `tree-sitter-rust`   |
 
 These grammars' ABI is compatible with the pinned `web-tree-sitter@0.24.7`
 runtime (the 0.25+ loader rejects them — keep the runtime pinned to `^0.24`

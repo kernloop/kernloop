@@ -61,7 +61,11 @@ interface LangSpec {
 /** True for a comment node adjacent to (on the line above, no blank-line gap)
  * the declaration at `declRow` — the Go/Rust "doc comment immediately above"
  * convention. */
-function isAdjacentComment(prev: Parser.SyntaxNode | null, declRow: number, types: readonly string[]): boolean {
+function isAdjacentComment(
+  prev: Parser.SyntaxNode | null,
+  declRow: number,
+  types: readonly string[],
+): boolean {
   return prev !== null && types.includes(prev.type) && declRow - prev.endPosition.row <= 1;
 }
 
@@ -107,13 +111,19 @@ function goSpecDecl(spec: Parser.SyntaxNode, kind: string, documented: boolean):
 function extractGo(root: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
   for (const node of root.namedChildren) {
-    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, ['comment']);
+    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
+      'comment',
+    ]);
     if (node.type === 'function_declaration' || node.type === 'method_declaration') {
       const name = node.childForFieldName('name')?.text;
       if (name !== undefined && isGoExported(name)) {
         out.push({ name, kind: 'function', line: lineOf(node), documented });
       }
-    } else if (node.type === 'type_declaration' || node.type === 'const_declaration' || node.type === 'var_declaration') {
+    } else if (
+      node.type === 'type_declaration' ||
+      node.type === 'const_declaration' ||
+      node.type === 'var_declaration'
+    ) {
       const kind = node.type.replace('_declaration', '');
       for (const spec of node.namedChildren) {
         const decl = goSpecDecl(spec, kind, documented);
@@ -154,7 +164,12 @@ function extractRust(root: Parser.SyntaxNode): Decl[] {
       'line_comment',
       'block_comment',
     ]);
-    out.push({ name, kind: node.type.replace('_item', '').replace('_definition', ''), line: lineOf(node), documented });
+    out.push({
+      name,
+      kind: node.type.replace('_item', '').replace('_definition', ''),
+      line: lineOf(node),
+      documented,
+    });
   }
   return out;
 }

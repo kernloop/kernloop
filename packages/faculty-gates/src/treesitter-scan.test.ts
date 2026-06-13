@@ -54,7 +54,10 @@ describe('Python', () => {
   });
 
   it('ignores underscore-prefixed (private) module members', async () => {
-    const findings = await scanOne('m.py', 'def _private():\n    pass\n\nclass _Hidden:\n    pass\n');
+    const findings = await scanOne(
+      'm.py',
+      'def _private():\n    pass\n\nclass _Hidden:\n    pass\n',
+    );
     expect(findings).toEqual([]);
   });
 
@@ -69,13 +72,19 @@ describe('Python', () => {
 
 describe('Go', () => {
   it('flags an undocumented exported func but not an unexported one', async () => {
-    const findings = await scanOne('m.go', 'package main\nfunc Exported() {}\nfunc unexported() {}\n');
+    const findings = await scanOne(
+      'm.go',
+      'package main\nfunc Exported() {}\nfunc unexported() {}\n',
+    );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain('"Exported"');
   });
 
   it('a comment on the line immediately above documents the declaration', async () => {
-    const findings = await scanOne('m.go', 'package main\n// Exported greets.\nfunc Exported() {}\n');
+    const findings = await scanOne(
+      'm.go',
+      'package main\n// Exported greets.\nfunc Exported() {}\n',
+    );
     expect(findings).toEqual([]);
   });
 
