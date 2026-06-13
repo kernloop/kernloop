@@ -1,5 +1,6 @@
-# spec §12.4: gitignore the memory database (privacy over portability)
-memory.sqlite
+# spec §12.4: gitignore the runtime databases (privacy over portability) —
+# memory, the program ledger, and the async-job registry are per-machine state.
+*.sqlite
 audit.jsonl
 
 # machine-local resume state for completed runs — not portable

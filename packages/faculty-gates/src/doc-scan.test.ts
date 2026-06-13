@@ -192,7 +192,7 @@ describe('scanDocComments — honest degradation (remaining languages)', () => {
 describe('mineExportedSymbols (#107)', () => {
   it('returns each file with its exported symbols + doc presence, relative path', () => {
     write('src/a.ts', '/** Adds. */\nexport function add() {}\nexport const k = 1;\n');
-    const mined = mineExportedSymbols(dir);
+    const { files: mined } = mineExportedSymbols(dir);
     expect(mined).toHaveLength(1);
     expect(mined[0]?.file).toBe(path.join('src', 'a.ts'));
     const byName = Object.fromEntries(mined[0]!.symbols.map((s) => [s.name, s]));
@@ -204,12 +204,25 @@ describe('mineExportedSymbols (#107)', () => {
   it('omits files with no exported symbols', () => {
     write('a.ts', 'function private() {}\n');
     write('b.ts', 'export function pub() {}\n');
-    const mined = mineExportedSymbols(dir);
+    const { files: mined } = mineExportedSymbols(dir);
     expect(mined.map((m) => m.file)).toEqual(['b.ts']);
   });
 
   it('skips a file over the per-file byte budget (never parses it)', () => {
     write('big.ts', `export function big() {}\n// ${'a'.repeat(1_000_001)}\n`);
-    expect(mineExportedSymbols(dir)).toEqual([]);
+    expect(mineExportedSymbols(dir).files).toEqual([]);
+  });
+
+  it('truncates at the cumulative byte budget but still mines earlier files (#114)', () => {
+    // ~34 files, each just under the 1 MB per-file cap, so their cumulative
+    // size exceeds the 32 MB total budget. The walk parses the earlier files
+    // and records the overflow rather than parsing every byte.
+    const pad = 'a'.repeat(990_000);
+    for (let i = 0; i < 34; i += 1) {
+      write(`f${i}.ts`, `export const v${i} = ${i};\n// ${pad}\n`);
+    }
+    const result = mineExportedSymbols(dir);
+    expect(result.skippedForBudget).toBeGreaterThan(0);
+    expect(result.files.length).toBeGreaterThan(0);
   });
 });

@@ -43,6 +43,7 @@ export {
   mineExportedSymbols,
   type ExportedSymbol,
   type MinedFile,
+  type MinedResult,
 } from './doc-scan.js';
 export { runQualityGate, type RunQualityGateOptions } from './run.js';
 export { parseEslintOutput, parseTscOutput, parseVitestOutput, outputTail } from './parsers.js';
