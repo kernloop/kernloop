@@ -6,9 +6,11 @@ statement: >-
   gh subcommand allowlisted, the repo scoped from validated config, and every
   issue ref bound to that repo (a URL ref must be a github.com URL in the
   configured repo and only its number, never the URL, reaches gh — no
-  cross-repo action, no SSRF) — publish an honest capability descriptor, and
-  gate every mutation to the enforce tier (dry-run is the default and spawns
-  nothing) through the audited kernloop tracker CLI; errors are always data.
+  cross-repo action, no SSRF) — publish an honest capability descriptor (which
+  also declares the READ op getIssue, hardened identically and covered by
+  CLM-0101), and gate every WRITE mutation to the enforce tier (dry-run is the
+  default and spawns nothing) through the audited kernloop tracker CLI; errors
+  are always data.
 evidence:
   - 'test:packages/tracker/src/provider.test.ts::declares every core op supported (honest descriptor)'
   - 'test:packages/tracker/src/provider.test.ts::createIssue builds gh issue create with --title= and a --body-file, repo from config'

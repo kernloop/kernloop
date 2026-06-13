@@ -19,6 +19,12 @@
  * `--program <id>` files a persisted program's planned nodes and AUTO-RECORDS
  * each filed ref into the ledger (see program-emit-ledger.ts, #88).
  *
+ * `reconcile` [CLM-0102] READS each `emitted` node's GitHub issue via the
+ * tracker and, GitHub being authoritative, advances the node `emitted → done`
+ * when its issue is closed (see program-reconcile.ts, #87) — the gh READ runs
+ * at any tier (a read is not a mutation), dry-run-default, audited; only the
+ * LOCAL ledger write is `--execute`-gated.
+ *
  * Typed faculty/input errors surface as a clean nonzero exit with a clear
  * message, never an unhandled throw.
  */
@@ -32,18 +38,28 @@ import type { CommandHelpers } from './portability-commands.js';
 import { buildProgramParent, checkIdLength, isCleanError, readSpecFile } from './program-shared.js';
 import { emitOp } from './program-emit.js';
 import { advanceOp, createOp, listOp, statusOp } from './program-ledger-commands.js';
+import { reconcileOp } from './program-reconcile.js';
 
 export { ProgramInputError } from './program-shared.js';
 
 /** The program verbs this surface exposes (decompose=inc1, emit=inc2, the
- * ledger verbs create|list|status|advance=inc3). */
-export const PROGRAM_OPS = ['decompose', 'emit', 'create', 'list', 'status', 'advance'] as const;
+ * ledger verbs create|list|status|advance=inc3, reconcile=#87). */
+export const PROGRAM_OPS = [
+  'decompose',
+  'emit',
+  'create',
+  'list',
+  'status',
+  'advance',
+  'reconcile',
+] as const;
 
 /** The shared usage line every program entry point rejects bad input with. */
 const PROGRAM_USAGE =
   'usage: kernloop program decompose --goal G --spec F [--parent ID] [--id ID]\n' +
   '       kernloop program emit (--goal G --spec F [--id ID] | --program ID) [--execute] [--confirm-count N]\n' +
-  '       kernloop program create --goal G --spec F [--id ID] | list | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]';
+  '       kernloop program create --goal G --spec F [--id ID] | list | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]\n' +
+  '       kernloop program reconcile --program ID [--execute]';
 
 /** Run `program decompose`: build the parent, decompose, print the tree, audit. */
 function decomposeOp(
@@ -81,6 +97,29 @@ function decomposeOp(
   }
 }
 
+/** Run `program reconcile`: extract `--program`/`--execute`, reconcile against
+ * GitHub, surface a typed input error as a clean exit 1 (never an unhandled
+ * throw). The gh READ runs at any tier; only the ledger write is --execute-gated. */
+async function reconcileForOp(
+  kern: Kernloop,
+  io: CliIo,
+  v: Record<string, string | boolean>,
+  str: (x: string | boolean | undefined) => string | undefined,
+  exec: TrackerExec | undefined,
+): Promise<number> {
+  const programId = str(v.program);
+  if (programId === undefined) throw new Error(PROGRAM_USAGE);
+  try {
+    return await reconcileOp(kern, io, programId, v.execute === true, exec);
+  } catch (error) {
+    if (isCleanError(error)) {
+      io.err(JSON.stringify({ error: error.name, message: error.message }, null, 2));
+      return 1;
+    }
+    throw error;
+  }
+}
+
 /**
  * `kernloop program <op> ...` — the program decomposition, emission, and LEDGER
  * CLI. `decompose` [CLM-0096] prints the proposed epic/story child tree (a pure
@@ -89,8 +128,10 @@ function decomposeOp(
  * to act; issue-spam-guarded). The LEDGER verbs [CLM-0100] `create|status|advance`
  * persist a decomposed plan to the resumable `.kernloop/programs.sqlite` ledger,
  * report its rollup, and advance a node one poll-driven step at a time (no
- * daemon) — each op audited without the goal verbatim. `options.exec` is the
- * tracker test seam.
+ * daemon) — each op audited without the goal verbatim. `reconcile` [CLM-0102]
+ * reads each emitted node's GitHub issue and advances it `emitted → done` when
+ * the issue is closed (the read runs at any tier; only the ledger write is
+ * --execute-gated). `options.exec` is the tracker test seam.
  */
 export async function programCommand(
   args: string[],
@@ -116,6 +157,7 @@ export async function programCommand(
     if (op === 'list') return listOp(kern, io);
     if (op === 'status') return statusOp(kern, io, v, h.str);
     if (op === 'advance') return advanceOp(kern, io, v, h.str);
+    if (op === 'reconcile') return await reconcileForOp(kern, io, v, h.str, options.exec);
     return decomposeOp(kern, io, v, h.str);
   } finally {
     kern.close();

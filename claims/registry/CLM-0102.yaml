@@ -1,0 +1,23 @@
+id: CLM-0102
+statement: >-
+  kernloop program reconcile reads each emitted node's GitHub issue via the
+  tracker getIssue op and, GitHub being authoritative, advances the node
+  emitted → done when its issue is closed — dry-run-default (the gh READ happens
+  at any tier since a read is not a mutation; only the LOCAL ledger write is
+  gated by --execute), audited once (cli.program.reconcile) with counts only,
+  an open issue left unchanged, and a getIssue read failure surfaced as exit 1
+  with the node left unchanged; an absent program / no tracker exits 1 cleanly.
+evidence:
+  - 'test:packages/cli/src/program-reconcile.test.ts::dry-run shows advance-to-done for the closed issue + no-change for the open one, ledger UNCHANGED'
+  - 'test:packages/cli/src/program-reconcile.test.ts::--execute advances the closed-issue node to done and leaves the open one emitted'
+  - 'test:packages/cli/src/program-reconcile.test.ts::a getIssue read failure is reported, exits 1, and leaves the node unchanged'
+  - 'test:packages/cli/src/program-reconcile.test.ts::reads GitHub regardless of tier (suggest tier still reads — a read is not a mutation)'
+  - 'test:packages/cli/src/program-reconcile.test.ts::a program with no emitted nodes reconciles to a clean exit 0 (nothing to check)'
+  - 'test:packages/cli/src/program-reconcile.test.ts::reconcile of a nonexistent program exits 1 cleanly'
+  - 'test:packages/cli/src/program-reconcile.test.ts::reconcile with no tracker configured exits 1 cleanly'
+  - 'test:packages/cli/src/program-reconcile.test.ts::audits cli.program.reconcile ONCE with counts only (no goal verbatim)'
+  - 'code:packages/cli/src/program-reconcile.ts#reconcileOp@doc:/CLM-0102/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0

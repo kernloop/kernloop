@@ -41,4 +41,5 @@ export const USAGE = [
   '            list   the persisted programs in the ledger (id + goal)',
   '            status --program ID   the ledger rollup: planned/emitted/done counts + per-node state',
   '            advance --program ID --node NODE --state emitted|done [--ref URL]   advance one node forward (no daemon; spec §5.4)',
+  '            reconcile --program ID [--execute]   reconcile emitted nodes against GitHub: advance emitted → done when the issue is closed (read at any tier; ledger write --execute-gated; #87)',
 ].join('\n');

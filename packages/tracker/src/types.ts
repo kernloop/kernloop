@@ -29,6 +29,9 @@ export type TrackerMode = 'dry-run' | 'execute';
 /** The four core, provider-agnostic mutating operations a tracker exposes. */
 export type TrackerOp = 'createIssue' | 'closeIssue' | 'comment' | 'addLabels';
 
+/** An issue's open/closed lifecycle state, as read back from the tracker. */
+export type IssueState = 'open' | 'closed';
+
 /**
  * A first-pass SHAPE gate for an issue reference: a bare positive integer
  * (`42`), the `#42` form, or a full https issue URL. This is deliberately
@@ -94,14 +97,17 @@ export interface TrackerSuccess {
  * `invalid-input` = the boundary schema rejected it; `spawn-failed` = the
  * CLI could not start; `exit-nonzero` = the CLI ran and failed; `io-failed`
  * = a local I/O step (e.g. writing the temp body file) failed before/around
- * the spawn — surfaced as data so an op NEVER throws.
+ * the spawn — surfaced as data so an op NEVER throws. `parse-failed` = the CLI
+ * ran and exited zero, but its structured output (e.g. `gh issue view --json`
+ * stdout) was not the expected JSON shape — surfaced as data, never thrown.
  */
 export type TrackerFailureReason =
   | 'unsupported'
   | 'invalid-input'
   | 'spawn-failed'
   | 'exit-nonzero'
-  | 'io-failed';
+  | 'io-failed'
+  | 'parse-failed';
 
 /** A failed tracker operation: a typed, scrubbed reason — never a thrown error. */
 export interface TrackerFailure {
@@ -113,6 +119,16 @@ export interface TrackerFailure {
 
 /** The result of one tracker operation; errors are data, never thrown. */
 export type TrackerResult = TrackerSuccess | TrackerFailure;
+
+/**
+ * The result of a READ op ({@link TrackerProvider.getIssue}): on success the
+ * issue's open/closed {@link IssueState} plus the resolved bare ref; otherwise
+ * a typed {@link TrackerFailure} (errors as data, never thrown). A read is NOT
+ * a mutation, so it is mode-INDEPENDENT: a `dry-run` provider still performs it.
+ */
+export type TrackerReadResult =
+  | { readonly ok: true; readonly state: IssueState; readonly ref: string }
+  | TrackerFailure;
 
 /**
  * What a provider can do. A provider that lacks an operation declares it
@@ -132,6 +148,8 @@ export interface TrackerCapabilities {
   readonly closeIssue: boolean;
   readonly comment: boolean;
   readonly addLabels: boolean;
+  /** Whether the provider can READ an issue's open/closed state (getIssue). */
+  readonly getIssue: boolean;
 }
 
 /**
@@ -168,6 +186,15 @@ export interface TrackerProvider {
   comment(ref: string, body: string): Promise<TrackerResult>;
   /** Add labels to an existing issue. */
   addLabels(ref: string, labels: readonly string[]): Promise<TrackerResult>;
+  /**
+   * READ an existing issue's open/closed state. This is a READ-ONLY,
+   * mode-INDEPENDENT op: a read is not a mutation, so the dry-run/execute mode
+   * that gates the WRITE ops above does NOT gate it — `getIssue` always reads,
+   * even on a `dry-run` provider. Returns the {@link IssueState} on success or
+   * a typed {@link TrackerFailure} (errors as data). The ref is bound to the
+   * configured repo exactly as the write ops bind it.
+   */
+  getIssue(ref: string): Promise<TrackerReadResult>;
   /**
    * Modular hook seam for provider-specific features (e.g. GitHub Projects,
    * GitLab epics). MINIMAL by design — a typed, optional extension point, not

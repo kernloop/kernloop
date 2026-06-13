@@ -14,7 +14,9 @@
  * (duplicate / unknown-node / invalid-transition) surface as a clean exit 1.
  *
  * `program emit --program <id>` now AUTO-RECORDS filed refs into the ledger
- * (planned → emitted, #88); GitHub-state RECONCILIATION is still DEFERRED (#87).
+ * (planned → emitted, #88); `program reconcile` now REALIZES GitHub-state
+ * RECONCILIATION (#87, CLM-0102) — reading each emitted node's GitHub issue and
+ * advancing it emitted → done when closed (see program-reconcile.ts).
  */
 import { appendEvent } from '@kernloop/kernel';
 import { decomposeGoal, programLabels } from '@kernloop/faculty-scrum';

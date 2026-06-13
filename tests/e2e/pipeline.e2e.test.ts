@@ -183,6 +183,49 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
     expect(skipped.skipped.map((s) => s.state)).toEqual(['emitted', 'emitted']);
   });
 
+  it('reconcile --execute advances emitted nodes to done when their GitHub issue is CLOSED (#87)', () => {
+    const repo = freshOverlay();
+    withTracker(repo, 'enforce');
+    const spec = writeSpec(repo, TWO_NODE_SPEC);
+    const url = 'https://github.com/kernloop-e2e/sandbox/issues/501';
+    runCli(['program', 'create', '--goal', PROGRAM_GOAL, '--spec', spec, '--id', ID], {
+      cwd: repo,
+    });
+    // Emit so both nodes are `emitted` with refs recorded in the ledger.
+    const emitStub = installGhStub({ mode: 'record', issueUrl: url });
+    const emitted = runCli(['program', 'emit', '--program', ID, '--execute'], {
+      cwd: repo,
+      env: ghStubEnv(emitStub),
+    });
+    expect(emitted.code).toBe(0);
+
+    // Reconcile against a GitHub where the issues are CLOSED → nodes advance to done.
+    const viewStub = installGhStub({ mode: 'record', issueState: 'CLOSED' });
+    const reconciled = runCli(['program', 'reconcile', '--program', ID, '--execute'], {
+      cwd: repo,
+      env: ghStubEnv(viewStub),
+    });
+    expect(reconciled.code).toBe(0);
+    const rep = reconciled.json() as { mode: string; checked: number; advanced: number };
+    expect(rep.mode).toBe('execute');
+    expect(rep.checked).toBe(2);
+    expect(rep.advanced).toBe(2);
+    // The reconcile spawned `gh issue view --json number,state` per node.
+    const viewCalls = viewStub.calls();
+    expect(viewCalls).toHaveLength(2);
+    for (const argv of viewCalls) {
+      expect(argv.slice(0, 2)).toEqual(['issue', 'view']);
+      expect(argv).toContain('--json');
+      expect(argv).toContain('number,state');
+    }
+
+    // The ledger now shows both nodes done.
+    const status = runCli(['program', 'status', '--program', ID], { cwd: repo });
+    const rollup = status.json() as { counts: { done: number; emitted: number } };
+    expect(rollup.counts.done).toBe(2);
+    expect(rollup.counts.emitted).toBe(0);
+  });
+
   it('the audit chain is valid across the run and never leaks a goal verbatim', () => {
     const repo = freshOverlay();
     withTracker(repo, 'enforce');
