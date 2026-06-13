@@ -1,6 +1,12 @@
 /**
  * The `kernloop program` CLI surface (spec §5.4). A CLI VERB, NOT a 12th MCP
- * tool: `program decompose|emit`.
+ * tool: `program decompose|author|emit`.
+ *
+ * `author` [CLM-0103] is `decompose` with the story specs PROPOSED BY A MODEL
+ * (suggest-tier) instead of read from `--spec`: it invokes the chosen adapter
+ * for a JSON array of story specs, parses it robustly, and runs it through the
+ * same `decomposeGoal` — the model proposes, the faculty enforces, the human
+ * ratifies; it mutates nothing (see program-author.ts).
  *
  * `decompose` [CLM-0096] is the wiring-complete bridge from the scrum faculty's
  * pure `decomposeGoal` to a real entry point, and it is a DRY-RUN PREVIEW: it
@@ -35,7 +41,9 @@ import type { TrackerExec } from '@kernloop/tracker';
 import type { CliIo } from './cli.js';
 import { createKernloop, type Kernloop } from './kernel.js';
 import type { CommandHelpers } from './portability-commands.js';
+import type { LoopInvoke } from './loop/invoke.js';
 import { buildProgramParent, checkIdLength, isCleanError, readSpecFile } from './program-shared.js';
+import { authorOp } from './program-author.js';
 import { emitOp } from './program-emit.js';
 import { advanceOp, createOp, listOp, statusOp } from './program-ledger-commands.js';
 import { reconcileOp } from './program-reconcile.js';
@@ -46,6 +54,7 @@ export { ProgramInputError } from './program-shared.js';
  * ledger verbs create|list|status|advance=inc3, reconcile=#87). */
 export const PROGRAM_OPS = [
   'decompose',
+  'author',
   'emit',
   'create',
   'list',
@@ -57,6 +66,7 @@ export const PROGRAM_OPS = [
 /** The shared usage line every program entry point rejects bad input with. */
 const PROGRAM_USAGE =
   'usage: kernloop program decompose --goal G --spec F [--parent ID] [--id ID]\n' +
+  '       kernloop program author --goal G [--id ID] [--adapter A]\n' +
   '       kernloop program emit (--goal G --spec F [--id ID] | --program ID) [--execute] [--confirm-count N]\n' +
   '       kernloop program create --goal G --spec F [--id ID] | list | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]\n' +
   '       kernloop program reconcile --program ID [--execute]';
@@ -131,13 +141,16 @@ async function reconcileForOp(
  * daemon) — each op audited without the goal verbatim. `reconcile` [CLM-0102]
  * reads each emitted node's GitHub issue and advances it `emitted → done` when
  * the issue is closed (the read runs at any tier; only the ledger write is
- * --execute-gated). `options.exec` is the tracker test seam.
+ * --execute-gated). `author` [CLM-0103] invokes a model to PROPOSE the story
+ * specs and runs them through the same `decomposeGoal` (suggest-tier, mutating
+ * nothing). `options.exec` is the tracker test seam; `options.invoke` is the
+ * model seam author threads to the adapter (tests script it).
  */
 export async function programCommand(
   args: string[],
   io: CliIo,
   h: CommandHelpers,
-  options: { exec?: TrackerExec } = {},
+  options: { exec?: TrackerExec; invoke?: LoopInvoke } = {},
 ): Promise<number> {
   const [op, ...rest] = args;
   if (op === undefined || !(PROGRAM_OPS as readonly string[]).includes(op)) {
@@ -145,13 +158,14 @@ export async function programCommand(
   }
   const v = h.mixedFlags(
     rest,
-    ['goal', 'spec', 'parent', 'id', 'confirm-count', 'program', 'node', 'state', 'ref'],
+    ['goal', 'spec', 'parent', 'id', 'adapter', 'confirm-count', 'program', 'node', 'state', 'ref'],
     ['execute'],
   );
   const kern = createKernloop({
     overlayDir: path.join(path.resolve(io.cwd, h.str(v.dir) ?? '.'), '.kernloop'),
   });
   try {
+    if (op === 'author') return await authorOp(kern, io, v, h.str, options.invoke);
     if (op === 'emit') return await emitOp(kern, io, v, h.str, options.exec);
     if (op === 'create') return createOp(kern, io, v, h.str);
     if (op === 'list') return listOp(kern, io);

@@ -1,0 +1,25 @@
+id: CLM-0103
+statement: >-
+  kernloop program author invokes a model to PROPOSE an epic/story decomposition
+  from a goal, validates the model's output against StorySpecSchema, and runs it
+  through the same decomposeGoal (deterministic budget-sum invariant + identity/
+  altitude/assign derivation) — suggest-tier, mutating nothing (no ledger write,
+  no GitHub, no loop run; one cli.program.author audit event with goalChars,
+  never the goal or model output verbatim); malformed / non-array / schema-invalid
+  / budget-breaching model output is a clean exit 1, never fabricated or
+  auto-acted, and the model is invoked with a prompt containing the goal.
+evidence:
+  - 'test:packages/cli/src/program-author.test.ts::a valid JSON-array model output prints the proposed tree, echoes the adapter, mutates nothing'
+  - 'test:packages/cli/src/program-author.test.ts::parses a model output that wraps the JSON array in ```json fences and prose'
+  - 'test:packages/cli/src/program-author.test.ts::invokes the model with a prompt that contains the goal'
+  - 'test:packages/cli/src/program-author.test.ts::a malformed-JSON model output exits 1 with a clean ProgramInputError (no fabricated specs)'
+  - 'test:packages/cli/src/program-author.test.ts::a non-array model output exits 1 with a clean ProgramInputError'
+  - 'test:packages/cli/src/program-author.test.ts::a schema-invalid model output (bad altitude / missing budget) exits 1 cleanly'
+  - 'test:packages/cli/src/program-author.test.ts::a model output whose budgets BREACH the parent exits 1 (ScrumBudgetExceededError)'
+  - 'test:packages/cli/src/program-author.test.ts::a missing --goal throws a usage error and never invokes the model'
+  - 'test:packages/cli/src/program-author.test.ts::audits cli.program.author with goalChars only — never the goal verbatim'
+  - 'code:packages/cli/src/program-author.ts#authorOp@doc:/CLM-0103/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0
