@@ -130,6 +130,13 @@ describe('githubProvider — getIssue READ op (hardened gh issue view)', () => {
     const res = await githubProvider(CONFIG, 'execute', exec).getIssue('1');
     expect(res).toMatchObject({ ok: false, reason: 'spawn-failed' });
   });
+
+  it('surfaces an output overflow as a typed io-failed (read op)', async () => {
+    const exec: TrackerExec = () =>
+      Promise.resolve({ exitCode: null, stdout: '', stderr: '', outputOverflow: true });
+    const res = await githubProvider(CONFIG, 'execute', exec).getIssue('1');
+    expect(res).toMatchObject({ ok: false, reason: 'io-failed' });
+  });
 });
 
 describe('githubProvider — execute mode builds the right gh args', () => {
@@ -354,6 +361,16 @@ describe('githubProvider — config validation + errors as data', () => {
       throw new Error('boom: fs write failed');
     };
     const res = await githubProvider(CONFIG, 'execute', throwingExec).comment('1', 'hi');
+    expect(res).toMatchObject({ ok: false, reason: 'io-failed' });
+  });
+
+  it('surfaces an output overflow as a typed io-failed (write op)', async () => {
+    const exec: TrackerExec = () =>
+      Promise.resolve({ exitCode: null, stdout: '', stderr: '', outputOverflow: true });
+    const res = await githubProvider(CONFIG, 'execute', exec).createIssue({
+      title: 't',
+      body: 'b',
+    });
     expect(res).toMatchObject({ ok: false, reason: 'io-failed' });
   });
 

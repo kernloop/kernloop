@@ -11,8 +11,10 @@ import {
   CommentBodySchema,
   CreateIssueInputSchema,
   type CreateIssueInput,
+  type ExecResult,
   type TrackerCapabilities,
   type TrackerExec,
+  type TrackerFailure,
   type TrackerMode,
   type TrackerProposal,
   type TrackerProvider,
@@ -54,6 +56,26 @@ function proposalFor(plan: GhPlan, config: GithubConfig): TrackerProposal {
   };
 }
 
+/**
+ * Map an {@link ExecResult}'s failure conditions to a typed {@link
+ * TrackerFailure}, or `undefined` when the gh call succeeded (exit 0, within
+ * the output cap). Shared by every spawning op so output-overflow, spawn
+ * failure, and nonzero exit map uniformly. Overflow is `io-failed` (an I/O
+ * condition around the spawn), checked first since the child was killed.
+ */
+function execFailure(result: ExecResult): TrackerFailure | undefined {
+  if (result.outputOverflow === true) {
+    return failure('io-failed', 'gh output exceeded the capture cap and was discarded');
+  }
+  if (result.spawnError !== undefined) {
+    return failure('spawn-failed', `gh could not be started: ${result.spawnError}`);
+  }
+  if (result.exitCode !== 0) {
+    return failure('exit-nonzero', `gh exited ${String(result.exitCode)}: ${result.stderr}`);
+  }
+  return undefined;
+}
+
 /** Execute a plan against `gh`: write body file, run, clean up, resolve ref.
  * Errors are DATA: a body-file write failure or any unexpected throw becomes a
  * typed `io-failed`, and the temp dir is always removed (the write is INSIDE
@@ -69,12 +91,8 @@ async function runPlan(
     const bodyFlag = written === undefined ? [] : ['--body-file', written.file];
     const argv = ghArgv(plan.sub, config, [...plan.opArgs, ...bodyFlag], plan.positionals);
     const result = await exec(GH, argv);
-    if (result.spawnError !== undefined) {
-      return failure('spawn-failed', `gh could not be started: ${result.spawnError}`);
-    }
-    if (result.exitCode !== 0) {
-      return failure('exit-nonzero', `gh exited ${String(result.exitCode)}: ${result.stderr}`);
-    }
+    const fail = execFailure(result);
+    if (fail !== undefined) return fail;
     return { ok: true, ref: refFromOutput(result, plan.fallbackRef) };
   } catch (err) {
     return failure(
@@ -104,9 +122,10 @@ async function dispatch(
 /**
  * Run the READ op against `gh issue view` and resolve the issue's open/closed
  * state. ALWAYS spawns (a read is not a mutation — `dry-run` does NOT skip it).
- * Errors are DATA: a spawn failure → `spawn-failed`; a nonzero exit (e.g. the
- * issue is not found) → `exit-nonzero` (scrubbed); valid-exit-but-bad-JSON →
- * `parse-failed`. The ref is already repo-bound to a bare number by `parseRef`.
+ * Errors are DATA: output past the cap → `io-failed`; a spawn failure →
+ * `spawn-failed`; a nonzero exit (e.g. the issue is not found) → `exit-nonzero`
+ * (scrubbed); valid-exit-but-bad-JSON → `parse-failed`. The ref is already
+ * repo-bound to a bare number by `parseRef`.
  */
 async function runView(
   ref: string,
@@ -114,12 +133,8 @@ async function runView(
   exec: TrackerExec,
 ): Promise<TrackerReadResult> {
   const result = await exec(GH, viewArgv(config, ref));
-  if (result.spawnError !== undefined) {
-    return failure('spawn-failed', `gh could not be started: ${result.spawnError}`);
-  }
-  if (result.exitCode !== 0) {
-    return failure('exit-nonzero', `gh exited ${String(result.exitCode)}: ${result.stderr}`);
-  }
+  const fail = execFailure(result);
+  if (fail !== undefined) return fail;
   const parsed = parseIssueState(result.stdout);
   if ('ok' in parsed) return parsed;
   return { ok: true, state: parsed.state, ref };

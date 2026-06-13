@@ -11,10 +11,20 @@ import { spawn } from 'node:child_process';
 import type { ExecResult, TrackerExec } from './types.js';
 
 /**
+ * Largest combined stdout+stderr the capture will hold before it kills the
+ * child and resolves an `outputOverflow` failure. A misbehaving or hostile
+ * CLI returning unbounded output cannot balloon the host's memory; every gh
+ * op (all small JSON / a URL) is far under this. 4 MB.
+ */
+export const MAX_OUTPUT_CHARS = 4_000_000;
+
+/**
  * Spawn `command args` with NO shell, capture output; never throws — errors
  * are data. The args-array is passed verbatim to the OS exec, so a value that
  * begins with `-` is an argument, not a shell token (shell metacharacters in
- * a value have no meaning here either — there is no shell).
+ * a value have no meaning here either — there is no shell). Captured output is
+ * bounded by {@link MAX_OUTPUT_CHARS}: past the cap the child is killed and the
+ * result is a typed `outputOverflow`, never an unbounded read.
  */
 export function spawnCapture(command: string, args: readonly string[]): Promise<ExecResult> {
   return new Promise((resolve) => {
@@ -26,12 +36,28 @@ export function spawnCapture(command: string, args: readonly string[]): Promise<
     const child = spawn(command, [...args], { stdio: ['ignore', 'pipe', 'pipe'], shell: false });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-    child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+    let settled = false;
+    const done = (result: ExecResult): void => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    // Absorb a chunk, then enforce the cap: past it, kill the child and resolve
+    // a typed overflow (discarding output) so the read can never be unbounded.
+    const absorb = (append: () => void): void => {
+      if (settled) return;
+      append();
+      if (stdout.length + stderr.length > MAX_OUTPUT_CHARS) {
+        child.kill('SIGKILL');
+        done({ exitCode: null, stdout: '', stderr: '', outputOverflow: true });
+      }
+    };
+    child.stdout.on('data', (chunk: Buffer) => absorb(() => (stdout += chunk.toString())));
+    child.stderr.on('data', (chunk: Buffer) => absorb(() => (stderr += chunk.toString())));
     child.on('error', (error) =>
-      resolve({ exitCode: null, stdout, stderr, spawnError: error.message }),
+      done({ exitCode: null, stdout, stderr, spawnError: error.message }),
     );
-    child.on('close', (exitCode) => resolve({ exitCode, stdout, stderr }));
+    child.on('close', (exitCode) => done({ exitCode, stdout, stderr }));
   });
 }
 

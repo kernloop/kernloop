@@ -220,6 +220,10 @@ export interface ExecResult {
   readonly stderr: string;
   /** Set when the process could not even start (e.g. the CLI is absent). */
   readonly spawnError?: string;
+  /** Set when captured output exceeded the size cap and was discarded — the
+   * CLI was killed, so `stdout`/`stderr` are empty (a typed failure, not a
+   * truncated success). */
+  readonly outputOverflow?: boolean;
 }
 
 /**
