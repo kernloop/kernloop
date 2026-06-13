@@ -1,0 +1,28 @@
+id: CLM-0105
+statement: >-
+  When a canonical-loop run reaches retrospect (status completed) — whether the
+  work's Outcome was success or failure — kernloop derives a deterministic
+  API-doc artifact (API.generated.md, files sorted by path) from the
+  deliverable's own exported TS/JS doc-comments — model-free, reusing the
+  doc-comment scanner — marking undocumented exports, writing nothing when there
+  are no symbols, and auditing the counts once; a run that escalated or failed
+  before retrospect produces no artifact, and it reflects doc-comment PRESENCE,
+  never accuracy.
+evidence:
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::returns each file with its exported symbols + doc presence, relative path'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::omits files with no exported symbols'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::skips a file over the per-file byte budget (never parses it)'
+  - 'test:packages/cli/src/loop/doc-artifact.test.ts::renders documented symbols with their doc and marks undocumented ones'
+  - 'test:packages/cli/src/loop/doc-artifact.test.ts::is deterministic — same input, identical bytes'
+  - 'test:packages/cli/src/loop/doc-artifact.test.ts::sorts files by path so output is byte-stable regardless of walk order'
+  - 'test:packages/cli/src/loop/doc-artifact.test.ts::writes API.generated.md from the deliverable and returns counts'
+  - 'test:packages/cli/src/loop/doc-artifact.test.ts::writes NOTHING when the deliverable exposes no TS/JS symbols'
+  - 'test:packages/cli/src/loop.test.ts::runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory'
+  - 'test:packages/cli/src/loop.test.ts::propagates a child quality failure honestly: a persistently-broken child escalates at Kc and the loop completes with a failure Outcome'
+  - 'test:packages/cli/src/loop.test.ts::fails the run on a malformed PM decomposition: typed executor error, no fabricated children'
+  - 'code:packages/cli/src/loop/doc-artifact.ts#writeDocArtifact@doc:/CLM-0105/'
+  - 'code:packages/faculty-gates/src/doc-scan.ts#mineExportedSymbols@doc:/CLM-0105/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

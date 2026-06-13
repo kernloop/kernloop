@@ -95,11 +95,19 @@ function walkFiles(dir: string): string[] {
 }
 
 /** One exported, named top-level declaration with its doc-comment presence. */
-interface ExportedSymbol {
+export interface ExportedSymbol {
   readonly name: string;
   readonly kind: string;
   readonly doc: string | null;
   readonly line: number;
+}
+
+/** One scanned source file and the exported symbols it declares (#107). */
+export interface MinedFile {
+  /** Workspace-relative path of the file. */
+  readonly file: string;
+  /** Its exported top-level declarations, in source order. */
+  readonly symbols: readonly ExportedSymbol[];
 }
 
 /** The name a top-level declaration binds, or undefined if it is not one we
@@ -181,6 +189,31 @@ export function listExportedSymbols(filePath: string): ExportedSymbol[] {
     const doc = leadingDoc(decl, sourceFile);
     const line = sourceFile.getLineAndCharacterOfPosition(decl.getStart(sourceFile)).line + 1;
     out.push({ name, kind: ts.SyntaxKind[decl.kind] as string, doc: doc ?? null, line });
+  }
+  return out;
+}
+
+/**
+ * Mine every covered TS/JS file under `workspaceDir` for its exported symbols
+ * and each one's doc-comment presence — the data behind a derived API-doc
+ * artifact (#107, CLM-0105). Reuses the same bounded walk as the gate (skips
+ * build dirs; never parses a file over {@link MAX_FILE_BYTES} — an oversized
+ * file is skipped, not read). Files with no exported symbols are omitted.
+ * Presence only, never accuracy; pure read, no process/model.
+ */
+export function mineExportedSymbols(workspaceDir: string): MinedFile[] {
+  const out: MinedFile[] = [];
+  for (const file of walkFiles(workspaceDir)) {
+    if (!COVERED_EXTS.has(path.extname(file).toLowerCase())) continue;
+    let size: number;
+    try {
+      size = fs.statSync(file).size;
+    } catch {
+      continue;
+    }
+    if (size > MAX_FILE_BYTES) continue;
+    const symbols = listExportedSymbols(file);
+    if (symbols.length > 0) out.push({ file: path.relative(workspaceDir, file), symbols });
   }
   return out;
 }

@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { scanDocComments } from './doc-scan.js';
+import { mineExportedSymbols, scanDocComments } from './doc-scan.js';
 
 /** A throwaway workspace seeded with the given files, cleaned up per test. */
 let dir: string;
@@ -159,5 +159,30 @@ describe('scanDocComments — honest degradation', () => {
     write('only.py', 'def f():\n    pass\n');
     const findings = scanDocComments(dir);
     expect(findings.every((f) => f.severity === 'info')).toBe(true);
+  });
+});
+
+describe('mineExportedSymbols (#107)', () => {
+  it('returns each file with its exported symbols + doc presence, relative path', () => {
+    write('src/a.ts', '/** Adds. */\nexport function add() {}\nexport const k = 1;\n');
+    const mined = mineExportedSymbols(dir);
+    expect(mined).toHaveLength(1);
+    expect(mined[0]?.file).toBe(path.join('src', 'a.ts'));
+    const byName = Object.fromEntries(mined[0]!.symbols.map((s) => [s.name, s]));
+    expect(byName['add']?.doc).toContain('Adds');
+    expect(byName['k']?.doc).toBeNull(); // present but undocumented
+    expect(mined[0]?.symbols).toHaveLength(2);
+  });
+
+  it('omits files with no exported symbols', () => {
+    write('a.ts', 'function private() {}\n');
+    write('b.ts', 'export function pub() {}\n');
+    const mined = mineExportedSymbols(dir);
+    expect(mined.map((m) => m.file)).toEqual(['b.ts']);
+  });
+
+  it('skips a file over the per-file byte budget (never parses it)', () => {
+    write('big.ts', `export function big() {}\n// ${'a'.repeat(1_000_001)}\n`);
+    expect(mineExportedSymbols(dir)).toEqual([]);
   });
 });

@@ -88,6 +88,19 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
     // The real feature file exists in the real repo and compiled under real tsc
     expect(readFileSync(path.join(repo, 'src', 'greet.ts'), 'utf8')).toBe(GREET_TS);
 
+    // #107: the post-loop step wrote a DERIVED API doc from the deliverable's own
+    // doc-comments (deterministic, no model) and audited the counts once.
+    expect(report.docArtifact?.written).toBe(true);
+    expect(report.docArtifact?.symbolCount).toBeGreaterThanOrEqual(1);
+    const apiDoc = readFileSync(path.join(repo, 'API.generated.md'), 'utf8');
+    expect(apiDoc).toContain('generated from doc-comments');
+    expect(apiDoc).toContain('greet'); // the exported (undocumented) deliverable symbol
+    const docEvents = readEnvelopes(kern.paths.audit).filter((e) => e.type === 'loop.document');
+    expect(docEvents).toHaveLength(1);
+    expect((docEvents[0]!.payload as { symbolCount: number }).symbolCount).toBeGreaterThanOrEqual(
+      1,
+    );
+
     // Checkpoints: durable JSONL, one line per completed node
     const checkpoints = readFileSync(checkpointFile(kern.paths.dir, report.runId), 'utf8');
     expect(checkpoints.trim().split('\n')).toHaveLength(MAIN_TRACE.length);
@@ -250,6 +263,10 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       },
     ]);
     expect(report.outcome?.distillCandidates).toEqual([]);
+    // #107: a COMPLETED run whose WORK failed still reached retrospect, so the
+    // doc artifact IS written — it documents whatever code was produced.
+    expect(report.docArtifact?.written).toBe(true);
+    expect(report.docArtifact?.symbolCount).toBeGreaterThanOrEqual(1);
     // The child re-ran implement before escalating: implement appears twice.
     expect(report.nodeTrace.filter((t) => t.node === 'implement')).toHaveLength(2);
     // The hash chain recorded the refine history (loop.child.iterate per re-entry).
@@ -299,6 +316,8 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
     expect(report.status).toBe('failed');
     expect(report.error?.code).toBe('executor_failed');
     expect(report.error?.message).toContain('subtasks');
+    // #107: a run that did NOT complete produces no doc artifact (nothing to mine honestly).
+    expect(report.docArtifact).toBeUndefined();
     kern.close();
   }, 60_000);
 
