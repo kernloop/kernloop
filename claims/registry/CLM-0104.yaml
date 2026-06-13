@@ -1,0 +1,29 @@
+id: CLM-0104
+statement: >-
+  The quality gate runs an in-process, language-aware doc-comment scan over the
+  workspace: every exported top-level TypeScript/JavaScript declaration lacking
+  a non-empty leading doc-comment is an error finding (failing the Verdict, so
+  the per-child iteration loop re-runs the coder); each known source language it
+  cannot yet parse contributes one non-blocking info finding (so an
+  uncovered-language deliverable gets no doc enforcement — recorded, never
+  silently passed); the scan bounds its own per-file and total bytes so
+  untrusted workspace code cannot hang the in-process loop, a throwing scan
+  becomes an error finding, and it verifies doc-comment PRESENCE, never accuracy.
+evidence:
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::an undocumented exported function is an error finding with file:line and path'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::flags undocumented exported classes, interfaces, type aliases, enums, and consts'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::ignores NON-exported declarations (only the public surface is gated)'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::treats an empty/whitespace-only doc-comment as undocumented'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::treats a /***/ (and /****/) empty doc shell as undocumented'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::records ONE non-blocking info finding per uncovered known language'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::an uncovered-language info finding never blocks (no error/blocker severity)'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::skips non-code files entirely (no finding, no degradation note)'
+  - 'test:packages/faculty-gates/src/doc-scan.test.ts::records and skips a file over the per-file byte limit, never parsing it'
+  - 'test:packages/faculty-gates/src/run.test.ts::threads an in-process check error finding through to a fail verdict'
+  - 'test:packages/faculty-gates/src/run.test.ts::turns a throwing in-process check into an error finding (never silently passes)'
+  - 'code:packages/faculty-gates/src/doc-scan.ts#scanDocComments@doc:/CLM-0104/'
+  - 'code:packages/faculty-gates/src/checks.ts#docCommentCheck@doc:/CLM-0104/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

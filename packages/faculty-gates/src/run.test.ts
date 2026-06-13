@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { VerdictSchema, type Finding } from '@kernloop/contracts';
-import type { QualityCheck } from './checks.js';
+import type { InProcessCheck, SubprocessCheck } from './checks.js';
 import { parseTscOutput } from './parsers.js';
 import { runQualityGate } from './run.js';
 
@@ -19,8 +19,8 @@ let scriptCount = 0;
 function scriptCheck(
   name: string,
   source: string,
-  parse: QualityCheck['parse'] = () => [],
-): QualityCheck {
+  parse: SubprocessCheck['parse'] = () => [],
+): SubprocessCheck {
   scriptCount += 1;
   const file = path.join(fixtureDir, `check-${String(scriptCount)}.mjs`);
   writeFileSync(file, source);
@@ -166,5 +166,77 @@ describe('runQualityGate', () => {
       checks: [scriptCheck('test', 'process.exit(0);')],
     });
     expect(verdict.cost.wallClockMs).toBeGreaterThan(0);
+  });
+});
+
+describe('runQualityGate — in-process checks', () => {
+  const inproc = (name: string, run: InProcessCheck['run']): InProcessCheck => ({ name, run });
+
+  it('passes an in-process check that returns no findings', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'ip-pass',
+      workspaceDir: fixtureDir,
+      checks: [inproc('docs', () => [])],
+    });
+    expect(verdict.result).toBe('pass');
+    expect(verdict.findings).toEqual([]);
+  });
+
+  it('threads an in-process check error finding through to a fail verdict', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'ip-fail',
+      workspaceDir: fixtureDir,
+      checks: [inproc('docs', () => [{ severity: 'error', message: 'no doc on "f"' }])],
+    });
+    expect(verdict.result).toBe('fail');
+    expect(verdict.findings).toContainEqual({ severity: 'error', message: 'no doc on "f"' });
+  });
+
+  it('keeps an in-process info finding non-blocking (verdict still passes)', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'ip-info',
+      workspaceDir: fixtureDir,
+      checks: [inproc('docs', () => [{ severity: 'info', message: 'Python not covered' }])],
+    });
+    expect(verdict.result).toBe('pass');
+    expect(verdict.findings.some((f) => f.severity === 'info')).toBe(true);
+  });
+
+  it('awaits an async in-process check', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'ip-async',
+      workspaceDir: fixtureDir,
+      checks: [
+        inproc('docs', () => Promise.resolve([{ severity: 'error', message: 'async fail' }])),
+      ],
+    });
+    expect(verdict.result).toBe('fail');
+  });
+
+  it('turns a throwing in-process check into an error finding (never silently passes)', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'ip-throw',
+      workspaceDir: fixtureDir,
+      checks: [
+        inproc('docs', () => {
+          throw new Error('boom');
+        }),
+      ],
+    });
+    expect(verdict.result).toBe('fail');
+    expect(verdict.findings.some((f) => f.severity === 'error' && f.message.includes('boom'))).toBe(
+      true,
+    );
+  });
+
+  it('times out a hung in-process check as an error finding', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'ip-timeout',
+      workspaceDir: fixtureDir,
+      timeoutMsPerCheck: 20,
+      checks: [inproc('docs', () => new Promise<Finding[]>(() => {}))],
+    });
+    expect(verdict.result).toBe('fail');
+    expect(verdict.findings.some((f) => f.message.includes('timed out'))).toBe(true);
   });
 });

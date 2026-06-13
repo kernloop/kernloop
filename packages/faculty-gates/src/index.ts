@@ -22,10 +22,20 @@
  * `invokeReviewer`.
  *
  * Auditing of emitted Verdicts happens kernel-side at the bus boundary.
- * This faculty imports only @kernloop/contracts, zod, and node builtins
- * (constitutional rule 5).
+ * This faculty imports only @kernloop/contracts, zod, node builtins, and the
+ * `typescript` compiler API (the in-process doc-comment scanner, #65) — never
+ * another plugin (constitutional rule 5); the TS API is an external library,
+ * not a faculty.
  */
-export { DEFAULT_TIMEOUT_MS, defaultQualityChecks, type QualityCheck } from './checks.js';
+export {
+  DEFAULT_TIMEOUT_MS,
+  defaultQualityChecks,
+  docCommentCheck,
+  isInProcessCheck,
+  type InProcessCheck,
+  type QualityCheck,
+  type SubprocessCheck,
+} from './checks.js';
 export { runQualityGate, type RunQualityGateOptions } from './run.js';
 export { parseEslintOutput, parseTscOutput, parseVitestOutput, outputTail } from './parsers.js';
 export { qualityGateManifest } from './manifest.js';

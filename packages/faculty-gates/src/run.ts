@@ -11,7 +11,14 @@
  */
 import { spawn } from 'node:child_process';
 import { VerdictSchema, type Finding, type Verdict } from '@kernloop/contracts';
-import { DEFAULT_TIMEOUT_MS, defaultQualityChecks, type QualityCheck } from './checks.js';
+import {
+  DEFAULT_TIMEOUT_MS,
+  defaultQualityChecks,
+  isInProcessCheck,
+  type InProcessCheck,
+  type QualityCheck,
+  type SubprocessCheck,
+} from './checks.js';
 import { outputTail } from './parsers.js';
 
 /** Options for {@link runQualityGate}. */
@@ -37,7 +44,7 @@ interface CheckExecution {
 
 /** Spawn one check in `cwd`, capture output, kill on timeout expiry. */
 function executeCheck(
-  check: QualityCheck,
+  check: SubprocessCheck,
   cwd: string,
   timeoutMs: number,
 ): Promise<CheckExecution> {
@@ -73,7 +80,11 @@ function executeCheck(
  * parses output into findings and guarantees at least one `error` via the
  * output-tail fallback (CLM-0031). Timeouts and spawn failures are errors.
  */
-function findingsForCheck(check: QualityCheck, exec: CheckExecution, timeoutMs: number): Finding[] {
+function findingsForCheck(
+  check: SubprocessCheck,
+  exec: CheckExecution,
+  timeoutMs: number,
+): Finding[] {
   if (exec.timedOut) {
     return [
       {
@@ -107,6 +118,60 @@ function findingsForCheck(check: QualityCheck, exec: CheckExecution, timeoutMs: 
 }
 
 /**
+ * Run one in-process check, racing it against the per-check timeout. The
+ * check owns its severities, so its findings pass through unfiltered; a throw
+ * becomes an `error` finding, and an ASYNC run that overruns becomes a timeout
+ * `error` finding — so an in-process check can never silently pass by failing.
+ * NOTE: the timer cannot interrupt SYNCHRONOUS work (it blocks the event loop
+ * before the timer can fire); a synchronous check must bound its own work
+ * (the doc scanner enforces byte budgets) (CLM-0104).
+ */
+async function runInProcessCheck(
+  check: InProcessCheck,
+  cwd: string,
+  timeoutMs: number,
+): Promise<Finding[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<Finding[]>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve([
+          {
+            severity: 'error',
+            message: `check "${check.name}" timed out after ${String(timeoutMs)}ms`,
+          },
+        ]),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([Promise.resolve(check.run(cwd)), timeout]);
+  } catch (error) {
+    return [
+      {
+        severity: 'error',
+        message: `check "${check.name}" threw: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    ];
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/** Findings for one check, dispatching on subprocess vs in-process. */
+async function findingsFor(
+  check: QualityCheck,
+  cwd: string,
+  timeoutMs: number,
+): Promise<Finding[]> {
+  if (isInProcessCheck(check)) {
+    return runInProcessCheck(check, cwd, timeoutMs);
+  }
+  const exec = await executeCheck(check, cwd, timeoutMs);
+  return findingsForCheck(check, exec, timeoutMs);
+}
+
+/**
  * Run the quality gate over a workspace and emit one Verdict (CLM-0031).
  * Checks run sequentially; the verdict is `pass` iff no finding reaches
  * `error`/`blocker` severity. The Verdict is `VerdictSchema`-validated
@@ -118,8 +183,7 @@ export async function runQualityGate(options: RunQualityGateOptions): Promise<Ve
   const started = Date.now();
   const findings: Finding[] = [];
   for (const check of checks) {
-    const exec = await executeCheck(check, options.workspaceDir, timeoutMs);
-    findings.push(...findingsForCheck(check, exec, timeoutMs));
+    findings.push(...(await findingsFor(check, options.workspaceDir, timeoutMs)));
   }
   const blocking = findings.some((f) => f.severity === 'error' || f.severity === 'blocker');
   return VerdictSchema.parse({
