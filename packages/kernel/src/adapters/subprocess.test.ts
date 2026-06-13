@@ -101,11 +101,14 @@ describe('runSubprocess', () => {
 
   it('keeps output produced before the timeout kill', async () => {
     // Write SYNCHRONOUSLY to the stdout fd so the bytes are in the pipe before
-    // the kill can race the flush (a buffered `process.stdout.write` to a pipe
-    // could otherwise be killed before it lands — flaky on slow CI runners).
+    // the kill can race the flush. The budget is 2s (not 300ms) because under
+    // CI load Node's STARTUP alone can exceed 300ms — the kill would then race
+    // the child's boot, before the writeSync runs, leaving stdout empty (#112).
+    // The child hangs 30s, so the timeout still fires and the output-retained-
+    // across-kill behavior is what's under test. Mirrors the tree-kill test.
     const result = await runNode(
       'require("node:fs").writeSync(1, "partial"); setTimeout(() => {}, 30_000);',
-      { timeoutMs: 300 },
+      { timeoutMs: 2_000 },
     );
     expect(result.timedOut).toBe(true);
     expect(result.stdout).toBe('partial');
