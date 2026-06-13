@@ -121,15 +121,19 @@ export function buildNodeSeam(
   served: ServedModel,
   base: LoopInvoke,
   totals: { tokens: number; usd: number },
+  timeoutMs?: number,
 ): NodeSeam {
   const metered = meteredInvoke(base, totals);
   const invoke: LoopInvoke = (prompt, options = {}) => {
     const model = options.model ?? (served.model === '' ? undefined : served.model);
     const effort = options.effort ?? served.effortArg;
+    // The per-node model-call budget (#127); a caller-supplied timeout wins.
+    const timeout = options.timeoutMs ?? timeoutMs;
     return metered(prompt, {
       ...options,
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
+      ...(timeout === undefined ? {} : { timeoutMs: timeout }),
     });
   };
   return { invoke, served };

@@ -19,7 +19,12 @@
 import type { AdapterName } from '@kernloop/kernel';
 import type { ModelRequirement } from '@kernloop/contracts';
 import { adapterInvoke, type LoopInvoke } from './invoke.js';
-import { nodeRequirement, type TieredNode } from './node-model.js';
+import {
+  DEFAULT_INVOKE_TIMEOUT_MS,
+  invokeTimeoutForNode,
+  nodeRequirement,
+  type TieredNode,
+} from './node-model.js';
 import { buildNodeSeam, resolveServed, type NodeSeam } from './node-seam.js';
 import { buildApiNodeSeam, resolveServedApi } from './api-seam.js';
 import { apiDefinitionFor } from '../endpoints.js';
@@ -52,14 +57,18 @@ export function buildInvokeForNode(
       const req = requirementForNode(overlay, node, nodeRequirement(node));
       const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
       const endpoint = overlay.endpoints[name];
+      // Per-node model-call budget (#127): the configured base, capped per node.
+      const base = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
+      const timeoutMs = invokeTimeoutForNode(node, base);
       seam =
         endpoint === undefined
           ? buildNodeSeam(
               resolveServed(req, name as AdapterName),
               adapterInvoke(name as AdapterName),
               totals,
+              timeoutMs,
             )
-          : buildApiNodeSeam(req, apiDefinitionFor(name, endpoint), totals);
+          : buildApiNodeSeam(req, apiDefinitionFor(name, endpoint), totals, undefined, timeoutMs);
       cache.set(node, seam);
     }
     return seam;
