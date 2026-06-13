@@ -69,6 +69,14 @@ describe('scanDocComments — covered TS/JS', () => {
     expect(scanDocComments(dir)).toHaveLength(1);
   });
 
+  it('treats a /***/ (and /****/) empty doc shell as undocumented', () => {
+    write('a.ts', '/***/\nexport function f() {}\n');
+    write('b.ts', '/****/\nexport function g() {}\n');
+    const findings = scanDocComments(dir);
+    expect(findings).toHaveLength(2);
+    expect(findings.every((f) => f.severity === 'error')).toBe(true);
+  });
+
   it('honors a leading // line comment as a doc-comment', () => {
     write('src/a.ts', '// Adds.\nexport function add() {}\n');
     expect(scanDocComments(dir)).toEqual([]);
@@ -98,6 +106,30 @@ describe('scanDocComments — directory walk', () => {
 
   it('returns no findings for a directory that does not exist', () => {
     expect(scanDocComments(path.join(dir, 'missing'))).toEqual([]);
+  });
+});
+
+describe('scanDocComments — resource bounds (untrusted input)', () => {
+  it('records and skips a file over the per-file byte limit, never parsing it', () => {
+    // > 1 MB: an undocumented export buried under a huge comment. If the file
+    // were parsed it would be an `error`; the bound makes it a skipped `info`.
+    write('big.ts', `export function big() {}\n// ${'a'.repeat(1_000_001)}\n`);
+    const findings = scanDocComments(dir);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('info');
+    expect(findings[0]?.message).toContain('skipped');
+    expect(findings[0]?.message).toContain('per-file doc-scan limit');
+    expect(findings.some((f) => f.severity === 'error')).toBe(false);
+  });
+
+  it('still scans normal-sized files alongside a skipped oversized one', () => {
+    write('big.ts', `export const x = 1;\n/* ${'b'.repeat(1_000_001)} */\n`);
+    write('small.ts', 'export function undocumented() {}\n');
+    const findings = scanDocComments(dir);
+    expect(findings.some((f) => f.severity === 'info' && f.message.includes('skipped'))).toBe(true);
+    expect(
+      findings.some((f) => f.severity === 'error' && f.message.includes('"undocumented"')),
+    ).toBe(true);
   });
 });
 

@@ -38,8 +38,10 @@ export interface SubprocessCheck {
  * returns findings directly, for checks with no local CLI to spawn (e.g. the
  * doc-comment scanner parses source via the TS compiler API). Like the
  * subprocess checks it calls no model; it owns its own severities (there is no
- * exit code to gate on). The runner times it out and turns a throw into an
- * `error` finding (CLM-0104).
+ * exit code to gate on). The runner turns a throw into an `error` finding and
+ * times out an ASYNC run; a SYNCHRONOUS check blocks the event loop, so it
+ * must bound its own work (the doc scanner enforces byte budgets) — the timer
+ * cannot interrupt synchronous CPU (CLM-0104).
  */
 export interface InProcessCheck {
   /** Short identifier, e.g. `doc-comments`. */

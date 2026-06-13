@@ -44,10 +44,37 @@ const UNCOVERED_LANGS: Record<string, string> = {
   '.scala': 'Scala',
 };
 
-/** Directories never walked: build output, deps, VCS, coverage artifacts. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git', 'coverage', '.turbo']);
+/** Directories never walked: build output, deps, VCS, coverage artifacts
+ * (incl. other-language build dirs, so their compiled sources never inflate
+ * the degradation counts). */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  '.git',
+  'coverage',
+  '.turbo',
+  'target',
+  'vendor',
+  'out',
+  '.next',
+]);
 
-/** Recursively collect file paths under `dir`, skipping {@link SKIP_DIRS}. */
+/** Largest single file the scanner will parse; a larger one is recorded and
+ * skipped, never read — `ts.createSourceFile` cost is superlinear, and this
+ * runs IN-PROCESS on model-generated content, so an unbounded parse could
+ * block or OOM the whole loop (the runner's timeout cannot interrupt
+ * synchronous work). */
+const MAX_FILE_BYTES = 1_000_000;
+/** Total bytes the scan will parse before truncating (recorded, not silent),
+ * bounding the many-files case the per-file cap alone would not. */
+const MAX_TOTAL_BYTES = 32_000_000;
+
+/** Recursively collect file paths under `dir`, skipping {@link SKIP_DIRS}.
+ * Uses `Dirent.isDirectory`/`isFile`, which report the lstat type and do NOT
+ * follow symlinks — so a symlink (to `/etc`, a loop, anywhere) is neither
+ * recursed into nor read. Do not switch to `statSync` here: that follows
+ * symlinks and would reintroduce a filesystem-escape on untrusted workspaces. */
 function walkFiles(dir: string): string[] {
   const out: string[] = [];
   let entries: fs.Dirent[];
@@ -162,27 +189,67 @@ export function listExportedSymbols(filePath: string): ExportedSymbol[] {
  * slashes) stripped, so an empty doc shell or a bare `//` reads as
  * undocumented rather than counting as a present doc-comment. */
 function strippedDocText(doc: string): string {
-  return doc
+  const stripped = doc
     .replace(/\/\*+/g, ' ')
     .replace(/\*+\//g, ' ')
     .replace(/^\s*\*+/gm, ' ')
     .replace(/^\s*\/\//gm, ' ')
     .trim();
+  // A residue of only comment delimiters/whitespace (e.g. the lone `/` left by
+  // an empty `/***/` shell) is not a doc-comment.
+  return /^[/*\s]*$/.test(stripped) ? '' : stripped;
 }
 
-/** Findings for the covered TS/JS files: one `error` per undocumented export. */
+/** One undocumented-export `error` finding, or null when `sym` is documented. */
+function undocumentedFinding(sym: ExportedSymbol, rel: string): Finding | null {
+  if (sym.doc !== null && strippedDocText(sym.doc).length > 0) return null;
+  return {
+    severity: 'error',
+    message: `exported ${sym.kind} "${sym.name}" (${rel}:${String(sym.line)}) has no doc-comment`,
+    path: rel,
+  };
+}
+
+/** Findings for the covered TS/JS files: one `error` per undocumented export.
+ * Bounds its own work (per-file and cumulative byte budgets) so untrusted,
+ * model-generated source cannot hang or OOM the in-process scan; an oversized
+ * or budget-exceeding file is recorded as a non-blocking `info`, never parsed
+ * silently and never an unbounded read. */
 function findUndocumented(files: readonly string[], rootDir: string): Finding[] {
   const findings: Finding[] = [];
+  let totalBytes = 0;
+  let truncated = 0;
   for (const file of files) {
     const rel = path.relative(rootDir, file);
-    for (const sym of listExportedSymbols(file)) {
-      if (sym.doc !== null && strippedDocText(sym.doc).length > 0) continue;
+    let size: number;
+    try {
+      size = fs.statSync(file).size;
+    } catch {
+      continue;
+    }
+    if (size > MAX_FILE_BYTES) {
       findings.push({
-        severity: 'error',
-        message: `exported ${sym.kind} "${sym.name}" (${rel}:${String(sym.line)}) has no doc-comment`,
+        severity: 'info',
+        message: `${rel} skipped: ${String(size)} bytes exceeds the ${String(MAX_FILE_BYTES)}-byte per-file doc-scan limit`,
         path: rel,
       });
+      continue;
     }
+    if (totalBytes + size > MAX_TOTAL_BYTES) {
+      truncated += 1;
+      continue;
+    }
+    totalBytes += size;
+    for (const sym of listExportedSymbols(file)) {
+      const finding = undocumentedFinding(sym, rel);
+      if (finding !== null) findings.push(finding);
+    }
+  }
+  if (truncated > 0) {
+    findings.push({
+      severity: 'info',
+      message: `doc-comment scan truncated: ${String(truncated)} file(s) not scanned after the ${String(MAX_TOTAL_BYTES)}-byte total budget`,
+    });
   }
   return findings;
 }

@@ -120,8 +120,11 @@ function findingsForCheck(
 /**
  * Run one in-process check, racing it against the per-check timeout. The
  * check owns its severities, so its findings pass through unfiltered; a throw
- * becomes an `error` finding and a timeout becomes one too (CLM-0104), so an
- * in-process check can never silently pass by failing.
+ * becomes an `error` finding, and an ASYNC run that overruns becomes a timeout
+ * `error` finding — so an in-process check can never silently pass by failing.
+ * NOTE: the timer cannot interrupt SYNCHRONOUS work (it blocks the event loop
+ * before the timer can fire); a synchronous check must bound its own work
+ * (the doc scanner enforces byte budgets) (CLM-0104).
  */
 async function runInProcessCheck(
   check: InProcessCheck,
