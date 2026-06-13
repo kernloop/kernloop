@@ -1,9 +1,8 @@
 /**
- * Unit tests for the loop executors and the composition-root loop entry:
- * the 7-voter ratification panel, integrate's honest child aggregation,
- * decompose's corrupt-state guard, the overlay quality-timeout knob, the
- * resume guards, and the REAL default adapter invoke against a scripted
- * executable on PATH [CLM-0046 support].
+ * Unit tests for the loop executors + the composition-root loop entry: the
+ * 7-voter panel, integrate's honest child aggregation, decompose's corrupt-state
+ * guard, the quality-timeout knob, resume guards, the implement parse-retry
+ * (#130), and the REAL default adapter invoke on PATH [CLM-0046 support].
  */
 import {
   chmodSync,
@@ -105,9 +104,8 @@ function bindingsFor(
 ): LoopBindings {
   const workspaceDir = path.join(scratch, 'unit-ws');
   mkdirSync(workspaceDir, { recursive: true }); // quality checks spawn with cwd = workspace
-  // Injected-invoke parity: every node resolves to the same injected invoke,
-  // so a custom invoke reaches per-node executors too (the loop's
-  // injected-invoke backward-compat contract, [CLM-0078]).
+  // Injected-invoke parity: every node resolves to the one injected invoke, so a
+  // custom invoke reaches per-node executors too ([CLM-0078]).
   return {
     kern,
     workspaceDir,
@@ -207,22 +205,41 @@ describe('integrate executor', () => {
   });
 });
 
-describe('output-contract violations (diagnosability, one honest attempt)', () => {
-  it('implement fails on an empty files array and preserves the raw output under checkpoints/', async () => {
+describe('output-contract violations (diagnosability; implement retries once, #130)', () => {
+  it('implement fails on a persistently empty files array (both attempts) and preserves the raw output', async () => {
     const kern = kernloopFor('implement-violation');
-    const raw = 'Nothing to write for this "files" task.\n```json\n{"files":[],"notes":"n/a"}\n```';
-    const invoke: LoopInvoke = () => Promise.resolve({ output: raw, cost: COST });
+    const raw = 'Nothing to write.\n```json\n{"files":[],"notes":"n/a"}\n```';
+    let calls = 0;
+    const invoke: LoopInvoke = () => ((calls += 1), Promise.resolve({ output: raw, cost: COST }));
     const executors = buildLoopExecutors(bindingsFor(kern, {}, invoke));
-    const child = { ...task, id: 'task-unit.1' };
-    await expect(executors['implement']?.(child, ctxFor(3))).rejects.toThrow(
-      'raw model output preserved at',
-    );
+    await expect(
+      executors['implement']?.({ ...task, id: 'task-unit.1' }, ctxFor(3)),
+    ).rejects.toThrow('raw model output preserved at');
+    expect(calls).toBe(2); // one retry on the contract failure (#130)
     const file = path.join(
       kern.paths.dir,
       'checkpoints',
       'run-unit-implement-task-unit.1-violation.txt',
     );
     expect(readFileSync(file, 'utf8')).toBe(raw);
+    kern.close();
+  });
+
+  it('implement RECOVERS when attempt 1 is prose-wrapped and the retry emits clean JSON (#130)', async () => {
+    const kern = kernloopFor('implement-retry');
+    const clean = '{"files":[{"path":"out.ts","content":"export const x = 1;"}],"notes":"ok"}';
+    let calls = 0;
+    const invoke: LoopInvoke = () =>
+      Promise.resolve({
+        output: (calls += 1) === 1 ? 'files: cli.ts { return x } …' : clean,
+        cost: COST,
+      });
+    const executors = buildLoopExecutors(bindingsFor(kern, {}, invoke));
+    const out = await executors['implement']?.({ ...task, id: 'r.1' }, ctxFor(3));
+    const outcome = out as { status: string; cost: { tokens: number } };
+    expect(calls).toBe(2);
+    expect(outcome.status).toBe('success');
+    expect(outcome.cost.tokens).toBe(COST.tokens * 2); // both attempts metered
     kern.close();
   });
 

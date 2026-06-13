@@ -1,0 +1,23 @@
+id: CLM-0107
+statement: >-
+  The canonical loop tolerates an AGENTIC coder CLI's prose-wrapped output (#130):
+  the JSON extractor returns the first BALANCED object that PARSES — stepping over
+  brace-bearing prose/code snippets a headless agent narrates around the contract
+  object, not merely the first `{` — and the implement node RETRIES its model call
+  ONCE on a files-contract parse failure (an intermittent prose wrap usually
+  resolves on a second roll), metering BOTH attempts' cost. This parse-failure
+  retry is distinct from and independent of the Kc quality-iteration (CLM-0043);
+  a PERSISTENT contract violation still fails HONESTLY — the raw output is
+  preserved under checkpoints/, no files are fabricated, and there is no coercion.
+evidence:
+  - 'test:packages/cli/src/loop/invoke.test.ts::STEPS OVER a balanced-but-non-JSON prose snippet and returns the real object after it (#130)'
+  - 'test:packages/cli/src/loop/invoke.test.ts::throws on an unterminated object, and reports "no parsable object" when the only braces are non-JSON'
+  - 'test:packages/cli/src/loop/invoke.test.ts::extracts the first balanced JSON object out of surrounding prose and fences'
+  - 'test:packages/cli/src/loop/executors.test.ts::implement RECOVERS when attempt 1 is prose-wrapped and the retry emits clean JSON (#130)'
+  - 'test:packages/cli/src/loop/executors.test.ts::implement fails on a persistently empty files array (both attempts) and preserves the raw output'
+  - 'code:packages/cli/src/loop/invoke.ts#extractJsonObject@doc:/CLM-0107/'
+  - 'code:packages/cli/src/loop/executors-nodes.ts#coderEmissionWithRetry@doc:/CLM-0107/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
