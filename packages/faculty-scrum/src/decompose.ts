@@ -18,11 +18,25 @@ import {
   TierSchema,
   constraintTag,
   parseConstraintTags,
+  type Altitude,
   type TaskContract,
   type Tier,
 } from '@kernloop/contracts';
 import { z } from 'zod';
-import { InvalidParentError, InvalidStorySpecError, ScrumBudgetExceededError } from './errors.js';
+import {
+  AltitudeDescentError,
+  InvalidParentError,
+  InvalidStorySpecError,
+  ScrumBudgetExceededError,
+} from './errors.js';
+
+/** The altitude exactly one rung below a decomposable parent (the descent
+ * ladder epic → story → task). A `task` is a leaf (no rung below). */
+const CHILD_ALTITUDE: Readonly<Record<Altitude, Altitude | undefined>> = {
+  epic: 'story',
+  story: 'task',
+  task: undefined,
+};
 
 /** Authority ladder, lowest first (spec §3.2). */
 const TIER_ORDER: readonly Tier[] = TierSchema.options;
@@ -89,6 +103,27 @@ function parseStory(spec: StorySpec, index: number): StorySpec {
   return parsed.data;
 }
 
+/**
+ * Enforce altitude descent (CLM-0096): when the parent carries an `altitude`
+ * tag, it must decompose exactly one rung down — `epic`→`story`, `story`→`task`
+ * — and a `task` parent is a leaf that cannot be decomposed at all. A parent
+ * with NO altitude is the program root (the unconstrained entry) and is not
+ * checked, so the model still chooses the entry granularity. A child whose
+ * altitude is not exactly the expected rung throws {@link AltitudeDescentError}.
+ */
+function checkAltitudeDescent(parentAltitude: Altitude | undefined, stories: StorySpec[]): void {
+  if (parentAltitude === undefined) return; // root entry — unconstrained
+  const expected = CHILD_ALTITUDE[parentAltitude];
+  if (expected === undefined) {
+    throw new AltitudeDescentError(parentAltitude, -1); // a task is a leaf
+  }
+  stories.forEach((spec, index) => {
+    if (spec.altitude !== expected) {
+      throw new AltitudeDescentError(parentAltitude, index, expected, spec.altitude);
+    }
+  });
+}
+
 /** Enforce sum(child) ≤ parent independently per budget dimension. */
 function checkBudgetInvariant(parent: TaskContract, stories: StorySpec[]): void {
   for (const dimension of ['tokens', 'usd', 'wallClockMin'] as const) {
@@ -99,10 +134,14 @@ function checkBudgetInvariant(parent: TaskContract, stories: StorySpec[]): void 
   }
 }
 
-/** Build a child's constraint array: inherited + own + altitude/track/sprint + assignment. */
-function childConstraints(parent: TaskContract, spec: StorySpec): string[] {
+/** Build a child's constraint array: the parent's FREE-FORM constraints
+ * (`inherited`, its program tags stripped) + the story's own + the child's
+ * freshly-derived altitude/track/sprint + assignment. The parent's own program
+ * tags are NOT inherited — re-deriving them per child is what lets an
+ * altitude-bearing parent decompose without a duplicate `altitude:` tag. */
+function childConstraints(inherited: readonly string[], spec: StorySpec): string[] {
   return [
-    ...parent.constraints,
+    ...inherited,
     ...(spec.constraints ?? []),
     constraintTag('altitude', spec.altitude),
     ...(spec.track !== undefined ? [constraintTag('track', spec.track)] : []),
@@ -112,8 +151,13 @@ function childConstraints(parent: TaskContract, spec: StorySpec): string[] {
 }
 
 /** Map one validated story spec to a zod-valid child TaskContract. */
-function toChild(parent: TaskContract, spec: StorySpec, index: number): TaskContract {
-  const constraints = childConstraints(parent, spec);
+function toChild(
+  parent: TaskContract,
+  inherited: readonly string[],
+  spec: StorySpec,
+  index: number,
+): TaskContract {
+  const constraints = childConstraints(inherited, spec);
   // Defense in depth: the emitted program tags must read back cleanly — an
   // unsafe track/sprint or bad altitude surfaces here as a typed story error.
   try {
@@ -138,6 +182,10 @@ function toChild(parent: TaskContract, spec: StorySpec, index: number): TaskCont
  * Derive zod-valid child TaskContracts from a program parent plus PM-proposed
  * story specs, ONE ALTITUDE UP from `decomposePlan` (CLM-0096). Enforces:
  *
+ * - ALTITUDE DESCENT: when the parent carries an `altitude`, it decomposes
+ *   exactly one rung down (epic→story, story→task) and a `task` parent is a
+ *   leaf that cannot decompose — a violation throws {@link AltitudeDescentError}.
+ *   A parent with no altitude (the program root) is the unconstrained entry.
  * - BUDGET INVARIANT: child budgets sum within the parent's on each of tokens,
  *   usd, and wallClockMin independently; any breach throws
  *   {@link ScrumBudgetExceededError} naming the dimension and amounts. An exact
@@ -158,7 +206,17 @@ export function decomposeGoal(input: DecomposeGoalInput): TaskContract[] {
     throw new InvalidParentError(z.prettifyError(parentResult.error));
   }
   const parent = parentResult.data;
+  // Parse the parent's program tags ONCE: its altitude drives descent, and its
+  // free-form (non-tag) constraints are what children inherit. A malformed
+  // parent tag is a typed InvalidParentError, never a raw throw.
+  let parentTags;
+  try {
+    parentTags = parseConstraintTags(parent.constraints);
+  } catch (error) {
+    throw new InvalidParentError(error instanceof Error ? error.message : String(error));
+  }
   const stories = input.subtasks.map((spec, i) => parseStory(spec, i));
+  checkAltitudeDescent(parentTags.altitude, stories);
   checkBudgetInvariant(parent, stories);
-  return stories.map((spec, i) => toChild(parent, spec, i));
+  return stories.map((spec, i) => toChild(parent, parentTags.other, spec, i));
 }

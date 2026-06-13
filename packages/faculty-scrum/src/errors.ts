@@ -3,7 +3,7 @@
  * on `name` or `instanceof` — never on message text. Mirrors the shapes of
  * faculty-workforce's decomposition errors (spec §5.4).
  */
-import type { TaskContract } from '@kernloop/contracts';
+import type { Altitude, TaskContract } from '@kernloop/contracts';
 
 /** The three independently-summed budget dimensions of a TaskContract. */
 export type BudgetDimension = keyof TaskContract['budget'];
@@ -56,6 +56,37 @@ export class InvalidStorySpecError extends Error {
     super(`story[${index}]: ${detail}`);
     this.name = 'InvalidStorySpecError';
     this.index = index;
+  }
+}
+
+/**
+ * Thrown when a decomposition violates altitude descent (spec §5.4; CLM-0096):
+ * an altitude-bearing parent must decompose exactly ONE rung down (epic→story,
+ * story→task), and a `task`-altitude parent is a LEAF that cannot decompose at
+ * all. (A parent with no altitude — the program root — is the unconstrained
+ * entry and is not checked.) Carries the parent + expected/actual child
+ * altitudes so a caller can report or replan without parsing text. For a
+ * task-parent leaf violation, `expected`/`actual` are omitted.
+ */
+export class AltitudeDescentError extends Error {
+  readonly parentAltitude: Altitude;
+  readonly expected?: Altitude;
+  readonly actual?: Altitude;
+  /** Zero-based index of the offending child, or -1 for a task-leaf parent. */
+  readonly index: number;
+
+  constructor(parentAltitude: Altitude, index: number, expected?: Altitude, actual?: Altitude) {
+    super(
+      expected === undefined
+        ? `a "${parentAltitude}" is a leaf and cannot be decomposed (spec §5.4)`
+        : `story[${index}]: altitude "${actual ?? '<missing>'}" violates descent — ` +
+            `a "${parentAltitude}" parent decomposes to "${expected}" children (spec §5.4)`,
+    );
+    this.name = 'AltitudeDescentError';
+    this.parentAltitude = parentAltitude;
+    this.index = index;
+    if (expected !== undefined) this.expected = expected;
+    if (actual !== undefined) this.actual = actual;
   }
 }
 

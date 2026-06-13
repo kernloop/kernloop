@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { TaskContractSchema, parseConstraintTags, type TaskContract } from '@kernloop/contracts';
 import { decomposeGoal, type StorySpec } from './decompose.js';
-import { InvalidParentError, InvalidStorySpecError, ScrumBudgetExceededError } from './errors.js';
+import {
+  AltitudeDescentError,
+  InvalidParentError,
+  InvalidStorySpecError,
+  ScrumBudgetExceededError,
+} from './errors.js';
 
 function parent(overrides: Partial<TaskContract> = {}): TaskContract {
   return TaskContractSchema.parse({
@@ -181,5 +186,88 @@ describe('decomposeGoal', () => {
 
   it('an empty story list decomposes to an empty child list', () => {
     expect(decomposeGoal({ parent: parent(), subtasks: [] })).toEqual([]);
+  });
+});
+
+describe('decomposeGoal — altitude descent (#52 Inc 4)', () => {
+  const at = (alt: string): TaskContract => parent({ constraints: [`altitude:${alt}`] });
+
+  it('an epic parent decomposes to story children', () => {
+    const children = decomposeGoal({
+      parent: at('epic'),
+      subtasks: [story({ altitude: 'story' })],
+    });
+    expect(parseConstraintTags(children[0]!.constraints).altitude).toBe('story');
+  });
+
+  it('a story parent decomposes to task children', () => {
+    const children = decomposeGoal({
+      parent: at('story'),
+      subtasks: [story({ altitude: 'task' })],
+    });
+    expect(parseConstraintTags(children[0]!.constraints).altitude).toBe('task');
+  });
+
+  it('rejects an epic parent → epic child (same rung, not one down)', () => {
+    try {
+      decomposeGoal({ parent: at('epic'), subtasks: [story({ altitude: 'epic' })] });
+      expect.unreachable('must throw');
+    } catch (error) {
+      const e = error as AltitudeDescentError;
+      expect(e.name).toBe('AltitudeDescentError');
+      expect(e.parentAltitude).toBe('epic');
+      expect(e.expected).toBe('story');
+      expect(e.actual).toBe('epic');
+      expect(e.index).toBe(0);
+    }
+  });
+
+  it('rejects an epic parent → task child (skips a rung)', () => {
+    expect(() =>
+      decomposeGoal({ parent: at('epic'), subtasks: [story({ altitude: 'task' })] }),
+    ).toThrow(AltitudeDescentError);
+  });
+
+  it('rejects a story parent → story child', () => {
+    expect(() =>
+      decomposeGoal({ parent: at('story'), subtasks: [story({ altitude: 'story' })] }),
+    ).toThrow(AltitudeDescentError);
+  });
+
+  it('rejects decomposing a task parent — a task is a leaf', () => {
+    try {
+      decomposeGoal({ parent: at('task'), subtasks: [story({ altitude: 'task' })] });
+      expect.unreachable('must throw');
+    } catch (error) {
+      const e = error as AltitudeDescentError;
+      expect(e.name).toBe('AltitudeDescentError');
+      expect(e.parentAltitude).toBe('task');
+      expect(e.index).toBe(-1);
+      expect(e.expected).toBeUndefined();
+    }
+  });
+
+  it('a no-altitude root parent is the unconstrained entry — any child altitude is allowed', () => {
+    // The default parent() carries no altitude tag (the program root).
+    const children = decomposeGoal({
+      parent: parent(),
+      subtasks: [story({ altitude: 'epic' }), story({ goal: 'B', altitude: 'task' })],
+    });
+    expect(children.map((c) => parseConstraintTags(c.constraints).altitude)).toEqual([
+      'epic',
+      'task',
+    ]);
+  });
+
+  it('reports the FIRST offending child index under an altitude-bearing parent', () => {
+    try {
+      decomposeGoal({
+        parent: at('epic'),
+        subtasks: [story({ altitude: 'story' }), story({ goal: 'B', altitude: 'epic' })],
+      });
+      expect.unreachable('must throw');
+    } catch (error) {
+      expect((error as AltitudeDescentError).index).toBe(1);
+    }
   });
 });

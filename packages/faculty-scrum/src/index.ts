@@ -14,6 +14,7 @@ export { decomposeGoal, StorySpecSchema } from './decompose.js';
 export type { StorySpec, DecomposeGoalInput } from './decompose.js';
 export { programLabels, programIssueBody } from './labels.js';
 export {
+  AltitudeDescentError,
   InvalidParentError,
   InvalidStorySpecError,
   ScrumBudgetExceededError,

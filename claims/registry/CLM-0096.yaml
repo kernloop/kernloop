@@ -1,9 +1,13 @@
 id: CLM-0096
 statement: >-
   faculty-scrum decomposes a goal into an epic/story TaskContract tree with the
-  parent-chain, the budget-sum invariant (per tokens/usd/wallClockMin), and
-  altitude/track/sprint constraint tags, surfaced through the suggest-tier
-  kernloop program decompose CLI as a preview that mutates nothing (no GitHub).
+  parent-chain, the budget-sum invariant (per tokens/usd/wallClockMin),
+  altitude/track/sprint constraint tags, and altitude-descent enforcement (an
+  altitude-bearing parent decomposes exactly one rung down — epic→story,
+  story→task — a task parent is a leaf that cannot decompose, and the program
+  root with no altitude is the unconstrained entry), surfaced through the
+  suggest-tier kernloop program decompose CLI as a preview that mutates nothing
+  (no GitHub).
 evidence:
   - 'test:packages/faculty-scrum/src/decompose.test.ts::derives id, parent, overlay, and clamped ceiling for each child'
   - 'test:packages/faculty-scrum/src/decompose.test.ts::emits a parseable altitude tag on each child and inherits parent constraints'
@@ -12,6 +16,10 @@ evidence:
   - 'test:packages/faculty-scrum/src/decompose.test.ts::a usd-sum violation throws for the usd dimension'
   - 'test:packages/faculty-scrum/src/decompose.test.ts::a wall-clock-sum violation throws for the wallClockMin dimension'
   - 'test:packages/faculty-scrum/src/decompose.test.ts::rejects a bad altitude in a spec with a typed error carrying the index'
+  - 'test:packages/faculty-scrum/src/decompose.test.ts::an epic parent decomposes to story children'
+  - 'test:packages/faculty-scrum/src/decompose.test.ts::rejects an epic parent → epic child (same rung, not one down)'
+  - 'test:packages/faculty-scrum/src/decompose.test.ts::rejects decomposing a task parent — a task is a leaf'
+  - 'test:packages/faculty-scrum/src/decompose.test.ts::a no-altitude root parent is the unconstrained entry — any child altitude is allowed'
   - 'test:packages/cli/src/program-commands.test.ts::prints the child tree with correct ids + altitude tags and audits the op'
   - 'test:packages/cli/src/program-commands.test.ts::audits goalChars only — never the goal verbatim'
   - 'test:packages/cli/src/program-commands.test.ts::a budget-breaching spec exits 1 with a clear message naming the breach'
