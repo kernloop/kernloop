@@ -323,6 +323,26 @@ contract's budget — the kernel meters, the PM allocates.
 > (`cli.program.reconcile`) with counts only; a `getIssue` read failure surfaces
 > as exit 1 with the node left unchanged (a broken reconcile is visible).
 
+> **As-realized note (2026-06-13).** MODEL-AUTHORED decomposition (#104) is now
+> realized [CLM-0103]: `kernloop program author --goal G [--id ID] [--adapter A]`
+> is `decompose` with the story specs PROPOSED BY A MODEL instead of read from a
+> `--spec` file. It invokes the chosen adapter through the SAME `adapterInvoke`
+> seam distill/gate use (availability probed; absence is the kernel's typed
+> error, never a stub), asking the model to break the goal into an epic/story
+> plan WITHIN the parent's budget and emit ONLY a JSON array of story specs. The
+> output is parsed ROBUSTLY (the first top-level JSON array, even wrapped in
+> markdown fences or prose) and validated against `StorySpecSchema`, then run
+> through the SAME deterministic `decomposeGoal` — so the model PROPOSES, the
+> faculty ENFORCES (the per-dimension budget-sum invariant, identity/altitude/
+> assign derivation, `suggest` ceiling clamp), and the human RATIFIES the printed
+> `{ op, adapter, parent, children }` tree before feeding it to `create`/`emit`.
+> It is suggest-tier and MUTATES NOTHING (no ledger write, no GitHub, no loop
+> run); a malformed / non-array / schema-invalid / budget-breaching model output
+> is a CLEAN exit 1 (`ProgramInputError` or the faculty's typed error), never a
+> fabricated spec and never auto-acted. Each run is audited ONCE
+> (`cli.program.author`) with op/adapter/parentId/childCount/goalChars — never
+> the goal or the model output verbatim.
+
 ### 5.5 Observer — telemetry and the self-issue loop
 
 Consumes every Outcome and Verdict. Maintains the **tool/skill/template

@@ -36,6 +36,7 @@ export const USAGE = [
   '  observer  proposals | propose <n> | list           the self-issue loop (spec §5.5)',
   '            file <id> [--execute]   file a proposal via the tracker (DRY RUN by default; enforce-gated)',
   '  program   decompose --goal G --spec F [--parent ID] [--id ID]   decompose a goal into an epic/story tree (preview; spec §5.4)',
+  '            author --goal G [--id ID] [--adapter A]   a MODEL proposes the epic/story decomposition (suggest-tier preview; mutates nothing)',
   '            emit (--goal G --spec F [--id ID] | --program ID) [--execute] [--confirm-count N]   file each child as a labeled issue (--program auto-records refs to the ledger; DRY RUN by default; enforce-gated, spam-guarded)',
   '            create --goal G --spec F [--id ID]   persist the decomposed plan to the resumable ledger (.kernloop/programs.sqlite)',
   '            list   the persisted programs in the ledger (id + goal)',
