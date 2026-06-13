@@ -90,7 +90,8 @@ export function buildApiNodeSeam(
   def: ApiAdapterDefinition,
   totals: { tokens: number; usd: number },
   env?: Readonly<Record<string, string | undefined>>,
+  timeoutMs?: number,
 ): NodeSeam {
   const served = resolveServedApi(req, def);
-  return buildNodeSeam(served, apiInvoke(def, env), totals);
+  return buildNodeSeam(served, apiInvoke(def, env), totals, timeoutMs);
 }

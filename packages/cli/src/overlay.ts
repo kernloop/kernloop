@@ -27,7 +27,8 @@ import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
 import YAML from 'yaml';
 import { EndpointsSchema } from './endpoints.js';
-import { TRACKER_TEMPLATE_LINES, TrackerSchema } from './tracker-config.js';
+import { TrackerSchema } from './tracker-config.js';
+import { overlayTemplate } from './overlay-template.js';
 
 /** Name of the overlay directory committed with each repo (spec §7). */
 export const OVERLAY_DIR_NAME = '.kernloop';
@@ -172,6 +173,10 @@ export const OverlaySchema = z
     id: z.string().min(1),
     budgets: BudgetsSchema.prefault({}),
     briefTokens: z.number().int().positive().default(4_000),
+    /** Per-call model-invoke timeout (ms) base for the loop's generative nodes
+     * [CLM-0078, #127]; absent → 15-min default, lighter nodes capped shorter.
+     * Raise it when a real cross-file implement step needs longer (node-model.ts). */
+    invokeTimeoutMs: z.number().int().positive().optional(),
     K: z.number().int().min(1).default(3),
     /**
      * Child-iterate bound (spec §6, §8) [CLM-0043]: a child's implement re-runs
@@ -317,51 +322,6 @@ export interface InitResult {
   readonly overlayDir: string;
   readonly created: string[];
   readonly skipped: string[];
-}
-
-/** Render the overlay.yaml template `kernloop init` writes (spec-true defaults, commented). */
-function overlayTemplate(defaults: Overlay): string {
-  return [
-    '# kernloop overlay (spec §7) — per-repo identity as data',
-    `id: ${defaults.id}`,
-    'budgets:',
-    `  tokens: ${String(defaults.budgets.tokens)}`,
-    `  usd: ${String(defaults.budgets.usd)}`,
-    `  wallClockMin: ${String(defaults.budgets.wallClockMin)}`,
-    `briefTokens: ${String(defaults.briefTokens)}`,
-    '# vote-iterate bound: rejected plans loop at most K times, then escalate to the human (spec §6)',
-    `K: ${String(defaults.K)}`,
-    '# child-iterate bound: a child re-runs implement at most Kc times on a quality reject, then escalates (spec §6, §8)',
-    `Kc: ${String(defaults.Kc)}`,
-    '# budget mode: enforce halts a run that exceeds its budget; unlimited never halts but still tracks/reports cost (spec §8)',
-    `budgetMode: ${defaults.budgetMode} # enforce | unlimited (Kc still bounds child iteration in unlimited)`,
-    'gates:',
-    '  vote:',
-    `    strategy: ${defaults.gates.vote.strategy} # simple_majority | supermajority | unanimous`,
-    `    panel: ${String(defaults.gates.vote.panel)} # 3 default; 7 at plan ratification (spec §8.6)`,
-    '#  quality:',
-    '#    timeoutMsPerCheck: 120000',
-    '# adapters:  # per-tier model adapters (spec §8.4) — which adapter serves each model tier',
-    '#   frontier: claude  # any of: claude codex gemini opencode ollama, OR a registered endpoint id below',
-    '#   large: claude     # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',
-    '#   medium: codex',
-    '#   small: ollama',
-    '# endpoints:  # OpenAI-compatible HTTP endpoints (spec §8.4 api adapter) — referenced by id from adapters above',
-    '#   my-provider:        # an internal OpenAI-compatible provider; reference it as adapters.<tier>: my-provider',
-    '#     baseUrl: https://api.example.com/v1   # https required (http allowed ONLY for localhost/private, e.g. local vLLM)',
-    '#                                            # this validates YOUR configured URL (scheme/creds); it is operator-trusted, not SSRF immunity',
-    '#     apiKeyEnv: MY_PROVIDER_API_KEY        # the NAME of an env var — NEVER the key itself; set it in your shell',
-    '#     models: { frontier: some-frontier-model, medium: some-medium-model }  # tier → concrete model id',
-    '#     metersUsd: true       # the endpoint reports per-call USD cost (usage.cost) — meter it; a 2xx with no cost then fails closed',
-    '#     maxUsdPerCall: 0.50   # optional fail-closed per-call spend cap (requires metersUsd: true)',
-    ...TRACKER_TEMPLATE_LINES,
-    "# nodeOverrides:  # swap a gate's gate / add fanout specialists / raise a node's model (spec §6, §8.4)",
-    '#  canonical node names: frame research plan vote decompose fanout integrate retrospect (children: implement quality)',
-    '#   quality: { gate: security-review }',
-    '#   fanout: { specialists: [researcher] }',
-    '#   research: { tier: medium, effort: low }  # tier: frontier|large|medium|small; effort: low|medium|high|xhigh',
-    '',
-  ].join('\n');
 }
 
 /**

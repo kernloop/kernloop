@@ -111,3 +111,34 @@ function manifestModel(model: ModelRequirement | undefined, label: string): Mode
   }
   return ModelRequirementSchema.parse(model);
 }
+
+/**
+ * Default per-call model-invoke timeout (ms) for the GENERATIVE nodes
+ * (implement, research, review) when the overlay sets no `invokeTimeoutMs`
+ * [CLM-0078, #127]. Raised from the old uniform 5-minute cap so a real
+ * cross-file edit is not killed mid-write — the failure mode the first
+ * self-hosted run hit. The overlay's `invokeTimeoutMs` overrides this base.
+ */
+export const DEFAULT_INVOKE_TIMEOUT_MS = 900_000;
+
+/**
+ * Per-call timeout (ms) for the LIGHTER nodes (plan, decompose, vote): a quick
+ * decision should fail fast rather than wait the full generative budget. A node
+ * is capped at the SMALLER of this and the configured base, so lowering the base
+ * lowers everything but raising it never makes a vote wait the generative budget.
+ */
+export const LIGHT_INVOKE_TIMEOUT_MS = 300_000;
+
+/** The generative nodes that receive the full configured invoke timeout; every
+ * other model-calling node is capped at {@link LIGHT_INVOKE_TIMEOUT_MS}. */
+const HEAVY_NODES: ReadonlySet<TieredNode> = new Set(['implement', 'research', 'review']);
+
+/**
+ * The per-call model-invoke timeout for `node` given the configured base
+ * (`overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS`): a heavy/generative
+ * node gets the full base; a lighter node is capped at
+ * {@link LIGHT_INVOKE_TIMEOUT_MS} (#127).
+ */
+export function invokeTimeoutForNode(node: TieredNode, baseMs: number): number {
+  return HEAVY_NODES.has(node) ? baseMs : Math.min(baseMs, LIGHT_INVOKE_TIMEOUT_MS);
+}

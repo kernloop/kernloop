@@ -2,8 +2,10 @@ id: CLM-0078
 statement: >-
   Each model-calling loop node derives its ModelRequirement from the single template/manifest it
   routes to — no parallel map — and the composition root resolves that to the served adapter, model
-  alias, and effort arg (via the overlay's per-tier adapter map, defaulting to the run adapter), then
-  names the served model+effort and any degradation in the node's Brief/Outcome provenance.
+  alias, effort arg, and per-call invoke TIMEOUT (via the overlay's per-tier adapter map and
+  invokeTimeoutMs base — defaulting to the run adapter and a 15-min generative budget, capped shorter
+  for the lighter nodes, #127), then names the served model+effort and any degradation in the node's
+  Brief/Outcome provenance.
 evidence:
   - 'test:packages/cli/src/loop/node-model.test.ts::covers exactly the six model-calling nodes'
   - 'test:packages/cli/src/loop/node-model.test.ts::reads the real shipped templates + gate manifests'
@@ -15,6 +17,9 @@ evidence:
   - 'test:packages/cli/src/loop/node-resolve.test.ts::a per-node tier/effort override changes what that node requests'
   - 'test:packages/cli/src/loop/node-resolve.test.ts::a node sent to an effort-less adapter drops effort honestly'
   - 'test:packages/cli/src/loop/node-seam.test.ts::passes the served model alias and effort arg to the bound invoke, metered'
+  - 'test:packages/cli/src/loop/node-seam.test.ts::binds the per-node timeoutMs (#127); a caller-supplied timeout still wins'
+  - 'test:packages/cli/src/loop/node-model.test.ts::gives the GENERATIVE nodes (implement/research/review) the full configured base'
+  - 'test:packages/cli/src/loop/node-model.test.ts::caps the LIGHTER nodes (plan/decompose/vote) at the light budget'
   - 'test:packages/cli/src/loop/node-seam.test.ts::records a dropped effort in the ref'
   - 'test:packages/cli/src/loop/gates-in-loop.test.ts::provenance names the SERVED model+effort the node derived [CLM-0078]'
   - 'test:packages/cli/src/overlay.test.ts::loads the optional per-tier adapters block [CLM-0078]'

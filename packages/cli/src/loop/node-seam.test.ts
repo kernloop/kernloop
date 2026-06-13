@@ -183,4 +183,32 @@ describe('buildNodeSeam — rides the served model + effort into the call', () =
     await seam.invoke('hi');
     expect(seen[0]).toBeUndefined(); // codex small → no alias → harness default
   });
+
+  it('binds the per-node timeoutMs (#127); a caller-supplied timeout still wins', async () => {
+    const seen: Array<number | undefined> = [];
+    const base: LoopInvoke = (_p, options = {}) => {
+      seen.push(options.timeoutMs);
+      return Promise.resolve({ output: 'ok', cost: COST });
+    };
+    const seam = buildNodeSeam(
+      resolveServed(req(), 'claude'),
+      base,
+      { tokens: 0, usd: 0 },
+      900_000,
+    );
+    await seam.invoke('hi'); // no caller timeout → the bound per-node budget
+    await seam.invoke('hi', { timeoutMs: 5_000 }); // caller override wins
+    expect(seen).toEqual([900_000, 5_000]);
+  });
+
+  it('binds NO timeoutMs when the seam was built without one (the invoke default applies)', async () => {
+    const seen: Array<number | undefined> = [];
+    const base: LoopInvoke = (_p, options = {}) => {
+      seen.push(options.timeoutMs);
+      return Promise.resolve({ output: 'ok', cost: COST });
+    };
+    const seam = buildNodeSeam(resolveServed(req(), 'claude'), base, { tokens: 0, usd: 0 });
+    await seam.invoke('hi');
+    expect(seen[0]).toBeUndefined();
+  });
 });
