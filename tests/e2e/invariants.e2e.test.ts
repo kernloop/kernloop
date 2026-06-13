@@ -105,9 +105,11 @@ describe('Scenario E — audit-chain integrity', () => {
     lines[target] = line.slice(0, flipAt) + (ch === '0' ? '1' : '0') + line.slice(flipAt + 1);
     writeAuditText(repo, lines.join('\n') + '\n');
 
-    // FINDING: `audit --op verify` returns exit 0 even on a broken chain — the
-    // verdict is DATA in `result.ok`, not the exit code. We assert on the shape.
+    // Fails closed (#93): a broken chain is reported in `result.ok` AND the
+    // command exits NONZERO, so `audit --op verify && …` can't treat tampering
+    // as success.
     const after = runCli(['audit', '--op', 'verify'], { cwd: repo });
+    expect(after.code).toBe(1);
     const result = (after.json() as { result: { ok: boolean; reason?: string } }).result;
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('hash_mismatch');
