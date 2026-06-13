@@ -36,6 +36,12 @@ export {
   type QualityCheck,
   type SubprocessCheck,
 } from './checks.js';
+export {
+  listExportedSymbols,
+  mineExportedSymbols,
+  type ExportedSymbol,
+  type MinedFile,
+} from './doc-scan.js';
 export { runQualityGate, type RunQualityGateOptions } from './run.js';
 export { parseEslintOutput, parseTscOutput, parseVitestOutput, outputTail } from './parsers.js';
 export { qualityGateManifest } from './manifest.js';

@@ -38,6 +38,7 @@ import {
 } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { buildLoopExecutors, type LoopRefs } from './executors.js';
+import { writeDocArtifact, type DocArtifactResult } from './doc-artifact.js';
 import {
   LoopResumeError,
   adapterInvoke,
@@ -117,6 +118,12 @@ export interface LoopReport {
   readonly outcome?: Outcome;
   readonly findings?: readonly Finding[];
   readonly error?: { code: string; message: string };
+  /**
+   * The derived API-doc artifact written from the deliverable's doc-comments on
+   * a completed run [CLM-0105]. Absent when the run did not complete; present
+   * with `written: false` when the deliverable exposed no TS/JS symbols.
+   */
+  readonly docArtifact?: DocArtifactResult;
 }
 
 /** Where one run's checkpoints live (machine-local, gitignored by init). */
@@ -149,6 +156,7 @@ function report(
   result: RunResult,
   totals: { tokens: number; usd: number },
   unlimited: boolean,
+  docArtifact: DocArtifactResult | undefined,
 ): LoopReport {
   return {
     runId: result.runId,
@@ -162,7 +170,37 @@ function report(
     ...(result.error === undefined
       ? {}
       : { error: { code: result.error.code, message: result.error.message } }),
+    ...(docArtifact === undefined ? {} : { docArtifact }),
   };
+}
+
+/**
+ * Post-loop, only when the run reached retrospect (status `completed`) — whether
+ * the work's Outcome was success OR failure: mine the deliverable's doc-comments
+ * into a derived `API.generated.md` and audit the counts [CLM-0105]. (It
+ * documents whatever was produced; a completed-but-failing run still has code.)
+ * Deterministic and model-free; a run that ESCALATED or FAILED before retrospect
+ * produces no artifact. Audited once with counts only — never a symbol name,
+ * never code.
+ */
+function documentDeliverable(
+  kern: Kernloop,
+  runId: string,
+  status: RunResult['status'],
+  workspaceDir: string,
+): DocArtifactResult | undefined {
+  if (status !== 'completed') return undefined;
+  const artifact = writeDocArtifact(workspaceDir);
+  appendEvent(kern.store, {
+    type: 'loop.document',
+    payload: {
+      runId,
+      written: artifact.written,
+      symbolCount: artifact.symbolCount,
+      documentedCount: artifact.documentedCount,
+    },
+  });
+  return artifact;
 }
 
 /**
@@ -342,5 +380,6 @@ export async function executeCanonicalLoop(
     request.resumeRunId === undefined
       ? await engine.run(request.task, { runId })
       : await engine.resume(runId);
-  return report(result, totals, mode === 'unlimited');
+  const docArtifact = documentDeliverable(kern, runId, result.status, request.workspaceDir);
+  return report(result, totals, mode === 'unlimited', docArtifact);
 }
