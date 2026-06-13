@@ -12,9 +12,12 @@
  * `cli.program.decompose` with `{ op, parentId, childCount, goalChars }` —
  * never the goal or spec verbatim.
  *
- * `emit` [CLM-0097] re-decomposes the same tree and FILES each child as a
- * labeled GitHub issue through the hardened @kernloop/tracker — dry-run-first,
- * enforce-tier-gated, issue-spam-guarded, audited (see program-emit.ts).
+ * `emit` [CLM-0098] FILES each child as a labeled GitHub issue through the
+ * hardened @kernloop/tracker — dry-run-first, enforce-tier-gated,
+ * issue-spam-guarded, audited. Two mutually-exclusive modes: ad-hoc
+ * `--goal/--spec` re-decomposes and files (see program-emit.ts); ledger-driven
+ * `--program <id>` files a persisted program's planned nodes and AUTO-RECORDS
+ * each filed ref into the ledger (see program-emit-ledger.ts, #88).
  *
  * Typed faculty/input errors surface as a clean nonzero exit with a clear
  * message, never an unhandled throw.
@@ -38,8 +41,9 @@ export const PROGRAM_OPS = ['decompose', 'emit', 'create', 'list', 'status', 'ad
 
 /** The shared usage line every program entry point rejects bad input with. */
 const PROGRAM_USAGE =
-  'usage: kernloop program decompose|emit --goal G --spec F [--parent ID] [--id ID] [--execute] [--confirm-count N]\n' +
-  '       kernloop program create --goal G --spec F [--id ID] | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]';
+  'usage: kernloop program decompose --goal G --spec F [--parent ID] [--id ID]\n' +
+  '       kernloop program emit (--goal G --spec F [--id ID] | --program ID) [--execute] [--confirm-count N]\n' +
+  '       kernloop program create --goal G --spec F [--id ID] | list | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]';
 
 /** Run `program decompose`: build the parent, decompose, print the tree, audit. */
 function decomposeOp(

@@ -18,9 +18,11 @@
  * tests are deterministic. All queries are parameterized — a goal or nodeId is
  * stored as DATA, never interpolated into SQL.
  *
- * GitHub-state RECONCILIATION (reading issue state back into the ledger) and
- * auto-linking `program emit` into the ledger are DEFERRED — this increment is
- * the LOCAL ledger only, advanced explicitly via `program advance`.
+ * `program emit --program <id>` AUTO-RECORDS each filed issue ref here on a real
+ * execute (planned → emitted, #88); `program advance` drives the rest (→ done)
+ * and out-of-band recording. GitHub-state RECONCILIATION (reading issue state
+ * back into the ledger) is still DEFERRED (#87) — the ledger records what WE
+ * set; GitHub is the live authority.
  */
 import Database from 'better-sqlite3';
 
