@@ -80,16 +80,25 @@ export function createOp(
     const specs = readSpecFile(io, specFile);
     const parent = buildProgramParent(kern, id, goal);
     const children = decomposeGoal({ parent, subtasks: specs });
-    kern.programs.createProgram({
-      programId: id,
-      goal,
-      nodes: children.map((c) => ({
-        nodeId: c.id,
-        goal: c.goal,
-        labels: programLabels(c.constraints),
-        taskJson: JSON.stringify(c),
-      })),
-    });
+    // Store the program root AS a node (parentId null — the umbrella issue emit
+    // files first) and each decomposed child pointing at it, so emit can
+    // parents-first body-ref-link the tree (#84). nodeCount stays the
+    // decomposition size (the work items), not the +1 umbrella.
+    const rootNode = {
+      nodeId: parent.id,
+      parentId: null,
+      goal: parent.goal,
+      labels: programLabels(parent.constraints),
+      taskJson: JSON.stringify(parent),
+    };
+    const childNodes = children.map((c) => ({
+      nodeId: c.id,
+      parentId: parent.id,
+      goal: c.goal,
+      labels: programLabels(c.constraints),
+      taskJson: JSON.stringify(c),
+    }));
+    kern.programs.createProgram({ programId: id, goal, nodes: [rootNode, ...childNodes] });
     appendEvent(kern.store, {
       type: 'cli.program.create',
       payload: { op: 'create', programId: id, nodeCount: children.length, goalChars: goal.length },

@@ -108,10 +108,13 @@ interface LedgerEmitOut {
   nodes: Array<{
     nodeId: string;
     state: string;
+    parentRef?: string;
     proposal?: { argv: readonly string[] };
     result?: { ok: boolean; ref?: string; reason?: string };
   }>;
   skipped: Array<{ nodeId: string; state: string }>;
+  links: Array<{ parentNodeId: string; childNodeId: string }>;
+  epicUpdates: Array<{ nodeId: string; childCount: number; ok: boolean; reason?: string }>;
 }
 
 interface StatusOut {
@@ -119,7 +122,8 @@ interface StatusOut {
   nodes: Array<{ nodeId: string; state: string; issueRef: string | null }>;
 }
 
-/** Create a two-node program in the ledger, returning the repo dir. */
+/** Create a program with a root umbrella + 2 story children (3 ledger nodes,
+ * #84), returning the repo dir. */
 async function createTwoNodeProgram(tier: 'suggest' | 'enforce', id = 'prog'): Promise<string> {
   const r = repoWithTracker(tier);
   const spec = writeSpec(r, [STORY, { ...STORY, goal: 'Build logout', track: 'auth' }]);
@@ -151,17 +155,26 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     const report = JSON.parse(out[0]!) as LedgerEmitOut;
     expect(report.mode).toBe('dry-run');
     expect(report.notice).toContain('DRY RUN');
-    expect(report.plannedCount).toBe(2);
+    // 3 planned nodes: the root umbrella + 2 story children (#84).
+    expect(report.plannedCount).toBe(3);
     expect(report.emittedCount).toBe(0);
     expect(report.nodes.every((n) => n.state === 'planned')).toBe(true);
+    // The root umbrella is filed first (parents-first ordering).
+    expect(report.nodes[0]!.nodeId).toBe('prog');
     expect(report.nodes[0]!.proposal?.argv.slice(0, 2)).toEqual(['issue', 'create']);
+    // The would-be sub-issue edges are reported; no epic edits in dry-run.
+    expect(report.links).toEqual([
+      { parentNodeId: 'prog', childNodeId: 'prog.1' },
+      { parentNodeId: 'prog', childNodeId: 'prog.2' },
+    ]);
+    expect(report.epicUpdates).toEqual([]);
     // The ledger nodes STAY planned.
     const status = await statusOf(r);
-    expect(status.counts.planned).toBe(2);
+    expect(status.counts.planned).toBe(3);
     expect(status.counts.emitted).toBe(0);
   });
 
-  it('--execute at enforce files one issue per node and AUTO-records each ref (planned → emitted)', async () => {
+  it('--execute files the umbrella first, links children, edits the epic body, records refs', async () => {
     const r = await createTwoNodeProgram('enforce');
     const { io, out } = makeIo(r);
     const { exec, calls } = recordingExec();
@@ -169,17 +182,24 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
       exec,
     });
     expect(code).toBe(0);
-    expect(calls).toHaveLength(2);
-    expect(calls[0]!.argv.slice(0, 2)).toEqual(['issue', 'create']);
-    // The second node's STORED track:auth label is passed to gh (the stored row is the source).
-    expect(calls[1]!.argv.some((a) => a === '--label=track:auth')).toBe(true);
+    // 3 creates (root + 2 children) + 1 edit (epic sub-issue task-list).
+    expect(calls).toHaveLength(4);
+    expect(calls[0]!.argv.slice(0, 2)).toEqual(['issue', 'create']); // umbrella first
+    expect(calls.some((c) => c.argv.slice(0, 2).join(' ') === 'issue edit')).toBe(true);
+    // A child's STORED track:auth label is passed to gh (the stored row is the source).
+    expect(calls.some((c) => c.argv.some((a) => a === '--label=track:auth'))).toBe(true);
     const report = JSON.parse(out[0]!) as LedgerEmitOut;
     expect(report.mode).toBe('execute');
-    expect(report.emittedCount).toBe(2);
+    expect(report.emittedCount).toBe(3);
     expect(report.nodes.every((n) => n.state === 'emitted' && n.result?.ok === true)).toBe(true);
+    // Each child carries a Parent back-link to the umbrella's filed number (#7).
+    const children = report.nodes.filter((n) => n.nodeId !== 'prog');
+    expect(children.every((n) => n.parentRef === '#7')).toBe(true);
+    // The umbrella's body was edited once with its 2 sub-issues.
+    expect(report.epicUpdates).toEqual([{ nodeId: 'prog', childCount: 2, ok: true }]);
     // AUTO-advanced in the ledger to emitted with the returned ref — no manual advance.
     const status = await statusOf(r);
-    expect(status.counts.emitted).toBe(2);
+    expect(status.counts.emitted).toBe(3);
     expect(status.counts.planned).toBe(0);
     for (const node of status.nodes) {
       expect(node.state).toBe('emitted');
@@ -193,7 +213,7 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     await programCommand(['emit', '--program', 'prog', '--execute'], makeIo(r).io, helpers, {
       exec: first.exec,
     });
-    expect(first.calls).toHaveLength(2);
+    expect(first.calls).toHaveLength(4); // 3 creates + 1 epic-body edit
     // Second emit: all nodes already emitted → nothing to do, zero new gh calls.
     const { io, out } = makeIo(r);
     const second = recordingExec();
@@ -204,7 +224,7 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     expect(second.calls).toHaveLength(0);
     const report = JSON.parse(out[0]!) as LedgerEmitOut;
     expect(report.notice).toContain('nothing to emit');
-    expect(report.skipped.map((s) => s.state)).toEqual(['emitted', 'emitted']);
+    expect(report.skipped.map((s) => s.state)).toEqual(['emitted', 'emitted', 'emitted']);
     expect(report.nodes).toHaveLength(0);
   });
 
@@ -222,7 +242,33 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     expect(report.refusedExecute).toBe(true);
     expect(report.notice).toContain('refused');
     const status = await statusOf(r);
-    expect(status.counts.planned).toBe(2);
+    expect(status.counts.planned).toBe(3);
+  });
+
+  it('an epic-body edit failure (children filed) is errors-as-data → exit 1', async () => {
+    const r = await createTwoNodeProgram('enforce');
+    const { io, out } = makeIo(r);
+    // Succeed on every `issue create`, FAIL the `issue edit` (the epic task-list).
+    const editFailsExec: TrackerExec = (_command, argv) => {
+      if (argv[0] === 'issue' && argv[1] === 'edit') {
+        return Promise.resolve<ExecResult>({ exitCode: 1, stdout: '', stderr: 'gh: edit denied' });
+      }
+      return Promise.resolve<ExecResult>({
+        exitCode: 0,
+        stdout: 'https://github.com/kernloop/kernloop/issues/7',
+        stderr: '',
+      });
+    };
+    const code = await programCommand(['emit', '--program', 'prog', '--execute'], io, helpers, {
+      exec: editFailsExec,
+    });
+    expect(code).toBe(1); // the failed epic edit is a visible failure
+    const report = JSON.parse(out[0]!) as LedgerEmitOut;
+    // The children still filed-and-recorded; only the umbrella's body edit failed.
+    expect(report.emittedCount).toBe(3);
+    expect(report.epicUpdates).toEqual([
+      { nodeId: 'prog', childCount: 2, ok: false, reason: 'exit-nonzero' },
+    ]);
   });
 
   it('an unknown --program exits 1 with a clean ProgramInputError', async () => {
@@ -265,9 +311,11 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     const report = JSON.parse(out[0]!) as LedgerEmitOut;
     expect(report.nodes.every((n) => n.result?.ok === false)).toBe(true);
     expect(report.emittedCount).toBe(0);
+    // The umbrella create failed, so no child could link and no epic was edited.
+    expect(report.epicUpdates).toEqual([]);
     // The failed nodes stay planned in the ledger (not advanced).
     const status = await statusOf(r);
-    expect(status.counts.planned).toBe(2);
+    expect(status.counts.planned).toBe(3);
     expect(status.counts.emitted).toBe(0);
   });
 
@@ -296,9 +344,9 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     expect(
       report.nodes.every((n) => n.result?.ref === 'http://github.com/kernloop/kernloop/issues/9'),
     ).toBe(true);
-    // The ledger did NOT advance — the node stays planned (no false "emitted").
+    // The ledger did NOT advance — the nodes stay planned (no false "emitted").
     const status = await statusOf(r);
-    expect(status.counts.planned).toBe(2);
+    expect(status.counts.planned).toBe(3);
     expect(status.counts.emitted).toBe(0);
   });
 
@@ -318,7 +366,9 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     const events = auditEvents(r).filter((e) => e.type === 'cli.program.emit');
     expect(events).toHaveLength(1);
     expect(events[0]!.payload.programId).toBe('p2');
-    expect(events[0]!.payload.plannedCount).toBe(1);
-    expect(events[0]!.payload.emittedCount).toBe(1);
+    // The umbrella root + 1 story child = 2 planned/emitted; 1 epic body edit.
+    expect(events[0]!.payload.plannedCount).toBe(2);
+    expect(events[0]!.payload.emittedCount).toBe(2);
+    expect(events[0]!.payload.epicUpdatedCount).toBe(1);
   });
 });

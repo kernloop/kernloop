@@ -136,14 +136,17 @@ describe('kernloop program create|status|advance — the resumable ledger', () =
       helpers,
     );
     expect(code).toBe(0);
+    // nodeCount is the decomposition size (the 2 work items), not the +1 umbrella.
     expect((JSON.parse(out[0]!) as { programId: string; nodeCount: number }).nodeCount).toBe(2);
 
     const { io: io2, out: out2 } = makeIo(r);
     const code2 = await programCommand(['status', '--program', 'prog'], io2, helpers);
     expect(code2).toBe(0);
     const status = JSON.parse(out2[0]!) as StatusOut;
-    expect(status.counts).toEqual({ planned: 2, emitted: 0, done: 0 });
-    expect(status.nodes.map((n) => n.nodeId)).toEqual(['prog.1', 'prog.2']);
+    // The program root is stored AS a node (the umbrella emit files first), so
+    // status surfaces it alongside the 2 children: 3 planned nodes (#84).
+    expect(status.counts).toEqual({ planned: 3, emitted: 0, done: 0 });
+    expect(status.nodes.map((n) => n.nodeId)).toEqual(['prog', 'prog.1', 'prog.2']);
     expect(status.nodes.every((n) => n.state === 'planned')).toBe(true);
   });
 
@@ -195,7 +198,8 @@ describe('kernloop program create|status|advance — the resumable ledger', () =
     await programCommand(['status', '--program', 'adv'], io2, helpers);
     const status = JSON.parse(out2[0]!) as StatusOut;
     expect(status.counts.emitted).toBe(1);
-    expect(status.nodes[0]!.issueRef).toBe('https://github.com/o/r/issues/9');
+    const advanced = status.nodes.find((n) => n.nodeId === 'adv.1');
+    expect(advanced?.issueRef).toBe('https://github.com/o/r/issues/9');
   });
 
   it('advance to emitted WITHOUT --ref exits 1', async () => {

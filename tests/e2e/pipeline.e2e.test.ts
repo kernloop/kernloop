@@ -73,11 +73,13 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
 
     const status = runCli(['program', 'status', '--program', ID], { cwd: repo });
     const rollup = status.json() as { counts: { planned: number }; nodes: NodeRow[] };
-    expect(rollup.counts.planned).toBe(2);
+    // The program root umbrella is stored AS a node (it files first on emit),
+    // so the rollup shows it alongside the 2 children: 3 planned nodes (#84).
+    expect(rollup.counts.planned).toBe(3);
     expect(rollup.nodes.find((n) => n.nodeId === 'prog.1')?.labels).toBeUndefined();
     // The status view carries each node's mapped labels via the create step's
     // ledger; the rollup proves the nodes are planned.
-    expect(rollup.nodes.map((n) => n.state)).toEqual(['planned', 'planned']);
+    expect(rollup.nodes.map((n) => n.state)).toEqual(['planned', 'planned', 'planned']);
   });
 
   it('emit (no --execute, suggest tier) proposes a dry-run and NEVER spawns gh', () => {
@@ -152,10 +154,19 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
       env: ghStubEnv(stub),
     });
     expect(emitted.code).toBe(0);
-    const report = emitted.json() as { mode: string; emittedCount: number; nodes: NodeRow[] };
+    const report = emitted.json() as {
+      mode: string;
+      emittedCount: number;
+      nodes: NodeRow[];
+      epicUpdates: Array<{ nodeId: string; childCount: number; ok: boolean }>;
+    };
     expect(report.mode).toBe('execute');
-    expect(report.emittedCount).toBe(2);
-    expect(stub.calls()).toHaveLength(2);
+    // The umbrella root + 2 children = 3 emitted; 3 creates + 1 epic-body edit.
+    expect(report.emittedCount).toBe(3);
+    expect(stub.calls()).toHaveLength(4);
+    expect(stub.calls().filter((a) => a.slice(0, 2).join(' ') === 'issue edit')).toHaveLength(1);
+    // The epic body was edited once with its 2 sub-issues (the tree linking, #84).
+    expect(report.epicUpdates).toEqual([{ nodeId: ID, childCount: 2, ok: true }]);
 
     // The ledger shows every node emitted with its ref, recorded AUTOMATICALLY.
     const status = runCli(['program', 'status', '--program', ID], { cwd: repo });
@@ -163,7 +174,7 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
       counts: { emitted: number; planned: number };
       nodes: NodeRow[];
     };
-    expect(rollup.counts.emitted).toBe(2);
+    expect(rollup.counts.emitted).toBe(3);
     expect(rollup.counts.planned).toBe(0);
     for (const node of rollup.nodes) {
       expect(node.state).toBe('emitted');
@@ -180,7 +191,7 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
     expect(stub2.calls()).toHaveLength(0);
     const skipped = reemit.json() as { notice: string; skipped: Array<{ state: string }> };
     expect(skipped.notice).toContain('nothing to emit');
-    expect(skipped.skipped.map((s) => s.state)).toEqual(['emitted', 'emitted']);
+    expect(skipped.skipped.map((s) => s.state)).toEqual(['emitted', 'emitted', 'emitted']);
   });
 
   it('reconcile --execute advances emitted nodes to done when their GitHub issue is CLOSED (#87)', () => {
@@ -208,21 +219,22 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
     expect(reconciled.code).toBe(0);
     const rep = reconciled.json() as { mode: string; checked: number; advanced: number };
     expect(rep.mode).toBe('execute');
-    expect(rep.checked).toBe(2);
-    expect(rep.advanced).toBe(2);
+    // The umbrella root + 2 children are all emitted, so all 3 are reconciled.
+    expect(rep.checked).toBe(3);
+    expect(rep.advanced).toBe(3);
     // The reconcile spawned `gh issue view --json number,state` per node.
     const viewCalls = viewStub.calls();
-    expect(viewCalls).toHaveLength(2);
+    expect(viewCalls).toHaveLength(3);
     for (const argv of viewCalls) {
       expect(argv.slice(0, 2)).toEqual(['issue', 'view']);
       expect(argv).toContain('--json');
       expect(argv).toContain('number,state');
     }
 
-    // The ledger now shows both nodes done.
+    // The ledger now shows every node done.
     const status = runCli(['program', 'status', '--program', ID], { cwd: repo });
     const rollup = status.json() as { counts: { done: number; emitted: number } };
-    expect(rollup.counts.done).toBe(2);
+    expect(rollup.counts.done).toBe(3);
     expect(rollup.counts.emitted).toBe(0);
   });
 

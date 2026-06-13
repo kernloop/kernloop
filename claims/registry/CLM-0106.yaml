@@ -1,0 +1,40 @@
+id: CLM-0106
+statement: >-
+  kernloop program stores a decomposed program as a parentId TREE — program
+  create persists the program ROOT umbrella as a node (parentId null) alongside
+  its decomposed children pointing at it, and a pre-parentId ledger is
+  forward-migrated in place — so program emit files the program as a real GitHub
+  epic with body-ref-linked sub-issues: it files PARENTS-FIRST (the umbrella
+  before its children), injects each child's filed-parent #N back-link into the
+  child body, and once a parent's children are filed REPLACES the parent body
+  (via the hardened editBody tracker op — the allowlisted gh issue edit
+  subcommand, NO GraphQL) with a "- [ ] #child" task-list GitHub renders as
+  tracked sub-issues. Linking runs only on a real execute (dry-run reports the
+  would-be tree edges and edits nothing); a failed umbrella file leaves its
+  children unlinked and edits no epic; an editBody failure is errors-as-data → a
+  clean nonzero exit; a filed ref whose issue number cannot be resolved skips
+  that edge rather than faking it.
+evidence:
+  - 'test:packages/cli/src/program-store.test.ts::round-trips a node parentId (the tree edge), null for a root'
+  - 'test:packages/cli/src/program-store.test.ts::migrates a pre-parentId ledger: ALTER adds the column, reads back null'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::create persists a program; status shows N planned nodes with the right counts'
+  - 'test:packages/cli/src/program-emit-ledger.test.ts::--execute files the umbrella first, links children, edits the epic body, records refs'
+  - 'test:packages/cli/src/program-emit-ledger.test.ts::dry-run files nothing and leaves the ledger nodes planned (poisoned exec)'
+  - 'test:packages/cli/src/program-emit-ledger.test.ts::an execute-mode failure on a node exits 1 and that node STAYS planned'
+  - 'test:packages/cli/src/program-emit-ledger.test.ts::an epic-body edit failure (children filed) is errors-as-data → exit 1'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::places a parent before its children'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::handles a deeper chain (grandparent → parent → child)'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::never drops a node even under an impossible cycle'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::prepends a Parent: #N back-link line to the body'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::appends a Sub-issues task-list of child numbers'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::returns null when there are no children to list'
+  - 'test:packages/cli/src/program-emit-tree.test.ts::returns null for an unresolvable / empty / nullish ref'
+  - 'test:packages/tracker/src/provider-editbody.test.ts::editBody builds gh issue edit --body-file (never --body), ref behind --'
+  - 'test:packages/tracker/src/provider-editbody.test.ts::editBody binds a cross-repo URL ref to invalid-input and never spawns'
+  - 'code:packages/cli/src/program-emit-tree.ts#orderParentsFirst@doc:/CLM-0106/'
+  - 'code:packages/cli/src/program-emit-tree.ts#epicBodyWithTaskList@doc:/CLM-0106/'
+  - 'code:packages/cli/src/program-emit-ledger.ts#emitInOrder@doc:/CLM-0106/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

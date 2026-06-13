@@ -67,6 +67,7 @@ const GITHUB_CAPABILITIES: TrackerCapabilities = {
   closeIssue: true,
   comment: true,
   addLabels: true,
+  editBody: true,
   getIssue: true,
 };
 
