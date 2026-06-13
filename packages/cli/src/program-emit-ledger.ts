@@ -96,13 +96,31 @@ async function emitOneNode(
   if (provider.mode === 'dry-run') {
     return { nodeId: row.nodeId, state: 'planned', proposal: provider.proposals.at(-1) };
   }
-  // Real execute success — auto-record the filed ref into the ledger.
-  kern.programs.advanceNode({
-    programId,
-    nodeId: row.nodeId,
-    state: 'emitted',
-    issueRef: result.ref,
-  });
+  // Real execute success — the issue is ALREADY filed; auto-record the ref into
+  // the ledger (planned → emitted). If the ref gh returned is unrecordable (a
+  // non-https URL, or no URL at all), advanceNode throws — but the issue exists,
+  // so DON'T abort the run: surface the filed-but-unrecorded node WITH its ref
+  // and exit 1, so the operator verifies it on GitHub and advances it manually
+  // instead of a blind retry silently double-filing it (#98).
+  try {
+    kern.programs.advanceNode({
+      programId,
+      nodeId: row.nodeId,
+      state: 'emitted',
+      issueRef: result.ref,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return {
+      nodeId: row.nodeId,
+      state: 'planned',
+      result: {
+        ok: false,
+        ref: result.ref,
+        reason: `filed but NOT recorded (${reason}) — verify the issue on GitHub and 'program advance' it before re-emitting (a retry will re-file)`,
+      },
+    };
+  }
   return { nodeId: row.nodeId, state: 'emitted', result: { ok: true, ref: result.ref } };
 }
 
