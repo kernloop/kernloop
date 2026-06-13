@@ -28,32 +28,18 @@ import {
   runVoteGate,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
-import { decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
 import type { DiscoveredCache } from '@kernloop/faculty-models';
 import { estimateTokens } from '@kernloop/faculty-compiler';
-import type { ChildResult, NodeExecutor } from '@kernloop/workflows';
+import type { NodeExecutor } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { assembleBrief } from '../gather.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
-import {
-  FilesEmissionSchema,
-  LoopParseError,
-  SubtasksEmissionSchema,
-  parseEmission,
-  type LoopInvoke,
-  type ViolationSink,
-} from './invoke.js';
-import { ballotInvoker, briefText, reviewerInvoker } from './seams.js';
-import {
-  coderPrompt,
-  decomposePrompt,
-  planPrompt,
-  researcherPrompt,
-  writtenDiff,
-} from './prompts.js';
-import { childSignal, sumChildCosts } from './aggregate.js';
+import { LoopParseError, type LoopInvoke, type ViolationSink } from './invoke.js';
+import { ballotInvoker, reviewerInvoker } from './seams.js';
+import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
+import { decomposeExecutor, implementExecutor, integrateExecutor } from './executors-nodes.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -136,7 +122,7 @@ export function writeWorkspaceFiles(
 }
 
 /** A violation sink under this run's overlay, labelled with the node. */
-function sinkFor(b: LoopBindings, runId: string, node: string): ViolationSink {
+export function sinkFor(b: LoopBindings, runId: string, node: string): ViolationSink {
   return { overlayDir: b.kern.paths.dir, runId, node };
 }
 
@@ -228,77 +214,6 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
     });
     await publishVerdict(b.kern, verdict);
     return verdict;
-  };
-}
-
-/** The decompose node: PM via invoke, then the MECHANICAL budget invariant. */
-function decomposeExecutor(b: LoopBindings): NodeExecutor {
-  return async (_input, ctx) => {
-    const parent = b.refs.framedTask;
-    const plan = b.refs.planBrief;
-    if (parent === undefined || plan === undefined) {
-      throw new Error(`decompose reached without framed task + plan (run ${ctx.runId})`);
-    }
-    const { output } = await b
-      .invokeFor('decompose')
-      .invoke(decomposePrompt(parent, briefText(plan)));
-    const sink = sinkFor(b, ctx.runId, 'decompose');
-    const emission = parseEmission(output, SubtasksEmissionSchema, 'subtasks', sink);
-    return decomposePlan({ parent, subtasks: emission.subtasks as SubtaskSpec[] });
-  };
-}
-
-/** The implement child node: coder via invoke → files written for real.
- * On a re-iteration `ctx.findings` carries THIS child's accumulated gate
- * findings (the engine scopes findings to the child inside the fan-out); they
- * fold into the coder prompt so the re-run fixes every failed check [CLM-0043]. */
-function implementExecutor(b: LoopBindings): NodeExecutor {
-  return async (input, ctx) => {
-    const child = TaskContractSchema.parse(input);
-    const seam = b.invokeFor('implement');
-    const { output, cost } = await seam.invoke(coderPrompt(child, ctx.findings));
-    const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
-    const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
-    const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
-    // Stash what this child wrote so the advisory review gate can diff it.
-    (b.refs.writtenByChild ??= {})[child.id] = emission.files;
-    const notes = emission.notes === '' ? '' : ` — ${emission.notes}`;
-    return OutcomeSchema.parse({
-      taskId: child.id,
-      status: 'success',
-      signals: [
-        {
-          name: 'implement',
-          passed: true,
-          // Provenance names the model+effort that truly served (degradation
-          // recorded) AND the normalized model class behind the served alias
-          // [CLM-0081], so the trace never implies more than ran [CLM-0078].
-          detail: `[${servedRef(seam.served)} ${identityRef(seam.served, b.discovered)}] wrote ${String(written.length)} file(s): ${written.join(', ')}${notes}`,
-        },
-      ],
-      cost,
-      traceRef: `loop:${ctx.runId}#child=${child.id}`,
-      distillCandidates: [],
-    });
-  };
-}
-
-/** The integrate node: success only if every child implemented AND passed quality. */
-function integrateExecutor(): NodeExecutor {
-  return (input, ctx) => {
-    const results = input as readonly ChildResult[];
-    const signals = results.map((result) => childSignal(result));
-    const succeeded = signals.length > 0 && signals.every((signal) => signal.passed);
-    return Promise.resolve(
-      OutcomeSchema.parse({
-        taskId: ctx.taskId,
-        status: succeeded ? 'success' : 'failure',
-        signals,
-        cost: sumChildCosts(results),
-        traceRef: `loop:${ctx.runId}`,
-        distillCandidates: [],
-      }),
-    );
   };
 }
 
