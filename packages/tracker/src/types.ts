@@ -26,8 +26,8 @@ import { z } from 'zod';
  */
 export type TrackerMode = 'dry-run' | 'execute';
 
-/** The four core, provider-agnostic mutating operations a tracker exposes. */
-export type TrackerOp = 'createIssue' | 'closeIssue' | 'comment' | 'addLabels';
+/** The core, provider-agnostic mutating operations a tracker exposes. */
+export type TrackerOp = 'createIssue' | 'closeIssue' | 'comment' | 'addLabels' | 'editBody';
 
 /** An issue's open/closed lifecycle state, as read back from the tracker. */
 export type IssueState = 'open' | 'closed';
@@ -148,6 +148,8 @@ export interface TrackerCapabilities {
   readonly closeIssue: boolean;
   readonly comment: boolean;
   readonly addLabels: boolean;
+  /** Whether the provider can REPLACE an issue's body (editBody). */
+  readonly editBody: boolean;
   /** Whether the provider can READ an issue's open/closed state (getIssue). */
   readonly getIssue: boolean;
 }
@@ -186,6 +188,14 @@ export interface TrackerProvider {
   comment(ref: string, body: string): Promise<TrackerResult>;
   /** Add labels to an existing issue. */
   addLabels(ref: string, labels: readonly string[]): Promise<TrackerResult>;
+  /**
+   * REPLACE an existing issue's body (`gh issue edit --body-file`). Gated to
+   * `enforce` like the other mutations; a dry-run proposes only. Used by
+   * `program emit` to write a parent epic's sub-issue task-list back into its
+   * body once the children are filed (#84). The body is routed through a temp
+   * file (flag-injection defense), exactly as createIssue/comment.
+   */
+  editBody(ref: string, body: string): Promise<TrackerResult>;
   /**
    * READ an existing issue's open/closed state. This is a READ-ONLY,
    * mode-INDEPENDENT op: a read is not a mutation, so the dry-run/execute mode

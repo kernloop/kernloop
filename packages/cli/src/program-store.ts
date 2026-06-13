@@ -10,6 +10,12 @@
  * directly here, exactly as `jobs.ts` does — no faculty owns this, and no
  * faculty imports another (constitutional rule 5); this is root code.
  *
+ * Nodes form a TREE within a program via `parentId` (null for a root — the
+ * program umbrella): `program create` stores the program root as a node and its
+ * decomposed children pointing at it, so `program emit` can file parents-first
+ * and body-ref-link each child to its filed parent (#84). A pre-`parentId`
+ * ledger is forward-migrated in place ({@link migrate}).
+ *
  * Each node advances FORWARD-ONLY through `planned → emitted → done`: a node
  * is `planned` at create, `emitted` once its issue is filed (carrying the
  * filed issue ref), and `done` once its work lands. A backward move (e.g.
@@ -41,6 +47,10 @@ export interface ProgramRow {
 export interface ProgramNodeRow {
   readonly programId: string;
   readonly nodeId: string;
+  /** The id of this node's parent node in the SAME program, or `null` for a root
+   * (the program umbrella). Roots file first and children body-ref-link to the
+   * filed parent on emit (#84). */
+  readonly parentId: string | null;
   readonly goal: string;
   readonly labels: string[];
   readonly taskJson: string;
@@ -55,6 +65,8 @@ export interface CreateProgramInput {
   readonly goal: string;
   readonly nodes: ReadonlyArray<{
     readonly nodeId: string;
+    /** The parent node's id within this program, or `null` for a root. */
+    readonly parentId: string | null;
     readonly goal: string;
     readonly labels: string[];
     readonly taskJson: string;
@@ -134,6 +146,7 @@ CREATE TABLE IF NOT EXISTS programs (
 CREATE TABLE IF NOT EXISTS program_nodes (
   programId TEXT NOT NULL,
   nodeId TEXT NOT NULL,
+  parentId TEXT,
   goal TEXT NOT NULL,
   labelsJson TEXT NOT NULL,
   taskJson TEXT NOT NULL,
@@ -144,6 +157,25 @@ CREATE TABLE IF NOT EXISTS program_nodes (
 );
 `;
 
+/** Add a column introduced after the original schema to an EXISTING ledger
+ * (a fresh DB already has it from the DDL). `ALTER TABLE … ADD COLUMN` is the
+ * only forward migration SQLite needs here; it is guarded by a `PRAGMA
+ * table_info` probe so reopening an already-migrated file is a no-op. */
+function migrate(db: Database.Database): void {
+  const cols = db.prepare('PRAGMA table_info(program_nodes)').all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'parentId')) {
+    db.exec('ALTER TABLE program_nodes ADD COLUMN parentId TEXT');
+  }
+}
+
+/** Open the ledger DB at `dbPath`, applying the idempotent schema + migration. */
+function openLedgerDb(dbPath: string): Database.Database {
+  const db = new Database(dbPath);
+  db.exec(PROGRAMS_SCHEMA_DDL);
+  migrate(db);
+  return db;
+}
+
 /** Map a raw program row to a typed {@link ProgramRow}. */
 function toProgramRow(row: { programId: string; goal: string; createdAt: number }): ProgramRow {
   return { programId: row.programId, goal: row.goal, createdAt: row.createdAt };
@@ -153,6 +185,7 @@ function toProgramRow(row: { programId: string; goal: string; createdAt: number 
 function toNodeRow(row: {
   programId: string;
   nodeId: string;
+  parentId: string | null;
   goal: string;
   labelsJson: string;
   taskJson: string;
@@ -163,6 +196,7 @@ function toNodeRow(row: {
   return {
     programId: row.programId,
     nodeId: row.nodeId,
+    parentId: row.parentId,
     goal: row.goal,
     labels: JSON.parse(row.labelsJson) as string[],
     taskJson: row.taskJson,
@@ -230,8 +264,8 @@ interface StoreInternals {
 /** Build the prepared reads + the create transaction (keeps the API assembly lean). */
 function buildInternals(db: Database.Database): StoreInternals {
   const insertNode = db.prepare(
-    'INSERT INTO program_nodes (programId, nodeId, goal, labelsJson, taskJson, state, issueRef, updatedAt) ' +
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO program_nodes (programId, nodeId, parentId, goal, labelsJson, taskJson, state, issueRef, updatedAt) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   return {
     getProgram: (programId) => {
@@ -256,6 +290,7 @@ function buildInternals(db: Database.Database): StoreInternals {
         insertNode.run(
           input.programId,
           node.nodeId,
+          node.parentId,
           node.goal,
           JSON.stringify(node.labels),
           node.taskJson,
@@ -280,8 +315,7 @@ export function createProgramStore(
   options: { clock?: () => number } = {},
 ): ProgramStore {
   const clock = options.clock ?? Date.now;
-  const db = new Database(dbPath);
-  db.exec(PROGRAMS_SCHEMA_DDL);
+  const db = openLedgerDb(dbPath);
   const { getProgram, getNode, createTxn } = buildInternals(db);
   return {
     createProgram: (input) => {

@@ -10,6 +10,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DuplicateProgramError,
@@ -35,15 +36,23 @@ function tickingClock(start = 1_000): () => number {
   return () => (t += 1);
 }
 
-/** Two `planned` nodes for a freshly-created program. */
+/** Two `planned` nodes for a freshly-created program (both roots here; the
+ * parentId round-trip is covered by its own test). */
 const NODES = [
   {
     nodeId: 'p.1',
+    parentId: null,
     goal: 'Build login',
     labels: ['altitude:story', 'agent:coder'],
     taskJson: '{"id":"p.1"}',
   },
-  { nodeId: 'p.2', goal: 'Build logout', labels: ['altitude:story'], taskJson: '{"id":"p.2"}' },
+  {
+    nodeId: 'p.2',
+    parentId: null,
+    goal: 'Build logout',
+    labels: ['altitude:story'],
+    taskJson: '{"id":"p.2"}',
+  },
 ];
 
 function seed(store: ProgramStore, programId = 'p'): void {
@@ -59,6 +68,54 @@ describe('program ledger store', () => {
     expect(nodes.map((n) => n.nodeId)).toEqual(['p.1', 'p.2']);
     expect(nodes.every((n) => n.state === 'planned')).toBe(true);
     expect(nodes.every((n) => n.issueRef === null)).toBe(true);
+    store.close();
+  });
+
+  it('round-trips a node parentId (the tree edge), null for a root', () => {
+    const store = createProgramStore(freshDbPath(), { clock: tickingClock() });
+    store.createProgram({
+      programId: 'p',
+      goal: 'Ship auth',
+      nodes: [
+        { nodeId: 'p', parentId: null, goal: 'Ship auth', labels: [], taskJson: '{"id":"p"}' },
+        {
+          nodeId: 'p.1',
+          parentId: 'p',
+          goal: 'Build login',
+          labels: ['altitude:story'],
+          taskJson: '{"id":"p.1"}',
+        },
+      ],
+    });
+    const byId = Object.fromEntries(store.listNodes('p').map((n) => [n.nodeId, n]));
+    expect(byId['p']?.parentId).toBeNull();
+    expect(byId['p.1']?.parentId).toBe('p');
+    store.close();
+  });
+
+  it('migrates a pre-parentId ledger: ALTER adds the column, reads back null', () => {
+    const dbPath = freshDbPath();
+    // Hand-build the ORIGINAL schema (no parentId column) and seed a node.
+    const legacy = new Database(dbPath);
+    legacy.exec(
+      'CREATE TABLE programs (programId TEXT PRIMARY KEY, goal TEXT NOT NULL, createdAt INTEGER NOT NULL);' +
+        'CREATE TABLE program_nodes (programId TEXT NOT NULL, nodeId TEXT NOT NULL, goal TEXT NOT NULL, ' +
+        'labelsJson TEXT NOT NULL, taskJson TEXT NOT NULL, state TEXT NOT NULL, issueRef TEXT, ' +
+        'updatedAt INTEGER NOT NULL, PRIMARY KEY (programId, nodeId));',
+    );
+    legacy.prepare('INSERT INTO programs VALUES (?, ?, ?)').run('p', 'Ship auth', 1);
+    legacy
+      .prepare(
+        'INSERT INTO program_nodes (programId, nodeId, goal, labelsJson, taskJson, state, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run('p', 'p.1', 'Build login', '[]', '{"id":"p.1"}', 'planned', 1);
+    legacy.close();
+    // Reopening through the store migrates the table; the legacy node reads back
+    // with parentId null and the ledger stays functional.
+    const store = createProgramStore(dbPath);
+    const nodes = store.listNodes('p');
+    expect(nodes.map((n) => n.nodeId)).toEqual(['p.1']);
+    expect(nodes[0]?.parentId).toBeNull();
     store.close();
   });
 

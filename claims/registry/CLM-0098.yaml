@@ -5,7 +5,9 @@ statement: >-
   (an --execute at suggest is refused and stays dry-run), issue-spam-guarded (a
   child count beyond the limit needs an explicit --confirm-count matching it),
   and audited once as cli.program.emit without the node goal/body verbatim. It
-  mutates nothing in dry-run and re-uses the existing tracker (no new gh seam);
+  mutates nothing in dry-run and re-uses the existing hardened tracker (the
+  ledger path's sub-issue linking adds the editBody op on the already-allowlisted
+  gh issue edit subcommand — no new gh subcommand, CLM-0106);
   an execute-mode createIssue failure is errors-as-data → a clean nonzero exit.
   emit has TWO mutually-exclusive modes: the ad-hoc --goal/--spec path
   re-decomposes and files; the LEDGER-DRIVEN --program <id> path files a
@@ -23,7 +25,7 @@ evidence:
   - 'test:packages/cli/src/program-commands.test.ts::the spam guard refuses >20 nodes without --confirm-count, and proceeds with the exact count'
   - 'test:packages/cli/src/program-commands.test.ts::audits cli.program.emit once and never the node goal/body verbatim'
   - 'test:packages/cli/src/program-commands.test.ts::an execute-mode tracker failure exits 1 (errors-as-data, not a throw)'
-  - 'test:packages/cli/src/program-emit-ledger.test.ts::--execute at enforce files one issue per node and AUTO-records each ref (planned → emitted)'
+  - 'test:packages/cli/src/program-emit-ledger.test.ts::--execute files the umbrella first, links children, edits the epic body, records refs'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::is idempotent: a second --execute files NOTHING, exits 0, reports skipped'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::dry-run files nothing and leaves the ledger nodes planned (poisoned exec)'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::an execute-mode failure on a node exits 1 and that node STAYS planned'

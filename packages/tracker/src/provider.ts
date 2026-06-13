@@ -175,6 +175,11 @@ function addLabelsPlan(ref: string, labels: readonly string[]): GhPlan {
   };
 }
 
+/** Plan: `gh issue edit --body-file <f> -- <ref>` (body routed via temp file). */
+function editBodyPlan(ref: string, body: string): GhPlan {
+  return { op: 'editBody', sub: 'edit', opArgs: [], positionals: [ref], body, fallbackRef: ref };
+}
+
 /** Options for {@link githubProvider} (carries the captured dry-run proposals). */
 export interface GithubProviderHandle extends TrackerProvider {
   /**
@@ -189,7 +194,7 @@ export interface GithubProviderHandle extends TrackerProvider {
 function buildWriteOps(
   cfg: GithubConfig,
   run: (plan: GhPlan) => Promise<TrackerResult>,
-): Pick<TrackerProvider, 'createIssue' | 'closeIssue' | 'comment' | 'addLabels'> {
+): Pick<TrackerProvider, 'createIssue' | 'closeIssue' | 'comment' | 'addLabels' | 'editBody'> {
   return {
     async createIssue(input: CreateIssueInput): Promise<TrackerResult> {
       const parsed = CreateIssueInputSchema.safeParse(input);
@@ -220,6 +225,14 @@ function buildWriteOps(
       const l = parseLabels(labels);
       if ('ok' in l) return l;
       return run(addLabelsPlan(r.ref, l.labels));
+    },
+    async editBody(ref: string, body: string): Promise<TrackerResult> {
+      const r = parseRef(ref, cfg);
+      if ('ok' in r) return r;
+      const parsed = CommentBodySchema.safeParse(body);
+      if (!parsed.success)
+        return failure('invalid-input', parsed.error.issues[0]?.message ?? 'bad body');
+      return run(editBodyPlan(r.ref, parsed.data));
     },
   };
 }

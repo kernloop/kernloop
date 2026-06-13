@@ -1,8 +1,7 @@
 /**
- * The GitHub TrackerProvider security + behavior suite (CLM-0093). These
- * tests are the PRIMARY evidence: each one drives the provider through a MOCK
- * exec and asserts the exact `gh` args-array it builds, so the security
- * posture is proven by construction, not by prose.
+ * The GitHub TrackerProvider security + behavior suite (CLM-0093). Each test
+ * drives the provider through a MOCK exec and asserts the exact `gh` args-array
+ * it builds, so the security posture is proven by construction, not prose.
  */
 import { describe, expect, it } from 'vitest';
 import { GH_SUBCOMMANDS, githubProvider, type ExecResult, type TrackerExec } from './index.js';
@@ -35,6 +34,7 @@ describe('githubProvider — capability descriptor', () => {
       closeIssue: true,
       comment: true,
       addLabels: true,
+      editBody: true,
       getIssue: true,
     });
   });
@@ -308,6 +308,7 @@ describe('githubProvider — subcommand allowlist', () => {
     await p.closeIssue('1');
     await p.comment('1', 'c');
     await p.addLabels('1', ['x']);
+    await p.editBody('1', 'b2');
     for (const { argv } of calls) {
       expect(argv[0]).toBe('issue');
       expect(GH_SUBCOMMANDS).toContain(argv[1]);
@@ -330,13 +331,14 @@ describe('githubProvider — dry-run spawns nothing', () => {
     expect(proposal.argv).toContain('<tmpfile>');
   });
 
-  it('all four ops in dry-run spawn nothing', async () => {
+  it('all five mutating ops in dry-run spawn nothing', async () => {
     const p = githubProvider(CONFIG, 'dry-run', neverExec);
     await p.createIssue({ title: 't', body: 'b' });
     await p.closeIssue('1');
     await p.comment('1', 'c');
     await p.addLabels('1', ['x']);
-    expect(p.proposals).toHaveLength(4);
+    await p.editBody('1', 'b2');
+    expect(p.proposals).toHaveLength(5);
   });
 });
 
