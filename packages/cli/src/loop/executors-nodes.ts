@@ -5,15 +5,50 @@
  * NodeExecutor it did when defined inline. `sinkFor` and `writeWorkspaceFiles`
  * are imported from their home in executors.ts so there is one definition.
  */
-import { OutcomeSchema, TaskContractSchema } from '@kernloop/contracts';
+import { OutcomeSchema, TaskContractSchema, type Cost } from '@kernloop/contracts';
 import { decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
 import type { ChildResult, NodeExecutor } from '@kernloop/workflows';
-import { FilesEmissionSchema, SubtasksEmissionSchema, parseEmission } from './invoke.js';
+import {
+  FilesEmissionSchema,
+  LoopParseError,
+  SubtasksEmissionSchema,
+  parseEmission,
+  type ViolationSink,
+} from './invoke.js';
 import { briefText } from './seams.js';
 import { coderPrompt, decomposePrompt } from './prompts.js';
 import { childSignal, sumChildCosts } from './aggregate.js';
-import { identityRef, servedRef } from './node-seam.js';
+import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
 import { sinkFor, writeWorkspaceFiles, type LoopBindings } from './executors.js';
+
+/**
+ * Invoke the coder and parse its files emission, RETRYING ONCE on a contract
+ * parse failure (#130) [CLM-0107]. An AGENTIC coder CLI (e.g. headless `claude`)
+ * intermittently wraps the contract JSON in reasoning prose, so a second roll
+ * usually emits clean output; both attempts' costs accumulate. Only a
+ * {@link LoopParseError} is retried — a real failure (e.g. a path escaping the
+ * workspace) propagates. If the retry also violates the contract the error
+ * propagates: the node fails HONESTLY, never fabricating files. The prompt is
+ * identical both times (the gate findings already folded in drive the re-run).
+ */
+async function coderEmissionWithRetry(seam: NodeSeam, prompt: string, sink: ViolationSink) {
+  let tokens = 0;
+  let usd = 0;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { output, cost } = await seam.invoke(prompt);
+    tokens += cost.tokens;
+    usd += cost.usd;
+    try {
+      const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
+      return { emission, cost: { tokens, usd } satisfies Cost };
+    } catch (err) {
+      if (!(err instanceof LoopParseError)) throw err;
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
 
 /** The decompose node: PM via invoke, then the MECHANICAL budget invariant. */
 export function decomposeExecutor(b: LoopBindings): NodeExecutor {
@@ -40,9 +75,12 @@ export function implementExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const child = TaskContractSchema.parse(input);
     const seam = b.invokeFor('implement');
-    const { output, cost } = await seam.invoke(coderPrompt(child, ctx.findings));
     const sink = sinkFor(b, ctx.runId, `implement-${child.id}`);
-    const emission = parseEmission(output, FilesEmissionSchema, 'files', sink);
+    const { emission, cost } = await coderEmissionWithRetry(
+      seam,
+      coderPrompt(child, ctx.findings),
+      sink,
+    );
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
     // Stash what this child wrote so the advisory review gate can diff it.
     (b.refs.writtenByChild ??= {})[child.id] = emission.files;

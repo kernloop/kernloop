@@ -123,8 +123,14 @@ const FENCE = /```(?:json)?\s*\n([\s\S]*?)```/;
  * trusted). Preference order, most honest reading first:
  * 1. the WHOLE trimmed output parsed as JSON (the contract's happy path);
  * 2. the first fenced code block, when it contains an object;
- * 3. the first balanced `{…}` in the text, string-aware (braces and quotes
- *    inside JSON strings do not count; backslash escapes are honored).
+ * 3. the first balanced `{…}` in the text that PARSES as JSON, string-aware
+ *    (braces and quotes inside JSON strings do not count; backslash escapes are
+ *    honored) [CLM-0107]. Trying EACH balanced object and returning the first that parses —
+ *    rather than the first `{` outright — lets the extractor skip prose/code
+ *    snippets an AGENTIC coder CLI wraps around the contract object (#130: a
+ *    headless `claude` narrates "let me produce the files: `flags() {…}`" before
+ *    emitting the real JSON; the snippet's braces are not valid JSON and must be
+ *    stepped over, not parsed).
  * Returns the parsed value or throws {@link LoopParseError} naming the
  * contract — truncated output stays an unterminated-object failure.
  */
@@ -140,13 +146,12 @@ export function extractJsonObject(raw: string, contract: string): unknown {
   }
   const fenced = FENCE.exec(trimmed)?.[1];
   const candidate = fenced !== undefined && fenced.includes('{') ? fenced : trimmed;
-  return firstBalancedObject(candidate, contract);
+  return firstParsableObject(candidate, contract);
 }
 
-/** The first balanced `{…}` in `text`, string-aware, parsed as JSON. */
-function firstBalancedObject(text: string, contract: string): unknown {
-  const start = text.indexOf('{');
-  if (start === -1) throw new LoopParseError(contract, 'no JSON object found in the output');
+/** The index of the `}` balancing the `{` at `start` (string-aware), or -1 when
+ * it is unterminated (no further top-level object can close after it). */
+function balancedClose(text: string, start: number): number {
   let depth = 0;
   let inString = false;
   let escaped = false;
@@ -163,22 +168,35 @@ function firstBalancedObject(text: string, contract: string): unknown {
       depth += 1;
     } else if (ch === '}') {
       depth -= 1;
-      if (depth === 0) return parseJson(text.slice(start, i + 1), contract);
+      if (depth === 0) return i;
     }
   }
-  throw new LoopParseError(contract, 'unterminated JSON object in the output');
+  return -1;
 }
 
-/** JSON.parse with the typed loop error instead of a bare SyntaxError. */
-function parseJson(text: string, contract: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch (error) {
-    throw new LoopParseError(
-      contract,
-      `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
+/** The first balanced `{…}` in `text` that successfully JSON-parses, string-
+ * aware. Steps over balanced-but-non-JSON snippets (agentic-CLI prose) instead
+ * of failing on the first `{` (#130). Throws {@link LoopParseError} naming the
+ * contract when no balanced object parses or the text has no `{`. */
+function firstParsableObject(text: string, contract: string): unknown {
+  let i = 0;
+  let reason = 'no JSON object found in the output';
+  while (i < text.length) {
+    const start = text.indexOf('{', i);
+    if (start === -1) break;
+    const end = balancedClose(text, start);
+    if (end === -1) {
+      reason = 'unterminated JSON object in the output';
+      break;
+    }
+    try {
+      return JSON.parse(text.slice(start, end + 1)) as unknown;
+    } catch {
+      reason = 'no parsable JSON object found in the output';
+    }
+    i = end + 1;
   }
+  throw new LoopParseError(contract, reason);
 }
 
 /** A voter's raw ballot — the strict voter output contract. */

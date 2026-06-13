@@ -57,9 +57,21 @@ describe('extractJsonObject', () => {
     expect(() => extractJsonObject('no json here', 'subtasks')).toThrow('subtasks');
   });
 
-  it('throws on an unterminated object and on invalid JSON between balanced braces', () => {
+  it('throws on an unterminated object, and reports "no parsable object" when the only braces are non-JSON', () => {
     expect(() => extractJsonObject('{"open": "forever', 'files')).toThrow('unterminated');
-    expect(() => extractJsonObject('{bad}', 'files')).toThrow('invalid JSON');
+    expect(() => extractJsonObject('{bad}', 'files')).toThrow('no parsable JSON object');
+  });
+
+  it('STEPS OVER a balanced-but-non-JSON prose snippet and returns the real object after it (#130)', () => {
+    // An agentic-CLI shape: narration with a brace-bearing code snippet, THEN the
+    // real contract JSON. The snippet `{ return x }` is not valid JSON and must
+    // be skipped, not parsed (the old "first balanced object" choked on it).
+    const raw =
+      'Edit/Write are denied. Let me produce the files. cli.ts widens flags() { return x } then:\n' +
+      '{"files":[{"path":"a.ts","content":"x"}]}';
+    expect(extractJsonObject(raw, 'files')).toEqual({
+      files: [{ path: 'a.ts', content: 'x' }],
+    });
   });
 
   it('parses the WHOLE trimmed output first: TS file content with braces and escaped quotes', () => {
