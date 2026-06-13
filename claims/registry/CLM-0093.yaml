@@ -2,7 +2,9 @@ id: CLM-0093
 statement: >-
   The provider-agnostic TrackerProvider abstraction and its GitHub provider
   build gh invocations securely — args-array with no shell, the body via a
-  bounded temp file, flag injection guarded, the close reason allowlisted, the
+  bounded temp file, captured output bounded (a gh op past the size cap is
+  killed and surfaced as a typed io-failed, so it cannot balloon host memory),
+  flag injection guarded, the close reason allowlisted, the
   gh subcommand allowlisted, the repo scoped from validated config, and every
   issue ref bound to that repo (a URL ref must be a github.com URL in the
   configured repo and only its number, never the URL, reaches gh — no
@@ -33,6 +35,9 @@ evidence:
   - 'test:packages/tracker/src/provider.test.ts::surfaces a nonzero gh exit as a scrubbed, typed failure (never throws)'
   - 'test:packages/tracker/src/exec.test.ts::passes an arg with shell metacharacters through verbatim (no shell expansion)'
   - 'test:packages/tracker/src/exec.test.ts::passes a leading-dash arg as a literal argument, not a flag'
+  - 'test:packages/tracker/src/exec.test.ts::kills the child and flags outputOverflow when stdout exceeds the cap'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces an output overflow as a typed io-failed (read op)'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces an output overflow as a typed io-failed (write op)'
   - 'test:packages/cli/src/tracker-commands.test.ts::create with no --execute prints a DRY RUN proposal and spawns nothing'
   - 'test:packages/cli/src/tracker-commands.test.ts::audits the op as cli.tracker.create without the body verbatim'
   - 'test:packages/cli/src/tracker-commands.test.ts::refuses --execute at the suggest tier (stays dry-run)'

@@ -44,6 +44,30 @@ describe('spawnCapture — no shell, args as literals', () => {
   });
 });
 
+describe('spawnCapture — bounded output (no memory balloon)', () => {
+  it('kills the child and flags outputOverflow when stdout exceeds the cap', async () => {
+    // Emit ~8M chars (> the 4M cap) in chunks so the cap trips mid-stream.
+    const res = await spawnCapture(process.execPath, [
+      '-e',
+      'const c="x".repeat(1_000_000); for(let i=0;i<8;i++) process.stdout.write(c);',
+    ]);
+    expect(res.outputOverflow).toBe(true);
+    expect(res.exitCode).toBeNull();
+    expect(res.stdout).toBe('');
+    expect(res.stderr).toBe('');
+  });
+
+  it('does NOT flag overflow for output within the cap', async () => {
+    const res = await spawnCapture(process.execPath, [
+      '-e',
+      'process.stdout.write("a".repeat(1000));',
+    ]);
+    expect(res.outputOverflow).toBeUndefined();
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toHaveLength(1000);
+  });
+});
+
 describe('scrub — strips secrets and paths from surfaced output', () => {
   it('redacts a token-shaped value', () => {
     expect(scrub('failed: token=ghp_abc123')).toContain('token=[redacted]');
