@@ -10,7 +10,7 @@
  * SCOPE, stated honestly (the prime directive): this proves a doc-comment is
  * PRESENT and non-empty — never that it is ACCURATE. Accuracy is a judgment a
  * mechanical scan cannot make; only a reviewer/test can. TypeScript/JavaScript
- * is enforced here via the TS compiler API; Python/Go/Rust are enforced in
+ * is enforced here via the TS compiler API; Python/Go/Rust/Java/C/PHP/Ruby are enforced in
  * `treesitter-scan.ts` (in-process WASM grammars, #108). A REMAINING known
  * source language the scanner cannot yet parse (Ruby, Java, …) degrades
  * HONESTLY — one non-blocking `info` finding records the gap rather than
@@ -29,20 +29,17 @@ import { scanTreeSitterFiles, TREE_SITTER_EXTS } from './treesitter-scan.js';
 const COVERED_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
 
 /** Known SOURCE languages the scanner cannot yet parse — recorded, not faked.
- * Maps extension → language label for the honest-degradation finding. Python,
- * Go, and Rust are NOT here: they are enforced via {@link scanTreeSitterFiles}
- * (#108). The rest still degrade to one `info` finding until covered. */
+ * Maps extension → language label for the honest-degradation finding. The
+ * tree-sitter-covered languages (Python, Go, Rust, Java, C, PHP, Ruby) are NOT
+ * here — they are enforced via {@link scanTreeSitterFiles} (#108). The rest
+ * (the multi-MB grammars, deferred to #120) still degrade to one `info`
+ * finding until covered. */
 const UNCOVERED_LANGS: Record<string, string> = {
-  '.rb': 'Ruby',
-  '.java': 'Java',
   '.kt': 'Kotlin',
   '.swift': 'Swift',
-  '.c': 'C',
-  '.h': 'C',
   '.cpp': 'C++',
   '.cc': 'C++',
   '.cs': 'C#',
-  '.php': 'PHP',
   '.scala': 'Scala',
 };
 
@@ -305,7 +302,7 @@ function degradationFindings(byLang: ReadonlyMap<string, number>): Finding[] {
 /**
  * Scan a workspace for doc-comment coverage and return the findings (#65, #108;
  * CLM-0104). Every exported TS/JS top-level declaration (TS compiler API) and
- * every public Python/Go/Rust declaration (tree-sitter, {@link
+ * every public Python/Go/Rust/Java/C/PHP/Ruby declaration (tree-sitter, {@link
  * scanTreeSitterFiles}) without a non-empty leading doc-comment is an `error`
  * finding (driving per-child re-iteration); each REMAINING source language the
  * scanner cannot parse contributes one `info` finding (honest degradation);

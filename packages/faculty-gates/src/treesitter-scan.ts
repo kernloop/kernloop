@@ -1,21 +1,16 @@
 /**
- * The MULTI-LANGUAGE half of the doc-comment quality gate (#108; CLM-0104).
+ * The MULTI-LANGUAGE half of the doc-comment quality gate (#108, #122; CLM-0104).
  * Where {@link scanDocComments}'s TypeScript path uses the `typescript` compiler
- * API, this module parses Python, Go, and Rust IN-PROCESS via `web-tree-sitter`
+ * API, this module parses non-TS/JS source IN-PROCESS via `web-tree-sitter`
  * (WASM grammars vendored under `../grammars`, see grammars/SOURCE.md) and flags
- * every PUBLIC top-level declaration that carries no leading doc-comment. These
- * languages thereby move OUT of the honest-degradation `info` bucket and into
- * real `error` enforcement, exactly like TS/JS.
+ * every PUBLIC top-level declaration that carries no leading doc-comment. The
+ * per-language declaration/visibility/doc rules live in treesitter-langs.ts;
+ * this module owns grammar loading, the byte budgets, and the scan loop. Covered
+ * languages (Python, Go, Rust, Java, C, PHP, Ruby) thereby move OUT of the
+ * honest-degradation `info` bucket and into real `error` enforcement.
  *
- * The same honesty boundary holds (the prime directive): this proves a
- * doc-comment is PRESENT and non-empty, NEVER that it is ACCURATE. "Public" is
- * the language's own visibility rule — Python: a module-level `def`/`class`
- * whose name does not start with `_`; Go: a top-level func/method/type/const/var
- * whose name begins with an uppercase letter; Rust: an item carrying a `pub`
- * visibility modifier. "Documented" is presence of an adjacent doc — Python: a
- * docstring as the body's first statement; Go/Rust: a comment on the line(s)
- * immediately above (no blank-line gap), mirroring the TS scanner accepting any
- * leading comment range.
+ * The honesty boundary holds (the prime directive): this proves a doc-comment is
+ * PRESENT and non-empty, NEVER that it is ACCURATE.
  *
  * SECURITY/ROBUSTNESS: the WASM runtime is sandboxed (no host access), the parse
  * is bounded by per-file and cumulative byte budgets (model-generated content
@@ -28,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Parser from 'web-tree-sitter';
 import type { Finding } from '@kernloop/contracts';
+import { LANGS, type LangSpec } from './treesitter-langs.js';
 
 /** Directory holding the vendored grammar `.wasm` files. Resolved relative to
  * THIS module, which sits one level under the package root in both `src/` (test)
@@ -41,145 +37,6 @@ const MAX_FILE_BYTES = 1_000_000;
 /** Cumulative byte budget across the tree-sitter scan, bounding the many-files
  * case the per-file cap alone would not. */
 const MAX_TOTAL_BYTES = 32_000_000;
-
-/** One public top-level declaration and whether it carries a doc-comment. */
-interface Decl {
-  readonly name: string;
-  readonly kind: string;
-  readonly line: number;
-  readonly documented: boolean;
-}
-
-/** A language the tree-sitter path covers: its display label, grammar filename,
- * and the extractor that enumerates its public declarations. */
-interface LangSpec {
-  readonly label: string;
-  readonly wasm: string;
-  readonly extract: (root: Parser.SyntaxNode) => Decl[];
-}
-
-/** True for a comment node adjacent to (on the line above, no blank-line gap)
- * the declaration at `declRow` — the Go/Rust "doc comment immediately above"
- * convention. */
-function isAdjacentComment(
-  prev: Parser.SyntaxNode | null,
-  declRow: number,
-  types: readonly string[],
-): boolean {
-  return prev !== null && types.includes(prev.type) && declRow - prev.endPosition.row <= 1;
-}
-
-/** The 1-based source line of a node (tree-sitter rows are 0-based). */
-function lineOf(node: Parser.SyntaxNode): number {
-  return node.startPosition.row + 1;
-}
-
-/** Python: module-level `def`/`class` whose name is public (no leading `_`),
- * documented iff the body's first statement is a string expression (docstring). */
-function extractPython(root: Parser.SyntaxNode): Decl[] {
-  const out: Decl[] = [];
-  for (const node of root.namedChildren) {
-    if (node.type !== 'function_definition' && node.type !== 'class_definition') continue;
-    const name = node.childForFieldName('name')?.text;
-    if (name === undefined || name.startsWith('_')) continue;
-    const first = node.childForFieldName('body')?.firstNamedChild;
-    const documented =
-      first?.type === 'expression_statement' && first.firstNamedChild?.type === 'string';
-    const kind = node.type === 'class_definition' ? 'class' : 'function';
-    out.push({ name, kind, line: lineOf(node), documented });
-  }
-  return out;
-}
-
-/** True when a Go identifier is EXPORTED — its first character is an uppercase
- * letter (the Go spec's visibility rule), Unicode-aware. */
-function isGoExported(name: string): boolean {
-  return /^\p{Lu}/u.test(name);
-}
-
-/** One Go spec node (type_spec/const_spec/var_spec) → a Decl, doc taken from the
- * enclosing declaration's preceding comment (the whole decl shares one doc). */
-function goSpecDecl(spec: Parser.SyntaxNode, kind: string, documented: boolean): Decl | null {
-  const name = spec.childForFieldName('name')?.text;
-  if (name === undefined || !isGoExported(name)) return null;
-  return { name, kind, line: lineOf(spec), documented };
-}
-
-/** Go: top-level funcs/methods (named directly) and type/const/var declarations
- * (which wrap one or more specs); exported iff the name is uppercase-initial,
- * documented iff a comment sits on the line immediately above the declaration. */
-function extractGo(root: Parser.SyntaxNode): Decl[] {
-  const out: Decl[] = [];
-  for (const node of root.namedChildren) {
-    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
-      'comment',
-    ]);
-    if (node.type === 'function_declaration' || node.type === 'method_declaration') {
-      const name = node.childForFieldName('name')?.text;
-      if (name !== undefined && isGoExported(name)) {
-        out.push({ name, kind: 'function', line: lineOf(node), documented });
-      }
-    } else if (
-      node.type === 'type_declaration' ||
-      node.type === 'const_declaration' ||
-      node.type === 'var_declaration'
-    ) {
-      const kind = node.type.replace('_declaration', '');
-      for (const spec of node.namedChildren) {
-        const decl = goSpecDecl(spec, kind, documented);
-        if (decl !== null) out.push(decl);
-      }
-    }
-  }
-  return out;
-}
-
-/** The Rust top-level item types the gate enumerates (each carries a `name`
- * field and may carry a `visibility_modifier` child). */
-const RUST_ITEMS = new Set([
-  'function_item',
-  'struct_item',
-  'enum_item',
-  'trait_item',
-  'mod_item',
-  'const_item',
-  'static_item',
-  'type_item',
-  'union_item',
-  'macro_definition',
-]);
-
-/** Rust: top-level items carrying a `pub` visibility modifier, documented iff a
- * line or block comment (incl. `///` outer-doc and block-doc comments) sits
- * immediately above. */
-function extractRust(root: Parser.SyntaxNode): Decl[] {
-  const out: Decl[] = [];
-  for (const node of root.namedChildren) {
-    if (!RUST_ITEMS.has(node.type)) continue;
-    const isPub = node.namedChildren.some((c) => c.type === 'visibility_modifier');
-    if (!isPub) continue;
-    const name = node.childForFieldName('name')?.text;
-    if (name === undefined) continue;
-    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
-      'line_comment',
-      'block_comment',
-    ]);
-    out.push({
-      name,
-      kind: node.type.replace('_item', '').replace('_definition', ''),
-      line: lineOf(node),
-      documented,
-    });
-  }
-  return out;
-}
-
-/** Extension → language spec for every tree-sitter-covered source language. */
-const LANGS: Record<string, LangSpec> = {
-  '.py': { label: 'Python', wasm: 'tree-sitter-python.wasm', extract: extractPython },
-  '.go': { label: 'Go', wasm: 'tree-sitter-go.wasm', extract: extractGo },
-  '.rs': { label: 'Rust', wasm: 'tree-sitter-rust.wasm', extract: extractRust },
-};
 
 /** The set of extensions this scanner covers — consumed by {@link scanDocComments}
  * to partition the walk (these no longer degrade to `info`). */
@@ -237,26 +94,34 @@ async function scanOneFile(file: string, rel: string, ext: string): Promise<Find
   } catch {
     return [];
   }
+  // A web-tree-sitter Tree holds WASM linear memory that is NOT auto-reclaimed
+  // (no FinalizationRegistry); the parser is a module-level singleton in a
+  // long-lived process, so an undeleted tree leaks across runs → eventual OOM.
+  // Always free it, even if the extractor throws.
   const tree = loaded.parser.parse(source);
-  const findings: Finding[] = [];
-  for (const decl of loaded.spec.extract(tree.rootNode)) {
-    if (decl.documented) continue;
-    findings.push({
-      severity: 'error',
-      message: `exported ${decl.kind} "${decl.name}" (${rel}:${String(decl.line)}) has no doc-comment`,
-      path: rel,
-    });
+  try {
+    const findings: Finding[] = [];
+    for (const decl of loaded.spec.extract(tree.rootNode)) {
+      if (decl.documented) continue;
+      findings.push({
+        severity: 'error',
+        message: `exported ${decl.kind} "${decl.name}" (${rel}:${String(decl.line)}) has no doc-comment`,
+        path: rel,
+      });
+    }
+    return findings;
+  } finally {
+    tree.delete();
   }
-  return findings;
 }
 
 /**
- * Scan the tree-sitter-covered files (Python/Go/Rust) under `rootDir` for
- * undocumented public declarations [CLM-0104]. Bounds its own work (per-file and
- * cumulative byte budgets) so untrusted, model-generated source cannot hang or
- * OOM the in-process scan; an oversized or budget-exceeding file is recorded as
- * a non-blocking `info`, never parsed silently. Async (grammar load + the
- * `web-tree-sitter` runtime); the gate runner awaits and times it out.
+ * Scan the tree-sitter-covered files under `rootDir` for undocumented public
+ * declarations [CLM-0104]. Bounds its own work (per-file and cumulative byte
+ * budgets) so untrusted, model-generated source cannot hang or OOM the in-process
+ * scan; an oversized or budget-exceeding file is recorded as a non-blocking
+ * `info`, never parsed silently. Async (grammar load + the `web-tree-sitter`
+ * runtime); the gate runner awaits and times it out.
  */
 export async function scanTreeSitterFiles(
   files: readonly string[],

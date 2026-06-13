@@ -27,8 +27,17 @@ async function scanOne(rel: string, content: string) {
 }
 
 describe('TREE_SITTER_EXTS', () => {
-  it('covers exactly .py, .go, .rs', () => {
-    expect([...TREE_SITTER_EXTS].sort()).toEqual(['.go', '.py', '.rs']);
+  it('covers the vendored-grammar languages', () => {
+    expect([...TREE_SITTER_EXTS].sort()).toEqual([
+      '.c',
+      '.go',
+      '.h',
+      '.java',
+      '.php',
+      '.py',
+      '.rb',
+      '.rs',
+    ]);
   });
 });
 
@@ -134,6 +143,112 @@ describe('Rust', () => {
     expect(names.some((m) => m.includes('"T"'))).toBe(true);
     expect(names.some((m) => m.includes('"K"'))).toBe(true);
     expect(names.some((m) => m.includes('"Alias"'))).toBe(true);
+  });
+});
+
+describe('Java', () => {
+  it('flags an undocumented public class but not a package-private one', async () => {
+    const findings = await scanOne('M.java', 'public class Pub {}\nclass Pkg {}\n');
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"Pub"');
+  });
+
+  it('a Javadoc block (or // line) immediately above documents the type', async () => {
+    expect(await scanOne('A.java', '/** A pub. */\npublic class A {}\n')).toEqual([]);
+    expect(await scanOne('B.java', '// a pub\npublic interface B {}\n')).toEqual([]);
+  });
+
+  it('covers public enums and records', async () => {
+    const findings = await scanOne('M.java', 'public enum E { A }\npublic record R() {}\n');
+    const names = findings.map((f) => f.message);
+    expect(names.some((m) => m.includes('"E"'))).toBe(true);
+    expect(names.some((m) => m.includes('"R"'))).toBe(true);
+  });
+});
+
+describe('C', () => {
+  it('flags a non-static function but not a static (internal-linkage) one', async () => {
+    const findings = await scanOne(
+      'm.c',
+      'int Exported(int a) { return a; }\nstatic int hidden(void) { return 0; }\n',
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"Exported"');
+  });
+
+  it('a comment immediately above documents the function', async () => {
+    expect(await scanOne('m.c', '// adds\nint add(int a, int b) { return a + b; }\n')).toEqual([]);
+  });
+
+  it('covers named struct/union/enum DEFINITIONS but skips a bodyless forward declaration', async () => {
+    const findings = await scanOne(
+      'm.h',
+      'struct Fwd;\nstruct Point { int x; };\nenum Color { RED };\n',
+    );
+    const names = findings.map((f) => f.message);
+    expect(names.some((m) => m.includes('"Point"'))).toBe(true);
+    expect(names.some((m) => m.includes('"Color"'))).toBe(true);
+    // The forward declaration `struct Fwd;` is NOT a definition → no finding.
+    expect(names.some((m) => m.includes('"Fwd"'))).toBe(false);
+  });
+
+  it('covers typedef aliases (the idiomatic public C type)', async () => {
+    const findings = await scanOne('m.h', 'typedef struct { int x; } Handle;\ntypedef int Id;\n');
+    const names = findings.map((f) => f.message);
+    expect(names.some((m) => m.includes('typedef "Handle"'))).toBe(true);
+    expect(names.some((m) => m.includes('typedef "Id"'))).toBe(true);
+  });
+
+  it('covers a header function prototype (declaration), not just the definition', async () => {
+    const findings = await scanOne('api.h', 'int public_api(int a);\nstatic int internal(void);\n');
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"public_api"');
+  });
+
+  it('extracts a pointer-returning function name (int *foo())', async () => {
+    const findings = await scanOne('m.c', 'int *grab(void) { return 0; }\n');
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"grab"');
+  });
+});
+
+describe('PHP', () => {
+  it('flags an undocumented top-level function and class', async () => {
+    const findings = await scanOne('m.php', '<?php\nfunction foo() {}\nclass Bar {}\n');
+    expect(findings).toHaveLength(2);
+    expect(findings.some((f) => f.message.includes('"foo"'))).toBe(true);
+    expect(findings.some((f) => f.message.includes('"Bar"'))).toBe(true);
+  });
+
+  it('a PHPDoc block (or # comment) immediately above documents the declaration', async () => {
+    expect(await scanOne('a.php', '<?php\n/** Foo. */\nfunction foo() {}\n')).toEqual([]);
+    expect(await scanOne('b.php', '<?php\n# a class\nclass Bar {}\n')).toEqual([]);
+  });
+});
+
+describe('Ruby', () => {
+  it('flags an undocumented top-level def, class, and module', async () => {
+    const findings = await scanOne('m.rb', 'def foo\nend\n\nclass Bar\nend\n\nmodule Baz\nend\n');
+    expect(findings).toHaveLength(3);
+    const names = findings.map((f) => f.message);
+    expect(names.some((m) => m.includes('"foo"'))).toBe(true);
+    expect(names.some((m) => m.includes('"Bar"'))).toBe(true);
+    expect(names.some((m) => m.includes('"Baz"'))).toBe(true);
+  });
+
+  it('a # comment immediately above documents the declaration', async () => {
+    expect(await scanOne('m.rb', '# greets\ndef foo\nend\n')).toEqual([]);
+  });
+
+  it('a comment separated by a blank line does NOT document it', async () => {
+    const findings = await scanOne('m.rb', '# stale\n\ndef foo\nend\n');
+    expect(findings).toHaveLength(1);
+  });
+
+  it('covers a top-level singleton method (def self.x)', async () => {
+    const findings = await scanOne('m.rb', 'def self.build\nend\n');
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"build"');
   });
 });
 
