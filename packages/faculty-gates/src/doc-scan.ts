@@ -109,6 +109,16 @@ export interface MinedFile {
   readonly symbols: readonly ExportedSymbol[];
 }
 
+/** The result of {@link mineExportedSymbols}: the mined files plus how many
+ * covered files were left unparsed once the cumulative {@link MAX_TOTAL_BYTES}
+ * budget was reached (recorded, never silent — #114). */
+export interface MinedResult {
+  /** The scanned files that declare at least one exported symbol. */
+  readonly files: MinedFile[];
+  /** Count of covered files skipped after the cumulative-byte budget. */
+  readonly skippedForBudget: number;
+}
+
 /** The name a top-level declaration binds, or undefined if it is not one we
  * enumerate (functions, classes, interfaces, type aliases, enums, and
  * `const`/`let` variable declarations with an identifier name). */
@@ -197,11 +207,18 @@ export function listExportedSymbols(filePath: string): ExportedSymbol[] {
  * and each one's doc-comment presence — the data behind a derived API-doc
  * artifact (#107, CLM-0105). Reuses the same bounded walk as the gate (skips
  * build dirs; never parses a file over {@link MAX_FILE_BYTES} — an oversized
- * file is skipped, not read). Files with no exported symbols are omitted.
- * Presence only, never accuracy; pure read, no process/model.
+ * file is skipped, not read) and, mirroring {@link findUndocumented}, also
+ * bounds the many-files case: once the cumulative parsed size would exceed
+ * {@link MAX_TOTAL_BYTES} the remaining covered files are skipped and counted,
+ * never parsed silently. Returns a {@link MinedResult} — the mined files (those
+ * with no exported symbols are omitted) plus `skippedForBudget`, the count left
+ * unparsed by that cumulative cap. Presence only, never accuracy; pure read,
+ * no process/model.
  */
-export function mineExportedSymbols(workspaceDir: string): MinedFile[] {
+export function mineExportedSymbols(workspaceDir: string): MinedResult {
   const out: MinedFile[] = [];
+  let totalBytes = 0;
+  let skipped = 0;
   for (const file of walkFiles(workspaceDir)) {
     if (!COVERED_EXTS.has(path.extname(file).toLowerCase())) continue;
     let size: number;
@@ -211,10 +228,15 @@ export function mineExportedSymbols(workspaceDir: string): MinedFile[] {
       continue;
     }
     if (size > MAX_FILE_BYTES) continue;
+    if (totalBytes + size > MAX_TOTAL_BYTES) {
+      skipped += 1;
+      continue;
+    }
+    totalBytes += size;
     const symbols = listExportedSymbols(file);
     if (symbols.length > 0) out.push({ file: path.relative(workspaceDir, file), symbols });
   }
-  return out;
+  return { files: out, skippedForBudget: skipped };
 }
 
 /** A doc-comment's text with comment syntax (block/JSDoc markers and line

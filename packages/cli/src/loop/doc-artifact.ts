@@ -28,6 +28,9 @@ export interface DocArtifactResult {
   readonly symbolCount: number;
   /** How many of them carry a non-empty doc-comment. */
   readonly documentedCount: number;
+  /** Covered files the scanner left unparsed at its cumulative-byte budget
+   * (#114) — surfaced honestly so a truncated mine never reads as complete. */
+  readonly skippedForBudget?: number;
 }
 
 /** A short human label for a TS SyntaxKind name (e.g. `FunctionDeclaration`). */
@@ -86,12 +89,12 @@ export function renderApiDoc(mined: readonly MinedFile[]): string {
  * caller decides; here a write error propagates so the loop can surface it.
  */
 export function writeDocArtifact(workspaceDir: string): DocArtifactResult {
-  const mined = mineExportedSymbols(workspaceDir);
+  const { files: mined, skippedForBudget } = mineExportedSymbols(workspaceDir);
   const symbolCount = mined.reduce((n, f) => n + f.symbols.length, 0);
   const documentedCount = mined.reduce((n, f) => n + f.symbols.filter(isDocumented).length, 0);
   if (symbolCount === 0) {
-    return { written: false, symbolCount: 0, documentedCount: 0 };
+    return { written: false, symbolCount: 0, documentedCount: 0, skippedForBudget };
   }
   fs.writeFileSync(path.join(workspaceDir, DOC_ARTIFACT_NAME), renderApiDoc(mined), 'utf8');
-  return { written: true, path: DOC_ARTIFACT_NAME, symbolCount, documentedCount };
+  return { written: true, path: DOC_ARTIFACT_NAME, symbolCount, documentedCount, skippedForBudget };
 }
