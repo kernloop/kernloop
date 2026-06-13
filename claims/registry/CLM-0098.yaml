@@ -13,7 +13,9 @@ statement: >-
   tracker and AUTO-RECORDS each filed ref into the ledger (planned → emitted) on
   a real execute — idempotent (a re-emit skips already-emitted/done nodes and
   files nothing), still dry-run-default + enforce-gated + spam-guarded, an
-  execute failure leaving the node planned.
+  execute failure leaving the node planned, and a filed issue whose returned ref
+  is unrecordable surfaced per-node WITH its ref (exit 1, node left planned) so a
+  retry is a deliberate operator act, never a silent double-file.
 evidence:
   - 'test:packages/cli/src/program-commands.test.ts::dry-run prints per-node proposals + mapped labels and spawns nothing'
   - 'test:packages/cli/src/program-commands.test.ts::refuses --execute at the suggest tier (stays dry-run, spawns nothing)'
@@ -25,6 +27,7 @@ evidence:
   - 'test:packages/cli/src/program-emit-ledger.test.ts::is idempotent: a second --execute files NOTHING, exits 0, reports skipped'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::dry-run files nothing and leaves the ledger nodes planned (poisoned exec)'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::an execute-mode failure on a node exits 1 and that node STAYS planned'
+  - 'test:packages/cli/src/program-emit-ledger.test.ts::a filed issue with an unrecordable (non-https) ref is reported, exits 1, stays planned (#98)'
   - 'code:packages/cli/src/program-emit.ts#emitOp@doc:/CLM-0098/'
   - 'ci:test'
 status: verified

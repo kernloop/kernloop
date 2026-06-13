@@ -271,6 +271,37 @@ describe('kernloop program emit --program — the ledger-driven, auto-recording 
     expect(status.counts.emitted).toBe(0);
   });
 
+  it('a filed issue with an unrecordable (non-https) ref is reported, exits 1, stays planned (#98)', async () => {
+    const r = await createTwoNodeProgram('enforce');
+    const { io, out } = makeIo(r);
+    // gh "succeeds" but returns a non-https URL: refFromOutput surfaces it, then
+    // advanceNode's https-only ref shape rejects it — the issue is already filed.
+    const badRefExec: TrackerExec = () =>
+      Promise.resolve<ExecResult>({
+        exitCode: 0,
+        stdout: 'http://github.com/kernloop/kernloop/issues/9',
+        stderr: '',
+      });
+    const code = await programCommand(['emit', '--program', 'prog', '--execute'], io, helpers, {
+      exec: badRefExec,
+    });
+    expect(code).toBe(1); // the filed-but-unrecorded node is a visible failure
+    const report = JSON.parse(out[0]!) as LedgerEmitOut;
+    expect(report.emittedCount).toBe(0);
+    // Each node is reported filed-but-NOT-recorded, carrying its ref for recovery.
+    expect(report.nodes.every((n) => n.result?.ok === false)).toBe(true);
+    expect(report.nodes.every((n) => n.result?.reason?.includes('filed but NOT recorded'))).toBe(
+      true,
+    );
+    expect(
+      report.nodes.every((n) => n.result?.ref === 'http://github.com/kernloop/kernloop/issues/9'),
+    ).toBe(true);
+    // The ledger did NOT advance — the node stays planned (no false "emitted").
+    const status = await statusOf(r);
+    expect(status.counts.planned).toBe(2);
+    expect(status.counts.emitted).toBe(0);
+  });
+
   it('audits cli.program.emit once with program counts and never a node goal verbatim', async () => {
     const SECRET = 'SECRET-LEDGER-NODE-GOAL';
     const r = repoWithTracker('enforce');
