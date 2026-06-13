@@ -13,8 +13,8 @@
  * requiring the filed issue ref to reach `emitted`. The store's typed errors
  * (duplicate / unknown-node / invalid-transition) surface as a clean exit 1.
  *
- * GitHub-state RECONCILIATION and auto-linking `emit` into the ledger are
- * DEFERRED — this is the LOCAL ledger only.
+ * `program emit --program <id>` now AUTO-RECORDS filed refs into the ledger
+ * (planned → emitted, #88); GitHub-state RECONCILIATION is still DEFERRED (#87).
  */
 import { appendEvent } from '@kernloop/kernel';
 import { decomposeGoal, programLabels } from '@kernloop/faculty-scrum';

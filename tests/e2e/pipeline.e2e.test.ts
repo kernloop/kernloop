@@ -5,10 +5,12 @@
  * asserting observable state at each step: stdout JSON, the audit chain, the
  * SQLite ledger rollup, exit codes, and the recorded gh invocations.
  *
- * Today's UX honesty: `program emit` is ad-hoc — it re-decomposes from
- * `--goal/--spec` and does NOT auto-record into the ledger (deferred #88). So
- * the pipeline bridges emit → ledger with an explicit `program advance --ref`,
- * which reflects the current surface rather than a future one.
+ * The emit↔ledger link (#88) is now CLOSED: `program emit --program <id>` files
+ * a persisted program's planned nodes through the gated tracker and AUTO-records
+ * each filed ref into the ledger (planned → emitted) — no manual `program
+ * advance --ref` bridge. (The ad-hoc `--goal/--spec` emit still exists and is
+ * exercised separately; the manual `advance` now only drives `done` / out-of-band
+ * transitions.)
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from './harness/run-cli.js';
@@ -133,46 +135,52 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
     expect(report.nodes[0]!.result?.ref).toBe('https://github.com/kernloop-e2e/sandbox/issues/501');
   });
 
-  it('advance bridges emit → ledger: planned → emitted (with ref) → done (#88)', () => {
+  it('emit --program AUTO-records refs into the ledger (planned → emitted), idempotently (#88 CLOSED)', () => {
     const repo = freshOverlay();
+    withTracker(repo, 'enforce');
     const spec = writeSpec(repo, TWO_NODE_SPEC);
+    const url = 'https://github.com/kernloop-e2e/sandbox/issues/501';
     runCli(['program', 'create', '--goal', PROGRAM_GOAL, '--spec', spec, '--id', ID], {
       cwd: repo,
     });
-    const url = 'https://github.com/kernloop-e2e/sandbox/issues/501';
 
-    // emit does not auto-record into the ledger (deferred #88) — advance does.
-    const emitted = runCli(
-      [
-        'program',
-        'advance',
-        '--program',
-        ID,
-        '--node',
-        'prog.1',
-        '--state',
-        'emitted',
-        '--ref',
-        url,
-      ],
-      { cwd: repo },
-    );
+    // The link is CLOSED: a single ledger-driven emit files AND records — no
+    // manual `program advance --ref` bridge needed.
+    const stub = installGhStub({ mode: 'record', issueUrl: url });
+    const emitted = runCli(['program', 'emit', '--program', ID, '--execute'], {
+      cwd: repo,
+      env: ghStubEnv(stub),
+    });
     expect(emitted.code).toBe(0);
-    let node = (emitted.json() as { node: NodeRow }).node;
-    expect(node.state).toBe('emitted');
-    expect(node.issueRef).toBe(url);
+    const report = emitted.json() as { mode: string; emittedCount: number; nodes: NodeRow[] };
+    expect(report.mode).toBe('execute');
+    expect(report.emittedCount).toBe(2);
+    expect(stub.calls()).toHaveLength(2);
 
-    const done = runCli(
-      ['program', 'advance', '--program', ID, '--node', 'prog.1', '--state', 'done'],
-      { cwd: repo },
-    );
-    node = (done.json() as { node: NodeRow }).node;
-    expect(node.state).toBe('done');
-
+    // The ledger shows every node emitted with its ref, recorded AUTOMATICALLY.
     const status = runCli(['program', 'status', '--program', ID], { cwd: repo });
-    const rollup = status.json() as { counts: { done: number; planned: number }; nodes: NodeRow[] };
-    expect(rollup.counts.done).toBe(1);
-    expect(rollup.nodes.find((n) => n.nodeId === 'prog.1')?.state).toBe('done');
+    const rollup = status.json() as {
+      counts: { emitted: number; planned: number };
+      nodes: NodeRow[];
+    };
+    expect(rollup.counts.emitted).toBe(2);
+    expect(rollup.counts.planned).toBe(0);
+    for (const node of rollup.nodes) {
+      expect(node.state).toBe('emitted');
+      expect(node.issueRef).toBe(url);
+    }
+
+    // Idempotency: a re-emit files NOTHING and records zero new gh calls.
+    const stub2 = installGhStub({ mode: 'record', issueUrl: url });
+    const reemit = runCli(['program', 'emit', '--program', ID, '--execute'], {
+      cwd: repo,
+      env: ghStubEnv(stub2),
+    });
+    expect(reemit.code).toBe(0);
+    expect(stub2.calls()).toHaveLength(0);
+    const skipped = reemit.json() as { notice: string; skipped: Array<{ state: string }> };
+    expect(skipped.notice).toContain('nothing to emit');
+    expect(skipped.skipped.map((s) => s.state)).toEqual(['emitted', 'emitted']);
   });
 
   it('the audit chain is valid across the run and never leaks a goal verbatim', () => {

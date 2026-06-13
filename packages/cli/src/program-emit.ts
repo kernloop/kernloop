@@ -8,12 +8,12 @@
  * passed; at `suggest` an `--execute` is refused and the op stays dry-run (the
  * system never defaults upward, spec §3.2).
  *
- * A #52 vote condition — the ISSUE-SPAM GUARD — runs BEFORE any provider is
- * built or anything is proposed: emitting more than {@link SPAM_LIMIT} nodes
- * requires an explicit `--confirm-count N` matching the exact child count, so a
- * human must acknowledge the number. Every emit is audited ONCE as
+ * A #52 vote condition — the ISSUE-SPAM GUARD (program-emit-shared.ts) — runs
+ * BEFORE any provider is built or anything is proposed: emitting more than the
+ * spam limit needs an explicit `--confirm-count N` matching the exact count, so
+ * a human must acknowledge the number. Every emit is audited ONCE as
  * `cli.program.emit` with counts/refs only — never the node goal/body verbatim.
- * Native parent-child sub-issue LINKING is deferred to Increment 2b.
+ * The ledger-driven `--program` mode lives in program-emit-ledger.ts.
  */
 import { appendEvent } from '@kernloop/kernel';
 import type { TaskContract } from '@kernloop/contracts';
@@ -34,13 +34,12 @@ import {
   ProgramInputError,
   readSpecFile,
 } from './program-shared.js';
+import { emitLedgerOp } from './program-emit-ledger.js';
+import { checkSpamGuard } from './program-emit-shared.js';
 import { resolveMode } from './tracker-commands.js';
 
-/** Emitting more than this many issues needs an explicit `--confirm-count N`. */
-const SPAM_LIMIT = 20;
-
 const EMIT_USAGE =
-  'usage: kernloop program emit --goal G --spec F [--parent ID] [--id ID] [--execute] [--confirm-count N]';
+  'usage: kernloop program emit (--goal G --spec F [--parent ID] [--id ID] | --program ID) [--execute] [--confirm-count N]';
 
 /** One node's filing outcome (the printable per-node row). */
 interface NodeResult {
@@ -59,20 +58,6 @@ interface EmitReport {
   readonly nodeCount: number;
   readonly notice: string;
   readonly nodes: NodeResult[];
-}
-
-/** Enforce the issue-spam guard: a child count over the limit needs an explicit
- * `--confirm-count` matching it EXACTLY. Throws a typed {@link ProgramInputError}
- * (clean nonzero exit) BEFORE any provider is built or proposal made. */
-function checkSpamGuard(count: number, confirmCount: string | undefined): void {
-  if (count <= SPAM_LIMIT) return;
-  // Exact STRING match — the human must type the count they see (no numeric
-  // coercion of hex/scientific/whitespace forms).
-  if (confirmCount !== String(count)) {
-    throw new ProgramInputError(
-      `emitting ${String(count)} issues exceeds the spam guard (${String(SPAM_LIMIT)}); pass --confirm-count ${String(count)} to proceed`,
-    );
-  }
 }
 
 /** Map a provider create-result to the printable per-node row (dry-run proposal
@@ -133,6 +118,7 @@ function auditEmit(
     type: 'cli.program.emit',
     payload: {
       op: 'emit',
+      path: 'adhoc', // discriminates this from the ledger-driven emit's audit shape
       parentId: args.parentId,
       mode: args.mode,
       refusedExecute: args.refusedExecute,
@@ -197,18 +183,31 @@ export async function emitOp(
   str: (x: string | boolean | undefined) => string | undefined,
   exec: TrackerExec | undefined,
 ): Promise<number> {
+  const program = str(v.program);
   const goal = str(v.goal);
   const specFile = str(v.spec);
-  if (goal === undefined || specFile === undefined) throw new Error(EMIT_USAGE);
-  const id = str(v.id) ?? str(v.parent) ?? 'program-root';
+  const execute = v.execute === true;
+  const confirmCount = str(v['confirm-count']);
   try {
+    // Mode selection: --program runs the LEDGER-DRIVEN path; --goal/--spec the
+    // ad-hoc path. The two are mutually exclusive (a clean exit 1, never both).
+    if (program !== undefined) {
+      if (goal !== undefined || specFile !== undefined) {
+        throw new ProgramInputError(
+          '--program is mutually exclusive with --goal/--spec (ledger-driven vs ad-hoc emit)',
+        );
+      }
+      return await emitLedgerOp(kern, io, program, execute, confirmCount, exec);
+    }
+    if (goal === undefined || specFile === undefined) throw new Error(EMIT_USAGE);
+    const id = str(v.id) ?? str(v.parent) ?? 'program-root';
     checkIdLength(id);
     const specs = readSpecFile(io, specFile);
     const parent = buildProgramParent(kern, id, goal);
     const children = decomposeGoal({ parent, subtasks: specs });
     // The spam guard runs BEFORE any provider/proposal is built.
-    checkSpamGuard(children.length, str(v['confirm-count']));
-    return await runEmit(kern, io, id, children, v.execute === true, exec);
+    checkSpamGuard(children.length, confirmCount);
+    return await runEmit(kern, io, id, children, execute, exec);
   } catch (error) {
     if (isCleanError(error)) {
       io.err(JSON.stringify({ error: error.name, message: error.message }, null, 2));

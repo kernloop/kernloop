@@ -296,6 +296,17 @@ contract's budget — the kernel meters, the PM allocates.
 > the ledger, blocked on a tracker READ op) and auto-linking `program emit` into
 > the ledger — this increment is the LOCAL ledger only.
 
+> **As-realized note (2026-06-13).** Increment 3b closes the emit↔ledger link
+> (#88) [CLM-0098]: `kernloop program emit --program <id>` is a LEDGER-DRIVEN
+> mode that files a persisted program's `planned` nodes from the STORED rows
+> (never re-decomposing) through the same gated tracker and AUTO-RECORDS each
+> filed ref into the ledger (planned → emitted) on a real execute. It is
+> idempotent (a re-emit skips already-emitted/done nodes and files nothing),
+> still dry-run-default + enforce-gated + spam-guarded, and mutually exclusive
+> with the ad-hoc `--goal/--spec` path. The `program advance` manual bridge is
+> therefore now only for out-of-band / `done` transitions, not for recording
+> filed refs. STILL DEFERRED: GitHub-state reconciliation (the tracker READ op).
+
 ### 5.5 Observer — telemetry and the self-issue loop
 
 Consumes every Outcome and Verdict. Maintains the **tool/skill/template
