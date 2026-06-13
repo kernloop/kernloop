@@ -89,7 +89,10 @@ do**. The registry tracks _capabilities_; issues track _work and problems_.
 
 These are not optional polish — they are gates with triggers. Each round
 files issues for what it finds (above), and a phase exit PR may not merge
-with an open `security` or `honesty` finding it introduced.
+with an open `security` or `honesty` finding it introduced. The e2e suite
+(`pnpm e2e`, its own CI job) is a standing integration gate alongside these
+rounds: it drives the real built CLI through the AGILE pipeline and the hard
+invariants against a hermetic `gh`, and a phase exit PR may not merge red.
 
 - **QA / claim-honesty round — every phase exit, and before any exit PR.**
   Adversarially audit whether each claim's cited evidence _enforces_ the
@@ -115,6 +118,7 @@ adversarial subagents told to _refute_) for these rounds, not only self-audit.
 pnpm install            # bootstrap
 pnpm build              # turbo build all packages
 pnpm test               # all tests + coverage
+pnpm e2e                # end-to-end functional suite: drives the real CLI through the AGILE pipeline + the hard invariants against a hermetic gh
 pnpm lint               # eslint incl. plugin-isolation + LOC limits
 pnpm claims:check       # statically verify every claim's evidence resolves
 pnpm claims:verify-ran  # prove every cited test actually ran and passed

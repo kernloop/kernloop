@@ -131,4 +131,13 @@ describe('governance:check failure modes (drift proofs)', () => {
     // hyphen would look for "claims:verify" and wrongly report drift.
     expect(checkCharterCommands(root)).toEqual([]);
   });
+
+  test('matches a command name with a digit in full (e.g. e2e)', () => {
+    const root = fixtureRepo();
+    fs.writeFileSync(path.join(root, 'AGENTS.md'), '# charter\n```\npnpm e2e\n```\n');
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { e2e: 'x' } }));
+    // A regex without 0-9 in the charset would parse "pnpm e2e" as "e" and
+    // wrongly report drift (no `e` script) — this pins the digit case.
+    expect(checkCharterCommands(root)).toEqual([]);
+  });
 });

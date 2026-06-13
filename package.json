@@ -11,6 +11,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && vitest run --coverage --config vitest.root.config.mjs",
+    "e2e": "vitest run --config tests/e2e/vitest.config.ts",
     "lint": "eslint . --max-warnings 0 && node scripts/loc-check.mjs",
     "wiring:check": "node scripts/wiring-check.mjs",
     "claims:check": "tsx claims/src/check.ts",
