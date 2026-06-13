@@ -22,7 +22,7 @@ export const qualityGateManifest: Manifest = ManifestSchema.parse({
     {
       name: 'gate.quality',
       description:
-        'Run typecheck/lint/test (coverage via test exit) over a workspace; emit a Verdict',
+        'Run typecheck/lint/test (coverage via test exit) plus an in-process doc-comment scan over a workspace; emit a Verdict',
     },
   ],
   contracts: {
@@ -35,6 +35,6 @@ export const qualityGateManifest: Manifest = ManifestSchema.parse({
     latencyMs: 60_000,
   },
   tier: 'advisory',
-  claims: ['CLM-0031'],
+  claims: ['CLM-0031', 'CLM-0104'],
   maturity: 'stable',
 });

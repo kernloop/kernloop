@@ -7,7 +7,7 @@ evidence:
   - 'test:packages/faculty-gates/src/run.test.ts::fails with a timeout finding when a check exceeds its timeout'
   - 'test:packages/faculty-gates/src/run.test.ts::aggregates mixed severities across checks'
   - 'test:packages/faculty-gates/src/run.test.ts::emits a schema-valid verdict with zero token cost'
-  - 'test:packages/faculty-gates/src/checks.test.ts::default checks cover typecheck, lint, and test (coverage rides the test exit)'
+  - 'test:packages/faculty-gates/src/checks.test.ts::default checks cover typecheck, lint, test, and the doc-comment scan'
   - 'test:packages/faculty-gates/src/integration.test.ts::fails a real tsc run against a workspace with a type error'
   - 'ci:test'
 status: verified
