@@ -16,6 +16,7 @@ import {
   type TrackerMode,
   type TrackerProposal,
   type TrackerProvider,
+  type TrackerReadResult,
   type TrackerResult,
 } from './types.js';
 import { defaultExec } from './exec.js';
@@ -24,10 +25,12 @@ import {
   GithubConfigSchema,
   failure,
   ghArgv,
+  parseIssueState,
   parseLabels,
   parseRef,
   parseReason,
   refFromOutput,
+  viewArgv,
   writeBodyFile,
   type BodyFile,
   type GhPlan,
@@ -98,6 +101,30 @@ async function dispatch(
   return runPlan(plan, config, exec);
 }
 
+/**
+ * Run the READ op against `gh issue view` and resolve the issue's open/closed
+ * state. ALWAYS spawns (a read is not a mutation — `dry-run` does NOT skip it).
+ * Errors are DATA: a spawn failure → `spawn-failed`; a nonzero exit (e.g. the
+ * issue is not found) → `exit-nonzero` (scrubbed); valid-exit-but-bad-JSON →
+ * `parse-failed`. The ref is already repo-bound to a bare number by `parseRef`.
+ */
+async function runView(
+  ref: string,
+  config: GithubConfig,
+  exec: TrackerExec,
+): Promise<TrackerReadResult> {
+  const result = await exec(GH, viewArgv(config, ref));
+  if (result.spawnError !== undefined) {
+    return failure('spawn-failed', `gh could not be started: ${result.spawnError}`);
+  }
+  if (result.exitCode !== 0) {
+    return failure('exit-nonzero', `gh exited ${String(result.exitCode)}: ${result.stderr}`);
+  }
+  const parsed = parseIssueState(result.stdout);
+  if ('ok' in parsed) return parsed;
+  return { ok: true, state: parsed.state, ref };
+}
+
 /** Plan: `gh issue create --title=<t> [--label=<l>...] --body-file <f>`. */
 function createPlan(input: CreateIssueInput): GhPlan {
   const opArgs = [`--title=${input.title}`, ...(input.labels ?? []).map((l) => `--label=${l}`)];
@@ -143,28 +170,12 @@ export interface GithubProviderHandle extends TrackerProvider {
   readonly proposals: readonly TrackerProposal[];
 }
 
-/**
- * Build a GitHub {@link TrackerProvider} over `gh` [CLM-0093]. `config` is
- * validated (repo `owner/name` shape); `mode` carries the dry-run/execute
- * decision (the composition root sets `execute` ONLY at the `enforce` tier);
- * `exec` is injectable for tests (default spawns the real `gh`, no shell).
- * Every method validates its input at the boundary and returns errors as data
- * — it never throws and, in `dry-run`, never spawns.
- */
-export function githubProvider(
-  config: GithubConfig,
-  mode: TrackerMode,
-  exec: TrackerExec = defaultExec,
-): GithubProviderHandle {
-  const cfg = GithubConfigSchema.parse(config);
-  const proposals: TrackerProposal[] = [];
-  const run = (plan: GhPlan): Promise<TrackerResult> => dispatch(plan, cfg, mode, exec, proposals);
+/** The four WRITE ops, each validating at the boundary, dispatched via `run`. */
+function buildWriteOps(
+  cfg: GithubConfig,
+  run: (plan: GhPlan) => Promise<TrackerResult>,
+): Pick<TrackerProvider, 'createIssue' | 'closeIssue' | 'comment' | 'addLabels'> {
   return {
-    mode,
-    proposals,
-    capabilities(): TrackerCapabilities {
-      return GITHUB_CAPABILITIES;
-    },
     async createIssue(input: CreateIssueInput): Promise<TrackerResult> {
       const parsed = CreateIssueInputSchema.safeParse(input);
       if (!parsed.success)
@@ -194,6 +205,43 @@ export function githubProvider(
       const l = parseLabels(labels);
       if ('ok' in l) return l;
       return run(addLabelsPlan(r.ref, l.labels));
+    },
+  };
+}
+
+/**
+ * Build a GitHub {@link TrackerProvider} over `gh` [CLM-0093]. `config` is
+ * validated (repo `owner/name` shape); `mode` carries the dry-run/execute
+ * decision (the composition root sets `execute` ONLY at the `enforce` tier);
+ * `exec` is injectable for tests (default spawns the real `gh`, no shell).
+ * Every WRITE method validates its input at the boundary and returns errors as
+ * data — it never throws and, in `dry-run`, never spawns. The READ op `getIssue`
+ * [CLM-0101] is hardened identically (no shell, args-array, ref bound to the
+ * configured repo, a HARD-CODED `--json number,state` allowlist, scrubbed
+ * errors-as-data) but is mode-INDEPENDENT: a read is not a mutation, so it
+ * ALWAYS reads — even on a `dry-run` provider.
+ */
+export function githubProvider(
+  config: GithubConfig,
+  mode: TrackerMode,
+  exec: TrackerExec = defaultExec,
+): GithubProviderHandle {
+  const cfg = GithubConfigSchema.parse(config);
+  const proposals: TrackerProposal[] = [];
+  const run = (plan: GhPlan): Promise<TrackerResult> => dispatch(plan, cfg, mode, exec, proposals);
+  return {
+    mode,
+    proposals,
+    capabilities(): TrackerCapabilities {
+      return GITHUB_CAPABILITIES;
+    },
+    ...buildWriteOps(cfg, run),
+    async getIssue(ref: string): Promise<TrackerReadResult> {
+      // READ-ONLY + mode-INDEPENDENT: a read is not a mutation, so it ALWAYS
+      // spawns `gh issue view` regardless of `mode` (dry-run does not skip it).
+      const r = parseRef(ref, cfg);
+      if ('ok' in r) return r;
+      return runView(r.ref, cfg, exec);
     },
   };
 }

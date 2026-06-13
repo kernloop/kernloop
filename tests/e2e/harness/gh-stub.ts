@@ -8,7 +8,9 @@
  * Two modes:
  *  - `record`: append each argv (as JSON) to a record file and, for an
  *    `issue create`, print an issue URL as the LAST stdout line (the tracker
- *    parses the last URL line as the created ref). Exits 0.
+ *    parses the last URL line as the created ref); for an `issue view --json`,
+ *    print `{"number":N,"state":<state>}` (the READ op the reconcile verb uses),
+ *    the state configurable via {@link GhStubOptions.issueState}. Exits 0.
  *  - `poison`: write a sentinel file and exit 1 the moment it is invoked — used
  *    to PROVE the CLI never spawned `gh` (a clean run leaves no sentinel).
  *
@@ -35,6 +37,8 @@ export interface GhStubOptions {
   readonly mode: 'record' | 'poison';
   /** The issue URL a record-mode `issue create` prints (defaults to issue #1). */
   readonly issueUrl?: string;
+  /** The state a record-mode `issue view --json` reports (defaults to OPEN). */
+  readonly issueState?: 'OPEN' | 'CLOSED';
 }
 
 /** The env var the stub reads for its record-file path (record mode). */
@@ -42,8 +46,9 @@ const RECORD_ENV = 'KERNLOOP_GH_STUB_RECORD';
 /** The env var the stub reads for its sentinel path (poison mode). */
 const SENTINEL_ENV = 'KERNLOOP_GH_STUB_SENTINEL';
 
-/** The record-mode stub body: append argv, print the issue URL last on `create`. */
-function recordScript(issueUrl: string): string {
+/** The record-mode stub body: append argv, print the issue URL last on `create`
+ * and `{"number":N,"state":S}` on `view` (the READ op reconcile uses). */
+function recordScript(issueUrl: string, issueState: 'OPEN' | 'CLOSED'): string {
   return [
     '#!/usr/bin/env node',
     "const fs = require('node:fs');",
@@ -53,6 +58,10 @@ function recordScript(issueUrl: string): string {
     "if (argv[0] === 'issue' && argv[1] === 'create') {",
     "  process.stdout.write('Creating issue...\\n');",
     `  process.stdout.write(${JSON.stringify(issueUrl)} + '\\n');`,
+    "} else if (argv[0] === 'issue' && argv[1] === 'view') {",
+    '  // The ref is the sole positional behind `--`; echo it back as the number.',
+    '  const num = Number(argv[argv.length - 1]) || 0;',
+    `  process.stdout.write(JSON.stringify({ number: num, state: ${JSON.stringify(issueState)} }) + '\\n');`,
     '}',
     'process.exit(0);',
     '',
@@ -86,7 +95,8 @@ export function installGhStub(opts: GhStubOptions): GhStub {
   const recordPath = path.join(binDir, 'calls.jsonl');
   const sentinelPath = path.join(binDir, 'sentinel.json');
   const issueUrl = opts.issueUrl ?? 'https://github.com/kernloop-e2e/sandbox/issues/1';
-  const body = opts.mode === 'record' ? recordScript(issueUrl) : poisonScript();
+  const issueState = opts.issueState ?? 'OPEN';
+  const body = opts.mode === 'record' ? recordScript(issueUrl, issueState) : poisonScript();
   writeFileSync(ghPath, body, { encoding: 'utf8' });
   chmodSync(ghPath, 0o755);
   // Seed an empty record file so `calls()` is deterministic before any spawn.

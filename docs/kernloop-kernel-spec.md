@@ -305,7 +305,23 @@ contract's budget — the kernel meters, the PM allocates.
 > still dry-run-default + enforce-gated + spam-guarded, and mutually exclusive
 > with the ad-hoc `--goal/--spec` path. The `program advance` manual bridge is
 > therefore now only for out-of-band / `done` transitions, not for recording
-> filed refs. STILL DEFERRED: GitHub-state reconciliation (the tracker READ op).
+> filed refs.
+
+> **As-realized note (2026-06-13).** GitHub-state RECONCILIATION (#87) is now
+> realized [CLM-0101, CLM-0102]: the program ledger reconciles TOWARD GitHub,
+> which is the authoritative live state — the ledger is now a reconciled cache,
+> not an independent record. `@kernloop/tracker` gained a hardened READ op
+> `getIssue` (`gh issue view` with a HARD-CODED `--json number,state` allowlist,
+> the ref bound to the configured repo, OPEN/CLOSED normalized to lowercase,
+> errors-as-data, scrubbed) [CLM-0101]; it is READ-ONLY and mode-INDEPENDENT — a
+> read is not a mutation, so it always reads even on a `dry-run` provider.
+> `kernloop program reconcile --program <id>` reads each `emitted` node's GitHub
+> issue and advances it `emitted → done` when the issue is CLOSED [CLM-0102].
+> The gh READ runs at ANY tier (a read is not gated, like `models sync`); only
+> the LOCAL ledger write is `--execute`-gated (dry-run, the default, prints the
+> reconciliation diff and writes nothing). Each run is audited ONCE
+> (`cli.program.reconcile`) with counts only; a `getIssue` read failure surfaces
+> as exit 1 with the node left unchanged (a broken reconcile is visible).
 
 ### 5.5 Observer — telemetry and the self-issue loop
 

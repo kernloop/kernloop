@@ -19,10 +19,11 @@
  * stored as DATA, never interpolated into SQL.
  *
  * `program emit --program <id>` AUTO-RECORDS each filed issue ref here on a real
- * execute (planned → emitted, #88); `program advance` drives the rest (→ done)
- * and out-of-band recording. GitHub-state RECONCILIATION (reading issue state
- * back into the ledger) is still DEFERRED (#87) — the ledger records what WE
- * set; GitHub is the live authority.
+ * execute (planned → emitted, #88); `program advance` drives out-of-band /
+ * `done` transitions. GitHub-state RECONCILIATION is now REALIZED (#87,
+ * CLM-0102): `program reconcile` READS each emitted node's GitHub issue via the
+ * tracker and advances it emitted → done when the issue is closed — GitHub is
+ * the live authority and the ledger is a reconciled cache of it.
  */
 import Database from 'better-sqlite3';
 

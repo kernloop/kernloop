@@ -36,6 +36,7 @@ import {
   IssueRefSchema,
   LabelSchema,
   type ExecResult,
+  type IssueState,
   type TrackerCapabilities,
   type TrackerFailure,
   type TrackerFailureReason,
@@ -53,17 +54,29 @@ export const GithubConfigSchema = z.strictObject({
 });
 export type GithubConfig = z.infer<typeof GithubConfigSchema>;
 
-/** The only `gh issue` subcommands this provider may ever construct (allowlist). */
-export const GH_SUBCOMMANDS = ['create', 'close', 'comment', 'edit'] as const;
+/**
+ * The only `gh issue` subcommands this provider may ever construct (allowlist).
+ * `view` is the sole READ verb (used by getIssue); the rest are WRITES.
+ */
+export const GH_SUBCOMMANDS = ['create', 'close', 'comment', 'edit', 'view'] as const;
 type GhSubcommand = (typeof GH_SUBCOMMANDS)[number];
 
-/** The GitHub provider supports every core operation. */
+/** The GitHub provider supports every core operation, including the READ op. */
 const GITHUB_CAPABILITIES: TrackerCapabilities = {
   createIssue: true,
   closeIssue: true,
   comment: true,
   addLabels: true,
+  getIssue: true,
 };
+
+/**
+ * The HARD-CODED `--json` field allowlist for `gh issue view`. Never sourced
+ * from input — the only structured fields the READ op ever requests are the
+ * issue number and its open/closed state, so the read surface cannot be widened
+ * by a caller into leaking arbitrary issue content.
+ */
+const VIEW_JSON_FIELDS = 'number,state';
 
 /**
  * Scrub surfaced CLI output of anything that could leak a secret or a local
@@ -115,6 +128,51 @@ function ghArgv(
 function refFromOutput(result: ExecResult, fallback: string): string {
   const url = result.stdout.trim().split('\n').at(-1) ?? '';
   return /^https?:\/\//.test(url) ? url : fallback;
+}
+
+/**
+ * Build the argv for the READ op: `gh issue view --repo o/n --json number,state
+ * -- <number>`. The `--json` field list is the HARD-CODED {@link
+ * VIEW_JSON_FIELDS} allowlist, NEVER from input; the (already repo-bound, bare
+ * number) ref is the sole positional behind `--`, so it can never be read as a
+ * flag and can never widen the requested fields. Mirrors the write ops' posture.
+ */
+function viewArgv(config: GithubConfig, ref: string): string[] {
+  return ghArgv('view', config, ['--json', VIEW_JSON_FIELDS], [ref]);
+}
+
+/** The expected shape of `gh issue view --json number,state` stdout. */
+const ViewJsonSchema = z.object({
+  number: z.number().int().nonnegative(),
+  state: z.string(),
+});
+
+/**
+ * Parse `gh issue view --json number,state` stdout into the normalized
+ * {@link IssueState}. `gh` returns `state` as `"OPEN"|"CLOSED"`; we lowercase
+ * it to `open|closed`. A non-JSON body, a wrong shape, or an unexpected state
+ * value is a typed `parse-failed` {@link TrackerFailure} (scrubbed) — never a
+ * thrown error, mirroring the write ops' errors-as-data posture.
+ */
+function parseIssueState(stdout: string): { state: IssueState } | TrackerFailure {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stdout);
+  } catch {
+    return failure('parse-failed', 'gh issue view did not return valid JSON');
+  }
+  const parsed = ViewJsonSchema.safeParse(raw);
+  if (!parsed.success) {
+    return failure('parse-failed', 'gh issue view JSON missing number/state fields');
+  }
+  const normalized = parsed.data.state.toLowerCase();
+  if (normalized !== 'open' && normalized !== 'closed') {
+    return failure(
+      'parse-failed',
+      `gh issue view returned an unexpected state "${parsed.data.state}"`,
+    );
+  }
+  return { state: normalized };
 }
 
 interface BodyFile {
@@ -194,6 +252,8 @@ export {
   GITHUB_CAPABILITIES,
   ghArgv,
   refFromOutput,
+  viewArgv,
+  parseIssueState,
   writeBodyFile,
   failure,
   parseRef,

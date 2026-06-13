@@ -1,0 +1,25 @@
+id: CLM-0101
+statement: >-
+  The GitHub tracker exposes a hardened READ op getIssue — gh issue view with a
+  HARD-CODED --json allowlist (number,state, never from input), the ref bound to
+  the configured repo (a cross-repo URL is rejected without spawning) and passed
+  as the sole positional behind --, the gh OPEN/CLOSED state normalized to
+  lowercase open|closed, errors as data (a nonzero exit, a spawn failure, and
+  malformed/unexpected JSON each a typed, scrubbed TrackerFailure, never thrown)
+  — and it is READ-ONLY and mode-INDEPENDENT (a read is not a mutation, so a
+  dry-run provider still reads); the capability descriptor declares getIssue.
+evidence:
+  - 'test:packages/tracker/src/provider.test.ts::the capability descriptor includes the getIssue READ op'
+  - 'test:packages/tracker/src/provider.test.ts::builds gh issue view --repo o/n --json number,state -- 42 and parses CLOSED'
+  - 'test:packages/tracker/src/provider.test.ts::parses OPEN to the lowercase open state'
+  - 'test:packages/tracker/src/provider.test.ts::ALWAYS reads even in dry-run mode (a read is not a mutation, mode-independent)'
+  - 'test:packages/tracker/src/provider.test.ts::rejects a CROSS-REPO github URL ref — invalid-input, never spawns'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces a nonzero gh exit (issue not found) as a scrubbed, typed failure'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces malformed JSON stdout as a typed parse-failed (never throws)'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces an unexpected state value as parse-failed'
+  - 'test:packages/tracker/src/provider.test.ts::surfaces a spawn failure as a typed spawn-failed'
+  - 'code:packages/tracker/src/provider.ts#githubProvider@doc:/CLM-0101/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.5.0
