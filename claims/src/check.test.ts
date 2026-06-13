@@ -381,10 +381,15 @@ describe('cli', () => {
     expect(error.mock.calls.join('\n')).toContain('claims:check FAILED');
   });
 
+  // Resolves EVERY claim's evidence across the whole repo (97+ claims: test
+  // names, code: anchors via the TS compiler, doc anchors, files) — seconds of
+  // real I/O that grows with the registry, so this one whole-repo test gets a
+  // generous explicit timeout rather than vitest's 5s default (which it began
+  // to flake against under CI load as the registry grew).
   it('runs against this repo root by default and passes', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     cli();
     expect(process.exitCode).toBeUndefined();
     expect(log.mock.calls.join('\n')).toContain('all evidence resolves');
-  });
+  }, 30_000);
 });

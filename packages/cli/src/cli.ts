@@ -36,6 +36,7 @@ import { modelsCommand } from './models-commands.js';
 import { trackerCommand } from './tracker-commands.js';
 import { observerCommand } from './observer-commands.js';
 import { programCommand } from './program-commands.js';
+import { USAGE } from './usage.js';
 
 /** Injectable I/O so tests can capture output. */
 export interface CliIo {
@@ -43,46 +44,6 @@ export interface CliIo {
   err: (text: string) => void;
   cwd: string;
 }
-
-const USAGE = [
-  'usage: kernloop <command> [flags]',
-  '  init      [--dir <repo>]                        scaffold .kernloop/',
-  '  doctor    [--dir <repo>]                        validate the overlay',
-  '  serve     [--dir <repo>]                        MCP server on stdio',
-  '  run       --goal G --capability C [--workspace D] [--adapter A] [--plan] [--async] [--id I]',
-  '            [--budget tokens=N,usd=N,wallClock=N] [--unlimited]',
-  '            --resume RUNID --capability workflow.canonical [--workspace D] [--adapter A]',
-  '  status    (--task-id T | --job J)',
-  '  brief     --goal G [--id I]',
-  '  gate      --gate quality --task-id T --workspace D',
-  '            --gate vote --proposal P [--brief-goal G] [--panel 3|7] [--strategy S] [--adapter A] [--task-id T]',
-  '            --gate review (--diff D | --diff-file F) [--context C] [--adapter A] [--task-id T]',
-  '  recall    --query Q [--limit N]',
-  '  remember  --fact F --provenance P [--confidence C]',
-  '  distill   --trace <taskId|runId> [--adapter A]   propose a skill from a trace (suggest tier)',
-  '  forge     --spec-file <tool-spec.json> [--adapter A]   birth a workshop/* tool in the sandbox',
-  '  workshop  run <name> (--input <file> | --input-json <json>)  invoke a born tool in the sandbox',
-  '            sweep                                       decay unused tools toward removal',
-  '            list                                        live workshop tools + their ladder tier',
-  '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
-  '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
-  '  observe',
-  '  memory    export [--out <file>]                 portable memory export (JSON; default stdout)',
-  '            import <file>                          load a memory export (upserts, audited)',
-  '  priors    export [--out <file>]                 routing priors → .kernloop/priors.yaml (YAML)',
-  '  models    sync [--ollama-host <H>] [--no-ollama] | list   discover/list the model catalog',
-  '  tracker   create --title T --body-file F [--label L]   file an issue (DRY RUN by default)',
-  '            close <ref> [--reason R] | comment <ref> --body-file F | label <ref> --add L',
-  '            [--execute]   perform the mutation — honored ONLY at the enforce tier (spec §5.5)',
-  '  observer  proposals | propose <n> | list           the self-issue loop (spec §5.5)',
-  '            file <id> [--execute]   file a proposal via the tracker (DRY RUN by default; enforce-gated)',
-  '  program   decompose --goal G --spec F [--parent ID] [--id ID]   decompose a goal into an epic/story tree (preview; spec §5.4)',
-  '            emit --goal G --spec F [--id ID] [--execute] [--confirm-count N]   file each child as a labeled issue (DRY RUN by default; enforce-gated, spam-guarded)',
-  '            create --goal G --spec F [--id ID]   persist the decomposed plan to the resumable ledger (.kernloop/programs.sqlite)',
-  '            list   the persisted programs in the ledger (id + goal)',
-  '            status --program ID   the ledger rollup: planned/emitted/done counts + per-node state',
-  '            advance --program ID --node NODE --state emitted|done [--ref URL]   advance one node forward (no daemon; spec §5.4)',
-].join('\n');
 
 /** Common string- and boolean-flag declarations, spread into command options. */
 const S = { type: 'string' } as const;
@@ -127,6 +88,26 @@ async function withKernloop(
   try {
     io.out(JSON.stringify(await fn(kern), null, 2));
     return 0;
+  } finally {
+    kern.close();
+  }
+}
+
+/**
+ * Like {@link withKernloop}, but the command picks its own exit CODE from the
+ * tool result — so an integrity/verdict command can FAIL CLOSED (exit nonzero)
+ * instead of the default 0. The `json` is still printed; `code` is the exit.
+ */
+async function withKernloopCode(
+  io: CliIo,
+  dir: string | boolean | undefined,
+  fn: (kern: Kernloop) => { json: unknown; code: number },
+): Promise<number> {
+  const kern = createKernloop({ overlayDir: overlayDirFor(io, dir) });
+  try {
+    const { json, code } = fn(kern);
+    io.out(JSON.stringify(json, null, 2));
+    return code;
   } finally {
     kern.close();
   }
@@ -301,14 +282,23 @@ const HANDLERS: Record<string, Handler> = {
   audit: (args, io) => {
     const v = flags(args, { op: S, from: S, to: S, type: S });
     const [from, to, type] = [str(v.from), str(v.to), str(v.type)];
-    return withKernloop(io, v.dir, (kern) => {
-      if ((str(v.op) ?? 'verify') === 'verify') return auditTool(kern, { op: 'verify' });
-      return auditTool(kern, {
-        op: 'query',
-        ...(from === undefined ? {} : { fromSeq: Number(from) }),
-        ...(to === undefined ? {} : { toSeq: Number(to) }),
-        ...(type === undefined ? {} : { type }),
-      });
+    return withKernloopCode(io, v.dir, (kern) => {
+      if ((str(v.op) ?? 'verify') === 'verify') {
+        const json = auditTool(kern, { op: 'verify' });
+        // An integrity verb FAILS CLOSED: a broken/tampered chain is exit 1, so
+        // `kernloop audit --op verify && …` can never treat tampering as success.
+        const code = json.op === 'verify' && !json.result.ok ? 1 : 0;
+        return { json, code };
+      }
+      return {
+        json: auditTool(kern, {
+          op: 'query',
+          ...(from === undefined ? {} : { fromSeq: Number(from) }),
+          ...(to === undefined ? {} : { toSeq: Number(to) }),
+          ...(type === undefined ? {} : { type }),
+        }),
+        code: 0,
+      };
     });
   },
   observe: (args, io) => {
