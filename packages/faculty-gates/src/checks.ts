@@ -59,10 +59,12 @@ export function isInProcessCheck(check: QualityCheck): check is InProcessCheck {
 }
 
 /**
- * The in-process doc-comment check (#65, CLM-0104): flags every exported TS/JS
- * top-level declaration in the workspace that lacks a non-empty doc-comment as
- * an `error` (driving per-child re-iteration), and records one `info` finding
- * per known source language it cannot yet cover. Presence only, never accuracy.
+ * The in-process doc-comment check (#65, #108, CLM-0104): flags every exported
+ * TS/JS top-level declaration (TS compiler API) and every public Python/Go/Rust
+ * declaration (in-process WASM grammars) in the workspace that lacks a non-empty
+ * doc-comment as an `error` (driving per-child re-iteration), and records one
+ * `info` finding per REMAINING source language it cannot yet cover. Presence
+ * only, never accuracy. Async (the WASM grammars load asynchronously).
  */
 export function docCommentCheck(): InProcessCheck {
   return { name: 'doc-comments', run: scanDocComments };

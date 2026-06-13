@@ -9,11 +9,13 @@
  *
  * SCOPE, stated honestly (the prime directive): this proves a doc-comment is
  * PRESENT and non-empty — never that it is ACCURATE. Accuracy is a judgment a
- * mechanical scan cannot make; only a reviewer/test can. And it covers only
- * TypeScript/JavaScript: a known source language it cannot yet parse (Python,
- * Go, Rust, …) degrades HONESTLY — one non-blocking `info` finding records the
- * gap rather than silently passing the files. Non-code files are out of scope
- * and skipped. The AST logic mirrors `claims/src/symbols.ts` (the quarry
+ * mechanical scan cannot make; only a reviewer/test can. TypeScript/JavaScript
+ * is enforced here via the TS compiler API; Python/Go/Rust are enforced in
+ * `treesitter-scan.ts` (in-process WASM grammars, #108). A REMAINING known
+ * source language the scanner cannot yet parse (Ruby, Java, …) degrades
+ * HONESTLY — one non-blocking `info` finding records the gap rather than
+ * silently passing the files. Non-code files are out of scope and skipped.
+ * The AST logic mirrors `claims/src/symbols.ts` (the quarry
  * pattern: reimplement against this consumer, not a cross-package import — a
  * runtime faculty must not depend on the private claims tooling package).
  */
@@ -21,16 +23,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import type { Finding } from '@kernloop/contracts';
+import { scanTreeSitterFiles, TREE_SITTER_EXTS } from './treesitter-scan.js';
 
 /** File extensions this scanner parses with the TS compiler API (covered). */
 const COVERED_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
 
 /** Known SOURCE languages the scanner cannot yet parse — recorded, not faked.
- * Maps extension → language label for the honest-degradation finding. */
+ * Maps extension → language label for the honest-degradation finding. Python,
+ * Go, and Rust are NOT here: they are enforced via {@link scanTreeSitterFiles}
+ * (#108). The rest still degrade to one `info` finding until covered. */
 const UNCOVERED_LANGS: Record<string, string> = {
-  '.py': 'Python',
-  '.go': 'Go',
-  '.rs': 'Rust',
   '.rb': 'Ruby',
   '.java': 'Java',
   '.kt': 'Kotlin',
@@ -301,24 +303,34 @@ function degradationFindings(byLang: ReadonlyMap<string, number>): Finding[] {
 }
 
 /**
- * Scan a workspace for doc-comment coverage and return the findings (#65,
- * CLM-0104). Every exported TS/JS top-level declaration without a non-empty
- * leading doc-comment is an `error` finding (driving per-child re-iteration);
- * each known source language the scanner cannot parse contributes one `info`
- * finding (honest degradation); non-code files are skipped. Presence only —
- * never accuracy. Pure read; never spawns a process or calls a model.
+ * Scan a workspace for doc-comment coverage and return the findings (#65, #108;
+ * CLM-0104). Every exported TS/JS top-level declaration (TS compiler API) and
+ * every public Python/Go/Rust declaration (tree-sitter, {@link
+ * scanTreeSitterFiles}) without a non-empty leading doc-comment is an `error`
+ * finding (driving per-child re-iteration); each REMAINING source language the
+ * scanner cannot parse contributes one `info` finding (honest degradation);
+ * non-code files are skipped. Presence only — never accuracy. Pure read; never
+ * spawns a process or calls a model. Async because the WASM grammars load
+ * asynchronously (the gate runner awaits and times out the in-process check).
  */
-export function scanDocComments(workspaceDir: string): Finding[] {
+export async function scanDocComments(workspaceDir: string): Promise<Finding[]> {
   const covered: string[] = [];
+  const treeSitter: string[] = [];
   const uncovered = new Map<string, number>();
   for (const file of walkFiles(workspaceDir)) {
     const ext = path.extname(file).toLowerCase();
     if (COVERED_EXTS.has(ext)) {
       covered.push(file);
+    } else if (TREE_SITTER_EXTS.has(ext)) {
+      treeSitter.push(file);
     } else if (UNCOVERED_LANGS[ext] !== undefined) {
       const lang = UNCOVERED_LANGS[ext];
       uncovered.set(lang, (uncovered.get(lang) ?? 0) + 1);
     }
   }
-  return [...findUndocumented(covered, workspaceDir), ...degradationFindings(uncovered)];
+  return [
+    ...findUndocumented(covered, workspaceDir),
+    ...(await scanTreeSitterFiles(treeSitter, workspaceDir)),
+    ...degradationFindings(uncovered),
+  ];
 }
