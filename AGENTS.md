@@ -153,6 +153,12 @@ docs/                 spec (canonical) + thin ARCHITECTURE.md
   small commits; every commit leaves CI green
 - zod-validate at every contract boundary; no `any` across boundaries
 - No new runtime dependency without stating why in the PR description
+- Tests doing real I/O (subprocess, `tsc`, the canonical loop, whole-repo
+  scans) set a generous `testTimeout` (the I/O-heavy packages default to 30s in
+  their `vitest.config.ts`) — never rely on vitest's 5s default, which flakes
+  under CI load. A transitive dev-dep advisory that fails `pnpm audit
+--audit-level=high` is pinned via root `pnpm.overrides` (e.g. esbuild),
+  stating the advisory in the PR.
 
 ## Forbidden (will be reverted on sight)
 
