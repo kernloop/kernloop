@@ -162,17 +162,17 @@ describe('scanDocComments — Python/Go/Rust enforcement (#108)', () => {
 
 describe('scanDocComments — honest degradation (remaining languages)', () => {
   it('records ONE non-blocking info finding per still-uncovered known language', async () => {
-    write('a.kt', 'fun f() {}\n');
-    write('b.kt', 'fun g() {}\n');
-    write('M.swift', 'func h() {}\n');
+    write('a.dart', 'void f() {}\n');
+    write('b.dart', 'void g() {}\n');
+    write('app.lua', 'function h() end\n');
     const findings = await scanDocComments(dir);
-    const kt = findings.filter((f) => f.message.includes('Kotlin'));
-    const swift = findings.filter((f) => f.message.includes('Swift'));
-    expect(kt).toHaveLength(1);
-    expect(kt[0]?.severity).toBe('info');
-    expect(kt[0]?.message).toContain('2 file(s)');
-    expect(swift).toHaveLength(1);
-    expect(swift[0]?.severity).toBe('info');
+    const dart = findings.filter((f) => f.message.includes('Dart'));
+    const lua = findings.filter((f) => f.message.includes('Lua'));
+    expect(dart).toHaveLength(1);
+    expect(dart[0]?.severity).toBe('info');
+    expect(dart[0]?.message).toContain('2 file(s)');
+    expect(lua).toHaveLength(1);
+    expect(lua[0]?.severity).toBe('info');
   });
 
   it('skips non-code files entirely (no finding, no degradation note)', async () => {
@@ -183,7 +183,7 @@ describe('scanDocComments — honest degradation (remaining languages)', () => {
   });
 
   it('a still-uncovered-language info finding never blocks (no error/blocker severity)', async () => {
-    write('only.kt', 'fun f() {}\n');
+    write('only.dart', 'void f() {}\n');
     const findings = await scanDocComments(dir);
     expect(findings.every((f) => f.severity === 'info')).toBe(true);
   });

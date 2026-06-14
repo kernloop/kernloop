@@ -30,13 +30,24 @@ describe('TREE_SITTER_EXTS', () => {
   it('covers the vendored-grammar languages', () => {
     expect([...TREE_SITTER_EXTS].sort()).toEqual([
       '.c',
+      '.cc',
+      '.cpp',
+      '.cs',
+      '.cxx',
       '.go',
       '.h',
+      '.hh',
+      '.hpp',
       '.java',
+      '.kt',
+      '.kts',
       '.php',
       '.py',
       '.rb',
       '.rs',
+      '.sc',
+      '.scala',
+      '.swift',
     ]);
   });
 });

@@ -1,10 +1,12 @@
 /**
  * The per-language declaration extractors behind the multi-language doc-comment
- * gate (Python/Go/Rust #108; Java/C/PHP/Ruby #122; CLM-0104). Each extractor
- * enumerates a source file's PUBLIC
- * top-level declarations and whether each carries an adjacent doc-comment —
- * presence, NEVER accuracy (the prime directive). "Public" is each language's
- * OWN visibility rule, and "documented" is its OWN doc convention:
+ * gate (Python/Go/Rust #108; Java/C/PHP/Ruby #122; C++/C#/Kotlin/Swift/Scala
+ * #120; CLM-0104). This file holds the original seven; the five large-grammar
+ * languages live in sibling `treesitter-<lang>.ts` files and are merged into
+ * {@link LANGS} here. Each extractor enumerates a source file's PUBLIC
+ * declarations and whether each carries an adjacent doc-comment — presence,
+ * NEVER accuracy (the prime directive). "Public" is each language's OWN
+ * visibility rule, and "documented" is its OWN doc convention:
  *
  *  - Python  — module-level `def`/`class` not starting `_`; docstring as the
  *              body's first statement.
@@ -23,51 +25,34 @@
  *  - Ruby    — top-level `def`/`def self.x`/`class`/`module` (public by
  *              default); a `#` comment above.
  *
- * SCOPE. Python/Go/Rust/C enumerate the TOP LEVEL (most of their public surface
- * there); Java and PHP ALSO descend one level into a type's PUBLIC members
- * (#121). Still deferred (#150): Ruby instance-method visibility (its stateful
- * `private`/`protected` directives) and brace-`namespace` bodies.
+ * The five #120 languages (own files): C++ (C-like + named-namespace descent +
+ * class/struct access tracking), C# (`public` only, namespace descent, members),
+ * Kotlin + Scala (public-by-default, members), Swift (`public`/`open` only).
+ *
+ * SCOPE. Python/Go/Rust/C enumerate the TOP LEVEL; Java/PHP/C#/C++/Kotlin/Scala/
+ * Swift ALSO descend one level into a type's PUBLIC members (#121/#120); C#/C++
+ * descend named namespaces. Still deferred (#150): Ruby instance-method
+ * visibility (its stateful `private`/`protected` directives) and other
+ * brace-`namespace` bodies.
  *
  * Pure AST logic over `web-tree-sitter` nodes — no I/O, no model. The grammar
  * loading, byte budgets, and walk live in treesitter-scan.ts.
  */
 import type Parser from 'web-tree-sitter';
+import {
+  isAdjacentComment,
+  kindOf,
+  lineOf,
+  type Decl,
+  type LangSpec,
+} from './treesitter-shared.js';
+import { extractCSharp } from './treesitter-csharp.js';
+import { extractScala } from './treesitter-scala.js';
+import { extractKotlin } from './treesitter-kotlin.js';
+import { extractCpp } from './treesitter-cpp.js';
+import { extractSwift } from './treesitter-swift.js';
 
-/** One public top-level declaration and whether it carries a doc-comment. */
-export interface Decl {
-  readonly name: string;
-  readonly kind: string;
-  readonly line: number;
-  readonly documented: boolean;
-}
-
-/** A language the tree-sitter path covers: its display label, grammar filename,
- * and the extractor that enumerates its public declarations. */
-export interface LangSpec {
-  readonly label: string;
-  readonly wasm: string;
-  readonly extract: (root: Parser.SyntaxNode) => Decl[];
-}
-
-/** True for a comment node adjacent to (on the line above, no blank-line gap)
- * the declaration at `declRow` — the "doc comment immediately above" convention. */
-function isAdjacentComment(
-  prev: Parser.SyntaxNode | null,
-  declRow: number,
-  types: readonly string[],
-): boolean {
-  return prev !== null && types.includes(prev.type) && declRow - prev.endPosition.row <= 1;
-}
-
-/** The 1-based source line of a node (tree-sitter rows are 0-based). */
-function lineOf(node: Parser.SyntaxNode): number {
-  return node.startPosition.row + 1;
-}
-
-/** A short kind label from a node type (strip the grammar's decl/def suffix). */
-function kindOf(type: string): string {
-  return type.replace(/_(declaration|definition|specifier|item|spec)$/, '');
-}
+export type { Decl, LangSpec } from './treesitter-shared.js';
 
 /** Python: module-level `def`/`class` whose name is public (no leading `_`),
  * documented iff the body's first statement is a string expression (docstring). */
@@ -396,4 +381,15 @@ export const LANGS: Record<string, LangSpec> = {
   '.h': { label: 'C', wasm: 'tree-sitter-c.wasm', extract: extractC },
   '.php': { label: 'PHP', wasm: 'tree-sitter-php.wasm', extract: extractPhp },
   '.rb': { label: 'Ruby', wasm: 'tree-sitter-ruby.wasm', extract: extractRuby },
+  '.cs': { label: 'C#', wasm: 'tree-sitter-c_sharp.wasm', extract: extractCSharp },
+  '.scala': { label: 'Scala', wasm: 'tree-sitter-scala.wasm', extract: extractScala },
+  '.sc': { label: 'Scala', wasm: 'tree-sitter-scala.wasm', extract: extractScala },
+  '.kt': { label: 'Kotlin', wasm: 'tree-sitter-kotlin.wasm', extract: extractKotlin },
+  '.kts': { label: 'Kotlin', wasm: 'tree-sitter-kotlin.wasm', extract: extractKotlin },
+  '.cpp': { label: 'C++', wasm: 'tree-sitter-cpp.wasm', extract: extractCpp },
+  '.cc': { label: 'C++', wasm: 'tree-sitter-cpp.wasm', extract: extractCpp },
+  '.cxx': { label: 'C++', wasm: 'tree-sitter-cpp.wasm', extract: extractCpp },
+  '.hpp': { label: 'C++', wasm: 'tree-sitter-cpp.wasm', extract: extractCpp },
+  '.hh': { label: 'C++', wasm: 'tree-sitter-cpp.wasm', extract: extractCpp },
+  '.swift': { label: 'Swift', wasm: 'tree-sitter-swift.wasm', extract: extractSwift },
 };
