@@ -10,8 +10,9 @@
  * Outcome and a semantic fact per signal (provenance `loop:retrospect`).
  * Every gate Verdict is published on the bus — audited (rule 7).
  */
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { SymlinkWriteError, writeFileNoFollow } from './safe-write.js';
 import {
   BriefSchema,
   OutcomeSchema,
@@ -116,7 +117,20 @@ export function writeWorkspaceFiles(
     }
   }
   for (const file of resolved) {
-    writeFileSync(file.target, file.content, 'utf8');
+    // The dir realpath above cannot catch a symlink AT the leaf; O_NOFOLLOW
+    // refuses to write through one (#161). A model that named a symlinked path
+    // violated the files contract → surface it as one (retryable).
+    try {
+      writeFileNoFollow(file.target, file.content);
+    } catch (error) {
+      if (error instanceof SymlinkWriteError) {
+        throw new LoopParseError(
+          'files',
+          `path resolves outside the workspace via a symlink: ${path.relative(root, file.target)}`,
+        );
+      }
+      throw error;
+    }
   }
   return resolved.map((file) => path.relative(root, file.target));
 }

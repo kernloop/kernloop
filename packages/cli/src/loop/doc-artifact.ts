@@ -10,9 +10,9 @@
  *
  * A deliverable with no exported TS/JS symbols writes NOTHING (no empty file).
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { mineExportedSymbols, type ExportedSymbol, type MinedFile } from '@kernloop/faculty-gates';
+import { SymlinkWriteError, writeFileNoFollow } from './safe-write.js';
 
 /** The generated artifact's filename — unambiguous so it never clobbers a
  * hand-written README/API doc in the deliverable. */
@@ -95,6 +95,16 @@ export function writeDocArtifact(workspaceDir: string): DocArtifactResult {
   if (symbolCount === 0) {
     return { written: false, symbolCount: 0, documentedCount: 0, skippedForBudget };
   }
-  fs.writeFileSync(path.join(workspaceDir, DOC_ARTIFACT_NAME), renderApiDoc(mined), 'utf8');
+  try {
+    // O_NOFOLLOW: never write the derived doc THROUGH a symlinked API.md out of
+    // the workspace (#161). The artifact is best-effort, so a symlinked target
+    // degrades to not-written rather than failing the run.
+    writeFileNoFollow(path.join(workspaceDir, DOC_ARTIFACT_NAME), renderApiDoc(mined));
+  } catch (error) {
+    if (error instanceof SymlinkWriteError) {
+      return { written: false, symbolCount, documentedCount, skippedForBudget };
+    }
+    throw error;
+  }
   return { written: true, path: DOC_ARTIFACT_NAME, symbolCount, documentedCount, skippedForBudget };
 }

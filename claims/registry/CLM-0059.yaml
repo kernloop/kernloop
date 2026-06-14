@@ -1,11 +1,14 @@
 id: CLM-0059
 statement: >-
   Files written by the canonical loop cannot escape the workspace directory,
-  including through a pre-existing symlink.
+  including through a pre-existing symlink — whether the symlink is a parent
+  directory component OR the TARGET file itself (the write opens with O_NOFOLLOW,
+  so a symlinked leaf is refused, never followed, #161).
 evidence:
   - 'test:packages/cli/src/loop/invoke.test.ts::rejects a path escaping the workspace and writes NOTHING (checked before the first write)'
   - 'test:packages/cli/src/loop/invoke.test.ts::rejects an absolute path outside the workspace'
   - 'test:packages/cli/src/loop/invoke.test.ts::rejects a write through a pre-existing symlink that escapes the workspace'
+  - 'test:packages/cli/src/loop/invoke.test.ts::refuses to write THROUGH a symlinked target file (the leaf, O_NOFOLLOW) (#161)'
   - 'test:packages/cli/src/loop/invoke.test.ts::still writes when the workspace itself is under a symlink (realpath root)'
   - 'ci:test'
 status: verified

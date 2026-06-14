@@ -20,7 +20,11 @@ import { readEnvelopes } from './audit.js';
  * for direct unit test — the recorded label values (gate/status/result) are
  * clean, so the escape branches are not reachable through the audit chain. */
 export function escapeLabel(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
 }
 
 /** One metric sample: optional labels and a numeric value. */
