@@ -248,6 +248,20 @@ describe('writeWorkspaceFiles (path-traversal guard)', () => {
     expect(existsSync(path.join(outside, 'pwned.ts'))).toBe(false);
   });
 
+  it('refuses to write THROUGH a symlinked target file (the leaf, O_NOFOLLOW) (#161)', () => {
+    const workspace = path.join(scratch, 'ws-leaf');
+    mkdirSync(workspace, { recursive: true });
+    const secret = path.join(scratch, 'secret.txt');
+    writeFileSync(secret, 'ORIGINAL\n', 'utf8');
+    // The target file itself is a symlink out of the workspace — the parent dir
+    // is clean, so only a leaf check (O_NOFOLLOW) can stop the escape.
+    symlinkSync(secret, path.join(workspace, 'config'));
+    expect(() => writeWorkspaceFiles(workspace, [{ path: 'config', content: 'PWNED' }])).toThrow(
+      'symlink',
+    );
+    expect(readFileSync(secret, 'utf8')).toBe('ORIGINAL\n'); // the outside file is untouched
+  });
+
   it('still writes when the workspace itself is under a symlink (realpath root)', () => {
     const realWorkspace = path.join(scratch, 'ws-real');
     const linkedWorkspace = path.join(scratch, 'ws-link');
