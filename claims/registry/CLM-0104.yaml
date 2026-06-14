@@ -12,9 +12,10 @@ statement: >-
   public-by-default, Swift `public`/`open` only) and, for Java/PHP/C#/C++/Kotlin/
   Scala/Swift/Ruby, each type's PUBLIC nested members (private/protected/internal
   skipped, #121/#120/#150) — Ruby tracking its STATEFUL private/protected
-  directives down the class body; C#/C++ descend named namespaces.
-  Ruby's arg-form visibility (`private :x`) and brace-namespace member bodies are
-  NOT yet descended (honestly deferred, #150). Each REMAINING known
+  directives down the class body AND reconciling the arg-form visibility calls
+  (`private :x` / `private def x` / `public :x`, #165); C#/C++ descend named
+  namespaces. Brace-namespace-nested type member bodies are NOT yet descended
+  (honestly deferred, #165). Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
   silently passed); the scan bounds its own per-file and total bytes AND each
@@ -65,6 +66,9 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::covers a top-level singleton method (def self.x)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends class/module bodies for PUBLIC instance methods, honoring private/protected (#150)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a # comment above a public instance method documents it (member-level, #150)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::the arg-form `private :foo` retro-hides a method the bare loop enumerated (#165)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::the inline arg-form `private def bar` does not enumerate the method (#165)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::the arg-form `public :baz` re-exposes a method privated by a bare directive (#165)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::records and skips a file over the per-file byte limit, never parsing it'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::bounds a single parse by a wall-clock budget, recording a timeout as info (#123)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::the default budget parses a normal file to real enforcement, not a timeout'

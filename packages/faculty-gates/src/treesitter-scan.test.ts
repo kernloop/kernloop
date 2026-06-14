@@ -321,6 +321,27 @@ describe('Ruby', () => {
     );
     expect(findings).toEqual([]);
   });
+
+  it('the arg-form `private :foo` retro-hides a method the bare loop enumerated (#165)', async () => {
+    const names = (await scanOne('m.rb', 'class C\n  def foo\n  end\n  private :foo\nend\n')).map(
+      (f) => f.message,
+    );
+    expect(names.some((m) => m.includes('"foo"'))).toBe(false); // privated by `private :foo`
+  });
+
+  it('the inline arg-form `private def bar` does not enumerate the method (#165)', async () => {
+    const names = (await scanOne('m.rb', 'class C\n  private def bar\n  end\nend\n')).map(
+      (f) => f.message,
+    );
+    expect(names.some((m) => m.includes('"bar"'))).toBe(false);
+  });
+
+  it('the arg-form `public :baz` re-exposes a method privated by a bare directive (#165)', async () => {
+    const names = (
+      await scanOne('m.rb', 'class C\n  private\n  def baz\n  end\n  public :baz\nend\n')
+    ).map((f) => f.message);
+    expect(names.some((m) => m.includes('method "baz"'))).toBe(true); // re-published → gated again
+  });
 });
 
 describe('resource bounds (untrusted input)', () => {
