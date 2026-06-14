@@ -1,0 +1,21 @@
+id: CLM-0110
+statement: >-
+  `kernloop metrics` emits governance metrics in Prometheus text-exposition
+  format (#125), DERIVED from real recorded data only: run outcomes
+  (`kernloop_runs_total{capability,status}`) and gate verdicts
+  (`kernloop_gate_verdicts_total{gate,result}`) and router decisions are counted
+  off the audit chain, and metered cost (`kernloop_cost_tokens_total` /
+  `kernloop_cost_usd_total`), per-gate decision cost, and per-voter running
+  precision are read from the Observer ledger — nothing estimated or fabricated.
+  Every family carries `# HELP`/`# TYPE` and is discoverable even when empty;
+  label values are escaped; the text ends in a single trailing newline. It is a
+  CLI-only view (NOT a twelfth MCP tool) and read-only over the chain + ledger.
+evidence:
+  - 'test:packages/cli/src/tools/metrics.test.ts::emits Prometheus runs/verdicts/chain metrics derived from real events'
+  - 'test:packages/cli/src/tools/metrics.test.ts::every metric family carries a HELP and TYPE header (discoverable even when empty)'
+  - 'test:packages/cli/src/tools/metrics.test.ts::escapeLabel escapes backslash, quote, and newline for a safe exposition'
+  - 'code:packages/cli/src/tools/metrics.ts#metricsExport@doc:/CLM-0110/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
