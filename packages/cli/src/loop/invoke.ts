@@ -90,10 +90,14 @@ export function ensureAdapterAvailable(
 }
 
 /** The default LoopInvoke: the kernel adapter for `adapter`, metered per
- * call. `env` is injectable for tests; default `process.env`. */
+ * call. `env` is injectable for tests; default `process.env`. `cwd`, when set,
+ * is the task WORKSPACE every adapter subprocess runs in — so an agentic model
+ * CLI is grounded in (and confined to) the workspace, not kernloop's launch
+ * directory (#146). Omitted ⇒ the child inherits the launch cwd. */
 export function adapterInvoke(
   adapter: AdapterName,
   env?: Readonly<Record<string, string | undefined>>,
+  cwd?: string,
 ): LoopInvoke {
   return async (prompt, options = {}) => {
     const result = await invokeAdapter(adapter, {
@@ -102,6 +106,7 @@ export function adapterInvoke(
       ...(options.model === undefined ? {} : { model: options.model }),
       ...(options.effort === undefined ? {} : { effort: options.effort }),
       ...(env === undefined ? {} : { env }),
+      ...(cwd === undefined ? {} : { cwd }),
     });
     return { output: result.output, cost: result.cost };
   };

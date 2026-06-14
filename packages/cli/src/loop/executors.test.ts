@@ -391,7 +391,7 @@ describe('adapterInvoke (the default model seam)', () => {
     });
     writeFileSync(fake, `#!/bin/sh\ncat > /dev/null\necho '${reply}'\n`);
     chmodSync(fake, 0o755);
-    const invoke = adapterInvoke('claude', { PATH: bin });
+    const invoke = adapterInvoke('claude', { PATH: bin }, scratch); // cwd = workspace (#146)
     const result = await invoke('hello', { timeoutMs: 30_000 });
     expect(result.output).toBe('scripted reply');
     expect(result.cost.tokens).toBe(15);

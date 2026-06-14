@@ -66,6 +66,13 @@ export interface AdapterInvocation {
   readonly effort?: AdapterCommandEffort;
   /** Environment for PATH probing and the child; default `process.env`. */
   readonly env?: AdapterEnv;
+  /**
+   * Working directory for the CLI child — the task WORKSPACE (#146). Omitted ⇒
+   * the child inherits kernloop's launch cwd, which for an agentic CLI exposes
+   * the launch directory; callers driving the canonical loop set this so model
+   * nodes are grounded in (and confined to) the workspace, not the launch dir.
+   */
+  readonly cwd?: string;
 }
 
 /** Which Cost figures were actually reported by the CLI on this call. */
@@ -185,6 +192,7 @@ export async function invokeAdapter(
     ...(command.stdin === undefined ? {} : { stdin: command.stdin }),
     timeoutMs: invocation.timeoutMs,
     env,
+    ...(invocation.cwd === undefined ? {} : { cwd: invocation.cwd }),
   });
 
   if (raw.timedOut) throw new AdapterTimeoutError(adapter, invocation.timeoutMs, raw.durationMs);

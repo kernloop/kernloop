@@ -9,6 +9,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { mkdtempSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { runSubprocess } from './subprocess.js';
 
 /** Run an inline Node script as a real subprocess. */
@@ -81,6 +84,23 @@ describe('runSubprocess', () => {
     });
     expect(result.stdout).toBe('ignored stdin');
     expect(result.exitCode).toBe(0);
+  });
+
+  it('runs the child in the given cwd, not the parent cwd (#146)', async () => {
+    const ws = realpathSync(mkdtempSync(path.join(tmpdir(), 'subproc-cwd-')));
+    const result = await runSubprocess({
+      command: process.execPath,
+      args: ['-e', 'process.stdout.write(process.cwd());'],
+      timeoutMs: 10_000,
+      cwd: ws,
+    });
+    expect(result.stdout).toBe(ws);
+    expect(result.stdout).not.toBe(realpathSync(process.cwd()));
+  });
+
+  it('inherits the parent cwd when none is given', async () => {
+    const result = await runNode('process.stdout.write(process.cwd());');
+    expect(realpathSync(result.stdout)).toBe(realpathSync(process.cwd()));
   });
 
   it('always measures a finite non-negative durationMs', async () => {
