@@ -114,6 +114,10 @@ function toJobRow(row: {
 export function createJobStore(dbPath: string, options: { clock?: () => number } = {}): JobStore {
   const clock = options.clock ?? Date.now;
   const db = new Database(dbPath);
+  // WAL + busy timeout: a `status --job` reader stays off SQLITE_BUSY while the
+  // resident `serve` writer updates a job (#157).
+  db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
   db.exec(JOBS_SCHEMA_DDL);
   const get = (jobId: string): JobRow | undefined => {
     const row = db.prepare('SELECT * FROM jobs WHERE jobId = ?').get(jobId);

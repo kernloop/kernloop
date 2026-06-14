@@ -1,9 +1,15 @@
 id: CLM-0025
 statement: >-
-  Memory state is repo-local SQLite; deleting the database file leaves the system functional with empty memory.
+  Memory state is repo-local SQLite; deleting the database file leaves the system
+  functional with empty memory. The store opens in WAL journal mode with a 5s
+  busy timeout (#157), so a stateless CLI reader (status/observe/metrics) reads
+  the last committed snapshot concurrently with the resident `serve` writer —
+  even while the writer holds an open transaction — without a SQLITE_BUSY.
 evidence:
   - 'test:packages/faculty-memory/src/store.test.ts::deleting the database file and reopening yields a functional empty store'
   - 'test:packages/faculty-memory/src/store.test.ts::reopening an existing database preserves stored facts and traces'
+  - 'test:packages/faculty-memory/src/store.test.ts::opens in WAL journal mode with a 5s busy timeout'
+  - 'test:packages/faculty-memory/src/store.test.ts::a separate reader proceeds while a writer holds an open transaction (no SQLITE_BUSY)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

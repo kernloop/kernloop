@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Outcome } from '@kernloop/contracts';
 import { createMemory } from './index.js';
+import { openStore } from './store.js';
 
 const T0 = Date.UTC(2026, 0, 1);
 
@@ -69,5 +70,42 @@ describe('repo-local SQLite lifecycle (CLM-0025)', () => {
     expect(after.recallFacts('fresh start fact', { now: T0 })).toHaveLength(1);
     expect(after.getTraceSummary('task-1')?.summary).toBe('fresh summary');
     after.close();
+  });
+});
+
+describe('concurrent-reader safety — WAL + busy_timeout (#157)', () => {
+  it('opens in WAL journal mode with a 5s busy timeout', () => {
+    const db = openStore(path.join(dir, 'memory.sqlite'));
+    expect(db.pragma('journal_mode', { simple: true })).toBe('wal');
+    expect(db.pragma('busy_timeout', { simple: true })).toBe(5000);
+    db.close();
+  });
+
+  it('a separate reader proceeds while a writer holds an open transaction (no SQLITE_BUSY)', () => {
+    const dbPath = path.join(dir, 'memory.sqlite');
+    const writer = openStore(dbPath);
+    writer
+      .prepare(
+        "INSERT INTO facts (fact, provenance, createdAt, refreshedAt) VALUES ('seed','p',1,1)",
+      )
+      .run();
+    // Hold an uncommitted write transaction — the contention the model assumes
+    // away (single writer) but the readers must survive.
+    writer.exec('BEGIN IMMEDIATE');
+    writer
+      .prepare(
+        "INSERT INTO facts (fact, provenance, createdAt, refreshedAt) VALUES ('pending','p',2,2)",
+      )
+      .run();
+    // A second connection reads the last COMMITTED snapshot without blocking or
+    // throwing — this is what WAL buys over the default rollback journal.
+    const reader = openStore(dbPath);
+    const facts = (
+      reader.prepare('SELECT fact FROM facts ORDER BY id').all() as Array<{ fact: string }>
+    ).map((r) => r.fact);
+    expect(facts).toEqual(['seed']); // the pending tx is invisible until it commits
+    reader.close();
+    writer.exec('COMMIT');
+    writer.close();
   });
 });

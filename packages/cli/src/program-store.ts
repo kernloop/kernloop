@@ -168,9 +168,13 @@ function migrate(db: Database.Database): void {
   }
 }
 
-/** Open the ledger DB at `dbPath`, applying the idempotent schema + migration. */
+/** Open the ledger DB at `dbPath`, applying the idempotent schema + migration.
+ * WAL + a busy timeout keep a `program status` reader off SQLITE_BUSY while a
+ * run advances ledger nodes (#157). */
 function openLedgerDb(dbPath: string): Database.Database {
   const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
   db.exec(PROGRAMS_SCHEMA_DDL);
   migrate(db);
   return db;

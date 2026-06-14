@@ -342,8 +342,9 @@ export function initOverlay(repoRoot: string): InitResult {
     [
       path.join(paths.dir, '.gitignore'),
       // spec §12.4: gitignore machine-local state (privacy over portability) —
-      // the memory DB, job registry, program ledger, loop checkpoints, model cache.
-      'memory.sqlite\njobs.sqlite\nprograms.sqlite\ncheckpoints/\nmodels-cache.json\n',
+      // the memory DB, job registry, program ledger, loop checkpoints, model
+      // cache. The `*` after each .sqlite also covers WAL sidecars (-wal/-shm, #157).
+      'memory.sqlite*\njobs.sqlite*\nprograms.sqlite*\ncheckpoints/\nmodels-cache.json\n',
     ],
   ];
   for (const [file, content] of files) {
