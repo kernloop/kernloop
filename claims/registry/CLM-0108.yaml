@@ -20,6 +20,7 @@ evidence:
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::passes the per-node model alias as an advisory preference hint'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::maps the per-node tier to MCP cost/speed/intelligence priorities so the host routes high/med/low'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::orders intelligence monotonically down the tier ladder'
+  - 'test:packages/cli/src/loop/node-resolve.test.ts::carries each node’s REQUESTED tier so a sampling host can route high/med/low (#140)'
   - 'code:packages/cli/src/loop/mcp-sampling.ts#samplingPreferences@doc:/CLM-0108/'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::throws SamplingUnsupportedError when the host cannot sample (no silent fallback)'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::a tool handler can call back to the host via sampling while its callTool is pending'
