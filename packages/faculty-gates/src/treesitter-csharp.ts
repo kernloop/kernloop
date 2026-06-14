@@ -21,8 +21,7 @@
  *
  * SCOPE. Types at any namespace nesting depth, plus one level of each public
  * type's public methods/properties/fields. A nested type declared INSIDE another
- * type's body is not descended (member-of-member), honestly deferred (#181) —
- * matching the Java extractor's one-level member boundary.
+ * type's body is itself enumerated and its own members descended recursively (#181).
  *
  * Pure AST logic over `web-tree-sitter` nodes — no I/O, no model. The grammar
  * loading, byte budgets, and walk live in treesitter-scan.ts.
@@ -89,6 +88,10 @@ function csharpMembers(typeNode: Parser.SyntaxNode): Decl[] {
         if (name !== undefined)
           out.push({ name, kind: 'field', line: lineOf(node), documented: csharpDocumented(node) });
       }
+    } else if (CSHARP_TYPES.has(node.type)) {
+      // A nested type (#181): enumerate it and descend ITS members — collectCSharp
+      // already composes a public type's Decl with its members recursively.
+      collectCSharp(node, out);
     }
   }
   return out;

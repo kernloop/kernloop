@@ -194,6 +194,18 @@ describe('Java', () => {
     );
     expect(findings).toEqual([]);
   });
+
+  it('descends a nested type and ITS members (member-of-member, #181)', async () => {
+    const names = (
+      await scanOne(
+        'M.java',
+        'public class Outer {\n  public class Inner {\n    public void n() {}\n    private void hid() {}\n  }\n}\n',
+      )
+    ).map((f) => f.message);
+    expect(names.some((m) => m.includes('class "Inner"'))).toBe(true); // the nested type
+    expect(names.some((m) => m.includes('method "n"'))).toBe(true); // one level deeper
+    expect(names.some((m) => m.includes('"hid"'))).toBe(false); // private member-of-member
+  });
 });
 
 describe('C', () => {

@@ -109,6 +109,16 @@ describe('Kotlin class_body member descent (#121)', () => {
     expect(has(m, '"secret"')).toBe(false);
   });
 
+  it('descends a nested type and ITS members (member-of-member, #181)', async () => {
+    const m = await scan(
+      'Nest.kt',
+      'class Outer {\n  class Inner {\n    fun n() {}\n    private fun hid() {}\n  }\n}\n',
+    );
+    expect(has(m, 'class "Inner"')).toBe(true); // the nested type
+    expect(has(m, 'method "n"')).toBe(true); // its public member, one level deeper
+    expect(has(m, '"hid"')).toBe(false); // private member-of-member
+  });
+
   it('descends an object body for its public members too', async () => {
     const m = await scan('ObjMembers.kt', 'object O {\n  fun greet() {}\n}\n');
     expect(has(m, 'object "O"')).toBe(true);

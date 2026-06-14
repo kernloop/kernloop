@@ -104,6 +104,16 @@ describe('C# extractor: public members of a public type', () => {
     expect(has(msgs, 'field', 'fld')).toBe(true);
   });
 
+  it('descends a nested type and ITS members (member-of-member, #181)', async () => {
+    const msgs = await scan(
+      'Nest.cs',
+      'public class Outer {\n  public class Inner {\n    public void N() {}\n    private int x;\n  }\n}\n',
+    );
+    expect(has(msgs, 'class', 'Inner')).toBe(true); // the nested type
+    expect(has(msgs, 'method', 'N')).toBe(true); // its public member, one level deeper
+    expect(msgs.some((m) => m.includes('"x"'))).toBe(false); // private member-of-member
+  });
+
   it('does NOT flag private/internal members', async () => {
     const msgs = await scan(
       'PrivMembers.cs',
@@ -143,7 +153,7 @@ describe('C# extractor: public members of a public type', () => {
     expect(has(msgs, 'field', 'x')).toBe(false);
   });
 
-  it('flags public members of a public record (container) but not its nested type', async () => {
+  it('flags public members of a public record (container) AND its nested type (#181)', async () => {
     const msgs = await scan(
       'RecordMembers.cs',
       [
@@ -156,8 +166,8 @@ describe('C# extractor: public members of a public type', () => {
     );
     expect(has(msgs, 'record', 'R')).toBe(true);
     expect(has(msgs, 'property', 'Val')).toBe(true);
-    // A nested type is member-of-member: honestly deferred, not descended.
-    expect(has(msgs, 'class', 'Inner')).toBe(false);
+    // A nested type is now descended (member-of-member, #181).
+    expect(has(msgs, 'class', 'Inner')).toBe(true);
   });
 });
 
