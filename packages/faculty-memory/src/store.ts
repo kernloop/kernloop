@@ -37,9 +37,15 @@ CREATE TABLE IF NOT EXISTS traces (
 );
 `;
 
-/** Open (creating if absent) and migrate the overlay database at `dbPath`. */
+/** Open (creating if absent) and migrate the overlay database at `dbPath`.
+ * WAL + a busy timeout let a stateless reader (`status`/`observe`/`metrics`)
+ * run concurrently with the resident `serve` writer without a SQLITE_BUSY
+ * (#157): WAL readers do not block on the single writer, and the timeout waits
+ * on genuine lock contention instead of erroring immediately. */
 export function openStore(dbPath: string): Database.Database {
   const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
   db.exec(SCHEMA_DDL);
   return db;
 }

@@ -86,9 +86,13 @@ CREATE TABLE IF NOT EXISTS observer_issues (
 );
 `;
 
-/** Open (creating if absent) and migrate the observer tables at `dbPath`. */
+/** Open (creating if absent) and migrate the observer tables at `dbPath`. WAL +
+ * a busy timeout keep a concurrent reader off a SQLITE_BUSY while `serve` writes
+ * (#157); idempotent with the memory faculty, which shares this file. */
 export function openStore(dbPath: string): Database.Database {
   const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
   db.exec(SCHEMA_DDL);
   return db;
 }
