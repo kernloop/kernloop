@@ -1,0 +1,20 @@
+id: CLM-0112
+statement: >-
+  The Observer's four append-only logs (`observer_outcome_log`,
+  `observer_verdict_log`, `observer_voter_series`, `observer_voter_labels`) are
+  bounded by a retention window on open (#159): `createObserver` runs a single
+  prune that deletes log rows older than `retentionMs` (default 90 days) before
+  the NEWEST log row, off the ingest hot path. The reference "now" is the data's
+  own newest timestamp — no clock read — so a deterministic write-clock is never
+  disturbed and an empty database is a no-op. The KEYED aggregates (the fitness
+  ledger and the issues table) are NOT logs and are never pruned, so no active
+  subject loses its standing. Table names come from a fixed in-code allowlist,
+  not caller input.
+evidence:
+  - 'test:packages/faculty-observer/src/store.test.ts::on open, prunes log rows older than the window relative to the newest row, keeping the keyed ledger'
+  - 'test:packages/faculty-observer/src/store.test.ts::keeps every log row when all are inside the retention window'
+  - 'code:packages/faculty-observer/src/store.ts#pruneLogs@doc:/CLM-0112/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
