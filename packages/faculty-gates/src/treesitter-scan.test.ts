@@ -276,4 +276,26 @@ describe('resource bounds (untrusted input)', () => {
     const findings = await scanTreeSitterFiles([path.join(dir, 'gone.py')], dir);
     expect(findings).toEqual([]);
   });
+
+  it('bounds a single parse by a wall-clock budget, recording a timeout as info (#123)', async () => {
+    // A 1µs budget is exceeded by any real parse; web-tree-sitter checks the
+    // clock between steps and returns null — many decls guarantee a checkpoint.
+    const big = Array.from({ length: 300 }, (_, i) => `def f${String(i)}():\n    pass\n`).join(
+      '\n',
+    );
+    const findings = await scanTreeSitterFiles([write('slow.py', big)], dir, {
+      parseTimeoutMicros: 1,
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('info');
+    expect(findings[0]?.message).toContain('timed out parsing');
+    expect(findings[0]?.path).toBe('slow.py');
+  });
+
+  it('the default budget parses a normal file to real enforcement, not a timeout', async () => {
+    // Same shape under the default multi-second budget: every decl is enforced.
+    const findings = await scanOne('ok.py', 'def foo():\n    pass\n\ndef bar():\n    pass\n');
+    expect(findings).toHaveLength(2);
+    expect(findings.every((f) => f.severity === 'error')).toBe(true);
+  });
 });

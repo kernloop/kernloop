@@ -12,10 +12,12 @@ statement: >-
   methods) are NOT yet enumerated (honestly deferred, #121). Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
-  silently passed); the scan bounds its own per-file and total bytes so untrusted
-  workspace code cannot hang the in-process loop, a throwing scan becomes an error
-  finding, the parsed tree is always freed, and it verifies doc-comment PRESENCE,
-  never accuracy.
+  silently passed); the scan bounds its own per-file and total bytes AND each
+  single tree-sitter parse by a wall-clock budget (#123) so untrusted workspace
+  code cannot hang the in-process loop — a budget-exceeding parse aborts, resets
+  the cached parser, and degrades to a recorded info, never a hang. A throwing
+  scan becomes an error finding, the parsed tree is always freed, and it verifies
+  doc-comment PRESENCE, never accuracy.
 evidence:
   - 'test:packages/faculty-gates/src/doc-scan.test.ts::an undocumented exported function is an error finding with file:line and path'
   - 'test:packages/faculty-gates/src/doc-scan.test.ts::flags undocumented exported classes, interfaces, type aliases, enums, and consts'
@@ -45,6 +47,8 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a # comment immediately above documents the declaration'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::covers a top-level singleton method (def self.x)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::records and skips a file over the per-file byte limit, never parsing it'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::bounds a single parse by a wall-clock budget, recording a timeout as info (#123)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::the default budget parses a normal file to real enforcement, not a timeout'
   - 'test:packages/faculty-gates/src/run.test.ts::threads an in-process check error finding through to a fail verdict'
   - 'test:packages/faculty-gates/src/run.test.ts::turns a throwing in-process check into an error finding (never silently passes)'
   - 'code:packages/faculty-gates/src/doc-scan.ts#scanDocComments@doc:/CLM-0104/'
