@@ -30,9 +30,8 @@
  * sections; a `struct` defaults to PUBLIC, a `class` to PRIVATE. We track the
  * current access (flipping on each `access_specifier`) and enumerate only PUBLIC,
  * non-`static` methods (`field_declaration` reaching a `function_declarator`) and
- * data fields (each `field_identifier`). A nested type inside a class body is not
- * descended (member-of-member), honestly deferred (#181) — matching the Java/C#
- * one-level member boundary.
+ * data fields (each `field_identifier`). A nested type inside a class body is
+ * itself enumerated and its own members descended recursively (#181).
  *
  * "documented" is C++'s doc convention: a `comment` node (covering both the
  * block-comment and `//` line-comment forms) on the line immediately above.
@@ -97,8 +96,8 @@ const CPP_MEMBER_OWNERS = new Set(['struct_specifier', 'class_specifier', 'union
  * `class` starts PRIVATE, and each `access_specifier` flips the current access.
  * A method is a `field_declaration` reaching a `function_declarator`; a data
  * field is a `field_declaration` declaring one or more `field_identifier`s (each
- * its own undocumented surface). A nested type is left to the member-of-member
- * boundary (deferred: #181). */
+ * its own undocumented surface). A nested type (a `field_declaration` wrapping a
+ * tag specifier) is itself enumerated and its OWN members descended (#181). */
 function cppMembers(owner: Parser.SyntaxNode, body: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
   let pub = owner.type !== 'class_specifier'; // struct/union default public; class default private
@@ -110,6 +109,21 @@ function cppMembers(owner: Parser.SyntaxNode, body: Parser.SyntaxNode): Decl[] {
     }
     if (!pub || node.type !== 'field_declaration' || cppIsStatic(node)) continue;
     const documented = cppDocumented(node);
+    // A nested type (#181): the field_declaration wraps a class/struct/union/enum
+    // specifier. Enumerate it and descend ITS members — the doc-comment sits above
+    // the wrapping field_declaration, so reuse this node's `documented`.
+    const nested = node.namedChildren.find((c) => CPP_TAG_SPECIFIERS.has(c.type));
+    if (nested !== undefined) {
+      const nbody = nested.namedChildren.find(
+        (c) => c.type === 'field_declaration_list' || c.type === 'enumerator_list',
+      );
+      const nname = nested.childForFieldName('name')?.text;
+      if (nbody !== undefined && nname !== undefined) {
+        out.push({ name: nname, kind: kindOf(nested.type), line: lineOf(nested), documented });
+        if (CPP_MEMBER_OWNERS.has(nested.type)) out.push(...cppMembers(nested, nbody));
+      }
+      continue;
+    }
     if (cppIsFunctionDecl(node)) {
       const name = cppDeclaratorName(node.childForFieldName('declarator'));
       if (name !== undefined) out.push({ name, kind: 'method', line: lineOf(node), documented });

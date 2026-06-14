@@ -28,7 +28,7 @@
  * a comment leading the first decl after an `import` is absorbed INTO the
  * `import_header`'s own text (not separately addressable) and is honestly
  * deferred (#184) — a blank line is not enough to separate it. Nested types inside
- * a class body are not re-descended (one level, member-of-member deferred: #181).
+ * a class body ARE descended into their own members recursively (#181).
  */
 import type Parser from 'web-tree-sitter';
 import { isAdjacentComment, lineOf, kindOf, type Decl } from './treesitter-shared.js';
@@ -103,17 +103,25 @@ const KOTLIN_DECLS = new Set([
 /** The member declaration types enumerated inside a class/object body. */
 const KOTLIN_MEMBERS = new Set(['function_declaration', 'property_declaration']);
 
-/** The public function/property members inside a type's `class_body` (#121).
- * Public by default — `private`/`protected`/`internal` members are skipped,
- * since flagging them would demand docs on non-public surface. */
+/** The public function/property members inside a type's `class_body` (#121), plus
+ * each nested public type and ITS members descended recursively (#181). Public by
+ * default — `private`/`protected`/`internal` members are skipped, since flagging
+ * them would demand docs on non-public surface. */
 function kotlinMembers(typeNode: Parser.SyntaxNode): Decl[] {
   const body = typeNode.namedChildren.find((c) => c.type === 'class_body');
   if (body === undefined) return [];
   const out: Decl[] = [];
   for (const node of body.namedChildren) {
-    if (!KOTLIN_MEMBERS.has(node.type)) continue;
-    const decl = kotlinDecl(node, true);
-    if (decl !== null) out.push(decl);
+    if (KOTLIN_MEMBERS.has(node.type)) {
+      const decl = kotlinDecl(node, true);
+      if (decl !== null) out.push(decl);
+    } else if (node.type === 'class_declaration' || node.type === 'object_declaration') {
+      const decl = kotlinDecl(node, true); // a nested type (#181)
+      if (decl !== null) {
+        out.push(decl);
+        out.push(...kotlinMembers(node)); // descend ITS members
+      }
+    }
   }
   return out;
 }

@@ -136,6 +136,25 @@ describe('C++ extractor — class/struct member access', () => {
     expect(has(names, 'field "a"')).toBe(true);
     expect(has(names, 'field "b"')).toBe(true);
   });
+
+  it('descends a nested type and ITS members (member-of-member, #181)', async () => {
+    const names = await scan(
+      'nest.cpp',
+      'class Outer {\npublic:\n  class Inner {\n  public:\n    void n();\n  private:\n    void hid();\n  };\n};\n',
+    );
+    expect(has(names, 'class "Inner"')).toBe(true); // the nested type itself
+    expect(has(names, 'method "n"')).toBe(true); // its public member, one level deeper
+    expect(has(names, '"hid"')).toBe(false); // private member-of-member, skipped
+  });
+
+  it('a doc-comment above a nested type and its member documents them (#181)', async () => {
+    const names = await scan(
+      'ndoc.cpp',
+      'class Outer {\npublic:\n  /** Inner. */\n  class Inner {\n  public:\n    /** n. */\n    void n();\n  };\n};\n',
+    );
+    expect(has(names, '"Inner"')).toBe(false); // documented nested type
+    expect(has(names, '"n"')).toBe(false); // documented member-of-member
+  });
 });
 
 describe('C++ extractor — namespaces', () => {

@@ -14,7 +14,9 @@ statement: >-
   skipped, #121/#120/#150) — Ruby tracking its STATEFUL private/protected
   directives down the class body AND reconciling the arg-form visibility calls
   (`private :x` / `private def x` / `public :x`, #165); C#/C++/PHP descend
-  named/braced namespaces INTO the nested types' public members too (#170).
+  named/braced namespaces INTO the nested types' public members too (#170); and
+  member descent RECURSES, so a type nested inside another type's body and its
+  own members are reached (member-of-member, C++/C#/Kotlin/Java, #181).
   Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
@@ -62,6 +64,11 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::descends a NAMED namespace and enumerates its decls'
   - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::SKIPS an anonymous namespace (internal linkage)'
   - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::descends a namespaced type into its PUBLIC members, skipping private (#170)'
+  - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::descends a nested type and ITS members (member-of-member, #181)'
+  - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::a doc-comment above a nested type and its member documents them (#181)'
+  - 'test:packages/faculty-gates/src/treesitter-csharp.test.ts::descends a nested type and ITS members (member-of-member, #181)'
+  - 'test:packages/faculty-gates/src/treesitter-kotlin.test.ts::descends a nested type and ITS members (member-of-member, #181)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends a nested type and ITS members (member-of-member, #181)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends a BRACED namespace into its type AND that type’s public members (#170)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a documented type + member inside a braced namespace passes clean (#170)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a file-scoped `namespace Foo;` still enumerates its sibling decls (#170 regression)'

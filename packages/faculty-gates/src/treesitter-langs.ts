@@ -1,9 +1,10 @@
 /**
  * The per-language declaration extractors behind the multi-language doc-comment
  * gate (Python/Go/Rust #108; Java/C/PHP/Ruby #122; C++/C#/Kotlin/Swift/Scala
- * #120; CLM-0104). This file holds the original seven; the five large-grammar
- * languages live in sibling `treesitter-<lang>.ts` files and are merged into
- * {@link LANGS} here. Each extractor enumerates a source file's PUBLIC
+ * #120; CLM-0104). This file holds the smaller extractors (Python/Go/Rust/C/PHP)
+ * inline; the rest (Java/Ruby + the five large grammars) live in sibling
+ * `treesitter-<lang>.ts` files and are merged into {@link LANGS} here. Each
+ * extractor enumerates a source file's PUBLIC
  * declarations and whether each carries an adjacent doc-comment — presence,
  * NEVER accuracy (the prime directive). "Public" is each language's OWN
  * visibility rule, and "documented" is its OWN doc convention:
@@ -32,9 +33,10 @@
  * Kotlin + Scala (public-by-default, members), Swift (`public`/`open` only).
  *
  * SCOPE. Python/Go/Rust/C enumerate the TOP LEVEL; Java/PHP/C#/C++/Kotlin/Scala/
- * Swift/Ruby ALSO descend one level into a type's PUBLIC members (#121/#120/#150);
- * C#/C++ descend named namespaces. Still deferred (#150): Ruby's arg-form
- * visibility (`private :x`) and brace-`namespace` member bodies.
+ * Swift/Ruby ALSO descend a type's PUBLIC members, RECURSING into a nested type's
+ * own members (member-of-member, #121/#120/#150/#181); C#/C++/PHP descend
+ * named/braced namespaces (#170), and Ruby reconciles its arg-form visibility
+ * (`private :x`, #165). Remaining language edges are tracked in #184.
  *
  * Pure AST logic over `web-tree-sitter` nodes — no I/O, no model. The grammar
  * loading, byte budgets, and walk live in treesitter-scan.ts.
@@ -47,6 +49,7 @@ import {
   type Decl,
   type LangSpec,
 } from './treesitter-shared.js';
+import { extractJava } from './treesitter-java.js';
 import { extractRuby } from './treesitter-ruby.js';
 import { extractCSharp } from './treesitter-csharp.js';
 import { extractScala } from './treesitter-scala.js';
@@ -150,76 +153,6 @@ function extractRust(root: Parser.SyntaxNode): Decl[] {
       line: lineOf(node),
       documented,
     });
-  }
-  return out;
-}
-
-/** The Java top-level type declarations the gate enumerates. */
-const JAVA_TYPES = new Set([
-  'class_declaration',
-  'interface_declaration',
-  'enum_declaration',
-  'record_declaration',
-  'annotation_type_declaration',
-]);
-
-/** True iff a Java node's `modifiers` child declares `public`. */
-function javaIsPublic(node: Parser.SyntaxNode): boolean {
-  const mods = node.namedChildren.find((c) => c.type === 'modifiers');
-  return /\bpublic\b/.test(mods?.text ?? '');
-}
-
-/** Whether a Java member carries a `//`-line or Javadoc-`block_comment` above it. */
-function javaDocumented(node: Parser.SyntaxNode): boolean {
-  return isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
-    'line_comment',
-    'block_comment',
-  ]);
-}
-
-/** Public methods + fields inside an enumerated type's `body` (#121). Covers
- * class/interface bodies; enum/record members nest under an inner declarations
- * node and are not yet descended (honestly deferred: #181). A `field_declaration` may
- * declare several names — each public variable is its own undocumented surface. */
-function javaMembers(typeNode: Parser.SyntaxNode): Decl[] {
-  const body = typeNode.childForFieldName('body');
-  if (body === null) return [];
-  const out: Decl[] = [];
-  for (const node of body.namedChildren) {
-    if (!javaIsPublic(node)) continue;
-    if (node.type === 'method_declaration') {
-      const name = node.childForFieldName('name')?.text;
-      if (name !== undefined)
-        out.push({ name, kind: 'method', line: lineOf(node), documented: javaDocumented(node) });
-    } else if (node.type === 'field_declaration') {
-      for (const d of node.namedChildren.filter((c) => c.type === 'variable_declarator')) {
-        const name = d.childForFieldName('name')?.text;
-        if (name !== undefined)
-          out.push({ name, kind: 'field', line: lineOf(node), documented: javaDocumented(node) });
-      }
-    }
-  }
-  return out;
-}
-
-/** Java: top-level types declared `public` (a non-public top-level type is
- * package-private, not public API), documented iff a `//` or Javadoc block
- * comment sits immediately above (Javadoc parses as a `block_comment`), PLUS
- * each type's public methods and fields (#121). */
-function extractJava(root: Parser.SyntaxNode): Decl[] {
-  const out: Decl[] = [];
-  for (const node of root.namedChildren) {
-    if (!JAVA_TYPES.has(node.type)) continue;
-    if (!javaIsPublic(node)) continue;
-    const name = node.childForFieldName('name')?.text;
-    if (name === undefined) continue;
-    out.push({
-      name,
-      kind: kindOf(node.type),
-      line: lineOf(node),
-      documented: javaDocumented(node),
-    });
-    out.push(...javaMembers(node));
   }
   return out;
 }
