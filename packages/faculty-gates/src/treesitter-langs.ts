@@ -179,7 +179,7 @@ function javaDocumented(node: Parser.SyntaxNode): boolean {
 
 /** Public methods + fields inside an enumerated type's `body` (#121). Covers
  * class/interface bodies; enum/record members nest under an inner declarations
- * node and are not yet descended (honestly deferred). A `field_declaration` may
+ * node and are not yet descended (honestly deferred: #181). A `field_declaration` may
  * declare several names — each public variable is its own undocumented surface. */
 function javaMembers(typeNode: Parser.SyntaxNode): Decl[] {
   const body = typeNode.childForFieldName('body');

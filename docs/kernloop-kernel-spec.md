@@ -210,7 +210,7 @@ Voters at a gate share one Brief — never per-voter recompilation.
 > reads it. The write and read halves are coherent and gated; the spec keeps
 > the three-store *model* but the procedural store's mechanism is this, not a
 > SQLite table. The "global + overlay" SKILL.md scoping (overlay-local skill
-> overrides) is a deferred extension. Semantic ranking is relevance × recency:
+> overrides) is a deferred extension (#182). Semantic ranking is relevance × recency:
 > within a per-overlay DB every fact is already repo-local, so the original
 > "× repo-locality" factor is intrinsic, and provenance is enforced at write
 > rather than weighted at read.
@@ -237,7 +237,7 @@ labeling rubric port from v1 as the seed).
 > out-of-band instead: the dedicated `Security` CI workflow (gitleaks · `pnpm
 > audit` · semgrep) on every push/PR, plus the review gate's adversarial
 > `security` reviewer lens. A per-workspace security QualityCheck returns
-> through a claim if a suitable local tool is adopted.
+> through a claim if a suitable local tool is adopted (#183).
 
 ### 5.4 Workforce — configuration, not generation
 
@@ -418,7 +418,7 @@ each id through `resolveIdentity`, and persists a **machine-local** discovered
 cache (gitignored) that `resolveIdentity` then consults. CLI adapters that
 can't enumerate honestly declare so (curated static lists; kernloop never
 parses another tool's private config). `models sync`/`list` are CLI verbs, not
-a twelfth MCP tool. Live `models.dev` catalog enrichment remains deferred.
+a twelfth MCP tool. Live `models.dev` catalog enrichment remains deferred (#180).
 
 ### 5.8 Day-one deferrals inside faculties
 

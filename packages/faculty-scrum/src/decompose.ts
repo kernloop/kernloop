@@ -50,7 +50,7 @@ function minTier(a: Tier, b: Tier): Tier {
  * The shipped agent-template names a story may be assigned to. Inlined rather
  * than imported from @kernloop/faculty-workforce — a faculty→faculty import is
  * forbidden (constitutional rule 5). Mirrors workforce's `SHIPPED_TEMPLATE_NAMES`;
- * custom templates are a later increment.
+ * custom templates are a later increment (deferred: #177).
  */
 const STORY_ASSIGNEES = ['pm', 'coder', 'reviewer', 'documenter', 'researcher'] as const;
 

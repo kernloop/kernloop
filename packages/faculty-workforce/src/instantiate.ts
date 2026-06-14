@@ -54,7 +54,7 @@ function isShipped(t: AgentTemplate): boolean {
  *   requirement is stamped onto the manifest (spec §8.4). Binding the tier to
  *   a concrete model id is the composition root's concern.
  *
- * DEFERRED (P3): the spec grants the PM authority to compose bespoke
+ * DEFERRED (P3, #178): the spec grants the PM authority to compose bespoke
  * specialists at `enforce`. Per the P2 design-notes ratification point, that
  * enforce grant is deferred to P3 evidence — there is deliberately no
  * enforce path here, and composed templates come out `suggest`/

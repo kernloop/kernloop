@@ -79,6 +79,16 @@ do**. The registry tracks _capabilities_; issues track _work and problems_.
   cleanup round surfaces is filed as a labeled issue the moment it is found,
   with file:line and a concrete fix — never left only in prose a reset will
   erase. Labels: `review-finding`, `security`, `honesty`, `vestigial`.
+- **Deferrals become issues.** Any work you consciously DEFER — a
+  `later`/`for now`/`not yet`/`P3` in code, an "honestly deferred" in a claim,
+  a scope split out of a PR, a TODO, or a ratified "do not do this yet"
+  decision — gets a GitHub issue (label `deferred`) capturing WHAT is
+  postponed, WHY, and the TRIGGER that should bring it back (a condition, a
+  date, or "when a 3rd caller appears"), before you move on. The in-code, doc,
+  or claim note that records the deferral references that issue (`#N`). A reset
+  erases the reasoning behind a deferral; the issue is where that intent
+  survives — so a deferral with no issue is a lost thread, which this repo does
+  not allow.
 - **Closed by the PR that fixes it.** `Closes #N` in the PR body gives a
   searchable, permanent record of completed work and the reasoning behind it.
 - **Triage into the backlog.** A finding that needs a new capability gets a
