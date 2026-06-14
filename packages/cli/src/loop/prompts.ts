@@ -51,7 +51,9 @@ export function decomposePrompt(parent: TaskContract, planText: string): string 
       'concrete file changes in the workspace — no review-only, research-only, or process ' +
       'subtasks. Do NOT create verification, test-running, or QA subtasks: an automatic ' +
       'quality gate (typecheck, lint, tests) already runs after every subtask. Create the ' +
-      'FEWEST subtasks that produce the file changes — usually one or two.',
+      'FEWEST subtasks that produce the file changes — usually one or two, and ALWAYS at ' +
+      'least one: a goal that needs no breakdown is exactly ONE subtask covering the whole ' +
+      'goal. Never output an empty list.',
   ].join('\n\n');
 }
 
