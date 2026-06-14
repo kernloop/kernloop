@@ -104,9 +104,11 @@ const KOTLIN_DECLS = new Set([
 const KOTLIN_MEMBERS = new Set(['function_declaration', 'property_declaration']);
 
 /** The public function/property members inside a type's `class_body` (#121), plus
- * each nested public type and ITS members descended recursively (#181). Public by
- * default — `private`/`protected`/`internal` members are skipped, since flagging
- * them would demand docs on non-public surface. */
+ * each nested public type and ITS members descended recursively (#181), and a
+ * public `companion object`'s members — public API on the enclosing type
+ * (`Outer.member()`) — descended too (#187). Public by default —
+ * `private`/`protected`/`internal` members are skipped, since flagging them would
+ * demand docs on non-public surface. */
 function kotlinMembers(typeNode: Parser.SyntaxNode): Decl[] {
   const body = typeNode.namedChildren.find((c) => c.type === 'class_body');
   if (body === undefined) return [];
@@ -121,6 +123,10 @@ function kotlinMembers(typeNode: Parser.SyntaxNode): Decl[] {
         out.push(decl);
         out.push(...kotlinMembers(node)); // descend ITS members
       }
+    } else if (node.type === 'companion_object' && kotlinIsPublic(node)) {
+      // The companion's members are public surface on the enclosing type; descend
+      // them, but don't flag the (often anonymous) companion declaration itself (#187).
+      out.push(...kotlinMembers(node));
     }
   }
   return out;
