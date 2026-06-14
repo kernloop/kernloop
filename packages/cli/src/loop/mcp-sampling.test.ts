@@ -10,7 +10,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { CreateMessageRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  CreateMessageRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { hostSupportsSampling, samplingInvoke, SamplingUnsupportedError } from './mcp-sampling.js';
 
 const cleanup: Array<() => Promise<void>> = [];
@@ -91,5 +95,42 @@ describe('samplingInvoke', () => {
   it('throws SamplingUnsupportedError when the host cannot sample (no silent fallback)', async () => {
     const { server } = await linked({});
     await expect(samplingInvoke(server)('go')).rejects.toBeInstanceOf(SamplingUnsupportedError);
+  });
+});
+
+describe('sampling DURING a tool call (the production nesting)', () => {
+  it('a tool handler can call back to the host via sampling while its callTool is pending', async () => {
+    // The live architecture: a host calls the `run` tool; kernloop's handler runs
+    // the loop, which samples BACK to the host mid-handler. This proves the MCP
+    // SDK dispatches the server→client sampling request while the client→server
+    // callTool is still in flight (no deadlock) — the protocol-level de-risk.
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = new Server({ name: 'kernloop', version: '0' }, { capabilities: { tools: {} } });
+    server.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: [
+        { name: 'loop', description: 'samples mid-handler', inputSchema: { type: 'object' } },
+      ],
+    }));
+    server.setRequestHandler(CallToolRequestSchema, async () => {
+      // Two sequential sampling calls, exactly as multiple loop nodes would.
+      const a = await samplingInvoke(server)('node-1 prompt');
+      const b = await samplingInvoke(server)('node-2 prompt');
+      return { content: [{ type: 'text', text: `${a.output}|${b.output}` }] };
+    });
+    const client = new Client({ name: 'host', version: '0' }, { capabilities: { sampling: {} } });
+    client.setRequestHandler(CreateMessageRequestSchema, (req) => {
+      const first = req.params.messages[0]?.content;
+      const prompt = first?.type === 'text' ? first.text : '';
+      return { role: 'assistant', content: { type: 'text', text: `host(${prompt})` }, model: 'm' };
+    });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    cleanup.push(async () => {
+      await client.close();
+      await server.close();
+    });
+    const res = (await client.callTool({ name: 'loop', arguments: {} })) as {
+      content: Array<{ type: string; text: string }>;
+    };
+    expect(res.content[0]?.text).toBe('host(node-1 prompt)|host(node-2 prompt)');
   });
 });

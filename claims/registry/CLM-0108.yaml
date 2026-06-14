@@ -16,6 +16,7 @@ evidence:
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::routes the prompt UP to the host and returns the host completion (honest zero cost)'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::passes the per-node model alias as an advisory preference hint'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::throws SamplingUnsupportedError when the host cannot sample (no silent fallback)'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::a tool handler can call back to the host via sampling while its callTool is pending'
   - 'code:packages/cli/src/loop/mcp-sampling.ts#samplingInvoke@doc:/CLM-0108/'
   - 'code:packages/cli/src/loop/mcp-sampling.ts#hostSupportsSampling@doc:/CLM-0108/'
   - 'ci:test'
