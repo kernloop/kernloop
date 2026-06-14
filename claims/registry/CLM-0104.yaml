@@ -14,8 +14,6 @@ statement: >-
   skipped, #121/#120); C#/C++ descend named namespaces.
   Ruby instance-method visibility (private/protected directives) and
   brace-namespace bodies are NOT yet descended (honestly deferred, #150). Each REMAINING known
-  Ruby instance-method visibility (private/protected directives) and
-  brace-namespace bodies are NOT yet descended (honestly deferred, #150). Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
   silently passed); the scan bounds its own per-file and total bytes AND each
@@ -59,6 +57,10 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public fun + class member, skips a private fun'
   - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a non-static function + class, skips a static function'
   - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public func but not an internal (default) or private one'
+  - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::descends a NAMED namespace and enumerates its decls'
+  - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::SKIPS an anonymous namespace (internal linkage)'
+  - 'test:packages/faculty-gates/src/treesitter-csharp.test.ts::finds types inside a braced namespace, skipping the namespace itself'
+  - 'test:packages/faculty-gates/src/treesitter-csharp.test.ts::finds types under a file-scoped namespace (`namespace N;`)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::covers a top-level singleton method (def self.x)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::records and skips a file over the per-file byte limit, never parsing it'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::bounds a single parse by a wall-clock budget, recording a timeout as info (#123)'

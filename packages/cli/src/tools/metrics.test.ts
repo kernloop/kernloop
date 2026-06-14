@@ -6,7 +6,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { appendEvent } from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
+import type { Verdict } from '@kernloop/contracts';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { runTool } from './run.js';
 import { escapeLabel, metricsExport } from './metrics.js';
@@ -79,5 +81,41 @@ describe('metricsExport', () => {
   it('escapeLabel escapes backslash, quote, and newline for a safe exposition', () => {
     expect(escapeLabel('a"b\\c\nd')).toBe('a\\"b\\\\c\\nd');
     expect(escapeLabel('plain')).toBe('plain');
+  });
+
+  it('emits per-gate decision cost + per-voter precision VALUES derived from the ledger', () => {
+    const kern = freshKernloop();
+    const verdict: Verdict = {
+      taskId: 'task-v',
+      gate: 'review',
+      result: 'approve',
+      confidence: 0.9,
+      findings: [],
+      voters: [
+        { voter: 'voter-a', vote: 'approve', reasoning: 'ok' },
+        { voter: 'voter-b', vote: 'reject', reasoning: 'no' },
+      ],
+      cost: { tokens: 100, usd: 0.2, wallClockMs: 500 },
+    };
+    // Seed the Observer ledger (cost + a ground-truth voter label) and the audit
+    // chain (so the metric's gate/voter sets pick them up), then assert the
+    // EMITTED values reflect the recorded data — not a fabricated/header line.
+    kern.observer.ingestVerdict(verdict);
+    kern.observer.recordVoterOutcome('voter-a', 'task-v', true); // 1/1 correct → precision 1
+    appendEvent(kern.store, {
+      type: 'cli.gate.verdict',
+      payload: {
+        taskId: 'task-v',
+        gate: 'review',
+        result: 'approve',
+        voters: ['voter-a', 'voter-b'],
+      },
+    });
+    const text = metricsExport(kern);
+    expect(text).toContain('kernloop_cost_per_governed_decision_usd{gate="review"} 0.2');
+    expect(text).toContain('kernloop_running_precision{voter="voter-a"} 1');
+    // voter-b has no ground-truth label → no precision value → not emitted.
+    expect(text).not.toContain('voter="voter-b"');
+    kern.close();
   });
 });
