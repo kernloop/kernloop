@@ -6,10 +6,12 @@
  *
  * `models sync` enumerates every registered overlay `endpoints` entry (via the
  * kernel `discoverApiModels`, key read env-only at call time) plus a local
- * ollama daemon if it answers (`discoverOllamaModels`, no secret), normalizes
- * the served ids through `@kernloop/faculty-models` (`mergeDiscovered`), and
- * REPLACES each source's set in the machine-local discovered cache. It audits a
- * `cli.models.sync` event carrying source ids + counts — NEVER the key.
+ * ollama daemon if it answers (`discoverOllamaModels`, no secret) plus each
+ * agent-CLI adapter's DECLARED tier-bindings (`cli:<name>`, a pure static read —
+ * no network, no subprocess, #131), normalizes the served ids through
+ * `@kernloop/faculty-models` (`mergeDiscovered`), and REPLACES each source's set
+ * in the machine-local discovered cache. It audits a `cli.models.sync` event
+ * carrying source ids + counts — NEVER the key.
  *
  * HONESTY (prime directive):
  *  - per-source FAILURE ISOLATION: a source that fails (no key, unreachable,
@@ -30,6 +32,7 @@
 import { writeFileSync } from 'node:fs';
 import {
   appendEvent,
+  adapterDefinitions,
   discoverApiModels,
   discoverOllamaModels,
   DEFAULT_OLLAMA_HOST,
@@ -45,12 +48,24 @@ import {
 import { apiDefinitionFor } from '../endpoints.js';
 import type { Kernloop } from '../kernel.js';
 
+/**
+ * The agent-CLI adapters whose DECLARED tier-bindings `models sync` records as a
+ * `cli:<name>` source (spec §8.4): a harness-routed adapter (`claude`/`gemini`)
+ * maps each tier to a served alias, so the catalog learns what the harness will
+ * route to with NO network and NO subprocess — the adapter's own declared
+ * routing, recorded verbatim. `ollama` is excluded (it has its own live daemon
+ * probe); a concrete-id adapter with no bindings (`codex`) honestly contributes
+ * an empty set. These are NOT a live model-list enumeration (an opencode-style
+ * `/v1/models`-equivalent probe is a separate, subprocess-gated transport).
+ */
+const CLI_AGENT_ADAPTERS = ['claude', 'codex', 'gemini', 'opencode'] as const;
+
 /** One source's sync outcome — honest about whether it succeeded and why not. */
 export interface SourceSyncResult {
-  /** Source id (an endpoint id, or `ollama`). */
+  /** Source id (an endpoint id, `ollama`, or `cli:<adapter>` for a tier-binding). */
   readonly source: string;
-  /** `'api'` (a registered endpoint) or `'ollama'` (the local daemon). */
-  readonly kind: 'api' | 'ollama';
+  /** `'api'` (endpoint), `'ollama'` (daemon), or `'cli'` (declared tier-binding). */
+  readonly kind: 'api' | 'ollama' | 'cli';
   /** True when the source answered and its set was replaced in the cache. */
   readonly ok: boolean;
   /** Models the source returned (only meaningful when `ok`). */
@@ -77,6 +92,8 @@ export interface ModelsSyncOptions {
   readonly ollamaHost?: string;
   /** Skip the ollama probe entirely (e.g. when the operator runs no local daemon). */
   readonly skipOllama?: boolean;
+  /** Skip the agent-CLI tier-binding sources (claude/codex/gemini/opencode). */
+  readonly skipCliAdapters?: boolean;
 }
 
 /** The error's typed name + message, with no chance of a key (the adapter scrubs). */
@@ -152,6 +169,35 @@ function failure(source: string, kind: 'api' | 'ollama', error: string): SourceS
 }
 
 /**
+ * Record each agent-CLI adapter's DECLARED tier-bindings as a `cli:<name>` source
+ * (#131) — the harness's own routing, normalized through the vendored catalog.
+ * Pure static read: no network, no subprocess, no key. An adapter with no
+ * non-empty binding yields an honest empty set (REPLACE clears any stale rows).
+ */
+function syncCliBindings(
+  cache: DiscoveredCache,
+  syncedAt: string,
+): { cache: DiscoveredCache; results: SourceSyncResult[] } {
+  const results: SourceSyncResult[] = [];
+  for (const name of CLI_AGENT_ADAPTERS) {
+    const aliases = [...new Set(Object.values(adapterDefinitions[name].tierBinding))].filter(
+      (alias) => alias !== '',
+    );
+    const models = mergeDiscovered(catalog, aliases);
+    cache = upsertSource(cache, `cli:${name}`, models, syncedAt);
+    results.push({
+      source: `cli:${name}`,
+      kind: 'cli',
+      ok: true,
+      discovered: models.length,
+      catalogued: countCatalogued(models),
+      error: null,
+    });
+  }
+  return { cache, results };
+}
+
+/**
  * `kernloop models sync` [CLM-0088]: discover every registered endpoint + ollama,
  * normalize, REPLACE each source's discovered set in the machine-local cache,
  * write it, and audit the run (source ids + counts, never the key). Per-source
@@ -175,6 +221,11 @@ export async function modelsSyncTool(
     const step = await syncOllamaSource(cache, options.ollamaHost ?? DEFAULT_OLLAMA_HOST, syncedAt);
     cache = step.cache;
     results.push(step.result);
+  }
+  if (options.skipCliAdapters !== true) {
+    const step = syncCliBindings(cache, syncedAt);
+    cache = step.cache;
+    results.push(...step.results);
   }
   writeFileSync(kern.paths.modelsCache, JSON.stringify(cache, null, 2) + '\n', 'utf8');
   appendEvent(kern.store, {

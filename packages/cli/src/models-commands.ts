@@ -11,20 +11,22 @@ import type { CommandHelpers } from './portability-commands.js';
 import { modelsListTool, modelsSyncTool } from './tools/models.js';
 
 /**
- * `kernloop models sync [--ollama-host H] [--no-ollama]` — discover every
- * registered endpoint (+ a local ollama unless skipped), normalize, replace each
- * source's discovered set in the machine-local cache, and audit the run.
+ * `kernloop models sync [--ollama-host H] [--no-ollama] [--no-cli-adapters]` —
+ * discover every registered endpoint (+ a local ollama unless skipped, + each
+ * agent-CLI adapter's declared tier-bindings unless skipped), normalize, replace
+ * each source's discovered set in the machine-local cache, and audit the run.
  * `models list` — print the merged vendored + discovered catalog with freshness.
  */
 export function modelsCommand(args: string[], io: CliIo, h: CommandHelpers): Promise<number> {
   const [sub, ...rest] = args;
   if (sub === 'sync') {
-    const v = h.mixedFlags(rest, ['ollama-host'], ['no-ollama']);
+    const v = h.mixedFlags(rest, ['ollama-host'], ['no-ollama', 'no-cli-adapters']);
     const host = h.str(v['ollama-host']);
     return h.withKernloop(io, v.dir, (kern) =>
       modelsSyncTool(kern, {
         ...(host === undefined ? {} : { ollamaHost: host }),
         ...(v['no-ollama'] === true ? { skipOllama: true } : {}),
+        ...(v['no-cli-adapters'] === true ? { skipCliAdapters: true } : {}),
       }),
     );
   }

@@ -31,7 +31,7 @@ export const USAGE = [
   '  memory    export [--out <file>]                 portable memory export (JSON; default stdout)',
   '            import <file>                          load a memory export (upserts, audited)',
   '  priors    export [--out <file>]                 routing priors → .kernloop/priors.yaml (YAML)',
-  '  models    sync [--ollama-host <H>] [--no-ollama] | list   discover/list the model catalog',
+  '  models    sync [--ollama-host <H>] [--no-ollama] [--no-cli-adapters] | list   discover/list the model catalog (endpoints + ollama + agent-CLI tier-bindings)',
   '  tracker   create --title T --body-file F [--label L ...]   file an issue (DRY RUN by default; --label repeatable, #76)',
   '            close <ref> [--reason R] | comment <ref> --body-file F | label <ref> --add L [--add L2 ...]',
   '            [--execute]   perform the mutation — honored ONLY at the enforce tier (spec §5.5)',

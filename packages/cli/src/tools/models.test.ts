@@ -182,16 +182,76 @@ describe('modelsSyncTool — honesty (per-source failure isolation, replace-on-r
     const kern = kernWithEndpoint();
     try {
       handler = listingHandler(); // first sync: opus + acme/llama-3
-      await modelsSyncTool(kern, { skipOllama: true });
+      await modelsSyncTool(kern, { skipOllama: true, skipCliAdapters: true });
       // second sync: the endpoint now serves only acme/llama-3
       handler = (req, res) => {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ object: 'list', data: [{ id: 'acme/llama-3' }] }));
       };
-      await modelsSyncTool(kern, { skipOllama: true });
+      await modelsSyncTool(kern, { skipOllama: true, skipCliAdapters: true });
       const list = modelsListTool(kern);
       const discoveredIds = list.models.filter((m) => m.origin === 'discovered').map((m) => m.id);
       expect(discoveredIds).toEqual(['acme/llama-3']); // opus is gone (honesty)
+    } finally {
+      kern.close();
+    }
+  });
+});
+
+describe('modelsSyncTool — agent-CLI tier-binding sources (#131)', () => {
+  it('maps each harness-routed adapter to a cli:<name> source of its declared tier-bindings', async () => {
+    handler = listingHandler();
+    const kern = kernWithEndpoint();
+    try {
+      const result = await modelsSyncTool(kern, { skipOllama: true });
+      const claude = result.sources.find((s) => s.source === 'cli:claude');
+      expect(claude).toMatchObject({ kind: 'cli', ok: true, error: null });
+      // claude is harness-routed (frontier/large/medium/small → fable/opus/sonnet/haiku).
+      const cache = JSON.parse(readFileSync(result.cache, 'utf8')) as {
+        sources: Record<string, { models: { raw: string }[] }>;
+      };
+      const claudeIds = cache.sources['cli:claude']?.models.map((m) => m.raw) ?? [];
+      expect(claudeIds).toContain('opus');
+      expect(claudeIds).toContain('haiku');
+    } finally {
+      kern.close();
+    }
+  });
+
+  it('dedupes aliases bound to more than one tier (gemini frontier+large share an id)', async () => {
+    handler = listingHandler();
+    const kern = kernWithEndpoint();
+    try {
+      const result = await modelsSyncTool(kern, { skipOllama: true });
+      const gemini = result.sources.find((s) => s.source === 'cli:gemini');
+      // four tiers, but two share `gemini-3.1-pro` → fewer than four distinct ids.
+      expect(gemini?.discovered).toBeGreaterThan(0);
+      expect(gemini?.discovered).toBeLessThan(4);
+    } finally {
+      kern.close();
+    }
+  });
+
+  it('a concrete-id adapter with no bindings (codex) honestly records an empty set, never fabricated', async () => {
+    handler = listingHandler();
+    const kern = kernWithEndpoint();
+    try {
+      const result = await modelsSyncTool(kern, { skipOllama: true });
+      expect(result.sources.find((s) => s.source === 'cli:codex')).toMatchObject({
+        ok: true,
+        discovered: 0,
+      });
+    } finally {
+      kern.close();
+    }
+  });
+
+  it('--no-cli-adapters (skipCliAdapters) omits every cli:<name> source', async () => {
+    handler = listingHandler();
+    const kern = kernWithEndpoint();
+    try {
+      const result = await modelsSyncTool(kern, { skipOllama: true, skipCliAdapters: true });
+      expect(result.sources.some((s) => s.kind === 'cli')).toBe(false);
     } finally {
       kern.close();
     }
