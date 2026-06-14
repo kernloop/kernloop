@@ -8,13 +8,19 @@ statement: >-
   `kernloop_cost_usd_total`), per-gate decision cost, and per-voter running
   precision are read from the Observer ledger — nothing estimated or fabricated.
   Every family carries `# HELP`/`# TYPE` and is discoverable even when empty;
-  label values are escaped; the text ends in a single trailing newline. It is a
-  CLI-only view (NOT a twelfth MCP tool) and read-only over the chain + ledger.
+  label values are escaped; the text ends in a single trailing newline. The
+  SAME families are also pushable over OTLP — `--otlp <endpoint>` records each
+  counter's total and gauge's value into an OpenTelemetry meter (labels become
+  attributes) and force-flushes once (#155); Prometheus stays the dependency-free
+  default. It is a CLI-only view (NOT a twelfth MCP tool), read-only over the
+  chain + ledger.
 evidence:
   - 'test:packages/cli/src/tools/metrics.test.ts::emits Prometheus runs/verdicts/chain metrics derived from real events'
   - 'test:packages/cli/src/tools/metrics.test.ts::every metric family carries a HELP and TYPE header (discoverable even when empty)'
   - 'test:packages/cli/src/tools/metrics.test.ts::emits per-gate decision cost + per-voter precision VALUES derived from the ledger'
   - 'test:packages/cli/src/tools/metrics.test.ts::escapeLabel escapes backslash, quote, and newline for a safe exposition'
+  - 'test:packages/cli/src/tools/metrics-otlp.test.ts::pushes counters/gauges with labels→attributes through the exporter'
+  - 'test:packages/cli/src/tools/metrics-otlp.test.ts::exports nothing for empty families without throwing'
   - 'code:packages/cli/src/tools/metrics.ts#metricsExport@doc:/CLM-0110/'
   - 'ci:test'
 status: verified
