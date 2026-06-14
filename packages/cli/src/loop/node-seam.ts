@@ -129,11 +129,15 @@ export function buildNodeSeam(
     const effort = options.effort ?? served.effortArg;
     // The per-node model-call budget (#127); a caller-supplied timeout wins.
     const timeout = options.timeoutMs ?? timeoutMs;
+    // The REQUESTED tier rides through so a host that picks the model itself
+    // (MCP sampling, #140) can route high/med/low; CLI/api adapters ignore it.
+    const tier = options.tier ?? served.requestedTier;
     return metered(prompt, {
       ...options,
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
       ...(timeout === undefined ? {} : { timeoutMs: timeout }),
+      tier,
     });
   };
   return { invoke, served };
