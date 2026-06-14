@@ -202,18 +202,36 @@ describe('kernloop tracker — close/comment/label verbs + errors', () => {
     expect(calls[0]!.argv).toContain('--add-label=security');
   });
 
-  it('rejects a repeated --label rather than silently dropping one', async () => {
-    const repo = repoWithTracker('suggest');
+  it('create accepts MULTIPLE --label flags, planning every label (#76)', async () => {
+    const repo = repoWithTracker('enforce');
     const bodyFile = path.join(repo, 'b.md');
     writeFileSync(bodyFile, 'body');
     const { io } = makeIo(repo);
-    await expect(
-      trackerCommand(
-        ['create', '--title', 'T', '--body-file', bodyFile, '--label', 'a', '--label', 'b'],
-        io,
-        helpers,
-      ),
-    ).rejects.toThrow(/one --label per invocation/);
+    const { exec, calls } = recordingExec();
+    await trackerCommand(
+      ['create', '--title', 'T', '--body-file', bodyFile, '--label', 'a', '--label=b', '--execute'],
+      io,
+      helpers,
+      { exec },
+    );
+    expect(calls[0]!.argv).toContain('--label=a');
+    expect(calls[0]!.argv).toContain('--label=b');
+  });
+
+  it('label <ref> accepts MULTIPLE --add flags (#76)', async () => {
+    const repo = repoWithTracker('enforce');
+    const { io } = makeIo(repo);
+    const { exec, calls } = recordingExec();
+    await trackerCommand(
+      ['label', '7', '--add', 'security', '--add', 'review-finding', '--execute'],
+      io,
+      helpers,
+      {
+        exec,
+      },
+    );
+    expect(calls[0]!.argv).toContain('--add-label=security');
+    expect(calls[0]!.argv).toContain('--add-label=review-finding');
   });
 
   it('audits the REAL created issue ref on a successful execute (not a placeholder)', async () => {
