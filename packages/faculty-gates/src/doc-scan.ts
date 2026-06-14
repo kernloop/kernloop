@@ -10,9 +10,10 @@
  * SCOPE, stated honestly (the prime directive): this proves a doc-comment is
  * PRESENT and non-empty — never that it is ACCURATE. Accuracy is a judgment a
  * mechanical scan cannot make; only a reviewer/test can. TypeScript/JavaScript
- * is enforced here via the TS compiler API; Python/Go/Rust/Java/C/PHP/Ruby are enforced in
- * `treesitter-scan.ts` (in-process WASM grammars, #108). A REMAINING known
- * source language the scanner cannot yet parse (Ruby, Java, …) degrades
+ * is enforced here via the TS compiler API; twelve more languages (Python/Go/
+ * Rust/Java/C/PHP/Ruby #108/#122, C++/C#/Kotlin/Swift/Scala #120) are enforced in
+ * `treesitter-scan.ts` (in-process WASM grammars). A REMAINING known source
+ * language whose grammar is not vendored (Dart, Lua, Elixir, Haskell, …) degrades
  * HONESTLY — one non-blocking `info` finding records the gap rather than
  * silently passing the files. Non-code files are out of scope and skipped.
  * The AST logic mirrors `claims/src/symbols.ts` (the quarry

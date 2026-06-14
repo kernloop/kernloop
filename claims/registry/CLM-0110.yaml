@@ -13,6 +13,7 @@ statement: >-
 evidence:
   - 'test:packages/cli/src/tools/metrics.test.ts::emits Prometheus runs/verdicts/chain metrics derived from real events'
   - 'test:packages/cli/src/tools/metrics.test.ts::every metric family carries a HELP and TYPE header (discoverable even when empty)'
+  - 'test:packages/cli/src/tools/metrics.test.ts::emits per-gate decision cost + per-voter precision VALUES derived from the ledger'
   - 'test:packages/cli/src/tools/metrics.test.ts::escapeLabel escapes backslash, quote, and newline for a safe exposition'
   - 'code:packages/cli/src/tools/metrics.ts#metricsExport@doc:/CLM-0110/'
   - 'ci:test'

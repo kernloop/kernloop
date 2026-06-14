@@ -24,10 +24,10 @@
  * Auditing of emitted Verdicts happens kernel-side at the bus boundary.
  * This faculty imports only @kernloop/contracts, zod, node builtins, the
  * `typescript` compiler API (the in-process TS/JS doc-comment scanner, #65), and
- * `web-tree-sitter` (the in-process Python/Go/Rust/Java/C/PHP/Ruby doc-comment
- * scanner, #108, with grammars vendored under `grammars/`) — never another
- * plugin (constitutional rule 5); both parsers are external libraries, not
- * faculties.
+ * `web-tree-sitter` (the in-process doc-comment scanner for twelve languages —
+ * Python/Go/Rust/Java/C/PHP/Ruby #108/#122 and C++/C#/Kotlin/Swift/Scala #120,
+ * grammars vendored under `grammars/`) — never another plugin (constitutional
+ * rule 5); both parsers are external libraries, not faculties.
  */
 export {
   DEFAULT_TIMEOUT_MS,
