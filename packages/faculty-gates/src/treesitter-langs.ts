@@ -23,17 +23,18 @@
  *              PLUS each class/interface/trait's public methods (default
  *              visibility is public; #121); a PHPDoc block, `//`, or `#` above.
  *  - Ruby    — top-level `def`/`def self.x`/`class`/`module` (public by
- *              default); a `#` comment above.
+ *              default) PLUS each class/module's public instance methods,
+ *              tracking the stateful `private`/`protected` directives (#150);
+ *              a `#` comment above.
  *
  * The five #120 languages (own files): C++ (C-like + named-namespace descent +
  * class/struct access tracking), C# (`public` only, namespace descent, members),
  * Kotlin + Scala (public-by-default, members), Swift (`public`/`open` only).
  *
  * SCOPE. Python/Go/Rust/C enumerate the TOP LEVEL; Java/PHP/C#/C++/Kotlin/Scala/
- * Swift ALSO descend one level into a type's PUBLIC members (#121/#120); C#/C++
- * descend named namespaces. Still deferred (#150): Ruby instance-method
- * visibility (its stateful `private`/`protected` directives) and other
- * brace-`namespace` bodies.
+ * Swift/Ruby ALSO descend one level into a type's PUBLIC members (#121/#120/#150);
+ * C#/C++ descend named namespaces. Still deferred (#150): Ruby's arg-form
+ * visibility (`private :x`) and brace-`namespace` member bodies.
  *
  * Pure AST logic over `web-tree-sitter` nodes — no I/O, no model. The grammar
  * loading, byte budgets, and walk live in treesitter-scan.ts.
@@ -46,6 +47,7 @@ import {
   type Decl,
   type LangSpec,
 } from './treesitter-shared.js';
+import { extractRuby } from './treesitter-ruby.js';
 import { extractCSharp } from './treesitter-csharp.js';
 import { extractScala } from './treesitter-scala.js';
 import { extractKotlin } from './treesitter-kotlin.js';
@@ -345,27 +347,6 @@ function extractPhp(root: Parser.SyntaxNode): Decl[] {
     ]);
     out.push({ name, kind: kindOf(node.type), line: lineOf(node), documented });
     if (PHP_CONTAINERS.has(node.type)) out.push(...phpMembers(node));
-  }
-  return out;
-}
-
-/** The Ruby top-level declarations the gate enumerates (`singleton_method` is
- * `def self.x`). NESTED instance methods are NOT enumerated — that is member
- * level, honestly deferred (see CLM-0104's top-level boundary). */
-const RUBY_DECLS = new Set(['method', 'singleton_method', 'class', 'module']);
-
-/** Ruby: top-level `def`/`def self.x`/`class`/`module` (public by default at
- * file scope), documented iff a `#` comment sits immediately above. */
-function extractRuby(root: Parser.SyntaxNode): Decl[] {
-  const out: Decl[] = [];
-  for (const node of root.namedChildren) {
-    if (!RUBY_DECLS.has(node.type)) continue;
-    const name = node.childForFieldName('name')?.text;
-    if (name === undefined) continue;
-    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
-      'comment',
-    ]);
-    out.push({ name, kind: node.type, line: lineOf(node), documented });
   }
   return out;
 }
