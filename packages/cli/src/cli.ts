@@ -30,6 +30,7 @@ import {
   statusTool,
 } from './tools/index.js';
 import { metricsCommand } from './metrics-commands.js';
+import { watchCommand } from './watch-commands.js';
 import { gateInputFrom } from './gate-flags.js';
 import { memoryCommand, priorsCommand, type CommandHelpers } from './portability-commands.js';
 import { workshopCommand } from './workshop-commands.js';
@@ -307,6 +308,7 @@ const HANDLERS: Record<string, Handler> = {
     return withKernloop(io, v.dir, (kern) => observeTool(kern, {}));
   },
   metrics: (args, io) => metricsCommand(args, io),
+  watch: (args, io) => watchCommand(args, io),
   memory: (args, io) => memoryCommand(args, io, commandHelpers),
   priors: (args, io) => priorsCommand(args, io, commandHelpers),
   models: (args, io) => modelsCommand(args, io, commandHelpers),
