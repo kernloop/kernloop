@@ -1,8 +1,12 @@
 id: CLM-0088
 statement: >-
-  kernloop models sync discovers every registered overlay endpoint plus a local ollama daemon,
-  normalizes the served ids through faculty-models, REPLACES each source's set in the machine-local
-  discovered cache, and audits a cli.models.sync event carrying per-source counts but NEVER the key —
+  kernloop models sync discovers every registered overlay endpoint plus a local ollama daemon plus
+  each agent-CLI adapter's DECLARED tier-bindings (a cli:<name> source — a pure static read of the
+  harness's own routing, no network and no subprocess, #131: a harness-routed adapter contributes its
+  per-tier served aliases deduped, a concrete-id adapter with no bindings honestly contributes an empty
+  set, never a fabricated list), normalizes the served ids through faculty-models, REPLACES each
+  source's set in the machine-local discovered cache, and audits a cli.models.sync event carrying
+  per-source counts but NEVER the key —
   honestly: a source that fails (no key, unreachable, malformed) is reported as failed for that source
   with a key-free reason while the others proceed and its prior set is left untouched, and the key
   never reaches the result, the audit, or stdout. kernloop models list prints the merged vendored plus
@@ -17,6 +21,10 @@ evidence:
   - 'test:packages/cli/src/tools/models.test.ts::a re-sync REPLACES a source set — a vanished model does not persist'
   - 'test:packages/cli/src/tools/models.test.ts::lists vendored rows always, and discovered rows with source + syncedAt'
   - 'test:packages/cli/src/tools/models.test.ts::with no cache, lists only vendored rows and a null discovered snapshot'
+  - 'test:packages/cli/src/tools/models.test.ts::maps each harness-routed adapter to a cli:<name> source of its declared tier-bindings'
+  - 'test:packages/cli/src/tools/models.test.ts::dedupes aliases bound to more than one tier (gemini frontier+large share an id)'
+  - 'test:packages/cli/src/tools/models.test.ts::a concrete-id adapter with no bindings (codex) honestly records an empty set, never fabricated'
+  - 'test:packages/cli/src/tools/models.test.ts::--no-cli-adapters (skipCliAdapters) omits every cli:<name> source'
   - 'test:packages/cli/src/overlay.test.ts::scaffolds overlay.yaml and gitignores the memory database'
   - 'ci:test'
 status: verified
