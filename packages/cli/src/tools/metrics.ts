@@ -131,6 +131,61 @@ function observerSamples(
   };
 }
 
+/** One metric family spec: name, HELP text, type, samples. */
+type FamilySpec = [string, string, 'counter' | 'gauge', Sample[]];
+
+/** The full metric-family list for a scan: chain-derived counters + Observer
+ * gauges + chain-health gauges. Pure assembly — no I/O (the caller reads). */
+function metricFamilies(
+  envelopeCount: number,
+  verified: boolean,
+  chain: ChainSamples,
+  obs: ReturnType<typeof observerSamples>,
+): FamilySpec[] {
+  const one = (value: number): Sample[] => [{ value }];
+  return [
+    ['kernloop_runs_total', 'Canonical-loop run outcomes.', 'counter', chain.runs],
+    [
+      'kernloop_gate_verdicts_total',
+      'Gate verdicts by gate and result.',
+      'counter',
+      chain.verdicts,
+    ],
+    ['kernloop_routing_decisions_total', 'Router decisions by outcome.', 'counter', chain.routes],
+    [
+      'kernloop_cost_tokens_total',
+      'Metered model tokens (Observer ledger).',
+      'counter',
+      one(obs.totalTokens),
+    ],
+    [
+      'kernloop_cost_usd_total',
+      'Metered model spend in USD (Observer ledger).',
+      'counter',
+      one(obs.totalUsd),
+    ],
+    [
+      'kernloop_cost_per_governed_decision_usd',
+      'Mean USD cost per governed decision, by gate.',
+      'gauge',
+      obs.decisionCost,
+    ],
+    [
+      'kernloop_running_precision',
+      'Per-voter running precision (labeled window); emitted only when labels exist.',
+      'gauge',
+      obs.precision,
+    ],
+    ['kernloop_audit_chain_length', 'Audit-chain envelope count.', 'gauge', one(envelopeCount)],
+    [
+      'kernloop_audit_chain_verified',
+      'Audit hash-chain integrity (1 = verified).',
+      'gauge',
+      one(verified ? 1 : 0),
+    ],
+  ];
+}
+
 /**
  * Build the Prometheus exposition text for one overlay [CLM-0110]. Reads the
  * audit chain for run-outcome and gate-verdict counts and the Observer ledger
@@ -141,51 +196,9 @@ export function metricsExport(kern: Kernloop): string {
   const envelopes = readEnvelopes(kern.paths.audit);
   const chain = aggregateChain(envelopes);
   const obs = observerSamples(kern, chain.gates, chain.voters);
+  const families = metricFamilies(envelopes.length, verifyChain(kern.store).ok, chain, obs);
   return (
-    [
-      family('kernloop_runs_total', 'Canonical-loop run outcomes.', 'counter', chain.runs),
-      family(
-        'kernloop_gate_verdicts_total',
-        'Gate verdicts by gate and result.',
-        'counter',
-        chain.verdicts,
-      ),
-      family(
-        'kernloop_routing_decisions_total',
-        'Router decisions by outcome.',
-        'counter',
-        chain.routes,
-      ),
-      family('kernloop_cost_tokens_total', 'Metered model tokens (Observer ledger).', 'counter', [
-        { value: obs.totalTokens },
-      ]),
-      family(
-        'kernloop_cost_usd_total',
-        'Metered model spend in USD (Observer ledger).',
-        'counter',
-        [{ value: obs.totalUsd }],
-      ),
-      family(
-        'kernloop_cost_per_governed_decision_usd',
-        'Mean USD cost per governed decision, by gate.',
-        'gauge',
-        obs.decisionCost,
-      ),
-      family(
-        'kernloop_running_precision',
-        'Per-voter running precision (labeled window); emitted only when labels exist.',
-        'gauge',
-        obs.precision,
-      ),
-      family('kernloop_audit_chain_length', 'Audit-chain envelope count.', 'gauge', [
-        { value: envelopes.length },
-      ]),
-      family(
-        'kernloop_audit_chain_verified',
-        'Audit hash-chain integrity (1 = verified).',
-        'gauge',
-        [{ value: verifyChain(kern.store).ok ? 1 : 0 }],
-      ),
-    ].join('\n\n') + '\n'
+    families.map(([name, help, type, samples]) => family(name, help, type, samples)).join('\n\n') +
+    '\n'
   );
 }
