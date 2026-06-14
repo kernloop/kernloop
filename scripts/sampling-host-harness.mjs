@@ -12,6 +12,12 @@
  * --check`, dependency-free) so the gate-fail -> re-iterate -> pass routing is
  * actually exercised, not bypassed (the consensus-vote condition).
  *
+ * TIER-AWARE ROUTING (#140): kernloop sends each node's requested tier as MCP
+ * `modelPreferences` (cost/speed/intelligence priorities). This host reads them
+ * and routes the high-intelligence nodes (vote/plan/review) to a STRONGER model
+ * and the cheap nodes to a fast one — exactly what a production host (Opencode)
+ * does with its own tiers. kernloop pins NO model; the host owns the mapping.
+ *
  * NOT a CI test — it makes real model calls. The CI-safe proof is the in-process
  * mocked round-trip + sampling-during-tool-call tests in mcp-sampling.test.ts.
  *
@@ -24,8 +30,12 @@
  * with a pure COMPLETION (the OpenAI-compatible provider), which has no such
  * side effects — using the opencode CLI here is a leaky TEST stand-in.
  *
- * Usage: node scripts/sampling-host-harness.mjs [opencode-model]
- *   default model: opencode/north-mini-code-free
+ * Usage (DISPOSABLE ENV ONLY — see #138 safety gate below):
+ *   KERNLOOP_HARNESS_DISPOSABLE=1 node scripts/sampling-host-harness.mjs [high-model] [low-model]
+ *   high (intelligencePriority>=0.7): opencode/nemotron-3-ultra-free  (overridable)
+ *   low  (everything else):           opencode/north-mini-code-free   (overridable)
+ *   env overrides: KERNLOOP_HARNESS_HIGH_MODEL, KERNLOOP_HARNESS_LOW_MODEL
+ *   REQUIRED ack:  KERNLOOP_HARNESS_DISPOSABLE=1 (the harness fails closed without it)
  */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -38,8 +48,26 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const CLI = path.join(repoRoot, 'packages', 'cli', 'dist', 'cli.js');
-const MODEL = process.argv[2] ?? 'opencode/north-mini-code-free';
+// Tier-aware model pair (#140). kernloop sends each node's tier as MCP
+// modelPreferences; this host maps high-intelligence nodes to HIGH_MODEL and
+// the rest to LOW_MODEL. kernloop pins neither — the host owns the mapping.
+const HIGH_MODEL =
+  process.argv[2] ?? process.env.KERNLOOP_HARNESS_HIGH_MODEL ?? 'opencode/nemotron-3-ultra-free';
+const LOW_MODEL =
+  process.argv[3] ?? process.env.KERNLOOP_HARNESS_LOW_MODEL ?? 'opencode/north-mini-code-free';
+// Route to HIGH when the node asked for at least this much intelligence (a
+// frontier node sends 1.0, large 0.8, medium 0.5, small 0.2 — so 0.7 splits
+// the judgment nodes (vote/plan/review) from the cheap ones.
+const HIGH_INTELLIGENCE_CUTOFF = 0.7;
 const OPENCODE_CWD = mkdtempSync(path.join(tmpdir(), 'sampling-opencode-'));
+
+/** Map a node's MCP modelPreferences to a concrete opencode model (#140): the
+ * host's own high/med/low routing. A node that asked for high intelligence gets
+ * the strong model; everything else gets the fast one. No preference -> LOW. */
+function pickModel(preferences) {
+  const intelligence = preferences?.intelligencePriority ?? 0;
+  return intelligence >= HIGH_INTELLIGENCE_CUTOFF ? HIGH_MODEL : LOW_MODEL;
+}
 
 /** One sampling round: run opencode on the prompt, return the assistant text by
  * concatenating its streamed `type:"text"` events (#135). The prompt is UNTRUSTED
@@ -49,8 +77,8 @@ const OPENCODE_CWD = mkdtempSync(path.join(tmpdir(), 'sampling-opencode-'));
  * verified). NOTE: `--` blocks flag-injection but opencode is an autonomous agent
  * and its file-writing is NOT fully contained by `cwd` (see the header warning
  * and #138) — run this harness only in a disposable environment. */
-function fulfilViaOpencode(prompt) {
-  const out = execFileSync('opencode', ['run', '--format', 'json', '-m', MODEL, '--', prompt], {
+function fulfilViaOpencode(prompt, model) {
+  const out = execFileSync('opencode', ['run', '--format', 'json', '-m', model, '--', prompt], {
     cwd: OPENCODE_CWD,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
@@ -98,10 +126,17 @@ function installSamplingFulfilment(client) {
     sampleCount += 1;
     const m = req.params.messages[0]?.content;
     const prompt = m?.type === 'text' ? m.text : '';
-    console.error(`[harness] sampling #${sampleCount} (${prompt.length} chars) -> opencode…`);
-    const text = fulfilViaOpencode(prompt);
+    // Tier-aware routing (#140): the node's requested tier rode up as MCP
+    // modelPreferences; this host maps it to a concrete model.
+    const prefs = req.params.modelPreferences;
+    const model = pickModel(prefs);
+    const intel = prefs?.intelligencePriority ?? 0;
+    console.error(
+      `[harness] sampling #${sampleCount} (${prompt.length} chars, intel=${intel}) -> ${model}…`,
+    );
+    const text = fulfilViaOpencode(prompt, model);
     console.error(`[harness]   <- ${text.length} chars`);
-    return { role: 'assistant', content: { type: 'text', text }, model: MODEL };
+    return { role: 'assistant', content: { type: 'text', text }, model };
   });
   return () => sampleCount;
 }
@@ -123,10 +158,32 @@ function printAuditTail(ws) {
   }
 }
 
+/**
+ * #138 SAFETY GATE — fail closed unless the operator acknowledges a disposable
+ * environment. opencode (the sampling fulfiller) is an AUTONOMOUS agent, not a
+ * pure completion endpoint: it was observed escaping its spawn cwd and mutating
+ * the surrounding kernloop checkout — creating a fictional `packages/utilities`,
+ * three claim files, and OVERWRITING an existing protected claim. This harness
+ * therefore refuses to run unless `KERNLOOP_HARNESS_DISPOSABLE=1` is set, which
+ * the operator sets ONLY inside a throwaway VM/container/checkout.
+ */
+function assertDisposableEnvironment() {
+  if (process.env.KERNLOOP_HARNESS_DISPOSABLE === '1') return;
+  throw new Error(
+    'refusing to run (#138): this harness drives opencode, an autonomous agent ' +
+      'that writes files OUTSIDE its sandbox and was observed mutating the real ' +
+      'repo (clobbered a protected claim, created a fake package). Run ONLY in a ' +
+      'DISPOSABLE VM/container/checkout, then set KERNLOOP_HARNESS_DISPOSABLE=1.',
+  );
+}
+
 async function main() {
+  assertDisposableEnvironment();
   if (!existsSync(CLI)) throw new Error(`build first: ${CLI} missing (run pnpm build)`);
   const ws = makeWorkspace();
-  console.error(`[harness] workspace: ${ws}\n[harness] model: ${MODEL}`);
+  console.error(
+    `[harness] workspace: ${ws}\n[harness] tier routing — high: ${HIGH_MODEL}  low: ${LOW_MODEL}`,
+  );
 
   const transport = new StdioClientTransport({
     command: 'node',

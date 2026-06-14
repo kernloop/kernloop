@@ -76,11 +76,14 @@ export function buildInvokeForNode(
 }
 
 /**
- * Per-node seams for an INJECTED invoke (tests script the model CLI/API). Every
- * node routes through the one injected `base`, but the node's served model +
- * effort are still resolved against whatever serves its tier — a CLI adapter or a
- * registered endpoint — so provenance records what each node requested even
- * though one scripted seam answers them all.
+ * Per-node seams for an INJECTED invoke (tests script the model CLI/API; the MCP
+ * sampling run injects {@link samplingInvoke} here, #135). Every node routes
+ * through the one injected `base`, but the node's served model + effort are still
+ * resolved against whatever serves its tier — a CLI adapter or a registered
+ * endpoint — so provenance records what each node requested even though one seam
+ * answers them all. The per-node invoke timeout (#127) is bound here too, so a
+ * slow host model on the sampling path gets the node's real budget instead of the
+ * MCP SDK's 60s request default (#142).
  */
 export function injectedSeamFor(
   runAdapter: AdapterName,
@@ -99,7 +102,14 @@ export function injectedSeamFor(
         endpoint === undefined
           ? resolveServed(req, name as AdapterName)
           : resolveServedApi(req, apiDefinitionFor(name, endpoint));
-      seam = buildNodeSeam(served, base, totals);
+      // Per-node model-call budget (#127/#142): the configured base, capped per
+      // node — bound on the injected path so MCP sampling honors it, not the
+      // SDK's 60s createMessage default.
+      const timeoutMs = invokeTimeoutForNode(
+        node,
+        overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS,
+      );
+      seam = buildNodeSeam(served, base, totals, timeoutMs);
       cache.set(node, seam);
     }
     return seam;

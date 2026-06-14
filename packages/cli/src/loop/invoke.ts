@@ -19,7 +19,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import type { Cost } from '@kernloop/contracts';
+import type { Cost, ModelTier } from '@kernloop/contracts';
 import {
   AdapterUnavailableError,
   detectAdapter,
@@ -35,11 +35,19 @@ export const LOOP_INVOKE_TIMEOUT_MS = 300_000;
  * The one injectable model call: fully assembled prompt in, raw text plus
  * the metered (or honestly-zero) Cost out. The optional `model` + `effort`
  * are the SERVED model alias + resolved effort the composition root binds per
- * node (spec §8.4). Default: {@link adapterInvoke}.
+ * node (spec §8.4). `tier` is the node's REQUESTED tier — carried so a host
+ * that picks the model itself (MCP sampling, #135/#140) can route high/med/low
+ * from it; the CLI/api adapters resolve the model from the tier up front and
+ * ignore it here. Default: {@link adapterInvoke}.
  */
 export type LoopInvoke = (
   prompt: string,
-  options?: { timeoutMs?: number; model?: string; effort?: AdapterCommandEffort },
+  options?: {
+    timeoutMs?: number;
+    model?: string;
+    effort?: AdapterCommandEffort;
+    tier?: ModelTier;
+  },
 ) => Promise<{ output: string; cost: Cost }>;
 
 /** Typed failure parsing a model emission against its output contract. */

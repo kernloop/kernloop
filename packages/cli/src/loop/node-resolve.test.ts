@@ -7,7 +7,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { OverlaySchema, type Overlay } from '../overlay.js';
-import { buildInvokeForNode } from './index.js';
+import { buildInvokeForNode, injectedSeamFor } from './index.js';
+import type { LoopInvoke } from './invoke.js';
+import { DEFAULT_INVOKE_TIMEOUT_MS, LIGHT_INVOKE_TIMEOUT_MS } from './node-model.js';
 
 const overlay = (yaml: Partial<Overlay> = {}): Overlay =>
   OverlaySchema.parse({ id: 'resolve-test', ...yaml });
@@ -64,5 +66,44 @@ describe('buildInvokeForNode — overlay overrides', () => {
     const implement = invokeFor('implement').served;
     expect(implement.adapter).toBe('ollama');
     expect(implement.servedEffort).toBe('unsupported'); // ollama has no effort param
+  });
+});
+
+describe('injectedSeamFor — the INJECTED/sampling path binds the per-node budget + tier', () => {
+  /** A spy base recording the options each node's bound invoke hands down. */
+  function spyBase(): { base: LoopInvoke; seen: Array<{ timeoutMs?: number; tier?: string }> } {
+    const seen: Array<{ timeoutMs?: number; tier?: string }> = [];
+    const base: LoopInvoke = async (_prompt, options = {}) => {
+      seen.push({ timeoutMs: options.timeoutMs, tier: options.tier });
+      return { output: '{}', cost: { tokens: 0, usd: 0 } };
+    };
+    return { base, seen };
+  }
+
+  it('gives a HEAVY node its full timeout (not the MCP SDK 60s default) and a light node the cap (#142)', async () => {
+    const { base, seen } = spyBase();
+    const seamFor = injectedSeamFor('claude', overlay(), base, { tokens: 0, usd: 0 });
+    await seamFor('research').invoke('p'); // heavy → full configured base
+    await seamFor('vote').invoke('p'); // light → capped
+    expect(seen[0]?.timeoutMs).toBe(DEFAULT_INVOKE_TIMEOUT_MS);
+    expect(seen[1]?.timeoutMs).toBe(LIGHT_INVOKE_TIMEOUT_MS);
+  });
+
+  it('carries each node’s REQUESTED tier so a sampling host can route high/med/low (#140)', async () => {
+    const { base, seen } = spyBase();
+    const seamFor = injectedSeamFor('claude', overlay(), base, { tokens: 0, usd: 0 });
+    const research = seamFor('research');
+    await research.invoke('p');
+    expect(seen[0]?.tier).toBe(research.served.requestedTier);
+  });
+
+  it('honors an overlay-configured invoke base on the injected path', async () => {
+    const { base, seen } = spyBase();
+    const seamFor = injectedSeamFor('claude', overlay({ invokeTimeoutMs: 120_000 }), base, {
+      tokens: 0,
+      usd: 0,
+    });
+    await seamFor('research').invoke('p');
+    expect(seen[0]?.timeoutMs).toBe(120_000);
   });
 });

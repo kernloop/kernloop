@@ -18,12 +18,53 @@
  * run does not budget-halt on a cost we cannot observe (recorded, not faked).
  */
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import type { Cost } from '@kernloop/contracts';
+import type { Cost, ModelTier } from '@kernloop/contracts';
 import type { LoopInvoke } from './invoke.js';
 
 /** Max tokens requested per sampling completion — a generous default; the host
  * may serve fewer. Loop nodes emit bounded prose/JSON, well under this. */
 export const SAMPLING_MAX_TOKENS = 8192;
+
+/** The three MCP `modelPreferences` priorities (0..1) a node's TIER maps to so
+ * the HOST routes high/med/low among ITS own models (#140). MCP has only these
+ * cost/speed/intelligence axes — there is no `effort` axis, so effort is NOT
+ * expressed here (it rides the CLI/api adapter path); inventing one would imply
+ * a control the host cannot honor. The ladder is monotone: frontier asks for
+ * maximum intelligence (cost/speed irrelevant), small asks for cheap+fast. */
+const TIER_PREFERENCES: Readonly<
+  Record<ModelTier, { intelligencePriority: number; speedPriority: number; costPriority: number }>
+> = {
+  frontier: { intelligencePriority: 1, speedPriority: 0, costPriority: 0 },
+  large: { intelligencePriority: 0.8, speedPriority: 0.2, costPriority: 0.2 },
+  medium: { intelligencePriority: 0.5, speedPriority: 0.5, costPriority: 0.5 },
+  small: { intelligencePriority: 0.2, speedPriority: 0.9, costPriority: 0.9 },
+};
+
+/**
+ * Build the MCP `modelPreferences` a node's call sends UP to the host (#140):
+ * the requested TIER as cost/speed/intelligence priorities (the host routes its
+ * own high/med/low from them), plus the resolved model alias as an advisory
+ * name `hint` [CLM-0108]. Returns undefined when neither is set, so a bare call
+ * sends no preference at all. Exported for the test that asserts the map.
+ */
+export function samplingPreferences(
+  tier: ModelTier | undefined,
+  hint: string | undefined,
+):
+  | {
+      hints?: Array<{ name: string }>;
+      intelligencePriority?: number;
+      speedPriority?: number;
+      costPriority?: number;
+    }
+  | undefined {
+  const priorities = tier === undefined ? undefined : TIER_PREFERENCES[tier];
+  if (priorities === undefined && hint === undefined) return undefined;
+  return {
+    ...(priorities ?? {}),
+    ...(hint === undefined ? {} : { hints: [{ name: hint }] }),
+  };
+}
 
 /** The connected MCP host did not declare the `sampling` capability, so the loop
  * cannot obtain completions from it — a typed, honest unavailability (no silent
@@ -45,8 +86,10 @@ export function hostSupportsSampling(server: Server): boolean {
 /**
  * A {@link LoopInvoke} that obtains each completion via MCP SAMPLING from the
  * connected host (#135) [CLM-0108]. The host serves the model; the response text is the
- * loop's output. `options.model` (the per-node tier alias the loop resolved) is
- * passed as a model PREFERENCE hint — advisory only; the host picks the actual
+ * loop's output. The per-node REQUESTED tier (`options.tier`) maps to MCP
+ * `modelPreferences` cost/speed/intelligence priorities so the host routes its
+ * OWN high/med/low model (#140), and the resolved model alias (`options.model`)
+ * rides as an advisory name hint — both advisory; the host picks the actual
  * model. `options.timeoutMs` (#127) bounds the round-trip. Throws a
  * {@link SamplingUnsupportedError} when the host did not declare `sampling` (no
  * silent fallback). Cost is honest zero (the host owns usage).
@@ -55,11 +98,12 @@ export function samplingInvoke(server: Server, maxTokens = SAMPLING_MAX_TOKENS):
   return async (prompt, options = {}) => {
     if (!hostSupportsSampling(server)) throw new SamplingUnsupportedError();
     const hint = options.model !== undefined && options.model !== '' ? options.model : undefined;
+    const modelPreferences = samplingPreferences(options.tier, hint);
     const result = await server.createMessage(
       {
         messages: [{ role: 'user', content: { type: 'text', text: prompt } }],
         maxTokens,
-        ...(hint === undefined ? {} : { modelPreferences: { hints: [{ name: hint }] } }),
+        ...(modelPreferences === undefined ? {} : { modelPreferences }),
       },
       options.timeoutMs === undefined ? undefined : { timeout: options.timeoutMs },
     );

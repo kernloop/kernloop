@@ -4,7 +4,10 @@ statement: >-
   declared the `sampling` capability, the canonical loop obtains every completion
   from the host via MCP `sampling/createMessage` (#135): the host serves the
   model from its OWN provider — kernloop holds no model CLI, key, or model choice
-  — the per-node model alias rides only as an ADVISORY preference hint, the
+  — the per-node requested TIER rides up as MCP `modelPreferences`
+  cost/speed/intelligence priorities (#140) so the host routes its OWN
+  high/med/low model, with the resolved model alias as an advisory name hint
+  alongside; both are ADVISORY (the host picks). The
   per-call timeout bounds the round-trip, and cost is metered honest-ZERO (the
   host owns usage; the binding constraint is the host plan's context limits, not
   per-run USD). A host WITHOUT sampling is a typed SamplingUnsupportedError — no
@@ -15,6 +18,10 @@ evidence:
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::is false when the host declared no sampling capability'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::routes the prompt UP to the host and returns the host completion (honest zero cost)'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::passes the per-node model alias as an advisory preference hint'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::maps the per-node tier to MCP cost/speed/intelligence priorities so the host routes high/med/low'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::orders intelligence monotonically down the tier ladder'
+  - 'test:packages/cli/src/loop/node-resolve.test.ts::carries each node’s REQUESTED tier so a sampling host can route high/med/low (#140)'
+  - 'code:packages/cli/src/loop/mcp-sampling.ts#samplingPreferences@doc:/CLM-0108/'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::throws SamplingUnsupportedError when the host cannot sample (no silent fallback)'
   - 'test:packages/cli/src/loop/mcp-sampling.test.ts::a tool handler can call back to the host via sampling while its callTool is pending'
   - 'code:packages/cli/src/loop/mcp-sampling.ts#samplingInvoke@doc:/CLM-0108/'

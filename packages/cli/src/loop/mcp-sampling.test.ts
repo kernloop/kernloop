@@ -15,7 +15,12 @@ import {
   CreateMessageRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { hostSupportsSampling, samplingInvoke, SamplingUnsupportedError } from './mcp-sampling.js';
+import {
+  hostSupportsSampling,
+  samplingInvoke,
+  samplingPreferences,
+  SamplingUnsupportedError,
+} from './mcp-sampling.js';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -92,9 +97,56 @@ describe('samplingInvoke', () => {
     expect(seenHint).toBe('opus');
   });
 
+  it('maps the per-node tier to MCP cost/speed/intelligence priorities so the host routes high/med/low', async () => {
+    let seen: Record<string, unknown> | undefined;
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = new Server({ name: 'k', version: '0' }, { capabilities: { tools: {} } });
+    const client = new Client({ name: 'h', version: '0' }, { capabilities: { sampling: {} } });
+    client.setRequestHandler(CreateMessageRequestSchema, (req) => {
+      seen = req.params.modelPreferences as Record<string, unknown> | undefined;
+      return { role: 'assistant', content: { type: 'text', text: 'ok' }, model: 'm' };
+    });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    cleanup.push(async () => {
+      await client.close();
+      await server.close();
+    });
+    // A judgment node (frontier) asks for maximum intelligence; the alias still
+    // rides as an advisory hint — the host picks the actual high-tier model.
+    await samplingInvoke(server)('vote on the plan', { tier: 'frontier', model: 'opus' });
+    expect(seen?.intelligencePriority).toBe(1);
+    expect(seen?.speedPriority).toBe(0);
+    expect(seen?.costPriority).toBe(0);
+    expect((seen?.hints as Array<{ name: string }>)?.[0]?.name).toBe('opus');
+
+    // A cheap node (small) asks for speed/cost — the host routes a low-tier model.
+    await samplingInvoke(server)('a trivial step', { tier: 'small' });
+    expect(seen?.intelligencePriority).toBe(0.2);
+    expect(seen?.speedPriority).toBe(0.9);
+    expect(seen?.costPriority).toBe(0.9);
+  });
+
   it('throws SamplingUnsupportedError when the host cannot sample (no silent fallback)', async () => {
     const { server } = await linked({});
     await expect(samplingInvoke(server)('go')).rejects.toBeInstanceOf(SamplingUnsupportedError);
+  });
+});
+
+describe('samplingPreferences (tier → MCP modelPreferences)', () => {
+  it('orders intelligence monotonically down the tier ladder', () => {
+    const intel = (t: 'frontier' | 'large' | 'medium' | 'small') =>
+      samplingPreferences(t, undefined)?.intelligencePriority ?? -1;
+    expect(intel('frontier')).toBeGreaterThan(intel('large'));
+    expect(intel('large')).toBeGreaterThan(intel('medium'));
+    expect(intel('medium')).toBeGreaterThan(intel('small'));
+  });
+
+  it('is undefined when neither tier nor hint is set (a bare call sends no preference)', () => {
+    expect(samplingPreferences(undefined, undefined)).toBeUndefined();
+  });
+
+  it('carries the alias hint even with no tier (back-compat with the alias-only path)', () => {
+    expect(samplingPreferences(undefined, 'opus')).toEqual({ hints: [{ name: 'opus' }] });
   });
 });
 
