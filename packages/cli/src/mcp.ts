@@ -14,6 +14,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { Kernloop } from './kernel.js';
+import { hostSupportsSampling, samplingInvoke } from './loop/mcp-sampling.js';
 import {
   AuditInputSchema,
   BriefInputSchema,
@@ -40,11 +41,13 @@ import {
   type KernelToolName,
 } from './tools/index.js';
 
-/** One MCP-exposed tool: description, input schema, and dispatcher. */
+/** One MCP-exposed tool: description, input schema, and dispatcher. The live
+ * {@link Server} is passed so a model-using tool (run) can obtain completions
+ * from the HOST via MCP sampling (#135); tools that need no model ignore it. */
 interface ToolEntry {
   readonly description: string;
   readonly schema: z.ZodType;
-  readonly handler: (kern: Kernloop, args: unknown) => Promise<unknown> | unknown;
+  readonly handler: (kern: Kernloop, args: unknown, server: Server) => Promise<unknown> | unknown;
 }
 
 /** The eleven-tool dispatch table — the complete MCP surface [CLM-0033]. */
@@ -53,7 +56,15 @@ export const TOOL_TABLE: Readonly<Record<KernelToolName, ToolEntry>> = {
     description:
       'The entry point: route a goal/TaskContract via manifests and execute the selected capability, returning an Outcome. execute:false returns the routing decision only. async:true returns a job id immediately and runs the work in this resident process; inspect it with status --job.',
     schema: RunInputSchema,
-    handler: (kern, args) => runTool(kern, RunInputSchema.parse(args)),
+    // When the connected host can serve models via MCP sampling, route the loop
+    // through it — kernloop holds no model CLI/key on the server side, the host
+    // is the model provider (#135). Otherwise the run uses its --adapter CLI.
+    handler: (kern, args, server) =>
+      runTool(
+        kern,
+        RunInputSchema.parse(args),
+        hostSupportsSampling(server) ? { invoke: samplingInvoke(server) } : {},
+      ),
   },
   status: {
     description:
@@ -162,7 +173,7 @@ export function createMcpServer(kern: Kernloop): Server {
       );
     }
     try {
-      return textResult(await entry.handler(kern, request.params.arguments ?? {}));
+      return textResult(await entry.handler(kern, request.params.arguments ?? {}, server));
     } catch (error) {
       return textResult(
         {
