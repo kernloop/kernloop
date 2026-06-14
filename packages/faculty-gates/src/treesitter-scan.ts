@@ -110,30 +110,36 @@ async function scanOneFile(
   } catch {
     return [];
   }
-  // The parser is a CACHED module-level singleton, so set the wall-clock budget
-  // afresh on every parse — a prior scan may have set a different value (#123).
+  return parseAndExtract(loaded, source, rel, parseTimeoutMicros);
+}
+
+/** Parse `source` under the per-parse wall-clock budget and return one `error`
+ * finding per undocumented public decl. A budget-exceeding parse (web-tree-sitter
+ * THROWS "Parsing failed") aborts → reset the cached parser so its half-parsed
+ * state cannot corrupt the next file → one `info` degradation, never a hang or
+ * silent pass (#123). The parsed tree holds WASM memory with no Finalization
+ * registry, so it is ALWAYS freed (the parser is a long-lived singleton). */
+function parseAndExtract(
+  loaded: NonNullable<LoadedParser>,
+  source: string,
+  rel: string,
+  parseTimeoutMicros: number,
+): Finding[] {
+  // The parser is a CACHED singleton, so set the budget afresh on every parse.
   loaded.parser.setTimeoutMicros(parseTimeoutMicros);
   let tree: Parser.Tree;
   try {
     tree = loaded.parser.parse(source);
   } catch {
-    // web-tree-sitter THROWS ("Parsing failed") when the wall-clock budget
-    // aborts the parse mid-flight. RESET the cached parser so its half-parsed
-    // state cannot corrupt the next file, and record the degradation — never
-    // block the loop or silently pass the file (#123).
     loaded.parser.reset();
     return [
       {
         severity: 'info',
-        message: `doc-comment check timed out parsing ${rel}; ${spec.label} coverage recorded, not enforced`,
+        message: `doc-comment check timed out parsing ${rel}; ${loaded.spec.label} coverage recorded, not enforced`,
         path: rel,
       },
     ];
   }
-  // A web-tree-sitter Tree holds WASM linear memory that is NOT auto-reclaimed
-  // (no FinalizationRegistry); the parser is a module-level singleton in a
-  // long-lived process, so an undeleted tree leaks across runs → eventual OOM.
-  // Always free it, even if the extractor throws.
   try {
     const findings: Finding[] = [];
     for (const decl of loaded.spec.extract(tree.rootNode)) {
