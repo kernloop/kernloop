@@ -12,11 +12,14 @@
  * The honesty boundary holds (the prime directive): this proves a doc-comment is
  * PRESENT and non-empty, NEVER that it is ACCURATE.
  *
- * SECURITY/ROBUSTNESS: the WASM runtime is sandboxed (no host access), the parse
- * is bounded by per-file and cumulative byte budgets (model-generated content
- * runs through here, and a synchronous parse cannot be interrupted by the
- * runner's timer), and a grammar that fails to load DEGRADES to a non-blocking
- * `info` finding — it never throws and never silently passes the files.
+ * SECURITY/ROBUSTNESS: the WASM runtime is sandboxed (no host access); the parse
+ * is bounded BOTH by per-file and cumulative byte budgets AND by a per-parse
+ * wall-clock budget ({@link PARSE_TIMEOUT_MICROS}) — model-generated content runs
+ * through here and a synchronous parse cannot be interrupted by the runner's
+ * timer, so the bound is set INSIDE the parser (a parse that exceeds it returns
+ * null at a safe point, recorded as a non-blocking `info`, #123). A grammar that
+ * fails to load likewise DEGRADES to a non-blocking `info` finding — this scan
+ * never throws and never silently passes the files.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,6 +40,13 @@ const MAX_FILE_BYTES = 1_000_000;
 /** Cumulative byte budget across the tree-sitter scan, bounding the many-files
  * case the per-file cap alone would not. */
 const MAX_TOTAL_BYTES = 32_000_000;
+/** Wall-clock budget for ONE synchronous parse, in microseconds (#123).
+ * web-tree-sitter checks this clock between parse steps and returns `null` once
+ * it is exceeded — the only way to bound a pathological/adversarial input that
+ * the byte caps still admit, since a JS timer cannot interrupt the in-process
+ * synchronous parse. 5s is ~1000x a normal sub-MB parse; a hit DEGRADES the file
+ * to a recorded `info`, never a hang. */
+const PARSE_TIMEOUT_MICROS = 5_000_000;
 
 /** The set of extensions this scanner covers — consumed by {@link scanDocComments}
  * to partition the walk (these no longer degrade to `info`). */
@@ -75,8 +85,14 @@ async function loadParser(spec: LangSpec): Promise<LoadedParser> {
 }
 
 /** Parse one file and return an `error` finding per undocumented public decl.
- * A grammar-load failure yields a single `info` degradation finding. */
-async function scanOneFile(file: string, rel: string, ext: string): Promise<Finding[]> {
+ * A grammar-load failure — or a parse that exceeds `parseTimeoutMicros` — yields
+ * a single `info` degradation finding (recorded, never a hang or silent pass). */
+async function scanOneFile(
+  file: string,
+  rel: string,
+  ext: string,
+  parseTimeoutMicros: number,
+): Promise<Finding[]> {
   const spec = LANGS[ext];
   if (spec === undefined) return [];
   const loaded = await loadParser(spec);
@@ -94,11 +110,36 @@ async function scanOneFile(file: string, rel: string, ext: string): Promise<Find
   } catch {
     return [];
   }
-  // A web-tree-sitter Tree holds WASM linear memory that is NOT auto-reclaimed
-  // (no FinalizationRegistry); the parser is a module-level singleton in a
-  // long-lived process, so an undeleted tree leaks across runs → eventual OOM.
-  // Always free it, even if the extractor throws.
-  const tree = loaded.parser.parse(source);
+  return parseAndExtract(loaded, source, rel, parseTimeoutMicros);
+}
+
+/** Parse `source` under the per-parse wall-clock budget and return one `error`
+ * finding per undocumented public decl. A budget-exceeding parse (web-tree-sitter
+ * THROWS "Parsing failed") aborts → reset the cached parser so its half-parsed
+ * state cannot corrupt the next file → one `info` degradation, never a hang or
+ * silent pass (#123). The parsed tree holds WASM memory with no Finalization
+ * registry, so it is ALWAYS freed (the parser is a long-lived singleton). */
+function parseAndExtract(
+  loaded: NonNullable<LoadedParser>,
+  source: string,
+  rel: string,
+  parseTimeoutMicros: number,
+): Finding[] {
+  // The parser is a CACHED singleton, so set the budget afresh on every parse.
+  loaded.parser.setTimeoutMicros(parseTimeoutMicros);
+  let tree: Parser.Tree;
+  try {
+    tree = loaded.parser.parse(source);
+  } catch {
+    loaded.parser.reset();
+    return [
+      {
+        severity: 'info',
+        message: `doc-comment check timed out parsing ${rel}; ${loaded.spec.label} coverage recorded, not enforced`,
+        path: rel,
+      },
+    ];
+  }
   try {
     const findings: Finding[] = [];
     for (const decl of loaded.spec.extract(tree.rootNode)) {
@@ -120,13 +161,17 @@ async function scanOneFile(file: string, rel: string, ext: string): Promise<Find
  * declarations [CLM-0104]. Bounds its own work (per-file and cumulative byte
  * budgets) so untrusted, model-generated source cannot hang or OOM the in-process
  * scan; an oversized or budget-exceeding file is recorded as a non-blocking
- * `info`, never parsed silently. Async (grammar load + the `web-tree-sitter`
- * runtime); the gate runner awaits and times it out.
+ * `info`, never parsed silently, and a per-parse wall-clock bound (#123) caps any
+ * single file. Async (grammar load + the `web-tree-sitter` runtime); the gate
+ * runner awaits and times it out. `opts.parseTimeoutMicros` overrides the
+ * per-parse budget (tests drive it tiny to exercise the timeout path).
  */
 export async function scanTreeSitterFiles(
   files: readonly string[],
   rootDir: string,
+  opts: { parseTimeoutMicros?: number } = {},
 ): Promise<Finding[]> {
+  const parseTimeoutMicros = opts.parseTimeoutMicros ?? PARSE_TIMEOUT_MICROS;
   const findings: Finding[] = [];
   let totalBytes = 0;
   let truncated = 0;
@@ -151,7 +196,9 @@ export async function scanTreeSitterFiles(
       continue;
     }
     totalBytes += size;
-    findings.push(...(await scanOneFile(file, rel, path.extname(file).toLowerCase())));
+    findings.push(
+      ...(await scanOneFile(file, rel, path.extname(file).toLowerCase(), parseTimeoutMicros)),
+    );
   }
   if (truncated > 0) {
     findings.push({
