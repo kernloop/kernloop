@@ -274,6 +274,34 @@ describe('PHP', () => {
     );
     expect(findings).toEqual([]);
   });
+
+  it('descends a BRACED namespace into its type AND that type’s public members (#170)', async () => {
+    const names = (
+      await scanOne(
+        'm.php',
+        '<?php\nnamespace Foo {\n  class C {\n    public function m() {}\n    private function h() {}\n  }\n}\n',
+      )
+    ).map((f) => f.message);
+    expect(names.some((m) => m.includes('class "C"'))).toBe(true); // the namespaced type
+    expect(names.some((m) => m.includes('method "m"'))).toBe(true); // its public member
+    expect(names.some((m) => m.includes('"h"'))).toBe(false); // private, skipped
+  });
+
+  it('a documented type + member inside a braced namespace passes clean (#170)', async () => {
+    const findings = await scanOne(
+      'm.php',
+      '<?php\nnamespace Foo {\n  /** A class. */\n  class C {\n    /** Runs. */\n    public function m() {}\n  }\n}\n',
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('a file-scoped `namespace Foo;` still enumerates its sibling decls (#170 regression)', async () => {
+    const names = (
+      await scanOne('m.php', '<?php\nnamespace Foo;\nclass C {\n  public function m() {}\n}\n')
+    ).map((f) => f.message);
+    expect(names.some((m) => m.includes('class "C"'))).toBe(true);
+    expect(names.some((m) => m.includes('method "m"'))).toBe(true);
+  });
 });
 
 describe('resource bounds (untrusted input)', () => {

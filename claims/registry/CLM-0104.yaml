@@ -13,9 +13,9 @@ statement: >-
   Scala/Swift/Ruby, each type's PUBLIC nested members (private/protected/internal
   skipped, #121/#120/#150) — Ruby tracking its STATEFUL private/protected
   directives down the class body AND reconciling the arg-form visibility calls
-  (`private :x` / `private def x` / `public :x`, #165); C#/C++ descend named
-  namespaces. Brace-namespace-nested type member bodies are NOT yet descended
-  (honestly deferred, #165). Each REMAINING known
+  (`private :x` / `private def x` / `public :x`, #165); C#/C++/PHP descend
+  named/braced namespaces INTO the nested types' public members too (#170).
+  Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
   silently passed); the scan bounds its own per-file and total bytes AND each
@@ -61,6 +61,10 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public func but not an internal (default) or private one'
   - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::descends a NAMED namespace and enumerates its decls'
   - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::SKIPS an anonymous namespace (internal linkage)'
+  - 'test:packages/faculty-gates/src/treesitter-cpp.test.ts::descends a namespaced type into its PUBLIC members, skipping private (#170)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends a BRACED namespace into its type AND that type’s public members (#170)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a documented type + member inside a braced namespace passes clean (#170)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a file-scoped `namespace Foo;` still enumerates its sibling decls (#170 regression)'
   - 'test:packages/faculty-gates/src/treesitter-csharp.test.ts::finds types inside a braced namespace, skipping the namespace itself'
   - 'test:packages/faculty-gates/src/treesitter-csharp.test.ts::finds types under a file-scoped namespace (`namespace N;`)'
   - 'test:packages/faculty-gates/src/treesitter-ruby.test.ts::covers a top-level singleton method (def self.x)'

@@ -158,6 +158,16 @@ describe('C++ extractor — namespaces', () => {
     expect(has(names, '"local"')).toBe(false);
     expect(has(names, '"Hidden"')).toBe(false);
   });
+
+  it('descends a namespaced type into its PUBLIC members, skipping private (#170)', async () => {
+    const names = await scan(
+      'nsmem.cpp',
+      'namespace ns {\n  class K {\n  public:\n    void pub();\n  private:\n    void hid();\n  };\n}\n',
+    );
+    expect(has(names, 'class "K"')).toBe(true); // the namespaced type
+    expect(has(names, 'method "pub"')).toBe(true); // its public member, reached through the namespace
+    expect(has(names, '"hid"')).toBe(false); // private, skipped
+  });
 });
 
 describe('C++ extractor — doc convention', () => {
