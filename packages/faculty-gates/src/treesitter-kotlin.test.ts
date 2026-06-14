@@ -119,6 +119,20 @@ describe('Kotlin class_body member descent (#121)', () => {
     expect(has(m, '"hid"')).toBe(false); // private member-of-member
   });
 
+  it('descends members of a public companion object, skipping a private companion (#187)', async () => {
+    const pub = await scan(
+      'Comp.kt',
+      'class Outer {\n  companion object {\n    fun compM() {}\n    private fun hid() {}\n  }\n}\n',
+    );
+    expect(has(pub, 'method "compM"')).toBe(true); // public surface as Outer.compM()
+    expect(has(pub, '"hid"')).toBe(false); // private companion member
+    const priv = await scan(
+      'PrivComp.kt',
+      'class Outer {\n  private companion object {\n    fun secret() {}\n  }\n}\n',
+    );
+    expect(has(priv, '"secret"')).toBe(false); // private companion → members skipped
+  });
+
   it('descends an object body for its public members too', async () => {
     const m = await scan('ObjMembers.kt', 'object O {\n  fun greet() {}\n}\n');
     expect(has(m, 'object "O"')).toBe(true);
