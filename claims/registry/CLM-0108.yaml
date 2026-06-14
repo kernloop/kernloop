@@ -1,0 +1,24 @@
+id: CLM-0108
+statement: >-
+  When kernloop runs as an MCP server (kernloop serve) and the connected HOST
+  declared the `sampling` capability, the canonical loop obtains every completion
+  from the host via MCP `sampling/createMessage` (#135): the host serves the
+  model from its OWN provider — kernloop holds no model CLI, key, or model choice
+  — the per-node model alias rides only as an ADVISORY preference hint, the
+  per-call timeout bounds the round-trip, and cost is metered honest-ZERO (the
+  host owns usage; the binding constraint is the host plan's context limits, not
+  per-run USD). A host WITHOUT sampling is a typed SamplingUnsupportedError — no
+  silent fallback to a model kernloop does not hold. The run tool injects this
+  seam ONLY when the host supports it; otherwise the run uses its --adapter CLI.
+evidence:
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::is true when the connected host declared the sampling capability'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::is false when the host declared no sampling capability'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::routes the prompt UP to the host and returns the host completion (honest zero cost)'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::passes the per-node model alias as an advisory preference hint'
+  - 'test:packages/cli/src/loop/mcp-sampling.test.ts::throws SamplingUnsupportedError when the host cannot sample (no silent fallback)'
+  - 'code:packages/cli/src/loop/mcp-sampling.ts#samplingInvoke@doc:/CLM-0108/'
+  - 'code:packages/cli/src/loop/mcp-sampling.ts#hostSupportsSampling@doc:/CLM-0108/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
