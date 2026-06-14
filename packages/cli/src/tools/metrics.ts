@@ -10,7 +10,8 @@
  *
  * Format is Prometheus TEXT EXPOSITION (dependency-free string formatting),
  * directly scrapable and consumable by an OpenTelemetry Collector via its
- * `prometheus` receiver. A native OTLP push exporter is a follow-up (#125).
+ * `prometheus` receiver; a native OTLP push exporter also ships (`--otlp`,
+ * #155), with Prometheus text kept as the dependency-free default.
  */
 import { verifyChain } from '@kernloop/kernel';
 import type { Kernloop } from '../kernel.js';

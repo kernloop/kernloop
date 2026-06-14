@@ -3,8 +3,8 @@
  * the file is named `priors.yaml`) [CLM-0070]. Reads the Observer fitness
  * ledger's routing-prior-relevant fields and writes them as reviewable YAML
  * to the overlay's `priors.yaml` (or `--out`). Seeding the Router FROM
- * priors.yaml is intentionally OUT OF SCOPE here — this is export and
- * reviewability only.
+ * priors.yaml is intentionally OUT OF SCOPE here (deferred: #179) — this is
+ * export and reviewability only.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ export interface PriorsExportResult {
 const PRIORS_HEADER =
   '# kernloop learned routing priors (spec §7) — exported from the Observer\n' +
   '# fitness ledger [CLM-0070]. Reviewable; router seeding from this file is\n' +
-  '# not yet wired. Regenerate with `kernloop priors export`.\n';
+  '# not yet wired (deferred: #179). Regenerate with `kernloop priors export`.\n';
 
 /** Export the overlay's routing priors to YAML (CLM-0070). See module docs. */
 export function priorsExportTool(

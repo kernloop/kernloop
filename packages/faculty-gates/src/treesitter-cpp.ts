@@ -31,8 +31,8 @@
  * current access (flipping on each `access_specifier`) and enumerate only PUBLIC,
  * non-`static` methods (`field_declaration` reaching a `function_declarator`) and
  * data fields (each `field_identifier`). A nested type inside a class body is not
- * descended (member-of-member), honestly deferred — matching the Java/C# one-level
- * member boundary.
+ * descended (member-of-member), honestly deferred (#181) — matching the Java/C#
+ * one-level member boundary.
  *
  * "documented" is C++'s doc convention: a `comment` node (covering both the
  * block-comment and `//` line-comment forms) on the line immediately above.
@@ -98,7 +98,7 @@ const CPP_MEMBER_OWNERS = new Set(['struct_specifier', 'class_specifier', 'union
  * A method is a `field_declaration` reaching a `function_declarator`; a data
  * field is a `field_declaration` declaring one or more `field_identifier`s (each
  * its own undocumented surface). A nested type is left to the member-of-member
- * boundary (deferred). */
+ * boundary (deferred: #181). */
 function cppMembers(owner: Parser.SyntaxNode, body: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
   let pub = owner.type !== 'class_specifier'; // struct/union default public; class default private

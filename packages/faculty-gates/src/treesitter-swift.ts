@@ -35,7 +35,7 @@
  * defensive (a malformed subtree is skipped, never thrown on). Multi-line
  * Swift — the realistic shape of a real file — parses without the ERROR.
  *
- * Honestly deferred: protocol requirements parse as distinct
+ * Honestly deferred (#184): protocol requirements parse as distinct
  * `protocol_function_declaration`/`protocol_property_declaration` nodes with no
  * independent visibility (they inherit the protocol's), so a protocol is
  * enumerated at the top level only — its members are not descended.
@@ -156,7 +156,7 @@ function swiftMembers(typeNode: Parser.SyntaxNode): Decl[] {
 
 /** True for a type declaration whose body holds enumerable members — a
  * `class_declaration` (class/struct/enum/actor). A protocol's members have no
- * independent visibility and are honestly deferred (top-level only). */
+ * independent visibility and are honestly deferred (top-level only, #184). */
 function swiftHasMembers(type: string): boolean {
   return type === 'class_declaration';
 }

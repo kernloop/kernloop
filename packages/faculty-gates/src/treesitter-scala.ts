@@ -23,7 +23,7 @@
  *    when it sits on the line immediately above the declaration.
  *
  * The grammar is Scala 2; Scala-3-only `enum`/`given` do not parse as clean
- * declaration nodes and are therefore not enumerated (honestly deferred).
+ * declaration nodes and are therefore not enumerated (honestly deferred: #184).
  */
 import type Parser from 'web-tree-sitter';
 import { isAdjacentComment, lineOf, kindOf, type Decl } from './treesitter-shared.js';

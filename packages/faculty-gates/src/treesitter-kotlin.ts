@@ -27,8 +27,8 @@
  * sibling, so that header's trailing comment is checked too. The rarer case of
  * a comment leading the first decl after an `import` is absorbed INTO the
  * `import_header`'s own text (not separately addressable) and is honestly
- * deferred — a blank line is not enough to separate it. Nested types inside a
- * class body are not re-descended (one level, as the cross-language gate scopes it).
+ * deferred (#184) — a blank line is not enough to separate it. Nested types inside
+ * a class body are not re-descended (one level, member-of-member deferred: #181).
  */
 import type Parser from 'web-tree-sitter';
 import { isAdjacentComment, lineOf, kindOf, type Decl } from './treesitter-shared.js';

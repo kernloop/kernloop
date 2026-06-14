@@ -43,7 +43,7 @@ export const SubtaskSpecSchema = z.strictObject({
   budget: SubtaskBudgetSchema,
   evidence: TaskContractSchema.shape.evidence.optional(),
   definitionOfDone: TaskContractSchema.shape.definitionOfDone.optional(),
-  /** Shipped template name this child is assigned to (custom templates: P3). */
+  /** Shipped template name this child is assigned to (custom templates: P3, #177). */
   assignTo: z.enum(SHIPPED_TEMPLATE_NAMES),
 });
 export type SubtaskSpec = z.infer<typeof SubtaskSpecSchema>;
