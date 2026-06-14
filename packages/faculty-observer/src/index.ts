@@ -12,7 +12,7 @@
  * `run` entry point, never a privileged path.
  */
 import type { Outcome, Verdict } from '@kernloop/contracts';
-import { openStore } from './store.js';
+import { DEFAULT_LOG_RETENTION_MS, openStore, pruneLogs } from './store.js';
 import {
   driftSignals,
   fitness,
@@ -70,6 +70,12 @@ export interface CreateObserverOptions {
    * so recency/series behavior is deterministic under test.
    */
   clock?: () => number;
+  /**
+   * Append-only-log retention in ms; defaults to {@link DEFAULT_LOG_RETENTION_MS}
+   * (90 days). On open, log rows older than this are pruned (#159) — bounding
+   * growth without touching the ingest hot path or any subject's recent window.
+   */
+  retentionMs?: number;
 }
 
 /** The observer faculty's API over one overlay database (spec §5.5). */
@@ -124,6 +130,10 @@ export interface Observer {
 export function createObserver(dbPath: string, options: CreateObserverOptions = {}): Observer {
   const clock = options.clock ?? Date.now;
   const db = openStore(dbPath);
+  // Bound the append-only logs on open (#159) — once, off the ingest hot path,
+  // relative to the newest log row (no clock read, so deterministic clocks are
+  // undisturbed).
+  pruneLogs(db, options.retentionMs ?? DEFAULT_LOG_RETENTION_MS);
   return {
     ingestOutcome: (outcome, attribution) =>
       ingestOutcome(db, clock(), outcome, attribution.subject),

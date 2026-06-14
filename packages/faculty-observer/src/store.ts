@@ -96,3 +96,34 @@ export function openStore(dbPath: string): Database.Database {
   db.exec(SCHEMA_DDL);
   return db;
 }
+
+/** The four APPEND-ONLY Observer logs that grow one row per run (the fitness
+ * ledger + issues are keyed/kept, so they self-bound and are NOT pruned). */
+const LOG_TABLES = [
+  'observer_outcome_log',
+  'observer_verdict_log',
+  'observer_voter_series',
+  'observer_voter_labels',
+] as const;
+
+/** Default retention for the append-only logs: 90 days. The drift/precision
+ * windows read only the recent tail, so 90 days keeps ample history while
+ * bounding unbounded growth (#159). */
+export const DEFAULT_LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Delete Observer log rows older than `retentionMs` before the NEWEST log row
+ * (#159) [CLM-0112] — run ONCE on open, off the ingest hot path. The reference "now" is the
+ * data's own newest timestamp (no clock dependency, so it never disturbs a
+ * write-clock), and an empty DB is a no-op. Bounds the append-only logs to a
+ * retention-wide window without losing any active subject's recent tail. Table
+ * names come from the fixed {@link LOG_TABLES} allowlist (no injection). */
+export function pruneLogs(db: Database.Database, retentionMs: number): void {
+  let newest = 0;
+  for (const table of LOG_TABLES) {
+    const row = db.prepare(`SELECT MAX(at) AS m FROM ${table}`).get() as { m: number | null };
+    if (row.m !== null && row.m > newest) newest = row.m;
+  }
+  if (newest === 0) return;
+  const cutoff = newest - retentionMs;
+  for (const table of LOG_TABLES) db.prepare(`DELETE FROM ${table} WHERE at < ?`).run(cutoff);
+}

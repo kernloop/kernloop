@@ -3,8 +3,21 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Outcome } from '@kernloop/contracts';
+import type { Outcome, Verdict } from '@kernloop/contracts';
 import { createObserver } from './index.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+function makeVerdict(): Verdict {
+  return {
+    taskId: 't',
+    gate: 'review',
+    result: 'approve',
+    confidence: 0.9,
+    findings: [],
+    voters: [{ voter: 'v', vote: 'approve', reasoning: 'ok' }],
+    cost: { tokens: 1, usd: 0.1, wallClockMs: 5 },
+  };
+}
 
 const tmpDirs: string[] = [];
 function tmpDir(): string {
@@ -98,5 +111,39 @@ describe('observer storage (spec §3.3 — one DB per overlay)', () => {
     expect(second.fitness('tool-a')?.invocations).toBe(1);
     expect(second.listIssues()).toHaveLength(1);
     second.close();
+  });
+});
+
+describe('append-only log retention (#159)', () => {
+  it('on open, prunes log rows older than the window relative to the newest row, keeping the keyed ledger', () => {
+    const dbPath = path.join(tmpDir(), 'o.sqlite');
+    let at = 1_000_000;
+    // One session, two verdicts: an OLD one then one 100 days later (the newest).
+    const s = createObserver(dbPath, { clock: () => at, retentionMs: 10 * DAY_MS });
+    s.ingestOutcome(makeOutcome(), { subject: 'tool-a' }); // fitness (kept) + outcome_log (old)
+    s.ingestVerdict(makeVerdict()); // verdict_log at OLD
+    at = 1_000_000 + 100 * DAY_MS;
+    s.ingestVerdict(makeVerdict()); // verdict_log at NEW (the newest row)
+    s.close();
+    // Reopen → prune: newest = NEW, cutoff = NEW − 10 days → the OLD rows go, NEW stays.
+    const fresh = createObserver(dbPath, { retentionMs: 10 * DAY_MS });
+    expect(fresh.costPerGovernedDecision('review')?.decisions).toBe(1); // the old verdict pruned
+    expect(fresh.driftSignals()).toEqual([]); // the lone old outcome_log row pruned
+    // The KEYED fitness ledger is NOT a log → it survives.
+    expect(fresh.fitnessLedger().some((r) => r.subject === 'tool-a')).toBe(true);
+    fresh.close();
+  });
+
+  it('keeps every log row when all are inside the retention window', () => {
+    const dbPath = path.join(tmpDir(), 'o2.sqlite');
+    let at = 5_000_000;
+    const s = createObserver(dbPath, { clock: () => at, retentionMs: 10 * DAY_MS });
+    s.ingestVerdict(makeVerdict());
+    at = 5_000_000 + DAY_MS; // 1 day later — within the window
+    s.ingestVerdict(makeVerdict());
+    s.close();
+    const fresh = createObserver(dbPath, { retentionMs: 10 * DAY_MS });
+    expect(fresh.costPerGovernedDecision('review')?.decisions).toBe(2); // both kept
+    fresh.close();
   });
 });
