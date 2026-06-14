@@ -28,7 +28,7 @@ export function escapeLabel(value: string): string {
 }
 
 /** One metric sample: optional labels and a numeric value. */
-interface Sample {
+export interface Sample {
   readonly labels?: Readonly<Record<string, string>>;
   readonly value: number;
 }
@@ -135,8 +135,9 @@ function observerSamples(
   };
 }
 
-/** One metric family spec: name, HELP text, type, samples. */
-type FamilySpec = [string, string, 'counter' | 'gauge', Sample[]];
+/** One metric family spec: name, HELP text, type, samples. Shared by the
+ * Prometheus formatter and the OTLP exporter (#155). */
+export type FamilySpec = [string, string, 'counter' | 'gauge', Sample[]];
 
 /** The full metric-family list for a scan: chain-derived counters + Observer
  * gauges + chain-health gauges. Pure assembly — no I/O (the caller reads). */
@@ -190,19 +191,26 @@ function metricFamilies(
   ];
 }
 
-/**
- * Build the Prometheus exposition text for one overlay [CLM-0110]. Reads the
- * audit chain for run-outcome and gate-verdict counts and the Observer ledger
- * for metered cost, per-gate decision cost, and per-voter running precision.
- * Returns text ending in a single trailing newline (the exposition convention).
- */
-export function metricsExport(kern: Kernloop): string {
+/** Collect the metric families for one overlay from the audit chain + Observer
+ * ledger — the shared data both the Prometheus formatter and the OTLP exporter
+ * (#155) render: run-outcome/gate-verdict counts off the chain, metered cost +
+ * per-gate decision cost + per-voter precision off the ledger. */
+export function collectFamilies(kern: Kernloop): FamilySpec[] {
   const envelopes = readEnvelopes(kern.paths.audit);
   const chain = aggregateChain(envelopes);
   const obs = observerSamples(kern, chain.gates, chain.voters);
-  const families = metricFamilies(envelopes.length, verifyChain(kern.store).ok, chain, obs);
+  return metricFamilies(envelopes.length, verifyChain(kern.store).ok, chain, obs);
+}
+
+/**
+ * Build the Prometheus exposition text for one overlay [CLM-0110] from
+ * {@link collectFamilies}: every figure DERIVED from real recorded data, each
+ * family carrying `# HELP`/`# TYPE`, ending in a single trailing newline.
+ */
+export function metricsExport(kern: Kernloop): string {
   return (
-    families.map(([name, help, type, samples]) => family(name, help, type, samples)).join('\n\n') +
-    '\n'
+    collectFamilies(kern)
+      .map(([name, help, type, samples]) => family(name, help, type, samples))
+      .join('\n\n') + '\n'
   );
 }
