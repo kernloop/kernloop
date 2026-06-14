@@ -19,6 +19,8 @@
     "claims:verify-ran": "node scripts/verify-claim-tests.mjs",
     "docs:render": "tsx scripts/render-api-docs.mjs",
     "docs:coverage": "tsx scripts/docs-coverage.mjs",
+    "stats": "tsx scripts/stats.mjs",
+    "stats:check": "tsx scripts/stats.mjs --check",
     "governance:check": "node scripts/governance-check.mjs",
     "audit:selftest": "node scripts/audit-selftest.mjs",
     "format": "prettier --check .",

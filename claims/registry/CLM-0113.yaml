@@ -1,0 +1,28 @@
+id: CLM-0113
+statement: >-
+  Drift-prone repository COUNTS are DERIVED from the canonical code const that
+  defines each, never hand-typed (#189): `pnpm stats` derives the frozen-contract
+  count (CONTRACT_NAMES), the kernel-tool count (KERNEL_TOOL_NAMES), the doc-gate
+  language count (the vendored tree-sitter .wasm grammars), the doc-coverage
+  gated-package count (GATED_PACKAGES), the workforce-template count
+  (SHIPPED_TEMPLATE_NAMES), and the claim count (the CLM-*.yaml glob) — the const
+  arrays parsed from source, never imported (the fast CI job has no build), and
+  injects an at-a-glance block into
+  README.md. `pnpm stats:check` (a CI gate) fails if that generated block is stale
+  OR if any WATCHED prose count — in the charter, the spec, or a claim statement —
+  diverges from the derived value (digits and English number words both parsed),
+  so a protected/canonical file is CHECKED for drift without being machine-rewritten.
+  An absent watched file is skipped; a watched phrase that has moved is reported,
+  never silently ignored.
+evidence:
+  - 'test:scripts/__tests__/stats.test.mjs::the doc-gate covers twelve tree-sitter languages'
+  - 'test:scripts/__tests__/stats.test.mjs::nine packages are doc-coverage gated'
+  - 'test:scripts/__tests__/stats.test.mjs::the claim count matches the registry glob'
+  - 'test:scripts/__tests__/stats.test.mjs::the live repo has zero watched-count drift'
+  - 'test:scripts/__tests__/stats.test.mjs::a drifted derived value is reported with the offending file'
+  - 'test:scripts/__tests__/stats.test.mjs::every WATCHED phrase actually resolves in its file (no dangling watch)'
+  - 'test:scripts/__tests__/stats.test.mjs::check mode flags a stale block'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
