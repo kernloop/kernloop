@@ -3,9 +3,9 @@ statement: >-
   The doc-coverage gate (#64) requires every VALUE export — function, const, class, enum — on a
   gated package's public API surface to carry a real, non-placeholder doc-comment, resolving each
   package's index.ts barrel re-exports to their definition files via listExportedSymbols/findSymbol
-  and rejecting trivially-empty docs and docs that merely restate the symbol name. Eight packages
+  and rejecting trivially-empty docs and docs that merely restate the symbol name. Nine packages
   are gated (contracts, faculty-compiler, faculty-gates, faculty-memory, faculty-observer,
-  faculty-toolsmith, faculty-workforce, tracker); a gap exits 1 with a per-package report, and the gate runs
+  faculty-scrum, faculty-toolsmith, faculty-workforce, tracker); a gap exits 1 with a per-package report, and the gate runs
   in CI. Its scope is recorded, never silently weakened: type-only re-exports (z.infer companions)
   and the nested-barrel packages (cli, workflows, kernel) are excluded with a stated reason. It is a
   QUALITY gate, not claim evidence — a doc-comment proves a symbol is documented, never that it

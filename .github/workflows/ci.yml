@@ -67,6 +67,9 @@ jobs:
       # Doc-coverage gate (#64): every value export of a gated package must
       # carry a real, non-placeholder doc-comment.
       - run: pnpm docs:coverage
+      # Stats-drift gate (#189): the README at-a-glance block + every WATCHED
+      # prose count must match the value DERIVED from the canonical code const.
+      - run: pnpm stats:check
 
   governance:
     name: governance
