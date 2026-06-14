@@ -30,10 +30,12 @@
  * with a pure COMPLETION (the OpenAI-compatible provider), which has no such
  * side effects — using the opencode CLI here is a leaky TEST stand-in.
  *
- * Usage: node scripts/sampling-host-harness.mjs [high-model] [low-model]
+ * Usage (DISPOSABLE ENV ONLY — see #138 safety gate below):
+ *   KERNLOOP_HARNESS_DISPOSABLE=1 node scripts/sampling-host-harness.mjs [high-model] [low-model]
  *   high (intelligencePriority>=0.7): opencode/nemotron-3-ultra-free  (overridable)
  *   low  (everything else):           opencode/north-mini-code-free   (overridable)
  *   env overrides: KERNLOOP_HARNESS_HIGH_MODEL, KERNLOOP_HARNESS_LOW_MODEL
+ *   REQUIRED ack:  KERNLOOP_HARNESS_DISPOSABLE=1 (the harness fails closed without it)
  */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -156,7 +158,27 @@ function printAuditTail(ws) {
   }
 }
 
+/**
+ * #138 SAFETY GATE — fail closed unless the operator acknowledges a disposable
+ * environment. opencode (the sampling fulfiller) is an AUTONOMOUS agent, not a
+ * pure completion endpoint: it was observed escaping its spawn cwd and mutating
+ * the surrounding kernloop checkout — creating a fictional `packages/utilities`,
+ * three claim files, and OVERWRITING an existing protected claim. This harness
+ * therefore refuses to run unless `KERNLOOP_HARNESS_DISPOSABLE=1` is set, which
+ * the operator sets ONLY inside a throwaway VM/container/checkout.
+ */
+function assertDisposableEnvironment() {
+  if (process.env.KERNLOOP_HARNESS_DISPOSABLE === '1') return;
+  throw new Error(
+    'refusing to run (#138): this harness drives opencode, an autonomous agent ' +
+      'that writes files OUTSIDE its sandbox and was observed mutating the real ' +
+      'repo (clobbered a protected claim, created a fake package). Run ONLY in a ' +
+      'DISPOSABLE VM/container/checkout, then set KERNLOOP_HARNESS_DISPOSABLE=1.',
+  );
+}
+
 async function main() {
+  assertDisposableEnvironment();
   if (!existsSync(CLI)) throw new Error(`build first: ${CLI} missing (run pnpm build)`);
   const ws = makeWorkspace();
   console.error(
