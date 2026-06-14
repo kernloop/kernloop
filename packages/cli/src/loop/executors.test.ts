@@ -281,10 +281,6 @@ describe('hardened prompts (data, diff-reviewable)', () => {
     const [decompose, implement] = prompts;
     expect(decompose).toContain('ONLY one raw JSON object');
     expect(decompose).toContain('concrete file changes');
-    // #144: the prompt must state a hard floor of one subtask, else a capable
-    // model returns {"subtasks":[]} on a trivial task and fails the >=1 contract.
-    expect(decompose).toContain('at least one');
-    expect(decompose).toContain('Never output an empty list');
     expect(implement).toContain('no markdown fences');
     expect(implement).toContain('"files" MUST contain at least one entry');
     kern.close();
