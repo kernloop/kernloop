@@ -300,6 +300,27 @@ describe('Ruby', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain('"build"');
   });
+
+  it('descends class/module bodies for PUBLIC instance methods, honoring private/protected (#150)', async () => {
+    const names = (
+      await scanOne(
+        'm.rb',
+        'class C\n  def pub\n  end\n  private\n  def priv\n  end\n  protected\n  def prot\n  end\n  public\n  def pub2\n  end\nend\n',
+      )
+    ).map((f) => f.message);
+    expect(names.some((m) => m.includes('method "pub"'))).toBe(true);
+    expect(names.some((m) => m.includes('method "pub2"'))).toBe(true); // after `public` again
+    expect(names.some((m) => m.includes('"priv"'))).toBe(false); // after `private`
+    expect(names.some((m) => m.includes('"prot"'))).toBe(false); // after `protected`
+  });
+
+  it('a # comment above a public instance method documents it (member-level, #150)', async () => {
+    const findings = await scanOne(
+      'm.rb',
+      '# A class.\nclass C\n  # runs.\n  def run\n  end\nend\n',
+    );
+    expect(findings).toEqual([]);
+  });
 });
 
 describe('resource bounds (untrusted input)', () => {
