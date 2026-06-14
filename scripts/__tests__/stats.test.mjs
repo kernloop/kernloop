@@ -19,7 +19,7 @@ import {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 describe('deriveStats — every count comes from a canonical const', () => {
-  const s = deriveStats(root);
+  const s = deriveStats();
   // Architectural invariants: changing these is a DELIBERATE act (and updates this test).
   test('the frozen contracts are five', () => expect(s.contracts).toBe(5));
   test('the kernel MCP tools are eleven', () => expect(s.tools).toBe(11));
@@ -90,7 +90,7 @@ describe('applyBlock — inject / check / stale / missing branches', () => {
 
 describe('checkWatched — prose counts match the derived values', () => {
   test('the live repo has zero watched-count drift', () => {
-    expect(checkWatched(root, deriveStats(root))).toEqual([]);
+    expect(checkWatched(root, deriveStats())).toEqual([]);
   });
   test('every WATCHED phrase actually resolves in its file (no dangling watch)', () => {
     // A huge derived value forces every found phrase to MISMATCH (never "not found"),
@@ -107,7 +107,7 @@ describe('checkWatched — prose counts match the derived values', () => {
     expect(errs.some((e) => e.includes('not found'))).toBe(false);
   });
   test('a drifted derived value is reported with the offending file', () => {
-    const errs = checkWatched(root, { ...deriveStats(root), gatedPackages: 4242 });
+    const errs = checkWatched(root, { ...deriveStats(), gatedPackages: 4242 });
     expect(errs.some((e) => e.includes('CLM-0091') && e.includes('4242'))).toBe(true);
   });
 });
@@ -119,9 +119,8 @@ describe('runStats — read-only check against the live repo', () => {
     expect(stats.contracts).toBe(5);
   });
   test('render mode writes the block into a temp README', () => {
+    // Counts derive from THIS checkout; only the README path follows the root.
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-stats-'));
-    fs.mkdirSync(path.join(tmp, 'claims/registry'), { recursive: true });
-    fs.writeFileSync(path.join(tmp, 'claims/registry/CLM-0001.yaml'), 'id: CLM-0001\n');
     fs.writeFileSync(path.join(tmp, 'README.md'), `top\n\n${BEGIN}\nstale\n${END}\n`);
     const { errors } = runStats(tmp, false);
     expect(errors).toEqual([]);
@@ -135,13 +134,13 @@ describe('runStats — read-only check against the live repo', () => {
 describe('checkWatched — present-but-mismatched and absent files', () => {
   test('an empty root yields no errors (every watch file is missing)', () => {
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-stats-'));
-    expect(checkWatched(empty, deriveStats(root))).toEqual([]);
+    expect(checkWatched(empty, deriveStats())).toEqual([]);
     fs.rmSync(empty, { recursive: true, force: true });
   });
   test('a watched file present but missing its phrase is a "not found" error', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-stats-'));
     fs.writeFileSync(path.join(tmp, 'AGENTS.md'), 'no count phrase here\n');
-    const errs = checkWatched(tmp, deriveStats(root));
+    const errs = checkWatched(tmp, deriveStats());
     expect(errs.some((e) => e.includes('AGENTS.md') && e.includes('not found'))).toBe(true);
     fs.rmSync(tmp, { recursive: true, force: true });
   });

@@ -1,10 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CONTRACT_NAMES } from '../packages/contracts/src/common.ts';
-import { KERNEL_TOOL_NAMES } from '../packages/cli/src/tools/index.ts';
-import { SHIPPED_TEMPLATE_NAMES } from '../packages/faculty-workforce/src/templates.ts';
-import { LANGS } from '../packages/faculty-gates/src/treesitter-langs.ts';
 import { GATED_PACKAGES } from './docs-coverage.mjs';
 
 /**
@@ -19,18 +15,41 @@ import { GATED_PACKAGES } from './docs-coverage.mjs';
 export const BEGIN = '<!-- stats:begin -->';
 export const END = '<!-- stats:end -->';
 
-/** Derive every canonical count from its authoritative source const/glob. */
-export function deriveStats(root) {
-  const claims = fs
-    .readdirSync(path.join(root, 'claims/registry'))
-    .filter((f) => /^CLM-\d+\.yaml$/.test(f)).length;
+/** The repo root (fixed), so the canonical sources are read from THIS checkout
+ * regardless of any caller-supplied root used for the README/watched files. */
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Count the string entries in an `export const NAME = [ … ]` tuple, by READING
+ * the source (never importing it — these files transitively import other
+ * workspace packages whose dist may be unbuilt in the fast CI job). The consts
+ * are flat string lists, so the first `]` after the opener closes the array. */
+function countConstArray(relFile, name) {
+  const src = fs.readFileSync(path.join(REPO, relFile), 'utf8');
+  const at = src.indexOf(`${name} = [`);
+  if (at === -1) throw new Error(`${name} not found in ${relFile} — stats source moved`);
+  const open = src.indexOf('[', at);
+  const body = src.slice(open + 1, src.indexOf(']', open));
+  return (body.match(/['"][^'"]+['"]/g) ?? []).length;
+}
+
+/** Count files in a repo dir matching a predicate. */
+function countDir(relDir, pred) {
+  return fs.readdirSync(path.join(REPO, relDir)).filter(pred).length;
+}
+
+/** Derive every canonical count from its authoritative source — parsed from the
+ * defining const or counted on disk, never hand-typed. */
+export function deriveStats() {
   return {
-    contracts: CONTRACT_NAMES.length, // packages/contracts/src/common.ts
-    tools: KERNEL_TOOL_NAMES.length, // packages/cli/src/tools/index.ts
-    languages: new Set(Object.values(LANGS).map((l) => l.label)).size, // faculty-gates LANGS
-    gatedPackages: GATED_PACKAGES.length, // scripts/docs-coverage.mjs
-    templates: SHIPPED_TEMPLATE_NAMES.length, // faculty-workforce SHIPPED_TEMPLATE_NAMES
-    claims, // claims/registry/CLM-*.yaml
+    contracts: countConstArray('packages/contracts/src/common.ts', 'CONTRACT_NAMES'),
+    tools: countConstArray('packages/cli/src/tools/index.ts', 'KERNEL_TOOL_NAMES'),
+    templates: countConstArray(
+      'packages/faculty-workforce/src/templates.ts',
+      'SHIPPED_TEMPLATE_NAMES',
+    ),
+    languages: countDir('packages/faculty-gates/grammars', (f) => f.endsWith('.wasm')),
+    gatedPackages: GATED_PACKAGES.length, // scripts/docs-coverage.mjs (a plain .mjs const)
+    claims: countDir('claims/registry', (f) => /^CLM-\d+\.yaml$/.test(f)),
   };
 }
 
@@ -111,7 +130,7 @@ export function applyBlock(readme, block, check) {
 /** Render-or-check the whole stats surface. Returns derived stats + errors;
  * writes README only in render mode. */
 export function runStats(root, check) {
-  const s = deriveStats(root);
+  const s = deriveStats();
   const readmePath = path.join(root, 'README.md');
   const readme = fs.readFileSync(readmePath, 'utf8');
   const { text, error } = applyBlock(readme, renderBlock(s), check);
