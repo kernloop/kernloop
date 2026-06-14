@@ -30,17 +30,17 @@ const COVERED_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mj
 
 /** Known SOURCE languages the scanner cannot yet parse — recorded, not faked.
  * Maps extension → language label for the honest-degradation finding. The
- * tree-sitter-covered languages (Python, Go, Rust, Java, C, PHP, Ruby) are NOT
- * here — they are enforced via {@link scanTreeSitterFiles} (#108). The rest
- * (the multi-MB grammars, deferred to #120) still degrade to one `info`
- * finding until covered. */
+ * tree-sitter-covered languages (Python, Go, Rust, Java, C, PHP, Ruby #108/#122;
+ * C++, C#, Kotlin, Swift, Scala #120) are NOT here — they are enforced via
+ * {@link scanTreeSitterFiles}. The rest — known languages whose grammar is not
+ * vendored — still degrade to one non-blocking `info` finding (recorded, never
+ * silently passed) until a grammar + extractor is added. */
 const UNCOVERED_LANGS: Record<string, string> = {
-  '.kt': 'Kotlin',
-  '.swift': 'Swift',
-  '.cpp': 'C++',
-  '.cc': 'C++',
-  '.cs': 'C#',
-  '.scala': 'Scala',
+  '.dart': 'Dart',
+  '.lua': 'Lua',
+  '.ex': 'Elixir',
+  '.exs': 'Elixir',
+  '.hs': 'Haskell',
 };
 
 /** Directories never walked: build output, deps, VCS, coverage artifacts

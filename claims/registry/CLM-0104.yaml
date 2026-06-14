@@ -2,14 +2,18 @@ id: CLM-0104
 statement: >-
   The quality gate runs an in-process, language-aware doc-comment scan over the
   workspace: every exported top-level TypeScript/JavaScript declaration (via the
-  TS compiler API) and every public TOP-LEVEL Python/Go/Rust/Java/C/PHP/Ruby
-  declaration (via in-process web-tree-sitter WASM grammars) lacking a non-empty
-  leading doc-comment is an error finding (failing the Verdict, so the per-child
-  iteration loop re-runs the coder). Each language's OWN visibility/doc rule is
-  applied (Go uppercase-initial, Rust `pub`, Java `public`, C non-`static` incl.
-  typedefs/prototypes minus bodyless forward declarations, PHP/Ruby public at
-  file scope) and, for Java and PHP, each type's PUBLIC nested members (Java
-  public methods + fields, PHP public methods — private/protected skipped, #121).
+  TS compiler API) and every public declaration in twelve tree-sitter languages —
+  Python/Go/Rust/Java/C/PHP/Ruby (#108/#122) and C++/C#/Kotlin/Swift/Scala (#120),
+  via in-process web-tree-sitter WASM grammars — lacking a non-empty leading
+  doc-comment is an error finding (failing the Verdict, so the per-child iteration
+  loop re-runs the coder). Each language's OWN visibility/doc rule is applied (Go
+  uppercase-initial, Rust `pub`, Java/C# `public`, C/C++ non-`static` incl.
+  typedefs/prototypes minus bodyless forward declarations, PHP/Ruby/Kotlin/Scala
+  public-by-default, Swift `public`/`open` only) and, for Java/PHP/C#/C++/Kotlin/
+  Scala/Swift, each type's PUBLIC nested members (private/protected/internal
+  skipped, #121/#120); C#/C++ descend named namespaces.
+  Ruby instance-method visibility (private/protected directives) and
+  brace-namespace bodies are NOT yet descended (honestly deferred, #150). Each REMAINING known
   Ruby instance-method visibility (private/protected directives) and
   brace-namespace bodies are NOT yet descended (honestly deferred, #150). Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
@@ -50,6 +54,11 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a Javadoc above a public method documents it (member-level, #121)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends into a class for public methods; default-visibility is public, private/protected skipped (#121)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a # comment immediately above documents the declaration'
+  - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public type + public member inside a namespace, skips internal/private'
+  - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public def + class but not a private def'
+  - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public fun + class member, skips a private fun'
+  - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a non-static function + class, skips a static function'
+  - 'test:packages/faculty-gates/src/treesitter-large-langs.test.ts::flags a public func but not an internal (default) or private one'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::covers a top-level singleton method (def self.x)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::records and skips a file over the per-file byte limit, never parsing it'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::bounds a single parse by a wall-clock budget, recording a timeout as info (#123)'
