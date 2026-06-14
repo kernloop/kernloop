@@ -49,8 +49,25 @@ function readBody(io: CliIo, file: string): string {
 }
 
 /** Count occurrences of `--<name>` / `--<name>=…` in raw flag args (both forms). */
-function countFlag(args: string[], name: string): number {
-  return args.filter((a) => a === `--${name}` || a.startsWith(`--${name}=`)).length;
+/** Collect EVERY value of a repeated `--name X` / `--name=X` flag, in order
+ * (#76) — `parseArgs` keeps only the last, so multi-label input is gathered
+ * here. A bare `--name` with no following value (or a `--flag` next) is skipped. */
+function collectFlag(args: string[], name: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (a === undefined) continue;
+    if (a === `--${name}`) {
+      const next = args[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        out.push(next);
+        i += 1;
+      }
+    } else if (a.startsWith(`--${name}=`)) {
+      out.push(a.slice(name.length + 3));
+    }
+  }
+  return out;
 }
 
 interface OpOutcome {
@@ -68,15 +85,19 @@ async function dispatchOp(
   op: TrackerCliOp,
   v: Record<string, string | boolean>,
   str: (x: string | boolean | undefined) => string | undefined,
+  labels: readonly string[],
 ): Promise<OpOutcome> {
   if (op === 'create') {
     const title = str(v.title);
     const bodyFile = str(v['body-file']);
     if (title === undefined || bodyFile === undefined)
-      throw new Error('usage: tracker create --title T --body-file F [--label L]');
+      throw new Error('usage: tracker create --title T --body-file F [--label L ...]');
     const body = readBody(io, bodyFile);
-    const labels = str(v.label) === undefined ? undefined : [str(v.label) as string];
-    const result = await provider.createIssue({ title, body, ...(labels ? { labels } : {}) });
+    const result = await provider.createIssue({
+      title,
+      body,
+      ...(labels.length > 0 ? { labels: [...labels] } : {}),
+    });
     // Audit the real created ref on success (URL) so the trail records WHICH
     // issue was filed; only fall back to "(new)" when there is no ref yet.
     return { op, ref: result.ok ? result.ref : '(new)', result, bodyChars: body.length };
@@ -94,9 +115,8 @@ async function dispatchOp(
     return { op, ref, result: await provider.comment(ref, body), bodyChars: body.length };
   }
   // label
-  const add = str(v.add);
-  if (add === undefined) throw new Error('usage: tracker label <ref> --add L');
-  return { op, ref, result: await provider.addLabels(ref, [add]), bodyChars: 0 };
+  if (labels.length === 0) throw new Error('usage: tracker label <ref> --add L [--add L2 ...]');
+  return { op, ref, result: await provider.addLabels(ref, labels), bodyChars: 0 };
 }
 
 /** Append the audit event for one tracker op — never the body verbatim. */
@@ -166,16 +186,11 @@ export async function trackerCommand(
   // close/comment/label take a positional <ref> before flags; create does not.
   const maybeRef = op === 'create' ? undefined : rest[0];
   const flagArgs = op === 'create' ? rest : rest.slice(1);
-  // The flag parser keeps only the LAST value of a repeated flag; rather than
-  // silently drop labels, reject a repeated --label/--add. The provider accepts
-  // many labels programmatically; multi-label CLI input is a tracked follow-up.
-  const dupFlag = op === 'create' ? 'label' : op === 'label' ? 'add' : undefined;
-  if (dupFlag !== undefined && countFlag(flagArgs, dupFlag) > 1) {
-    throw new Error(
-      `one --${dupFlag} per invocation (the provider supports multiple labels; multi-label CLI input is tracked in #76)`,
-    );
-  }
-  const v = h.mixedFlags(flagArgs, ['title', 'body-file', 'label', 'reason', 'add'], ['execute']);
+  // Labels can repeat (#76): create reads every --label, the label op every
+  // --add; collected in order (parseArgs would keep only the last). The provider
+  // validates the set (≤20, safe charset).
+  const labels = collectFlag(flagArgs, op === 'create' ? 'label' : 'add');
+  const v = h.mixedFlags(flagArgs, ['title', 'body-file', 'reason'], ['execute']);
   if (maybeRef !== undefined) v._ref = maybeRef;
   const kern = createKernloop({
     overlayDir: path.join(path.resolve(io.cwd, h.str(v.dir) ?? '.'), '.kernloop'),
@@ -192,7 +207,7 @@ export async function trackerCommand(
       options.exec === undefined
         ? githubProvider({ repo: cfg.repo }, mode)
         : githubProvider({ repo: cfg.repo }, mode, options.exec);
-    const outcome = await dispatchOp(provider, io, op as TrackerCliOp, v, h.str);
+    const outcome = await dispatchOp(provider, io, op as TrackerCliOp, v, h.str, labels);
     auditOp(kern, mode, refusedExecute, outcome);
     const report = reportFor(provider, refusedExecute, outcome);
     io.out(JSON.stringify(report, null, 2));
