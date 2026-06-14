@@ -12,21 +12,21 @@
  *              comment on the line immediately above.
  *  - Rust    — items carrying a `pub` visibility modifier; a `///` outer-doc,
  *              block-doc, or `//` comment immediately above.
- *  - Java    — top-level types declared `public`; a Javadoc block or `//` above.
+ *  - Java    — top-level types declared `public` PLUS each type's public methods
+ *              and fields (#121); a Javadoc block or `//` above.
  *  - C       — non-`static` functions (definitions + header prototypes),
  *              `typedef` aliases, and struct/union/enum DEFINITIONS (a bodyless
  *              forward declaration is skipped); a comment above.
- *  - PHP     — top-level functions/classes/interfaces/traits/enums (all public);
- *              a PHPDoc block, `//`, or `#` comment above.
+ *  - PHP     — top-level functions/classes/interfaces/traits/enums (all public)
+ *              PLUS each class/interface/trait's public methods (default
+ *              visibility is public; #121); a PHPDoc block, `//`, or `#` above.
  *  - Ruby    — top-level `def`/`def self.x`/`class`/`module` (public by
  *              default); a `#` comment above.
  *
- * SCOPE — TOP-LEVEL ONLY. Each extractor enumerates a file's TOP-LEVEL
- * declarations; NESTED members (Java methods/fields, Ruby instance methods, PHP
- * class methods, brace-`namespace` bodies) are NOT yet enumerated — that
- * member-level descent is honestly deferred (#121). For Python/Go/Rust/C the
- * top level IS most of the public surface; for Java/Ruby the top-level type is
- * the documented entry point and its members await #121.
+ * SCOPE. Python/Go/Rust/C enumerate the TOP LEVEL (most of their public surface
+ * there); Java and PHP ALSO descend one level into a type's PUBLIC members
+ * (#121). Still deferred (#150): Ruby instance-method visibility (its stateful
+ * `private`/`protected` directives) and brace-`namespace` bodies.
  *
  * Pure AST logic over `web-tree-sitter` nodes — no I/O, no model. The grammar
  * loading, byte budgets, and walk live in treesitter-scan.ts.
@@ -176,22 +176,63 @@ const JAVA_TYPES = new Set([
   'annotation_type_declaration',
 ]);
 
+/** True iff a Java node's `modifiers` child declares `public`. */
+function javaIsPublic(node: Parser.SyntaxNode): boolean {
+  const mods = node.namedChildren.find((c) => c.type === 'modifiers');
+  return /\bpublic\b/.test(mods?.text ?? '');
+}
+
+/** Whether a Java member carries a `//`-line or Javadoc-`block_comment` above it. */
+function javaDocumented(node: Parser.SyntaxNode): boolean {
+  return isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
+    'line_comment',
+    'block_comment',
+  ]);
+}
+
+/** Public methods + fields inside an enumerated type's `body` (#121). Covers
+ * class/interface bodies; enum/record members nest under an inner declarations
+ * node and are not yet descended (honestly deferred). A `field_declaration` may
+ * declare several names — each public variable is its own undocumented surface. */
+function javaMembers(typeNode: Parser.SyntaxNode): Decl[] {
+  const body = typeNode.childForFieldName('body');
+  if (body === null) return [];
+  const out: Decl[] = [];
+  for (const node of body.namedChildren) {
+    if (!javaIsPublic(node)) continue;
+    if (node.type === 'method_declaration') {
+      const name = node.childForFieldName('name')?.text;
+      if (name !== undefined)
+        out.push({ name, kind: 'method', line: lineOf(node), documented: javaDocumented(node) });
+    } else if (node.type === 'field_declaration') {
+      for (const d of node.namedChildren.filter((c) => c.type === 'variable_declarator')) {
+        const name = d.childForFieldName('name')?.text;
+        if (name !== undefined)
+          out.push({ name, kind: 'field', line: lineOf(node), documented: javaDocumented(node) });
+      }
+    }
+  }
+  return out;
+}
+
 /** Java: top-level types declared `public` (a non-public top-level type is
  * package-private, not public API), documented iff a `//` or Javadoc block
- * comment sits immediately above (Javadoc parses as a `block_comment`). */
+ * comment sits immediately above (Javadoc parses as a `block_comment`), PLUS
+ * each type's public methods and fields (#121). */
 function extractJava(root: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
   for (const node of root.namedChildren) {
     if (!JAVA_TYPES.has(node.type)) continue;
-    const mods = node.namedChildren.find((c) => c.type === 'modifiers');
-    if (!/\bpublic\b/.test(mods?.text ?? '')) continue;
+    if (!javaIsPublic(node)) continue;
     const name = node.childForFieldName('name')?.text;
     if (name === undefined) continue;
-    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
-      'line_comment',
-      'block_comment',
-    ]);
-    out.push({ name, kind: kindOf(node.type), line: lineOf(node), documented });
+    out.push({
+      name,
+      kind: kindOf(node.type),
+      line: lineOf(node),
+      documented: javaDocumented(node),
+    });
+    out.push(...javaMembers(node));
   }
   return out;
 }
@@ -281,8 +322,33 @@ const PHP_DECLS = new Set([
   'enum_declaration',
 ]);
 
+/** Public methods inside a PHP class/interface/trait body (#121). A method with
+ * NO `visibility_modifier` is public (PHP's default); `private`/`protected` are
+ * skipped — flagging them would demand docs on non-public surface. */
+function phpMembers(classNode: Parser.SyntaxNode): Decl[] {
+  const body = classNode.namedChildren.find((c) => c.type === 'declaration_list');
+  if (body === undefined) return [];
+  const out: Decl[] = [];
+  for (const node of body.namedChildren) {
+    if (node.type !== 'method_declaration') continue;
+    const vis = node.namedChildren.find((c) => c.type === 'visibility_modifier')?.text;
+    if (vis !== undefined && vis !== 'public') continue;
+    const name = node.childForFieldName('name')?.text;
+    if (name === undefined) continue;
+    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
+      'comment',
+    ]);
+    out.push({ name, kind: 'method', line: lineOf(node), documented });
+  }
+  return out;
+}
+
+/** The PHP container declarations whose public methods are also enumerated. */
+const PHP_CONTAINERS = new Set(['class_declaration', 'interface_declaration', 'trait_declaration']);
+
 /** PHP: top-level functions/classes/interfaces/traits/enums (public at file
- * scope), documented iff a PHPDoc block, `//`, or `#` comment sits above. */
+ * scope), documented iff a PHPDoc block, `//`, or `#` comment sits above, PLUS
+ * each class/interface/trait's public methods (#121). */
 function extractPhp(root: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
   for (const node of root.namedChildren) {
@@ -293,6 +359,7 @@ function extractPhp(root: Parser.SyntaxNode): Decl[] {
       'comment',
     ]);
     out.push({ name, kind: kindOf(node.type), line: lineOf(node), documented });
+    if (PHP_CONTAINERS.has(node.type)) out.push(...phpMembers(node));
   }
   return out;
 }

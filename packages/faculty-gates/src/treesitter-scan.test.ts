@@ -164,6 +164,25 @@ describe('Java', () => {
     expect(names.some((m) => m.includes('"E"'))).toBe(true);
     expect(names.some((m) => m.includes('"R"'))).toBe(true);
   });
+
+  it('descends into a public class for public methods + fields, skipping private (#121)', async () => {
+    const findings = await scanOne(
+      'M.java',
+      'public class A {\n  public int x;\n  public void run() {}\n  private void hidden() {}\n}\n',
+    );
+    const names = findings.map((f) => f.message);
+    expect(names.some((m) => m.includes('field "x"'))).toBe(true);
+    expect(names.some((m) => m.includes('method "run"'))).toBe(true);
+    expect(names.some((m) => m.includes('"hidden"'))).toBe(false);
+  });
+
+  it('a Javadoc above a public method documents it (member-level, #121)', async () => {
+    const findings = await scanOne(
+      'M.java',
+      '/** A type. */\npublic class A {\n  /** Runs. */\n  public void run() {}\n}\n',
+    );
+    expect(findings).toEqual([]);
+  });
 });
 
 describe('C', () => {
@@ -223,6 +242,26 @@ describe('PHP', () => {
   it('a PHPDoc block (or # comment) immediately above documents the declaration', async () => {
     expect(await scanOne('a.php', '<?php\n/** Foo. */\nfunction foo() {}\n')).toEqual([]);
     expect(await scanOne('b.php', '<?php\n# a class\nclass Bar {}\n')).toEqual([]);
+  });
+
+  it('descends into a class for public methods; default-visibility is public, private/protected skipped (#121)', async () => {
+    const findings = await scanOne(
+      'm.php',
+      '<?php\nclass A {\n  public function run() {}\n  function dflt() {}\n  private function h() {}\n  protected function p() {}\n}\n',
+    );
+    const names = findings.map((f) => f.message);
+    expect(names.some((m) => m.includes('method "run"'))).toBe(true);
+    expect(names.some((m) => m.includes('method "dflt"'))).toBe(true); // no modifier ⇒ public
+    expect(names.some((m) => m.includes('"h"'))).toBe(false); // private
+    expect(names.some((m) => m.includes('"p"'))).toBe(false); // protected
+  });
+
+  it('a PHPDoc above a public method documents it (member-level, #121)', async () => {
+    const findings = await scanOne(
+      'm.php',
+      '<?php\n/** A class. */\nclass A {\n  /** Runs. */\n  public function run() {}\n}\n',
+    );
+    expect(findings).toEqual([]);
   });
 });
 
