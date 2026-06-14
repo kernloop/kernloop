@@ -27,6 +27,7 @@ export const USAGE = [
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
   '  metrics   [--out <file>]                         governance metrics in Prometheus exposition format (#125)',
+  '  watch     [--task-id T] [--once] [--timeout-ms N]   live-tail the audit chain of a run (#126)',
   '  memory    export [--out <file>]                 portable memory export (JSON; default stdout)',
   '            import <file>                          load a memory export (upserts, audited)',
   '  priors    export [--out <file>]                 routing priors → .kernloop/priors.yaml (YAML)',

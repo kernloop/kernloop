@@ -1,0 +1,24 @@
+id: CLM-0111
+statement: >-
+  `kernloop watch` live-tails the audit chain (#126) and renders a run's
+  canonical-loop progression — routing, gate verdicts, child re-iterations, the
+  document step, and the terminal Outcome — as readable `HH:MM:SS #seq` lines,
+  optionally filtered to one id (`--task-id`, matching its task/run/child/job
+  events). It is a CLI-only view (NOT a twelfth MCP tool) and READ-ONLY over
+  `.kernloop/audit.jsonl`. The reader is LENIENT: a missing file is empty and a
+  partial (mid-append) or corrupt line is skipped, so it never throws on a file
+  being written. `--once` prints a snapshot and exits; the default FOLLOWS,
+  printing events as they land and — with a task filter — exiting when that run
+  reaches a terminal Outcome, always bounded by `--timeout-ms`.
+evidence:
+  - 'test:packages/cli/src/tools/watch.test.ts::reads valid lines and SKIPS a partial/corrupt trailing line (live append)'
+  - 'test:packages/cli/src/tools/watch.test.ts::renders each significant type readably and skips noise'
+  - 'test:packages/cli/src/tools/watch.test.ts::matches by taskId/runId/childId/jobId, including child ids, and all when unfiltered'
+  - 'test:packages/cli/src/tools/watch.test.ts::--once prints a snapshot of the matching events and exits'
+  - 'test:packages/cli/src/tools/watch.test.ts::following with a task filter exits when that run reaches a terminal Outcome'
+  - 'test:packages/cli/src/tools/watch.test.ts::following times out when no terminal lands inside the budget'
+  - 'code:packages/cli/src/tools/watch.ts#watchSnapshot@doc:/CLM-0111/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
