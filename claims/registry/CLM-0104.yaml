@@ -8,8 +8,10 @@ statement: >-
   iteration loop re-runs the coder). Each language's OWN visibility/doc rule is
   applied (Go uppercase-initial, Rust `pub`, Java `public`, C non-`static` incl.
   typedefs/prototypes minus bodyless forward declarations, PHP/Ruby public at
-  file scope) — NESTED members (Java methods, Ruby instance methods, PHP class
-  methods) are NOT yet enumerated (honestly deferred, #121). Each REMAINING known
+  file scope) and, for Java and PHP, each type's PUBLIC nested members (Java
+  public methods + fields, PHP public methods — private/protected skipped, #121).
+  Ruby instance-method visibility (private/protected directives) and
+  brace-namespace bodies are NOT yet descended (honestly deferred, #150). Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
   silently passed); the scan bounds its own per-file and total bytes AND each
@@ -44,6 +46,9 @@ evidence:
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::flags an undocumented top-level function and class'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a PHPDoc block (or # comment) immediately above documents the declaration'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::flags an undocumented top-level def, class, and module'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends into a public class for public methods + fields, skipping private (#121)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a Javadoc above a public method documents it (member-level, #121)'
+  - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::descends into a class for public methods; default-visibility is public, private/protected skipped (#121)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::a # comment immediately above documents the declaration'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::covers a top-level singleton method (def self.x)'
   - 'test:packages/faculty-gates/src/treesitter-scan.test.ts::records and skips a file over the per-file byte limit, never parsing it'
