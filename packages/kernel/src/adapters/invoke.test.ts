@@ -8,7 +8,7 @@
  * what was probed — never a stubbed result.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CostSchema } from '@kernloop/contracts';
@@ -151,6 +151,25 @@ describe('invokeAdapter — uniform interface across all five (CLM-0021)', () =>
       expect(result.raw.exitCode).toBe(0);
     });
   }
+
+  it('runs the CLI in the invocation cwd, not the launch dir (#146)', async () => {
+    // A fake claude that reports the cwd it actually ran in.
+    const ws = realpathSync(makeDir('cwd-ws'));
+    const binDir = makeDir('cwd-bin');
+    writeFileSync(
+      join(binDir, 'claude'),
+      '#!/bin/sh\ncat > /dev/null\nprintf \'{"type":"result","is_error":false,"result":"%s",' +
+        '"total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1}}\\n\' "$(pwd -P)"\n',
+      { mode: 0o755 },
+    );
+    const result = await invokeAdapter('claude', {
+      prompt: 'p',
+      timeoutMs: 10_000,
+      env: { PATH: binDir },
+      cwd: ws,
+    });
+    expect(result.output).toBe(ws); // grounded in the workspace, not process.cwd()
+  });
 
   it('reports zero cost as unmetered, never fabricated (CLM-0020)', async () => {
     // ollama reports no usage at all: tokens/usd are 0 AND flagged false.

@@ -341,7 +341,8 @@ export async function executeCanonicalLoop(
 ): Promise<LoopReport> {
   const adapter = request.adapter ?? 'claude';
   if (request.invoke === undefined) ensureRunAdaptersAvailable(adapter, kern.config);
-  const base = request.invoke ?? adapterInvoke(adapter);
+  // Model-CLI subprocesses run in the task workspace, not the launch dir (#146).
+  const base = request.invoke ?? adapterInvoke(adapter, undefined, request.workspaceDir);
   const runId = request.resumeRunId ?? request.runId ?? randomUUID();
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};

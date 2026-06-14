@@ -1,0 +1,16 @@
+id: CLM-0109
+statement: >-
+  A model-CLI adapter subprocess runs in a caller-given working directory, not
+  the parent's cwd: when the canonical loop drives an adapter it passes the task
+  WORKSPACE as that cwd (#146), so an agentic CLI (claude/codex/gemini/opencode)
+  is grounded in — and confined to — the workspace, never the directory kernloop
+  was launched from. Omitting cwd inherits the parent cwd (the documented
+  default, exercised); the loop never omits it.
+evidence:
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::runs the child in the given cwd, not the parent cwd (#146)'
+  - 'test:packages/kernel/src/adapters/subprocess.test.ts::inherits the parent cwd when none is given'
+  - 'test:packages/kernel/src/adapters/invoke.test.ts::runs the CLI in the invocation cwd, not the launch dir (#146)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

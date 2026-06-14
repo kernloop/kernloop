@@ -35,6 +35,14 @@ export interface SubprocessSpec {
   readonly timeoutMs: number;
   /** Child environment; defaults to the parent's `process.env`. */
   readonly env?: Readonly<Record<string, string | undefined>>;
+  /**
+   * Working directory for the child. When omitted the child inherits the
+   * PARENT's cwd — which for a model-CLI adapter is wherever kernloop was
+   * launched, NOT the task workspace. An agentic CLI (claude/codex/gemini/
+   * opencode) reads + writes its cwd, so callers that drive one MUST set this
+   * to the intended workspace (#146); leaving it unset exposes the launch dir.
+   */
+  readonly cwd?: string;
   /** Per-stream capture cap in bytes; default {@link DEFAULT_MAX_CAPTURE_BYTES}. */
   readonly maxCaptureBytes?: number;
 }
@@ -167,6 +175,8 @@ export function runSubprocess(spec: SubprocessSpec): Promise<SubprocessResult> {
     const child = spawn(spec.command, [...spec.args], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: spec.env ?? process.env,
+      // The intended workspace, when set — else inherit the parent's cwd (#146).
+      ...(spec.cwd === undefined ? {} : { cwd: spec.cwd }),
       // Own process group so a timeout can kill the whole tree (POSIX).
       detached: true,
     });
