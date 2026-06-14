@@ -333,21 +333,36 @@ function phpMembers(classNode: Parser.SyntaxNode): Decl[] {
 /** The PHP container declarations whose public methods are also enumerated. */
 const PHP_CONTAINERS = new Set(['class_declaration', 'interface_declaration', 'trait_declaration']);
 
+/** Recurse one PHP node: descend a BRACED `namespace Foo { … }` body into the
+ * decls (and their public methods) it nests (#170), else enumerate a top-level
+ * function/class/interface/trait/enum + its public methods. A file-scoped
+ * `namespace Foo;` carries no body — its decls are root siblings already walked
+ * here — and PHP namespaces are always named, so there is no anonymous form to
+ * skip. Documented iff a PHPDoc block, `//`, or `#` comment sits immediately
+ * above the decl (inside the namespace body when nested). */
+function collectPhp(node: Parser.SyntaxNode, out: Decl[]): void {
+  if (node.type === 'namespace_definition') {
+    const body = node.childForFieldName('body');
+    if (body !== null) for (const child of body.namedChildren) collectPhp(child, out);
+    return;
+  }
+  if (!PHP_DECLS.has(node.type)) return;
+  const name = node.childForFieldName('name')?.text;
+  if (name === undefined) return;
+  const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
+    'comment',
+  ]);
+  out.push({ name, kind: kindOf(node.type), line: lineOf(node), documented });
+  if (PHP_CONTAINERS.has(node.type)) out.push(...phpMembers(node));
+}
+
 /** PHP: top-level functions/classes/interfaces/traits/enums (public at file
  * scope), documented iff a PHPDoc block, `//`, or `#` comment sits above, PLUS
- * each class/interface/trait's public methods (#121). */
+ * each class/interface/trait's public methods (#121) — descending braced
+ * `namespace` blocks so a namespaced type's members are reached too (#170). */
 function extractPhp(root: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
-  for (const node of root.namedChildren) {
-    if (!PHP_DECLS.has(node.type)) continue;
-    const name = node.childForFieldName('name')?.text;
-    if (name === undefined) continue;
-    const documented = isAdjacentComment(node.previousNamedSibling, node.startPosition.row, [
-      'comment',
-    ]);
-    out.push({ name, kind: kindOf(node.type), line: lineOf(node), documented });
-    if (PHP_CONTAINERS.has(node.type)) out.push(...phpMembers(node));
-  }
+  for (const node of root.namedChildren) collectPhp(node, out);
   return out;
 }
 
