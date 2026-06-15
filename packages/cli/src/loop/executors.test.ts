@@ -16,130 +16,30 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { BriefSchema, TaskContractSchema, type Cost, type Verdict } from '@kernloop/contracts';
-import { PANEL_DEFAULT, type QualityCheck } from '@kernloop/faculty-gates';
-import { emptyDiscoveredCache } from '@kernloop/faculty-models';
-import { JsonlCheckpointStore, type ChildResult, type NodeContext } from '@kernloop/workflows';
-import { createKernloop, type Kernloop } from '../kernel.js';
-import { buildLoopExecutors, type LoopBindings, type LoopRefs } from './executors.js';
+import { type Verdict } from '@kernloop/contracts';
+import { PANEL_DEFAULT } from '@kernloop/faculty-gates';
+import { JsonlCheckpointStore, type ChildResult } from '@kernloop/workflows';
+import { buildLoopExecutors, type LoopRefs } from './executors.js';
 import { adapterInvoke, type LoopInvoke } from './invoke.js';
-import { resolveServed, type NodeSeam } from './node-seam.js';
 import {
   LoopResumeError,
   checkpointFile,
   executeCanonicalLoop,
   loadCheckpointTask,
 } from './index.js';
+import {
+  COST,
+  boundHelpers,
+  ctxFor,
+  noop,
+  planBrief,
+  scripted,
+  task,
+} from './executors.testkit.js';
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-loop-exec-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
-
-/** Wrap a scripted invoke as a NodeSeam with honest served provenance (medium/medium on claude). */
-function seamOf(invoke: LoopInvoke): NodeSeam {
-  return {
-    invoke,
-    served: resolveServed({ tier: 'medium', effort: 'medium', capabilities: [] }, 'claude'),
-  };
-}
-
-function kernloopFor(name: string, overlayYaml?: string): Kernloop {
-  const repo = path.join(scratch, name);
-  mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
-  if (overlayYaml !== undefined) {
-    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), overlayYaml);
-  }
-  return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
-}
-
-const task = TaskContractSchema.parse({
-  id: 'task-unit',
-  goal: 'unit goal',
-  constraints: [],
-  budget: { tokens: 100_000, usd: 1, wallClockMin: 30 },
-  evidence: [],
-  definitionOfDone: [],
-  authorityCeiling: 'advisory',
-  overlay: 'unit',
-});
-
-const COST: Cost = { tokens: 3, usd: 0.001 };
-
-/** Scripted invoke for the direct executor tests (always approves). */
-const scripted: LoopInvoke = (prompt) => {
-  let output = 'Plan: do the thing.';
-  if (prompt.includes('Diff under review')) {
-    output = JSON.stringify({ findings: [], summary: 'clean' });
-  } else if (prompt.includes('Investigate the prior art')) {
-    output = 'Research: no prior-art conflicts; the change is self-contained.';
-  } else if (prompt.includes('Proposal under vote')) {
-    output = JSON.stringify({ vote: 'approve', reasoning: 'sound' });
-  } else if (prompt.includes('"subtasks"')) {
-    output = JSON.stringify({
-      subtasks: [
-        {
-          goal: 'write the feature file',
-          budget: { tokens: 1_000, usd: 0.01, wallClockMin: 5 },
-          assignTo: 'coder',
-        },
-      ],
-    });
-  } else if (prompt.includes('"files"')) {
-    output = JSON.stringify({ files: [{ path: 'src/feature.ts', content: 'export {};\n' }] });
-  }
-  return Promise.resolve({ output, cost: COST });
-};
-
-/** A trivially real quality check (the platform node binary, exit 0). */
-const noop: QualityCheck = {
-  name: 'noop',
-  command: process.execPath,
-  args: ['-e', 'process.exit(0)'],
-  parse: () => [],
-};
-
-function bindingsFor(
-  kern: Kernloop,
-  refs: LoopRefs = {},
-  invoke: LoopInvoke = scripted,
-): LoopBindings {
-  const workspaceDir = path.join(scratch, 'unit-ws');
-  mkdirSync(workspaceDir, { recursive: true }); // quality checks spawn with cwd = workspace
-  // Injected-invoke parity: every node resolves to the one injected invoke, so a
-  // custom invoke reaches per-node executors too ([CLM-0078]).
-  return {
-    kern,
-    workspaceDir,
-    invoke,
-    invokeFor: () => seamOf(invoke),
-    adapter: 'claude',
-    refs,
-    discovered: emptyDiscoveredCache('test'),
-  };
-}
-
-function ctxFor(panel: 3 | 7): NodeContext {
-  return {
-    runId: 'run-unit',
-    taskId: task.id,
-    iteration: 0,
-    config: {
-      K: 3,
-      gates: { vote: { strategy: 'unanimous', panel } },
-      nodeOverrides: {},
-    },
-    node: 'vote',
-    findings: [],
-  };
-}
-
-const planBrief = BriefSchema.parse({
-  taskId: task.id,
-  sections: [
-    { name: 'plan', content: 'the plan', tokens: 2, priority: 1, provenance: [{ ref: 'x' }] },
-  ],
-  budget: { allotted: 100, used: 2 },
-  compilerVersion: 'unit',
-});
+const { kernloopFor, bindingsFor } = boundHelpers(scratch);
 
 describe('frame executor', () => {
   it('mechanically normalizes the task: trims the goal and dedupes constraints', async () => {
