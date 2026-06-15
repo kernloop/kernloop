@@ -217,14 +217,33 @@ describe('Swift member descent', () => {
     expect(has(names, '"Internal"')).toBe(false);
   });
 
-  it('does not descend a protocol body (members honestly deferred)', async () => {
+  it('descends a public protocol body for its method + property requirements (#184)', async () => {
     const names = await scan(
       'ProtoMembers.swift',
-      ['public protocol P {', '    func required()', '}'].join('\n') + '\n',
+      [
+        'public protocol P {',
+        '    func required() -> String',
+        '    var name: String { get }',
+        '}',
+      ].join('\n') + '\n',
     );
     expect(has(names, 'protocol "P"')).toBe(true);
-    // protocol_function_declaration members are not enumerated
-    expect(has(names, '"required"')).toBe(false);
+    expect(has(names, 'method "required"')).toBe(true); // requirement enumerated (#184)
+    expect(has(names, 'property "name"')).toBe(true);
+  });
+
+  it('a documented protocol requirement passes clean; an internal protocol is not descended (#184)', async () => {
+    const documented = await scan(
+      'DocProto.swift',
+      ['public protocol P {', '    /// Greets.', '    func greet()', '}'].join('\n') + '\n',
+    );
+    expect(has(documented, '"greet"')).toBe(false); // its /// doc-comment documents it
+
+    const internal = await scan(
+      'IntProto.swift',
+      ['protocol Hidden {', '    func req()', '}'].join('\n') + '\n',
+    );
+    expect(internal).toEqual([]); // internal protocol → neither it nor its requirements
   });
 });
 

@@ -17,8 +17,9 @@ statement: >-
   named/braced namespaces INTO the nested types' public members too (#170); and
   member descent RECURSES, so a type nested inside another type's body and its
   own members are reached (member-of-member, C++/C#/Kotlin/Java, #181), including
-  a Kotlin `companion object`'s members (public surface on the enclosing type, #187).
-  Each REMAINING known
+  a Kotlin `companion object`'s members (public surface on the enclosing type, #187)
+  and a public Swift protocol's requirements (which inherit the protocol's
+  visibility, #184). Each REMAINING known
   source language it cannot yet parse contributes one non-blocking info finding
   (so an uncovered-language deliverable gets no doc enforcement — recorded, never
   silently passed); the scan bounds its own per-file and total bytes AND each
@@ -93,6 +94,8 @@ evidence:
   - 'code:packages/faculty-gates/src/treesitter-scan.ts#scanTreeSitterFiles@doc:/CLM-0104/'
   - 'code:packages/faculty-gates/src/treesitter-langs.ts#LANGS@doc:/CLM-0104/'
   - 'code:packages/faculty-gates/src/checks.ts#docCommentCheck@doc:/CLM-0104/'
+  - 'test:packages/faculty-gates/src/treesitter-swift.test.ts::descends a public protocol body for its method + property requirements (#184)'
+  - 'test:packages/faculty-gates/src/treesitter-swift.test.ts::a documented protocol requirement passes clean; an internal protocol is not descended (#184)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski
