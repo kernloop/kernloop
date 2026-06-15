@@ -32,6 +32,14 @@
  * the live authority and the ledger is a reconciled cache of it.
  */
 import Database from 'better-sqlite3';
+import {
+  DuplicateProgramError,
+  DuplicateProgramNodeError,
+  InvalidNodeTransitionError,
+  UnknownProgramError,
+  UnknownProgramNodeError,
+} from './program-store-errors.js';
+import { makeAddNodes } from './program-store-write.js';
 
 /** A node's lifecycle rung — forward-only `planned → emitted → done`. */
 export type ProgramNodeState = 'planned' | 'emitted' | 'done';
@@ -59,18 +67,27 @@ export interface ProgramNodeRow {
   readonly updatedAt: number;
 }
 
+/** One ledger node as inserted — the work item plus its place in the tree. */
+export interface ProgramNodeInput {
+  readonly nodeId: string;
+  /** The parent node's id within this program, or `null` for a root. */
+  readonly parentId: string | null;
+  readonly goal: string;
+  readonly labels: string[];
+  readonly taskJson: string;
+}
+
 /** Fields {@link ProgramStore.createProgram} requires — a program + its nodes. */
 export interface CreateProgramInput {
   readonly programId: string;
   readonly goal: string;
-  readonly nodes: ReadonlyArray<{
-    readonly nodeId: string;
-    /** The parent node's id within this program, or `null` for a root. */
-    readonly parentId: string | null;
-    readonly goal: string;
-    readonly labels: string[];
-    readonly taskJson: string;
-  }>;
+  readonly nodes: ReadonlyArray<ProgramNodeInput>;
+}
+
+/** Fields {@link ProgramStore.addNodes} requires — new children for an existing program. */
+export interface AddNodesInput {
+  readonly programId: string;
+  readonly nodes: ReadonlyArray<ProgramNodeInput>;
 }
 
 /** Fields {@link ProgramStore.advanceNode} requires — the forward move + ref. */
@@ -88,6 +105,8 @@ export interface ProgramStore {
   createProgram(input: CreateProgramInput): ProgramRow;
   /** One program by id, or `undefined` when absent — never invented. */
   getProgram(programId: string): ProgramRow | undefined;
+  /** One node by (programId, nodeId), or `undefined` when absent — never invented. */
+  getNode(programId: string, nodeId: string): ProgramNodeRow | undefined;
   /** Programs newest-first, capped at `limit` (default {@link DEFAULT_PROGRAM_LIMIT}). */
   listPrograms(options?: { limit?: number }): ProgramRow[];
   /** A program's nodes in `nodeId` order (labels parsed back to string[]). */
@@ -95,6 +114,11 @@ export interface ProgramStore {
   /** Advance one node forward (+ issueRef), stamping `updatedAt`. Throws
    * {@link UnknownProgramNodeError} / {@link InvalidNodeTransitionError}. */
   advanceNode(input: AdvanceNodeInput): ProgramNodeRow;
+  /** Append NEW child nodes (at `planned`) to an EXISTING program in one
+   * transaction — `decompose-node` grows the tree deeper (#118). Throws
+   * {@link UnknownProgramError} if the program is absent and
+   * {@link DuplicateProgramNodeError} on a node-id collision (no overwrite). */
+  addNodes(input: AddNodesInput): ProgramNodeRow[];
   /** Close the underlying database handle. */
   close(): void;
 }
@@ -102,29 +126,15 @@ export interface ProgramStore {
 /** Default number of rows {@link ProgramStore.listPrograms} returns. */
 export const DEFAULT_PROGRAM_LIMIT = 20;
 
-/** Inserting a program whose id already exists — no silent overwrite. */
-export class DuplicateProgramError extends Error {
-  constructor(programId: string) {
-    super(`program "${programId}" already exists — refusing to overwrite`);
-    this.name = 'DuplicateProgramError';
-  }
-}
-
-/** Advancing a (programId, nodeId) the ledger does not hold — never invented. */
-export class UnknownProgramNodeError extends Error {
-  constructor(programId: string, nodeId: string) {
-    super(`no node "${nodeId}" in program "${programId}"`);
-    this.name = 'UnknownProgramNodeError';
-  }
-}
-
-/** A backward or otherwise-illegal node transition (the ledger is forward-only). */
-export class InvalidNodeTransitionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidNodeTransitionError';
-  }
-}
+// The typed ledger errors live in program-store-errors.ts (LOC budget); re-exported
+// so callers keep importing them from `./program-store.js`.
+export {
+  DuplicateProgramError,
+  DuplicateProgramNodeError,
+  InvalidNodeTransitionError,
+  UnknownProgramError,
+  UnknownProgramNodeError,
+};
 
 /** Forward-only rung order; an advance moves exactly one rung forward. */
 const STATE_ORDER: readonly ProgramNodeState[] = ['planned', 'emitted', 'done'];
@@ -333,19 +343,18 @@ export function createProgramStore(
       return row;
     },
     getProgram,
-    listPrograms: (opts) => {
-      const limit = opts?.limit ?? DEFAULT_PROGRAM_LIMIT;
-      const rows = db
+    getNode,
+    listPrograms: (opts) =>
+      db
         .prepare('SELECT * FROM programs ORDER BY createdAt DESC, programId DESC LIMIT ?')
-        .all(limit);
-      return rows.map((r) => toProgramRow(r as Parameters<typeof toProgramRow>[0]));
-    },
-    listNodes: (programId) => {
-      const rows = db
+        .all(opts?.limit ?? DEFAULT_PROGRAM_LIMIT)
+        .map((r) => toProgramRow(r as Parameters<typeof toProgramRow>[0])),
+    listNodes: (programId) =>
+      db
         .prepare('SELECT * FROM program_nodes WHERE programId = ? ORDER BY nodeId ASC')
-        .all(programId);
-      return rows.map((r) => toNodeRow(r as Parameters<typeof toNodeRow>[0]));
-    },
+        .all(programId)
+        .map((r) => toNodeRow(r as Parameters<typeof toNodeRow>[0])),
+    addNodes: makeAddNodes(db, { getProgram, getNode }, clock),
     advanceNode: (input) => {
       const current = getNode(input.programId, input.nodeId);
       if (current === undefined) {

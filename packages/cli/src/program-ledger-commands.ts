@@ -19,6 +19,7 @@
  * advancing it emitted → done when closed (see program-reconcile.ts).
  */
 import { appendEvent } from '@kernloop/kernel';
+import { TaskContractSchema } from '@kernloop/contracts';
 import { decomposeGoal, programLabels } from '@kernloop/faculty-scrum';
 import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
@@ -106,6 +107,64 @@ export function createOp(
     io.out(
       JSON.stringify({ op: 'create', programId: id, goal, nodeCount: children.length }, null, 2),
     );
+    return 0;
+  } catch (error) {
+    return cleanExit(io, error);
+  }
+}
+
+/**
+ * Run `program decompose-node` [CLM-0114] (#118): load stored node N from program P, run
+ * `decomposeGoal` with N's TaskContract as the parent + the spec's subtasks, and
+ * insert the children as NEW ledger nodes pointing at N (`parentId = N`) — growing
+ * the tree deeper than the one-shot `create`. `decomposeGoal` enforces altitude
+ * descent (epic→story→task; a `task` leaf cannot decompose), so depth is bounded.
+ * The children are STORED only — a later `program emit` files them, parents-first,
+ * body-ref-linking each to N. Re-running on a node that already has these children
+ * is a clean error (the store refuses to overwrite). Audited as
+ * `cli.program.decompose-node` (counts/ids only).
+ *
+ * KNOWN EDGE (#118): if N was already EMITTED in a prior run, a later emit files
+ * the new children and links them UP to N, but #84's epic-body merge only edits
+ * parents filed THIS run — so N's GitHub task-list is not re-edited to show them.
+ */
+export function decomposeNodeOp(
+  kern: Kernloop,
+  io: CliIo,
+  v: Record<string, string | boolean>,
+  str: Str,
+): number {
+  const programId = str(v.program);
+  const nodeId = str(v.node);
+  const specFile = str(v.spec);
+  if (programId === undefined || nodeId === undefined || specFile === undefined) {
+    throw new Error(LEDGER_USAGE);
+  }
+  try {
+    const node = kern.programs.getNode(programId, nodeId);
+    if (node === undefined) {
+      throw new ProgramInputError(`no node "${nodeId}" in program "${programId}"`);
+    }
+    const parent = TaskContractSchema.parse(JSON.parse(node.taskJson));
+    const children = decomposeGoal({ parent, subtasks: readSpecFile(io, specFile) });
+    kern.programs.addNodes({
+      programId,
+      nodes: children.map((c) => ({
+        nodeId: c.id,
+        parentId: node.nodeId,
+        goal: c.goal,
+        labels: programLabels(c.constraints),
+        taskJson: JSON.stringify(c),
+      })),
+    });
+    const summary = {
+      op: 'decompose-node',
+      programId,
+      parentNodeId: nodeId,
+      childCount: children.length,
+    };
+    appendEvent(kern.store, { type: 'cli.program.decompose-node', payload: summary });
+    io.out(JSON.stringify(summary, null, 2));
     return 0;
   } catch (error) {
     return cleanExit(io, error);
@@ -235,7 +294,8 @@ export function listOp(kern: Kernloop, io: CliIo): number {
 /** The shared usage line the ledger verbs reject bad input with. */
 export const LEDGER_USAGE =
   'usage: kernloop program create --goal G --spec F [--id ID] | list | status --program ID | ' +
-  'advance --program ID --node NODE --state emitted|done [--ref URL]';
+  'advance --program ID --node NODE --state emitted|done [--ref URL] | ' +
+  'decompose-node --program ID --node NODE --spec F';
 
 /** Surface a store/input error as a clean exit 1, or rethrow an unexpected one. */
 function cleanExit(io: CliIo, error: unknown): number {

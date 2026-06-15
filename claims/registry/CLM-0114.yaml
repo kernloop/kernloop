@@ -1,0 +1,28 @@
+id: CLM-0114
+statement: >-
+  kernloop program decompose-node grows a persisted program tree DEEPER than the
+  one-shot `create` (#118): it loads stored node N from program P, runs the scrum
+  faculty's `decomposeGoal` with N's stored TaskContract as the parent plus the
+  `--spec` subtasks, and inserts the children as NEW ledger nodes pointing at N
+  (`parentId = N`) — at `planned`, stored only, never filing anything (a later
+  gated `program emit` files them parents-first and body-ref-links each to N).
+  `decomposeGoal` enforces altitude descent (epic→story→task; a `task` leaf
+  cannot decompose → a clean AltitudeDescentError exit), so depth is bounded. The
+  store's addNodes is one transaction that REFUSES a node-id collision
+  (DuplicateProgramNodeError — re-decomposing the same node never double-inserts)
+  and a missing program (UnknownProgramError); an unknown node is a clean
+  ProgramInputError. Audited once as cli.program.decompose-node (op + ids +
+  childCount, never the goals verbatim).
+evidence:
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::decomposes a stored story node into task children stored under it (parentId = N)'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::refuses to decompose a stored TASK leaf — altitude descent (a task cannot decompose)'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::an unknown node is a clean ProgramInputError exit'
+  - 'test:packages/cli/src/program-ledger-commands.test.ts::re-decomposing the same node refuses to overwrite the children (no double-insert)'
+  - 'test:packages/cli/src/program-store.test.ts::appends new children to an existing program, returning the inserted rows'
+  - 'test:packages/cli/src/program-store.test.ts::refuses a node-id collision (no silent overwrite)'
+  - 'test:packages/cli/src/program-store.test.ts::refuses to add nodes to a program the ledger does not hold'
+  - 'code:packages/cli/src/program-ledger-commands.ts#decomposeNodeOp@doc:/CLM-0114/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
