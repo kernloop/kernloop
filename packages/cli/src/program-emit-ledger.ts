@@ -25,7 +25,6 @@
  * the labels it was planned with, by design.
  */
 import { appendEvent } from '@kernloop/kernel';
-import { TaskContractSchema } from '@kernloop/contracts';
 import { programIssueBody } from '@kernloop/faculty-scrum';
 import {
   githubProvider,
@@ -35,7 +34,7 @@ import {
 } from '@kernloop/tracker';
 import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
-import { checkIdLength, ProgramInputError } from './program-shared.js';
+import { checkIdLength, ProgramInputError, taskFromRow } from './program-shared.js';
 import { checkSpamGuard, emitTrackerConfig, PREVIEW_NOTICE } from './program-emit-shared.js';
 import type { ProgramNodeRow } from './program-store.js';
 import { resolveMode } from './tracker-commands.js';
@@ -86,21 +85,7 @@ interface LedgerEmitReport {
  * `taskJson` back through `TaskContractSchema` first — a malformed row is a
  * clean {@link ProgramInputError}, never a raw zod/JSON throw. */
 function bodyForRow(row: ProgramNodeRow): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(row.taskJson);
-  } catch {
-    throw new ProgramInputError(
-      `node "${row.nodeId}" has a malformed stored task (not valid JSON)`,
-    );
-  }
-  const result = TaskContractSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new ProgramInputError(
-      `node "${row.nodeId}" has a stored task that is not a valid TaskContract`,
-    );
-  }
-  return programIssueBody(result.data);
+  return programIssueBody(taskFromRow(row.nodeId, row.taskJson));
 }
 
 /** File one planned node through the provider and, on a real execute success,

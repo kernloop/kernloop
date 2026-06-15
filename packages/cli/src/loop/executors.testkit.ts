@@ -127,7 +127,6 @@ export function boundHelpers(scratch: string): {
     return {
       kern,
       workspaceDir,
-      invoke,
       invokeFor: () => seamOf(invoke),
       adapter: 'claude',
       refs,

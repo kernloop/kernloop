@@ -76,6 +76,7 @@ const PROGRAM_USAGE =
   '       kernloop program author --goal G [--id ID] [--adapter A]\n' +
   '       kernloop program emit (--goal G --spec F [--id ID] | --program ID) [--execute] [--confirm-count N]\n' +
   '       kernloop program create --goal G --spec F [--id ID] | list | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]\n' +
+  '       kernloop program decompose-node --program ID --node NODE --spec F\n' +
   '       kernloop program reconcile --program ID [--execute]';
 
 /** Run `program decompose`: build the parent, decompose, print the tree, audit. */

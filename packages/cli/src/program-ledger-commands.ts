@@ -19,7 +19,6 @@
  * advancing it emitted → done when closed (see program-reconcile.ts).
  */
 import { appendEvent } from '@kernloop/kernel';
-import { TaskContractSchema } from '@kernloop/contracts';
 import { decomposeGoal, programLabels } from '@kernloop/faculty-scrum';
 import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
@@ -29,6 +28,7 @@ import {
   isCleanError,
   ProgramInputError,
   readSpecFile,
+  taskFromRow,
 } from './program-shared.js';
 import type { ProgramNodeRow, ProgramNodeState } from './program-store.js';
 
@@ -145,7 +145,7 @@ export function decomposeNodeOp(
     if (node === undefined) {
       throw new ProgramInputError(`no node "${nodeId}" in program "${programId}"`);
     }
-    const parent = TaskContractSchema.parse(JSON.parse(node.taskJson));
+    const parent = taskFromRow(node.nodeId, node.taskJson);
     const children = decomposeGoal({ parent, subtasks: readSpecFile(io, specFile) });
     kern.programs.addNodes({
       programId,
