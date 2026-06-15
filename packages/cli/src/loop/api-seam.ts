@@ -19,7 +19,7 @@ import {
   type ApiAdapterDefinition,
 } from '@kernloop/kernel';
 import type { ModelRequirement } from '@kernloop/contracts';
-import { type LoopInvoke, LOOP_INVOKE_TIMEOUT_MS } from './invoke.js';
+import { type LoopInvoke, type RunTotals, LOOP_INVOKE_TIMEOUT_MS } from './invoke.js';
 import { buildNodeSeam, type NodeSeam, type ServedModel } from './node-seam.js';
 
 /**
@@ -88,7 +88,7 @@ export function apiInvoke(
 export function buildApiNodeSeam(
   req: ModelRequirement,
   def: ApiAdapterDefinition,
-  totals: { tokens: number; usd: number },
+  totals: RunTotals,
   env?: Readonly<Record<string, string | undefined>>,
   timeoutMs?: number,
 ): NodeSeam {

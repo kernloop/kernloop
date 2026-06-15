@@ -45,6 +45,7 @@ import {
   ensureAdapterAvailable,
   meteredInvoke,
   type LoopInvoke,
+  type RunTotals,
 } from './invoke.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
@@ -154,7 +155,7 @@ function primeRefs(refs: LoopRefs, state: RunState): void {
 /** Map the engine's RunResult into the report the run tool returns. */
 function report(
   result: RunResult,
-  totals: { tokens: number; usd: number },
+  totals: RunTotals,
   unlimited: boolean,
   docArtifact: DocArtifactResult | undefined,
 ): LoopReport {
@@ -162,8 +163,13 @@ function report(
     runId: result.runId,
     status: result.status,
     nodeTrace: result.nodeTrace,
-    // Always-on reporting [CLM-0077]: metered spend rides in both modes.
-    cost: { tokens: totals.tokens, usd: totals.usd },
+    // Always-on reporting [CLM-0077]: metered spend rides in both modes, with
+    // the per-adapter breakdown when a tiered run touched more than one (#44).
+    cost: {
+      tokens: totals.tokens,
+      usd: totals.usd,
+      ...(totals.byAdapter === undefined ? {} : { byAdapter: totals.byAdapter }),
+    },
     unlimited,
     ...(result.outcome === undefined ? {} : { outcome: result.outcome }),
     ...(result.findings === undefined ? {} : { findings: result.findings }),
@@ -353,13 +359,13 @@ export async function executeCanonicalLoop(
     }
     primeRefs(refs, latest.state);
   }
-  const totals = { tokens: 0, usd: 0 };
+  const totals: RunTotals = { tokens: 0, usd: 0 };
   // Default + per-node seams, all metered. With a real run, each node derives
   // its requirement and binds the adapter+model that serves it [CLM-0078]. An
   // injected invoke routes every node through that one base, but still resolves
   // the node's SERVED model+effort against the run adapter so provenance stays
   // honest about what each node requested.
-  const defaultInvoke = meteredInvoke(base, totals);
+  const defaultInvoke = meteredInvoke(base, totals, adapter);
   const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
       ? buildInvokeForNode(adapter, kern.config, totals)

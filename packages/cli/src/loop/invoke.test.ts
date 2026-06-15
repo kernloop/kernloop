@@ -176,6 +176,30 @@ describe('meteredInvoke', () => {
     await invoke('two');
     expect(totals).toEqual({ tokens: 10, usd: 0.5 });
   });
+
+  it('attributes spend to the named adapter in byAdapter, summing per adapter (#44)', async () => {
+    const base: LoopInvoke = () => Promise.resolve({ output: 'ok', cost: { tokens: 4, usd: 0.1 } });
+    const totals: { tokens: number; usd: number; byAdapter?: Record<string, unknown> } = {
+      tokens: 0,
+      usd: 0,
+    };
+    await meteredInvoke(base, totals, 'claude')('a');
+    await meteredInvoke(base, totals, 'claude')('b');
+    await meteredInvoke(base, totals, 'codex')('c');
+    expect(totals.tokens).toBe(12); // flat total still summed
+    expect(totals.byAdapter).toEqual({
+      claude: { tokens: 8, usd: 0.2 },
+      codex: { tokens: 4, usd: 0.1 },
+    });
+  });
+
+  it('leaves byAdapter unset when no adapter is named (backward-compat)', async () => {
+    const base: LoopInvoke = () =>
+      Promise.resolve({ output: 'ok', cost: { tokens: 3, usd: 0.05 } });
+    const totals: { tokens: number; usd: number; byAdapter?: unknown } = { tokens: 0, usd: 0 };
+    await meteredInvoke(base, totals)('x');
+    expect(totals.byAdapter).toBeUndefined();
+  });
 });
 
 describe('ensureAdapterAvailable', () => {

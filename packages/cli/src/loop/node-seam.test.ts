@@ -170,6 +170,20 @@ describe('buildNodeSeam — rides the served model + effort into the call', () =
     expect(totals.tokens).toBe(2); // metered through totals
   });
 
+  it('attributes the node’s spend to the serving adapter in byAdapter (#44)', async () => {
+    const base: LoopInvoke = () => Promise.resolve({ output: 'ok', cost: COST });
+    const totals: { tokens: number; usd: number; byAdapter?: Record<string, unknown> } = {
+      tokens: 0,
+      usd: 0,
+    };
+    await buildNodeSeam(resolveServed(req(), 'claude'), base, totals).invoke('a');
+    await buildNodeSeam(resolveServed(req(), 'codex'), base, totals).invoke('b');
+    expect(totals.byAdapter).toEqual({
+      claude: { tokens: COST.tokens, usd: COST.usd },
+      codex: { tokens: COST.tokens, usd: COST.usd },
+    });
+  });
+
   it('does not bind a model when the harness defaults (empty alias)', async () => {
     const seen: Array<string | undefined> = [];
     const base: LoopInvoke = (_p, options = {}) => {
