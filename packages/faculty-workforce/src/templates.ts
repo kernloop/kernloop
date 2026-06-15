@@ -63,6 +63,14 @@ const template = (t: AgentTemplate): AgentTemplate => AgentTemplateSchema.parse(
  * instantiateAgent). Tiers reflect each role's load (spec §8.4): the
  * load-bearing generation roles (Coder, PM, Researcher) on `large` at high
  * effort; the judging/writing roles (Reviewer, Documenter) on `medium`.
+ *
+ * ROUTING (honesty, #45/#200): in the canonical loop today only PM, Coder, and
+ * Researcher are routed (to the plan/decompose, implement, and research nodes),
+ * and child review runs as a separate advisory GATE (faculty-gates/review), NOT
+ * this Reviewer template. The Reviewer/Documenter templates are shipped
+ * specialists the runtime loop does NOT yet route to — a child's `assignTo`
+ * records the intended specialist as provenance, but every fan-out child is
+ * currently implemented by the Coder until specialist routing lands (#200).
  */
 export const SHIPPED_TEMPLATES: Readonly<Record<string, AgentTemplate>> = {
   pm: template({
