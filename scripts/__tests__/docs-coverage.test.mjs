@@ -69,7 +69,21 @@ describe('gapsForPackage — undocumented value exports', () => {
       ['export type BareType = string;'].join('\n'),
     );
     const gaps = gapsForPackage(path.join(root, 'packages', 'contracts'), root);
-    expect(gaps).toEqual([]); // an undocumented TYPE re-export is deferred, not a gap
+    expect(gaps).toEqual([]); // a TYPE re-export is excluded by policy, not a gap
+  });
+
+  test('an undocumented value reached through a NESTED barrel is still a gap (#72)', () => {
+    // index → inner barrel → def: the recursive resolver must chase both hops
+    // and surface the deep declaration so its missing doc is caught.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-doccov-'));
+    const pkgSrc = path.join(root, 'packages', 'contracts', 'src');
+    fs.mkdirSync(pkgSrc, { recursive: true });
+    fs.writeFileSync(path.join(pkgSrc, 'index.ts'), "export { deep } from './inner/index.js';");
+    fs.mkdirSync(path.join(pkgSrc, 'inner'), { recursive: true });
+    fs.writeFileSync(path.join(pkgSrc, 'inner', 'index.ts'), "export { deep } from './def.js';");
+    fs.writeFileSync(path.join(pkgSrc, 'inner', 'def.ts'), 'export function deep(): void {}');
+    const gaps = gapsForPackage(path.join(root, 'packages', 'contracts'), root);
+    expect(gaps.map((g) => g.name)).toEqual(['deep']);
   });
 });
 
