@@ -1,0 +1,27 @@
+id: CLM-0115
+statement: >-
+  The canonical loop attributes metered model spend PER fan-out child (#56), and enforces each
+  child's OWN sliced budget independently of its siblings. Because children run sequentially, the
+  engine slices the run-global meter by the child boundary: it snapshots an injected `meteredSpend`
+  readout when it first steps into a child, sums spend across all the child's Kc iterations, and
+  records the delta onto that child's result (checkpointed, so a resume keeps finished children's
+  attribution) and into the run's `childSpend` — surfaced by the CLI as `report.childSpend`, one
+  entry per metered child, each a slice of (never more than) the run total. The attribution is
+  always-on: tracked in BOTH budget modes, the restriction is what `unlimited` lifts, never the
+  metering; an unmetered run (no `meteredSpend` seam) attributes nothing. On top of attribution, in
+  ENFORCE mode a child whose attributed spend exceeds ITS slice escalates on the next quality reject
+  BEFORE Kc — bounded like the run-level guard but scoped to one child, so an over-slice child
+  escalates without halting the run or its within-slice siblings; a zero-slice specialist (adds work,
+  not budget) is never gated this way. In `unlimited` mode the per-child halt is lifted (an over-slice
+  child re-iterates to Kc), mirroring the run-level discipline.
+evidence:
+  - 'test:packages/workflows/src/child-spend.test.ts::attributes spend to each child sub-chain, sliced by the sequential boundary'
+  - 'test:packages/workflows/src/child-spend.test.ts::an unmetered run (no meteredSpend seam) attributes nothing — childSpend absent'
+  - 'test:packages/workflows/src/child-spend.test.ts::escalates a child that overspends its OWN slice before Kc; the sibling completes'
+  - 'test:packages/workflows/src/child-spend.test.ts::unlimited mode never halts per-child: an over-slice child re-iterates to Kc'
+  - 'test:packages/cli/src/loop-attribution.test.ts::attributes the fan-out child its OWN metered spend, a slice of the run total'
+  - 'code:packages/workflows/src/budget.ts#childOverOwnBudget@doc:/overspent ITS OWN sliced budget/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

@@ -30,6 +30,13 @@ export const CursorSchema = z.discriminatedUnion('phase', [
 ]);
 export type Cursor = z.infer<typeof CursorSchema>;
 
+/** Metered spend attributed to one fan-out child (tokens + usd), #56. */
+export const ChildSpendSchema = z.strictObject({
+  tokens: z.number().nonnegative(),
+  usd: z.number().nonnegative(),
+});
+export type ChildSpend = z.infer<typeof ChildSpendSchema>;
+
 /**
  * One fan-out child's honest result. A child that fails mid-implement gets
  * `error` and no verdict; a child whose quality gate ran gets its Verdict
@@ -57,6 +64,14 @@ export const ChildResultSchema = z.strictObject({
   findings: z.array(FindingSchema).default([]),
   /** Set when the child hit the Kc/budget bound still failing (bounded escalation). */
   escalated: z.boolean().optional(),
+  /**
+   * Metered model spend ATTRIBUTED to this child's sub-chain (#56): the
+   * run-global meter sliced by the SEQUENTIAL child boundary, summed across all
+   * of the child's Kc iterations. Set as the fan-out runs the child when the
+   * composition root injected a `meteredSpend` seam; absent on an unmetered run.
+   * Checkpointed, so a resume keeps every finished child's attribution.
+   */
+  spend: ChildSpendSchema.optional(),
 });
 export type ChildResult = z.infer<typeof ChildResultSchema>;
 
@@ -167,4 +182,10 @@ export interface RunResult {
   readonly findings?: readonly Finding[];
   /** The typed error, on failure. */
   readonly error?: WorkflowError;
+  /**
+   * Per-child metered spend attribution (#56), present when the run was metered
+   * (a `meteredSpend` seam was injected) and produced fan-out children. One
+   * entry per child whose sub-chain incurred spend.
+   */
+  readonly childSpend?: readonly { readonly childId: string; readonly spend: ChildSpend }[];
 }

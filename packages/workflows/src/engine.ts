@@ -8,7 +8,7 @@
  * against the SAME frozen graph (a `gate` override swaps a gate executor;
  * `specialists` adds fan-out children) — the graph is never duplicated. Fan-out
  * children run SEQUENTIALLY: deterministic trace, unambiguous cursor, no budget
- * race; concurrency returns via a claim, not a flag.
+ * race (per-child spend is sliced off that order, #56); concurrency via a claim.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -30,7 +30,8 @@ import {
   type AdvanceOptions,
   type Step,
 } from './steps.js';
-import { overBudget, overspendFinding, type BudgetGuard } from './budget.js';
+import { enforceBudget, overBudget, type BudgetGuard, type BudgetSpend } from './budget.js';
+import { ChildSpendTracker, childSpends } from './child-spend.js';
 import type { ChildIterateEvent } from './child-iterate.js';
 import { EngineConfigSchema, type EngineConfig, type EngineConfigInput } from './config.js';
 
@@ -48,10 +49,9 @@ export interface NodeContext {
   /** The node being executed (resolved gate executors see the gate node). */
   readonly node: string;
   /**
-   * Findings the executing node must address. On the main chain these are the
-   * run-level vote-iterate findings (plan re-entries read these); inside the
-   * fan-out they are the CHILD's accumulated gate findings — what the
-   * re-running coder must fix [CLM-0043], NOT the run-level snapshot.
+   * Findings the executing node must address: the run-level vote-iterate
+   * findings on the main chain; inside the fan-out the CHILD's accumulated gate
+   * findings — what the re-running coder must fix [CLM-0043].
    */
   readonly findings: readonly Finding[];
   /** The child contract, inside the fan-out sub-chain. */
@@ -72,18 +72,23 @@ export interface EngineDeps {
   /**
    * Runtime budget guard (spec §8) [CLM-0077]. Absent → no budget enforcement
    * (Kc still bounds child iteration). In `enforce` mode the run escalates when
-   * metered spend exceeds the parent budget; `unlimited` never halts on budget
-   * but the spend is still tracked (always-on reporting). The CLI composition
-   * root injects this from the run's mode + the parent TaskContract.budget +
-   * the live metered `totals`. Workflows imports no kernel: `spent()` is a
-   * plain seam.
+   * metered spend exceeds the parent budget; `unlimited` never halts but spend
+   * is still tracked. Injected by the CLI from the mode + parent budget + live
+   * `totals`; workflows imports no kernel, so `spent()` is a plain seam.
    */
   readonly budget?: BudgetGuard;
+  /**
+   * Always-on metered-spend readout for PER-CHILD attribution (#56) — the raw
+   * run-global meter the engine snapshots at each child boundary to slice spend
+   * per child (see {@link ChildSpendTracker}), in BOTH budget modes. Absent → no
+   * per-child attribution or halt. The CLI wires it to the budget guard's
+   * `totals`; workflows imports no kernel, so this is a plain seam.
+   */
+  readonly meteredSpend?: () => BudgetSpend;
   /**
    * Audit hook fired on each child re-iteration [CLM-0043] — the CLI appends a
    * `loop.child.iterate` event to the hash chain so the refine history is
    * recorded (the Observer can later read iterations-to-pass as fitness).
-   * Workflows imports no kernel; this is the seam.
    */
   readonly onChildIterate?: (event: ChildIterateEvent) => void;
 }
@@ -127,12 +132,15 @@ class LoopEngine implements Engine {
   private readonly config: EngineConfig;
   private readonly budget: BudgetGuard | undefined;
   private readonly onChildIterate: ((event: ChildIterateEvent) => void) | undefined;
+  /** Slices the run-global meter per fan-out child for attribution + halt (#56). */
+  private readonly childSpend: ChildSpendTracker;
 
   constructor(deps: EngineDeps) {
     this.executors = deps.executors;
     this.checkpoints = deps.checkpoints;
     this.config = EngineConfigSchema.parse(deps.config);
     this.budget = deps.budget;
+    this.childSpend = new ChildSpendTracker(deps.meteredSpend);
     this.onChildIterate = deps.onChildIterate;
     // Wiring-complete or absent: every executable node must resolve NOW.
     // The fan-out node is structural (the engine itself runs the sub-chain).
@@ -176,14 +184,12 @@ class LoopEngine implements Engine {
       );
     }
     const state = parsed.data;
-    if (state.status === 'completed') return this.finish(runId, state);
+    if (state.status === 'completed') return this.finish(runId, state, childSpends(state));
     if (state.status === 'escalated') {
-      // Vote escalation: the human edited the plan inputs; continue from plan
-      // (cursor parked there) with a fresh K budget [CLM-0043]. Budget halt
-      // [CLM-0077]: the human raised the budget (or re-runs unlimited); continue
-      // from the cursor exactly where spend tripped the limit — iteration is NOT
-      // reset (no plan re-edit happened), and the budget guard re-evaluates as
-      // the run proceeds.
+      // Vote escalation: the human edited the plan; continue from plan with a
+      // fresh K budget [CLM-0043]. Budget halt [CLM-0077]: continue from the
+      // cursor where spend tripped the limit — iteration is NOT reset (no plan
+      // re-edit), and the budget guard re-evaluates as the run proceeds.
       if (state.haltReason !== 'budget') state.iteration = 0;
       state.status = 'running';
       state.haltReason = undefined;
@@ -199,12 +205,15 @@ class LoopEngine implements Engine {
     signal?: AbortSignal,
   ): Promise<RunResult> {
     let seq = seqStart;
+    this.childSpend.reset();
     while (state.status === 'running') {
       const step = nextStep(this.graph, state);
       const executor = this.executorFor(step.node);
       if (executor === undefined) {
         throw new WorkflowError('unwired_node', `no executor for node "${step.node.name}"`);
       }
+      const fanoutIndex = state.cursor.phase === 'fanout' ? state.cursor.childIndex : undefined;
+      if (fanoutIndex !== undefined) this.childSpend.ensureBaseline(fanoutIndex);
       const iteration = state.iteration;
       let output: unknown;
       let childFailed = false;
@@ -223,9 +232,10 @@ class LoopEngine implements Engine {
         childFailed = true;
       }
       if (!childFailed) {
-        advance(this.graph, state, step.node, output, this.advanceOptions());
+        advance(this.graph, state, step.node, output, this.advanceOptions(state));
       }
-      this.enforceBudget(state);
+      if (fanoutIndex !== undefined) this.childSpend.attribute(state, fanoutIndex);
+      enforceBudget(state, this.budget);
       seq += 1;
       state.trace.push(this.traceEntry(seq, iteration, step));
       const persistFailure = await this.persist(runId, seq, iteration, state, step.node.name);
@@ -233,37 +243,36 @@ class LoopEngine implements Engine {
         return { runId, status: 'failed', nodeTrace: state.trace, error: persistFailure };
       }
     }
-    if (state.status === 'escalated') {
-      return { runId, status: 'escalated', nodeTrace: state.trace, findings: state.findings };
-    }
-    return this.finish(runId, state);
+    return this.terminalResult(runId, state);
+  }
+
+  /** The escalated-or-completed result, carrying per-child spend attribution (#56). */
+  private terminalResult(runId: string, state: RunState): RunResult {
+    const childSpend = childSpends(state);
+    if (state.status !== 'escalated') return this.finish(runId, state, childSpend);
+    return {
+      runId,
+      status: 'escalated',
+      nodeTrace: state.trace,
+      findings: state.findings,
+      ...(childSpend === undefined ? {} : { childSpend }),
+    };
   }
 
   /** The loop-shaping inputs for one {@link advance} call, resolved from config + seams. */
-  private advanceOptions(): AdvanceOptions {
+  private advanceOptions(state: RunState): AdvanceOptions {
     return {
       k: this.config.K,
       kc: this.config.Kc,
       specialists: this.specialists(),
       reviewDrivesIteration: this.config.reviewDrivesIteration,
-      // A child re-implement is allowed only within budget; over budget forces escalation before Kc.
-      childWithinBudget: !overBudget(this.budget),
+      // Re-implement allowed only within BOTH the run budget AND the child's own
+      // slice (#56); over either forces escalation before Kc.
+      childWithinBudget:
+        !overBudget(this.budget) &&
+        this.childSpend.withinOwnBudget(this.budget?.mode === 'enforce', state),
       ...(this.onChildIterate === undefined ? {} : { onIterate: this.onChildIterate }),
     };
-  }
-
-  /**
-   * Runtime budget enforcement [CLM-0077]: in `enforce` mode a run that has now
-   * overspent its parent budget HALTS as escalated (resumable). `unlimited`
-   * never halts here; a finished run is not retro-halted — its cost is still
-   * reported in full by the always-on metering.
-   */
-  private enforceBudget(state: RunState): void {
-    if (state.status !== 'running' || state.cursor.phase === 'done') return;
-    if (!overBudget(this.budget) || this.budget === undefined) return;
-    state.status = 'escalated';
-    state.haltReason = 'budget';
-    state.findings.push(overspendFinding(this.budget));
   }
 
   /** Classify a node throw: undefined means "recorded as child failure, continue". */
@@ -285,10 +294,8 @@ class LoopEngine implements Engine {
   }
 
   private context(runId: string, state: RunState, step: Step, signal?: AbortSignal): NodeContext {
-    // Inside the fan-out, a node reads its CHILD's accumulated findings (the
-    // critique the re-running coder must fix [CLM-0043]); on the main chain it
-    // reads the run-level vote-iterate findings. A snapshot, not the live
-    // array: executors read findings, they cannot reach back into engine state.
+    // Fan-out: a node reads its CHILD's findings [CLM-0043]; main chain: the
+    // run-level vote-iterate findings. A snapshot, never the live array.
     const inFanout = step.child !== undefined;
     const findings = inFanout ? [...(step.childFindings ?? [])] : [...state.findings];
     const childIteration =
@@ -355,8 +362,7 @@ class LoopEngine implements Engine {
     }
   }
 
-  /** Resolve which executor a node runs: gate overrides swap gate executors
-   * [CLM-0045]; otherwise the node's name wins over its kind. */
+  /** Resolve a node's executor: gate overrides swap gate executors [CLM-0045]. */
   private executorFor(node: LoopNode): NodeExecutor | undefined {
     if (node.kind === 'gate' && node.gate !== undefined) {
       const gateName = this.config.nodeOverrides[node.name]?.gate ?? node.gate;
@@ -371,13 +377,14 @@ class LoopEngine implements Engine {
     return this.config.nodeOverrides[fanout.name]?.specialists ?? [];
   }
 
-  private finish(runId: string, state: RunState): RunResult {
+  private finish(runId: string, state: RunState, childSpend?: RunResult['childSpend']): RunResult {
     const retrospect = this.graph.nodes.find((n) => n.kind === 'retrospect');
     return {
       runId,
       status: 'completed',
       nodeTrace: state.trace,
       outcome: state.values[retrospect?.name ?? 'retrospect'] as Outcome,
+      ...(childSpend === undefined ? {} : { childSpend }),
     };
   }
 }
