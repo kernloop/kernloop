@@ -146,6 +146,41 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
     kern.close();
   }, 120_000);
 
+  it('a tiered run attributes spend PER adapter in report.cost.byAdapter, summing to the total (#44/#202)', async () => {
+    // medium-tier nodes (the vote + review gates) route to codex; the rest run on
+    // the default `claude` adapter — a real two-adapter run.
+    const repo = fixtureRepo('byadapter', 'id: ba\nadapters:\n  medium: codex\n');
+    const kern = kernloopFor(repo);
+    const result = await runTool(
+      kern,
+      {
+        goal: 'add a greet feature',
+        capability: 'workflow.canonical',
+        workspaceDir: repo,
+        id: 't-ba',
+      },
+      {
+        checks: [typecheck],
+        invoke: scriptedInvoke({
+          vote: () => 'approve',
+          files: [{ path: 'src/greet.ts', content: GREET_TS }],
+        }),
+      },
+    );
+    expect(result.kind).toBe('outcome');
+    const report = result.data as LoopReport;
+    const by = report.cost.byAdapter;
+    expect(by).toBeDefined();
+    expect(Object.keys(by ?? {}).sort()).toEqual(['claude', 'codex']); // both adapters attributed
+    const sum = Object.values(by ?? {}).reduce(
+      (s, b) => ({ tokens: s.tokens + b.tokens, usd: s.usd + b.usd }),
+      { tokens: 0, usd: 0 },
+    );
+    expect(sum.tokens).toBe(report.cost.tokens); // buckets sum to the flat total — no drift
+    expect(sum.usd).toBeCloseTo(report.cost.usd);
+    kern.close();
+  }, 120_000);
+
   it('escalates after K rejected votes with findings, then resumes from the checkpoint to completion', async () => {
     const repo = fixtureRepo('resume', 'id: fixture-resume\nK: 1\n');
     const kern = kernloopFor(repo);

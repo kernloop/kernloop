@@ -22,6 +22,7 @@ evidence:
   - 'test:packages/cli/src/loop/node-seam.test.ts::passes the served model alias and effort arg to the bound invoke, metered'
   - 'test:packages/cli/src/loop/node-seam.test.ts::attributes the node’s spend to the serving adapter in byAdapter (#44)'
   - 'test:packages/cli/src/loop/invoke.test.ts::attributes spend to the named adapter in byAdapter, summing per adapter (#44)'
+  - 'test:packages/cli/src/loop.test.ts::a tiered run attributes spend PER adapter in report.cost.byAdapter, summing to the total (#44/#202)'
   - 'test:packages/cli/src/loop/node-seam.test.ts::binds the per-node timeoutMs (#127); a caller-supplied timeout still wins'
   - 'test:packages/cli/src/loop/node-resolve.test.ts::gives a HEAVY node its full timeout (not the MCP SDK 60s default) and a light node the cap (#142)'
   - 'test:packages/cli/src/loop/node-resolve.test.ts::honors an overlay-configured invoke base on the injected path'
