@@ -35,10 +35,11 @@
  * defensive (a malformed subtree is skipped, never thrown on). Multi-line
  * Swift — the realistic shape of a real file — parses without the ERROR.
  *
- * Honestly deferred (#184): protocol requirements parse as distinct
- * `protocol_function_declaration`/`protocol_property_declaration` nodes with no
- * independent visibility (they inherit the protocol's), so a protocol is
- * enumerated at the top level only — its members are not descended.
+ *  - Protocol requirements (#184): a public protocol's requirements parse as
+ *    `protocol_function_declaration`/`protocol_property_declaration` under a
+ *    `protocol_body`. They carry no independent visibility (they inherit the
+ *    protocol's), so every named requirement of a PUBLIC protocol is part of its
+ *    public contract and is enumerated.
  */
 import type Parser from 'web-tree-sitter';
 import { isAdjacentComment, lineOf, kindOf, type Decl } from './treesitter-shared.js';
@@ -154,25 +155,43 @@ function swiftMembers(typeNode: Parser.SyntaxNode): Decl[] {
   return out;
 }
 
-/** True for a type declaration whose body holds enumerable members — a
- * `class_declaration` (class/struct/enum/actor). A protocol's members have no
- * independent visibility and are honestly deferred (top-level only, #184). */
-function swiftHasMembers(type: string): boolean {
-  return type === 'class_declaration';
+/** A PUBLIC protocol's requirements (#184). Unlike a type body, a requirement
+ * carries NO visibility modifier — it inherits the protocol's, so when the
+ * protocol is public every named requirement is part of its public contract and
+ * is enumerated: `protocol_function_declaration` (a method, name via the `name`
+ * field) and `protocol_property_declaration` (a property, reusing the same
+ * `pattern → simple_identifier` extraction as a stored property). */
+function swiftProtocolMembers(protocolNode: Parser.SyntaxNode): Decl[] {
+  const body = protocolNode.namedChildren.find((c) => c.type === 'protocol_body');
+  if (body === undefined) return [];
+  const out: Decl[] = [];
+  for (const node of body.namedChildren) {
+    if (node.type === 'protocol_function_declaration') {
+      const name = node.childForFieldName('name')?.text;
+      if (name !== undefined) {
+        out.push({ name, kind: 'method', line: lineOf(node), documented: swiftDocumented(node) });
+      }
+    } else if (node.type === 'protocol_property_declaration') {
+      emitProperty(node, out);
+    }
+  }
+  return out;
 }
 
 /** Swift: top-level functions/types/protocols/properties declared `public` or
  * `open` (Swift's default is `internal`, so everything else is skipped),
  * documented iff a `///` or `/**`-block comment sits immediately above, PLUS each
- * class/struct/enum/actor's public function and property members (#121). Robust
- * to the grammar's ERROR/MISSING nodes — a malformed subtree is skipped, never
- * thrown on. */
+ * class/struct/enum/actor's public function/property members AND each public
+ * protocol's requirements (#121/#184). Robust to the grammar's ERROR/MISSING
+ * nodes — a malformed subtree is skipped, never thrown on. */
 export function extractSwift(root: Parser.SyntaxNode): Decl[] {
   const out: Decl[] = [];
   for (const node of root.namedChildren) {
     if (!SWIFT_DECLS.has(node.type)) continue;
     emitDecl(node, false, out);
-    if (swiftHasMembers(node.type) && swiftIsPublic(node)) out.push(...swiftMembers(node));
+    if (!swiftIsPublic(node)) continue;
+    if (node.type === 'class_declaration') out.push(...swiftMembers(node));
+    else if (node.type === 'protocol_declaration') out.push(...swiftProtocolMembers(node));
   }
   return out;
 }
