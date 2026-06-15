@@ -122,6 +122,40 @@ Independence matters: a system grading its own homework is the dishonesty
 this repo exists to prevent. Use external review (nexus-agents quarry-panel,
 adversarial subagents told to _refute_) for these rounds, not only self-audit.
 
+## Autonomous mode (the loop)
+
+When the human invokes autonomous/loop mode ("continue autonomously", "loop
+through the backlog", `/loop`, or a standing directive to that effect), operate
+as a continuous loop rather than a single task — but the constitution above is
+unchanged; autonomy is a _cadence_, never a license to weaken a rule.
+
+- **Ask up front, then don't stop.** Surface every genuinely-blocking question
+  (a direction fork, a needed ratification) at the START of the run, so the
+  loop runs to a natural checkpoint without interrupting. Mid-loop, prefer the
+  narrower interpretation and a recorded resolution over stopping.
+- **One coherent unit per iteration.** Pick the highest-value backlog item (any
+  size — a clean cleanup or a large epic), execute it end-to-end to the full
+  Definition of Done (claim + tests + wiring + green gates), open a PR, and —
+  under the human's standing merge approval — merge it, sync, and repeat. Work
+  in claims-first dependency order.
+- **Ideas and problems become issues, always** (see Work tracking): a great
+  idea, a finding, a deferral, a question you resolved by being clever — file
+  it the moment it appears; the issue is the durable record a reset cannot lose.
+- **Run the standing rounds** (QA / security / vestigial) when appropriate, not
+  only at phase exits — after a substantial change, before relying on a claim.
+  Use adversarial subagents told to _refute_; their findings become issues.
+- **Stop and surface, don't guess.** Anything that changes a contract, claims
+  semantics, or phase scope, or needs a protected-path human-review merge or a
+  phase-exit ratification, goes to the human — autonomous mode never self-merges
+  those, never overrides a ratified decision, and never defaults an authority
+  tier upward.
+- **Never idle longer than 4.5 minutes in one gap.** The model's prompt cache
+  has a ~5-minute TTL; a longer idle (e.g. sleeping on a CI run or a build)
+  reads the whole context back UNCACHED — slower and costlier. When a wait would
+  exceed ~4.5 min, do useful work in the gap instead of sleeping — scout the
+  next item, run a review round, update docs, draft the next claim — and poll
+  long-running CI at sub-4.5-minute intervals so the loop never goes cold.
+
 ## Commands
 
 ```
