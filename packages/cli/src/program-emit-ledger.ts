@@ -36,7 +36,7 @@ import {
 import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
 import { checkIdLength, ProgramInputError } from './program-shared.js';
-import { checkSpamGuard } from './program-emit-shared.js';
+import { checkSpamGuard, emitTrackerConfig, PREVIEW_NOTICE } from './program-emit-shared.js';
 import type { ProgramNodeRow } from './program-store.js';
 import { resolveMode } from './tracker-commands.js';
 import {
@@ -219,19 +219,18 @@ function buildProvider(
   kern: Kernloop,
   executeFlag: boolean,
   exec: TrackerExec | undefined,
-): { provider: GithubProviderHandle; mode: TrackerMode; refusedExecute: boolean } {
-  const cfg = kern.config.tracker;
-  if (cfg === undefined) {
-    throw new ProgramInputError(
-      'no tracker configured — add tracker: { provider: github, repo: owner/name } to overlay.yaml',
-    );
-  }
-  const { mode, refusedExecute } = resolveMode(cfg.tier, executeFlag);
+): {
+  provider: GithubProviderHandle;
+  mode: TrackerMode;
+  refusedExecute: boolean;
+  previewOnly: boolean;
+} {
+  // A pure dry-run preview needs no tracker block (#94); only --execute requires one.
+  const { repo, tier, previewOnly } = emitTrackerConfig(kern.config.tracker, executeFlag);
+  const { mode, refusedExecute } = resolveMode(tier, executeFlag);
   const provider =
-    exec === undefined
-      ? githubProvider({ repo: cfg.repo }, mode)
-      : githubProvider({ repo: cfg.repo }, mode, exec);
-  return { provider, mode, refusedExecute };
+    exec === undefined ? githubProvider({ repo }, mode) : githubProvider({ repo }, mode, exec);
+  return { provider, mode, refusedExecute, previewOnly };
 }
 
 /** One node filed THIS run: its issue number + the stored row (for the body). */
@@ -322,9 +321,14 @@ async function fileLedgerNodes(
   planned: readonly ProgramNodeRow[],
   all: readonly ProgramNodeRow[],
   skipped: readonly SkippedNode[],
-  gated: { provider: GithubProviderHandle; mode: TrackerMode; refusedExecute: boolean },
+  gated: {
+    provider: GithubProviderHandle;
+    mode: TrackerMode;
+    refusedExecute: boolean;
+    previewOnly: boolean;
+  },
 ): Promise<number> {
-  const { provider, mode, refusedExecute } = gated;
+  const { provider, mode, refusedExecute, previewOnly } = gated;
   const { nodes, filedThisRun } = await emitInOrder(kern, programId, planned, all, provider);
   const epicUpdates = mode === 'execute' ? await updateEpicBodies(provider, filedThisRun) : [];
   const emittedCount = nodes.filter((n) => n.state === 'emitted').length;
@@ -342,7 +346,7 @@ async function fileLedgerNodes(
     mode,
     refusedExecute,
     programId,
-    notice: ledgerNotice(mode, refusedExecute),
+    notice: previewOnly ? PREVIEW_NOTICE : ledgerNotice(mode, refusedExecute),
     plannedCount: planned.length,
     emittedCount,
     skippedCount: skipped.length,
