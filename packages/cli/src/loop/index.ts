@@ -119,6 +119,13 @@ export interface LoopReport {
   readonly findings?: readonly Finding[];
   readonly error?: { code: string; message: string };
   /**
+   * Per-child metered spend attribution (#56): one entry per fan-out child whose
+   * sub-chain incurred model spend, sliced from the run-global meter by the
+   * sequential child boundary. Each carries only its OWN sub-chain spend, so the
+   * entries sum to at most the run `cost` (the main chain is not attributed).
+   */
+  readonly childSpend?: readonly { readonly childId: string; readonly spend: Cost }[];
+  /**
    * The derived API-doc artifact written from the deliverable's doc-comments on
    * a completed run [CLM-0105]. Absent when the run did not complete; present
    * with `written: false` when the deliverable exposed no TS/JS symbols.
@@ -171,6 +178,8 @@ function report(
       ...(totals.byAdapter === undefined ? {} : { byAdapter: totals.byAdapter }),
     },
     unlimited,
+    // Per-child spend attribution (#56): the meter sliced by the fan-out boundary.
+    ...(result.childSpend === undefined ? {} : { childSpend: result.childSpend }),
     ...(result.outcome === undefined ? {} : { outcome: result.outcome }),
     ...(result.findings === undefined ? {} : { findings: result.findings }),
     ...(result.error === undefined
@@ -309,6 +318,9 @@ function buildLoopEngine(
       nodeOverrides: kern.config.nodeOverrides,
     },
     budget: budgetGuardFor(seams.mode, request.task, seams.totals),
+    // Always-on metered readout for per-child attribution (#56) — the same
+    // `totals` the budget guard reads, sliced per child by the engine.
+    meteredSpend: () => ({ tokens: seams.totals.tokens, usd: seams.totals.usd }),
     onChildIterate: childIterateAudit(kern, seams.runId),
   });
 }
