@@ -43,7 +43,6 @@ import {
   LoopResumeError,
   adapterInvoke,
   ensureAdapterAvailable,
-  meteredInvoke,
   type LoopInvoke,
   type RunTotals,
 } from './invoke.js';
@@ -163,8 +162,9 @@ function report(
     runId: result.runId,
     status: result.status,
     nodeTrace: result.nodeTrace,
-    // Always-on reporting [CLM-0077]: metered spend rides in both modes, with
-    // the per-adapter breakdown when a tiered run touched more than one (#44).
+    // Always-on reporting [CLM-0077]: metered spend rides in both modes, with the
+    // per-adapter breakdown whenever any model call was metered (one bucket for a
+    // single-adapter run, several for a tiered one) (#44).
     cost: {
       tokens: totals.tokens,
       usd: totals.usd,
@@ -283,7 +283,6 @@ function buildLoopEngine(
     checkpoints: JsonlCheckpointStore;
     refs: LoopRefs;
     adapter: AdapterName;
-    defaultInvoke: LoopInvoke;
     invokeFor: (node: TieredNode) => NodeSeam;
     mode: BudgetMode;
     totals: { tokens: number; usd: number };
@@ -293,7 +292,6 @@ function buildLoopEngine(
     executors: buildLoopExecutors({
       kern,
       workspaceDir: request.workspaceDir,
-      invoke: seams.defaultInvoke,
       invokeFor: seams.invokeFor,
       adapter: seams.adapter,
       refs: seams.refs,
@@ -360,12 +358,11 @@ export async function executeCanonicalLoop(
     primeRefs(refs, latest.state);
   }
   const totals: RunTotals = { tokens: 0, usd: 0 };
-  // Default + per-node seams, all metered. With a real run, each node derives
-  // its requirement and binds the adapter+model that serves it [CLM-0078]. An
+  // Per-node seams, all metered. With a real run, each node derives its
+  // requirement and binds the adapter+model that serves it [CLM-0078]. An
   // injected invoke routes every node through that one base, but still resolves
   // the node's SERVED model+effort against the run adapter so provenance stays
   // honest about what each node requested.
-  const defaultInvoke = meteredInvoke(base, totals, adapter);
   const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
       ? buildInvokeForNode(adapter, kern.config, totals)
@@ -378,7 +375,6 @@ export async function executeCanonicalLoop(
     checkpoints,
     refs,
     adapter,
-    defaultInvoke,
     invokeFor,
     mode,
     totals,

@@ -35,7 +35,7 @@ import type { NodeExecutor } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { assembleBrief } from '../gather.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
-import { LoopParseError, type LoopInvoke, type ViolationSink } from './invoke.js';
+import { LoopParseError, type ViolationSink } from './invoke.js';
 import { ballotInvoker, reviewerInvoker } from './seams.js';
 import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
@@ -60,9 +60,6 @@ export interface LoopBindings {
   readonly kern: Kernloop;
   /** Workspace the children implement into and quality judges. */
   readonly workspaceDir: string;
-  /** The default model seam — already metered by the caller. Used where no
-   * node requirement applies; the run adapter at its default. */
-  readonly invoke: LoopInvoke;
   /**
    * Per-NODE model seam [CLM-0078]: each model-calling executor asks for its
    * own node, and the composition root returns a metered invoke pre-bound to

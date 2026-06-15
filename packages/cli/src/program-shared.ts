@@ -120,3 +120,23 @@ export function checkIdLength(id: string): void {
     );
   }
 }
+
+/** Validate a STORED node's `taskJson` back through `TaskContractSchema` — a
+ * malformed/legacy row is a clean {@link ProgramInputError}, never a raw
+ * zod/JSON throw. Shared by `program emit` (body rendering) and `decompose-node`
+ * (the parent it decomposes) so both surface the same human message. */
+export function taskFromRow(nodeId: string, taskJson: string): TaskContract {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(taskJson);
+  } catch {
+    throw new ProgramInputError(`node "${nodeId}" has a malformed stored task (not valid JSON)`);
+  }
+  const result = TaskContractSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ProgramInputError(
+      `node "${nodeId}" has a stored task that is not a valid TaskContract`,
+    );
+  }
+  return result.data;
+}
