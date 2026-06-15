@@ -7,7 +7,8 @@ statement: >-
   for the lighter nodes, #127). This binding holds on BOTH seam paths — the default CLI/api seam and
   the INJECTED seam the MCP-sampling run uses (#142), so a slow host model gets the node's real budget,
   not the MCP SDK's 60s request default. Then it names the served model+effort and any degradation in
-  the node's Brief/Outcome provenance.
+  the node's Brief/Outcome provenance, and ATTRIBUTES that node's metered spend to the serving adapter
+  in the run cost's `byAdapter` breakdown, so a tiered run's spend is observable per adapter (#44).
 evidence:
   - 'test:packages/cli/src/loop/node-model.test.ts::covers exactly the six model-calling nodes'
   - 'test:packages/cli/src/loop/node-model.test.ts::reads the real shipped templates + gate manifests'
@@ -19,6 +20,8 @@ evidence:
   - 'test:packages/cli/src/loop/node-resolve.test.ts::a per-node tier/effort override changes what that node requests'
   - 'test:packages/cli/src/loop/node-resolve.test.ts::a node sent to an effort-less adapter drops effort honestly'
   - 'test:packages/cli/src/loop/node-seam.test.ts::passes the served model alias and effort arg to the bound invoke, metered'
+  - 'test:packages/cli/src/loop/node-seam.test.ts::attributes the node’s spend to the serving adapter in byAdapter (#44)'
+  - 'test:packages/cli/src/loop/invoke.test.ts::attributes spend to the named adapter in byAdapter, summing per adapter (#44)'
   - 'test:packages/cli/src/loop/node-seam.test.ts::binds the per-node timeoutMs (#127); a caller-supplied timeout still wins'
   - 'test:packages/cli/src/loop/node-resolve.test.ts::gives a HEAVY node its full timeout (not the MCP SDK 60s default) and a light node the cap (#142)'
   - 'test:packages/cli/src/loop/node-resolve.test.ts::honors an overlay-configured invoke base on the injected path'

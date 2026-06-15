@@ -18,7 +18,7 @@
  */
 import type { AdapterName } from '@kernloop/kernel';
 import type { ModelRequirement } from '@kernloop/contracts';
-import { adapterInvoke, type LoopInvoke } from './invoke.js';
+import { adapterInvoke, type LoopInvoke, type RunTotals } from './invoke.js';
 import {
   DEFAULT_INVOKE_TIMEOUT_MS,
   invokeTimeoutForNode,
@@ -48,7 +48,7 @@ function resolveTierAdapterName(
 export function buildInvokeForNode(
   runAdapter: AdapterName,
   overlay: Overlay,
-  totals: { tokens: number; usd: number },
+  totals: RunTotals,
 ): (node: TieredNode) => NodeSeam {
   const cache = new Map<TieredNode, NodeSeam>();
   return (node) => {
@@ -89,7 +89,7 @@ export function injectedSeamFor(
   runAdapter: AdapterName,
   overlay: Overlay,
   base: LoopInvoke,
-  totals: { tokens: number; usd: number },
+  totals: RunTotals,
 ): (node: TieredNode) => NodeSeam {
   const cache = new Map<TieredNode, NodeSeam>();
   return (node) => {

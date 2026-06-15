@@ -113,15 +113,34 @@ export function adapterInvoke(
 }
 
 /**
- * Wrap an invoke so every call's metered tokens/usd accumulate into
- * `totals` — the loop's honest model-spend aggregate, reported on the run's
- * final cost.
+ * The loop's running model-spend accumulator: the flat tokens/usd total plus an
+ * optional per-adapter breakdown (#44) so a tiered run's spend is attributable
+ * to the adapter that incurred it. `byAdapter` is filled lazily — only adapters
+ * that actually metered a call appear.
  */
-export function meteredInvoke(base: LoopInvoke, totals: { tokens: number; usd: number }) {
+export interface RunTotals {
+  tokens: number;
+  usd: number;
+  byAdapter?: Record<string, { tokens: number; usd: number }>;
+}
+
+/**
+ * Wrap an invoke so every call's metered tokens/usd accumulate into `totals` —
+ * the loop's honest model-spend aggregate, reported on the run's final cost.
+ * When `adapter` is given, the same spend is also attributed to that adapter's
+ * bucket in `totals.byAdapter` (#44).
+ */
+export function meteredInvoke(base: LoopInvoke, totals: RunTotals, adapter?: string) {
   const wrapped: LoopInvoke = async (prompt, options) => {
     const result = await base(prompt, options);
     totals.tokens += result.cost.tokens;
     totals.usd += result.cost.usd;
+    if (adapter !== undefined) {
+      const by = (totals.byAdapter ??= {});
+      const bucket = (by[adapter] ??= { tokens: 0, usd: 0 });
+      bucket.tokens += result.cost.tokens;
+      bucket.usd += result.cost.usd;
+    }
     return result;
   };
   return wrapped;

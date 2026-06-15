@@ -25,7 +25,7 @@ import {
   resolveWithDiscovered,
   type DiscoveredCache,
 } from '@kernloop/faculty-models';
-import { meteredInvoke, type LoopInvoke } from './invoke.js';
+import { meteredInvoke, type LoopInvoke, type RunTotals } from './invoke.js';
 
 /**
  * The empty discovered cache used when the loop runs WITHOUT a synced cache —
@@ -120,10 +120,11 @@ export interface NodeSeam {
 export function buildNodeSeam(
   served: ServedModel,
   base: LoopInvoke,
-  totals: { tokens: number; usd: number },
+  totals: RunTotals,
   timeoutMs?: number,
 ): NodeSeam {
-  const metered = meteredInvoke(base, totals);
+  // Attribute this node's spend to the adapter that serves it (#44).
+  const metered = meteredInvoke(base, totals, served.adapter);
   const invoke: LoopInvoke = (prompt, options = {}) => {
     const model = options.model ?? (served.model === '' ? undefined : served.model);
     const effort = options.effort ?? served.effortArg;
