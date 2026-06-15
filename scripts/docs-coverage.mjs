@@ -9,20 +9,31 @@ import { resolvePackageApi } from './lib/public-api.mjs';
  * a usage doc. Missing or trivial docs exit 1 with a per-package report.
  *
  * This is a QUALITY gate, not claim evidence: a doc-comment proves a symbol is
- * documented, never that it behaves — tests remain the `verified` bar. The gate
- * is honest about its scope in two recorded ways (never a silent weakening):
- *  - TYPE-ONLY re-exports (`export type { X }`) are excluded. They are almost
- *    all `z.infer<>` companions or interface shapes whose documentation lives
- *    on the adjacent documented schema/value; a separate doc would just restate
- *    it. Deferred under DEFERRED below (issue tracked).
- *  - Packages whose barrels re-export through NESTED barrels or `export *`
- *    (`cli`, `workflows`, `kernel`) are deferred: the single-hop resolver does
- *    not chase those, so gating them would under-report. Tracked, not hidden.
+ * documented, never that it behaves — tests remain the `verified` bar.
+ *
+ * As of #72 the gate covers EVERY gated package's full surface — `cli`,
+ * `workflows`, and `kernel` included — because the resolver now chases named
+ * re-exports through nested barrels and EXPANDS relative `export *` recursively
+ * (see scripts/lib/public-api.mjs), so those packages no longer under-report.
+ *
+ * One scope decision is stated permanently in EXCLUDED below (never a silent
+ * weakening): TYPE-ONLY re-exports (`export type { X }`) are excluded by policy —
+ * they are `z.infer<>` companions or interface shapes whose documentation lives
+ * on the adjacent documented schema/value, so a separate doc would only restate
+ * it. (Value exports re-exported as types are vanishingly rare and the kind
+ * filter already covers genuine type aliases.)
  */
 
-/** Packages whose public value-export surface is gated for doc coverage. */
+/**
+ * Packages whose public value-export surface is gated for doc coverage. The
+ * recursive resolver (#72) lets this cover the nested-barrel / `export *`
+ * packages (`cli`, `workflows`, `kernel`) honestly, alongside the faculties.
+ */
 export const GATED_PACKAGES = [
   'contracts',
+  'kernel',
+  'cli',
+  'workflows',
   'faculty-compiler',
   'faculty-gates',
   'faculty-memory',
@@ -34,18 +45,13 @@ export const GATED_PACKAGES = [
 ];
 
 /**
- * Explicitly-deferred coverage, each with a recorded reason so the exclusion is
- * auditable rather than silent. Tracked in issue #72 (follow-up to #64):
- * widening these is a real coverage gain, never a relaxation of the gate.
+ * Coverage scope EXCLUDED by deliberate policy (not deferral), each with a
+ * recorded reason so the exclusion is auditable rather than silent.
  */
-export const DEFERRED = [
+export const EXCLUDED = [
   {
     what: 'type-only re-exports (export type { X })',
     why: 'z.infer<> companions / interface shapes documented on the adjacent schema; a separate doc would duplicate it',
-  },
-  {
-    what: 'packages cli, workflows, kernel',
-    why: 'their index.ts re-exports through nested barrels or `export *`; the single-hop resolver would under-report, so they are deferred until a recursive resolver lands',
   },
 ];
 
@@ -106,8 +112,8 @@ export function main(repoRoot) {
       for (const g of gaps) console.error(`    ${g.name} (${g.kind}) @ ${g.file}`);
     }
   }
-  console.log('docs:coverage — explicitly deferred (recorded, not silent):');
-  for (const d of DEFERRED) console.log(`    • ${d.what} — ${d.why}`);
+  console.log('docs:coverage — excluded by policy (recorded, not silent):');
+  for (const d of EXCLUDED) console.log(`    • ${d.what} — ${d.why}`);
   if (total > 0) {
     console.error(`docs:coverage ✗ ${total} undocumented value export(s) across gated packages`);
     return 1;

@@ -10,7 +10,11 @@ function fixture(indexSrc, defs = {}) {
   const pkgSrc = path.join(root, 'packages', 'p', 'src');
   fs.mkdirSync(pkgSrc, { recursive: true });
   fs.writeFileSync(path.join(pkgSrc, 'index.ts'), indexSrc);
-  for (const [name, src] of Object.entries(defs)) fs.writeFileSync(path.join(pkgSrc, name), src);
+  for (const [name, src] of Object.entries(defs)) {
+    const dest = path.join(pkgSrc, name);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, src);
+  }
   return { root, pkgDir: path.join(root, 'packages', 'p') };
 }
 
@@ -53,13 +57,64 @@ describe('resolvePackageApi', () => {
     expect(resolvePackageApi(pkgDir, root).symbols).toEqual([]);
   });
 
-  test('counts `export *` re-exports without inventing named symbols', () => {
+  test('EXPANDS a relative `export *` into every named symbol (#72)', () => {
     const { root, pkgDir } = fixture("export * from './def.js';", {
-      'def.ts': 'export const X = 1;',
+      'def.ts':
+        '/** A starred const. */\nexport const X = 1;\n/** A starred fn. */\nexport function y(): void {}',
     });
+    const { symbols, starReExports } = resolvePackageApi(pkgDir, root);
+    expect(symbols.map((s) => s.name).sort()).toEqual(['X', 'y']);
+    expect(symbols.find((s) => s.name === 'X').doc).toContain('starred const');
+    expect(starReExports).toBe(0); // a RELATIVE star is resolved, not counted
+  });
+
+  test('counts an EXTERNAL `export *` opaquely (gated in its own package)', () => {
+    const { root, pkgDir } = fixture("export * from '@kernloop/contracts';");
     const { symbols, starReExports } = resolvePackageApi(pkgDir, root);
     expect(symbols).toEqual([]);
     expect(starReExports).toBe(1);
+  });
+
+  test('chases a NAMED re-export through a NESTED barrel to the real doc (#72)', () => {
+    const { root, pkgDir } = fixture("export { deep } from './inner/index.js';", {
+      'inner/index.ts': "export { deep } from './def.js';",
+      'inner/def.ts': '/** The deep declaration. */\nexport function deep(): void {}',
+    });
+    const { symbols } = resolvePackageApi(pkgDir, root);
+    expect(symbols.map((s) => s.name)).toEqual(['deep']);
+    expect(symbols[0].doc).toContain('deep declaration');
+    expect(symbols[0].file).toContain('inner/def.ts'); // resolved to the real origin
+  });
+
+  test('EXPANDS a star that passes THROUGH a nested barrel (#72)', () => {
+    const { root, pkgDir } = fixture("export * from './inner/index.js';", {
+      'inner/index.ts': "export * from './def.js';",
+      'inner/def.ts': '/** Doc. */\nexport const THROUGH = 1;',
+    });
+    const { symbols } = resolvePackageApi(pkgDir, root);
+    expect(symbols.map((s) => s.name)).toEqual(['THROUGH']);
+  });
+
+  test('an explicit local/named export SHADOWS a star of the same name', () => {
+    const { root, pkgDir } = fixture(
+      "/** The real one. */\nexport const DUP = 1;\nexport * from './def.js';",
+      { 'def.ts': '/** The starred one. */\nexport const DUP = 2;' },
+    );
+    const { symbols } = resolvePackageApi(pkgDir, root);
+    expect(symbols.filter((s) => s.name === 'DUP')).toHaveLength(1);
+    expect(symbols.find((s) => s.name === 'DUP').doc).toContain('real one');
+  });
+
+  test('breaks a re-export CYCLE instead of looping forever', () => {
+    const { root, pkgDir } = fixture(
+      "/** Top. */\nexport const TOP = 1;\nexport * from './a.js';",
+      {
+        'a.ts': "/** A. */\nexport const A = 1;\nexport * from './b.js';",
+        'b.ts': "/** B. */\nexport const B = 1;\nexport * from './a.js';",
+      },
+    );
+    const { symbols } = resolvePackageApi(pkgDir, root);
+    expect(symbols.map((s) => s.name).sort()).toEqual(['A', 'B', 'TOP']);
   });
 
   test('throws when a re-export module cannot be resolved', () => {

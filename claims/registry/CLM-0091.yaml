@@ -1,23 +1,34 @@
 id: CLM-0091
 statement: >-
   The doc-coverage gate (#64) requires every VALUE export — function, const, class, enum — on a
-  gated package's public API surface to carry a real, non-placeholder doc-comment, resolving each
-  package's index.ts barrel re-exports to their definition files via listExportedSymbols/findSymbol
-  and rejecting trivially-empty docs and docs that merely restate the symbol name. Nine packages
-  are gated (contracts, faculty-compiler, faculty-gates, faculty-memory, faculty-observer,
-  faculty-scrum, faculty-toolsmith, faculty-workforce, tracker); a gap exits 1 with a per-package report, and the gate runs
-  in CI. Its scope is recorded, never silently weakened: type-only re-exports (z.infer companions)
-  and the nested-barrel packages (cli, workflows, kernel) are excluded with a stated reason. It is a
-  QUALITY gate, not claim evidence — a doc-comment proves a symbol is documented, never that it
-  behaves; tests remain the verified bar.
+  gated package's public API surface to carry a real, non-placeholder doc-comment, rejecting
+  trivially-empty docs and docs that merely restate the symbol name. The public-API resolver chases
+  the barrel graph RECURSIVELY (#72): it follows named re-exports through NESTED barrels to the real
+  declaration that carries the doc-comment, and EXPANDS relative `export *` into its named symbols
+  (breaking any cycle, memoizing each file). Only an EXTERNAL `export *` stays opaque — gated in its
+  owning package — and is surfaced as a count, never hidden. So twelve packages are gated
+  (contracts, kernel, cli, workflows, faculty-compiler, faculty-gates, faculty-memory,
+  faculty-observer, faculty-scrum, faculty-toolsmith, faculty-workforce, tracker) — the nested-barrel
+  and `export *` packages (cli/workflows/kernel) included, no longer under-reported. A gap exits 1
+  with a per-package report and the gate runs in CI. One scope decision is recorded permanently
+  (never a silent weakening): type-only re-exports (z.infer companions documented on the adjacent
+  schema) are excluded by policy. It is a QUALITY gate, not claim evidence — a doc-comment proves a
+  symbol is documented, never that it behaves; tests remain the verified bar.
 evidence:
   - 'test:scripts/__tests__/docs-coverage.test.mjs::every gated package has zero undocumented value exports (the CI invariant)'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::flags an undocumented exported function, ignores documented ones'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::a placeholder doc that restates the name still counts as a gap'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::type-only re-exports are excluded from the value-export gate'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::an undocumented value reached through a NESTED barrel is still a gap (#72)'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::a doc that merely restates the symbol name is trivial'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::main exits 1 when a gated package has an undocumented value export'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::main exits 0 against the real repo'
+  - 'test:scripts/__tests__/public-api.test.mjs::chases a NAMED re-export through a NESTED barrel to the real doc (#72)'
+  - 'test:scripts/__tests__/public-api.test.mjs::EXPANDS a relative `export *` into every named symbol (#72)'
+  - 'test:scripts/__tests__/public-api.test.mjs::EXPANDS a star that passes THROUGH a nested barrel (#72)'
+  - 'test:scripts/__tests__/public-api.test.mjs::counts an EXTERNAL `export *` opaquely (gated in its own package)'
+  - 'test:scripts/__tests__/public-api.test.mjs::an explicit local/named export SHADOWS a star of the same name'
+  - 'test:scripts/__tests__/public-api.test.mjs::breaks a re-export CYCLE instead of looping forever'
   - 'code:scripts/docs-coverage.mjs#gapsForPackage@doc:/lack a real doc-comment/'
   - 'ci:test'
 status: verified
