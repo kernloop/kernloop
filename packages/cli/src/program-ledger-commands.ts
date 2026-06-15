@@ -141,6 +141,8 @@ export function decomposeNodeOp(
     throw new Error(LEDGER_USAGE);
   }
   try {
+    checkIdLength(programId);
+    checkIdLength(nodeId);
     const node = kern.programs.getNode(programId, nodeId);
     if (node === undefined) {
       throw new ProgramInputError(`no node "${nodeId}" in program "${programId}"`);

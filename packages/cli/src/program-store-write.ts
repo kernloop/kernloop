@@ -6,12 +6,35 @@
  */
 import type Database from 'better-sqlite3';
 import type { AddNodesInput, ProgramNodeRow } from './program-store.js';
-import { DuplicateProgramNodeError, UnknownProgramError } from './program-store-errors.js';
+import {
+  DuplicateProgramNodeError,
+  UnknownProgramError,
+  UnknownProgramNodeError,
+} from './program-store-errors.js';
 
 /** The reads {@link makeAddNodes} needs to validate the program + return rows. */
 export interface LedgerReads {
   getProgram(programId: string): unknown;
   getNode(programId: string, nodeId: string): ProgramNodeRow | undefined;
+}
+
+/** No-orphan guard (#202): every non-null `parentId` must reference a node that
+ * already exists OR is inserted in this same batch. */
+function assertParentsResolve(
+  reads: LedgerReads,
+  programId: string,
+  nodes: AddNodesInput['nodes'],
+): void {
+  const batch = new Set(nodes.map((n) => n.nodeId));
+  for (const n of nodes) {
+    if (
+      n.parentId !== null &&
+      !batch.has(n.parentId) &&
+      reads.getNode(programId, n.parentId) === undefined
+    ) {
+      throw new UnknownProgramNodeError(programId, n.parentId);
+    }
+  }
 }
 
 /**
@@ -51,6 +74,7 @@ export function makeAddNodes(
     if (reads.getProgram(input.programId) === undefined) {
       throw new UnknownProgramError(input.programId);
     }
+    assertParentsResolve(reads, input.programId, input.nodes);
     const ts = clock();
     addNodesTxn(input, ts);
     return input.nodes.map((n) => {

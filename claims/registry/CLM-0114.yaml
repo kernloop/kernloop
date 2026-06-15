@@ -21,6 +21,7 @@ evidence:
   - 'test:packages/cli/src/program-store.test.ts::appends new children to an existing program, returning the inserted rows'
   - 'test:packages/cli/src/program-store.test.ts::refuses a node-id collision (no silent overwrite)'
   - 'test:packages/cli/src/program-store.test.ts::refuses to add nodes to a program the ledger does not hold'
+  - 'test:packages/cli/src/program-store.test.ts::refuses an orphan child whose parentId references no node (referential integrity, #202)'
   - 'code:packages/cli/src/program-ledger-commands.ts#decomposeNodeOp@doc:/CLM-0114/'
   - 'ci:test'
 status: verified

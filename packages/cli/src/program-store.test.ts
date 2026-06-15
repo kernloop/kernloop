@@ -323,4 +323,22 @@ describe('program ledger store — addNodes (deeper trees, #118)', () => {
     );
     store.close();
   });
+
+  it('refuses an orphan child whose parentId references no node (referential integrity, #202)', () => {
+    const store = createProgramStore(freshDbPath(), { clock: tickingClock() });
+    seed(store); // p.1, p.2 exist
+    expect(() =>
+      store.addNodes({ programId: 'p', nodes: [{ ...CHILD, parentId: 'p.404' }] }),
+    ).toThrow(UnknownProgramNodeError);
+    // a parent inside the SAME batch is fine (a multi-level insert).
+    const rows = store.addNodes({
+      programId: 'p',
+      nodes: [
+        { ...CHILD, nodeId: 'p.1.1', parentId: 'p.1' },
+        { ...CHILD, nodeId: 'p.1.1.1', parentId: 'p.1.1' }, // parent is in this batch
+      ],
+    });
+    expect(rows.map((r) => r.nodeId)).toEqual(['p.1.1', 'p.1.1.1']);
+    store.close();
+  });
 });
