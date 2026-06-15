@@ -1,0 +1,30 @@
+id: CLM-0116
+statement: >-
+  `kernloop program close` (EPIC #50, the SAFE half) is the LEDGER-authoritative inverse of
+  `reconcile`: for each node the program ledger already holds in `done` state with a filed `issueRef`
+  it READS the GitHub issue via the hardened tracker `getIssue` (a read runs at any tier, like
+  reconcile) and CLOSES the OPEN ones via `closeIssue` — reflecting "done per the ledger" to the
+  tracker. It targets ONLY `done` nodes (an emitted/planned node is never closed); an already-closed
+  issue is a no-op; the default close reason is `completed`, overridable with `--reason`
+  (`completed`|`not planned`, validated by the tracker), and `--node` narrows to one node. The CLOSE
+  mutation is DOUBLE-gated — `--execute` AND `tracker.tier: enforce` (resolveMode) — otherwise it
+  stays a dry-run that proposes the would-be closes and spawns nothing, spelling out the enforce
+  promotion when `--execute` is refused. It NEVER auto-merges and a success Outcome cannot trigger it
+  (the canonical loop carries no issue ref — that link is deferred, needs a contract change +
+  ratification; the ledger `done` state is the honest present proxy). A failed read or close leaves
+  the issue untouched and exits 1; audited once as `cli.program.close` with counts only, never a goal.
+evidence:
+  - 'test:packages/cli/src/program-close.test.ts::dry-run proposes closing the done node’s OPEN issue and spawns no close; emitted node untouched'
+  - 'test:packages/cli/src/program-close.test.ts::--execute at ENFORCE tier closes the open issue'
+  - 'test:packages/cli/src/program-close.test.ts::--execute at SUGGEST tier is REFUSED: stays dry-run, spawns no close, spells out the promotion'
+  - 'test:packages/cli/src/program-close.test.ts::an already-CLOSED issue is a no-op (no close spawned), exit 0'
+  - 'test:packages/cli/src/program-close.test.ts::a failed close is reported and exits 1'
+  - 'test:packages/cli/src/program-close.test.ts::--node narrows to a single done node; a custom --reason is passed through'
+  - 'test:packages/cli/src/program-close.test.ts::a program with no done nodes closes to a clean exit 0 (nothing to close)'
+  - 'test:packages/cli/src/program-close.test.ts::close with no tracker configured exits 1 cleanly'
+  - 'test:packages/cli/src/program-close.test.ts::audits cli.program.close ONCE with counts only (no goal verbatim)'
+  - 'code:packages/cli/src/program-close.ts#closeOp@doc:/only when .--execute. is given AND .tracker.tier: enforce/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

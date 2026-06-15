@@ -53,6 +53,7 @@ import {
   statusOp,
 } from './program-ledger-commands.js';
 import { reconcileOp } from './program-reconcile.js';
+import { closeOp } from './program-close.js';
 
 export { ProgramInputError } from './program-shared.js';
 
@@ -68,6 +69,7 @@ export const PROGRAM_OPS = [
   'status',
   'advance',
   'reconcile',
+  'close',
 ] as const;
 
 /** The shared usage line every program entry point rejects bad input with. */
@@ -77,7 +79,8 @@ const PROGRAM_USAGE =
   '       kernloop program emit (--goal G --spec F [--id ID] | --program ID) [--execute] [--confirm-count N]\n' +
   '       kernloop program create --goal G --spec F [--id ID] | list | status --program ID | advance --program ID --node NODE --state emitted|done [--ref URL]\n' +
   '       kernloop program decompose-node --program ID --node NODE --spec F\n' +
-  '       kernloop program reconcile --program ID [--execute]';
+  '       kernloop program reconcile --program ID [--execute]\n' +
+  '       kernloop program close --program ID [--node NODE] [--reason completed|"not planned"] [--execute]';
 
 /** Run `program decompose`: build the parent, decompose, print the tree, audit. */
 function decomposeOp(
@@ -138,6 +141,34 @@ async function reconcileForOp(
   }
 }
 
+/** Run `program close`: close the GitHub issues of `done` ledger nodes, tier-gated
+ * + audited (#50). The gh READ runs at any tier; the CLOSE is --execute + enforce
+ * gated. A typed input error becomes a clean exit 1, never an unhandled throw. */
+async function closeForOp(
+  kern: Kernloop,
+  io: CliIo,
+  v: Record<string, string | boolean>,
+  str: (x: string | boolean | undefined) => string | undefined,
+  exec: TrackerExec | undefined,
+): Promise<number> {
+  const programId = str(v.program);
+  if (programId === undefined) throw new Error(PROGRAM_USAGE);
+  const opts = {
+    ...(str(v.node) === undefined ? {} : { node: str(v.node) as string }),
+    closeReason: str(v.reason) ?? 'completed',
+    executeFlag: v.execute === true,
+  };
+  try {
+    return await closeOp(kern, io, programId, opts, exec);
+  } catch (error) {
+    if (isCleanError(error)) {
+      io.err(JSON.stringify({ error: error.name, message: error.message }, null, 2));
+      return 1;
+    }
+    throw error;
+  }
+}
+
 /**
  * `kernloop program <op> ...` — the program decomposition, emission, and LEDGER
  * CLI. `decompose` [CLM-0096] prints the proposed epic/story child tree (a pure
@@ -149,7 +180,10 @@ async function reconcileForOp(
  * daemon) — each op audited without the goal verbatim. `reconcile` [CLM-0102]
  * reads each emitted node's GitHub issue and advances it `emitted → done` when
  * the issue is closed (the read runs at any tier; only the ledger write is
- * --execute-gated). `author` [CLM-0103] invokes a model to PROPOSE the story
+ * --execute-gated). `close` [CLM-0116] is its ledger-authoritative inverse:
+ * it closes the GitHub issues of nodes the ledger already holds in `done` state
+ * (read at any tier; the close double-gated by --execute + enforce; never
+ * auto-merge). `author` [CLM-0103] invokes a model to PROPOSE the story
  * specs and runs them through the same `decomposeGoal` (suggest-tier, mutating
  * nothing). `options.exec` is the tracker test seam; `options.invoke` is the
  * model seam author threads to the adapter (tests script it).
@@ -166,7 +200,19 @@ export async function programCommand(
   }
   const v = h.mixedFlags(
     rest,
-    ['goal', 'spec', 'parent', 'id', 'adapter', 'confirm-count', 'program', 'node', 'state', 'ref'],
+    [
+      'goal',
+      'spec',
+      'parent',
+      'id',
+      'adapter',
+      'confirm-count',
+      'program',
+      'node',
+      'state',
+      'ref',
+      'reason',
+    ],
     ['execute'],
   );
   const kern = createKernloop({
@@ -181,6 +227,7 @@ export async function programCommand(
     if (op === 'advance') return advanceOp(kern, io, v, h.str);
     if (op === 'decompose-node') return decomposeNodeOp(kern, io, v, h.str);
     if (op === 'reconcile') return await reconcileForOp(kern, io, v, h.str, options.exec);
+    if (op === 'close') return await closeForOp(kern, io, v, h.str, options.exec);
     return decomposeOp(kern, io, v, h.str);
   } finally {
     kern.close();
