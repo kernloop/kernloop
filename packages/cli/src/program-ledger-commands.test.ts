@@ -273,3 +273,81 @@ describe('kernloop program create|status|advance — the resumable ledger', () =
     expect(create?.payload.goalChars).toBe(SECRET.length);
   });
 });
+
+const TASK = {
+  goal: 'Write the login form',
+  budget: { tokens: 1_000, usd: 0.1, wallClockMin: 5 },
+  assignTo: 'coder',
+  altitude: 'task',
+};
+
+describe('kernloop program decompose-node — growing the tree deeper (#118)', () => {
+  it('decomposes a stored story node into task children stored under it (parentId = N)', async () => {
+    const r = await createOne('p'); // p (root) + p.1 (story)
+    const { io, out } = makeIo(r);
+    const code = await programCommand(
+      ['decompose-node', '--program', 'p', '--node', 'p.1', '--spec', writeSpec(r, [TASK])],
+      io,
+      helpers,
+    );
+    expect(code).toBe(0);
+    const report = JSON.parse(out[0]!) as { childCount: number; parentNodeId: string };
+    expect(report).toMatchObject({ parentNodeId: 'p.1', childCount: 1 });
+    // status now shows the deeper task node p.1.1 as a planned node.
+    const { io: io2, out: out2 } = makeIo(r);
+    await programCommand(['status', '--program', 'p'], io2, helpers);
+    const status = JSON.parse(out2[0]!) as StatusOut;
+    expect(status.nodes.some((n) => n.nodeId === 'p.1.1' && n.state === 'planned')).toBe(true);
+    // and the create-time umbrella + story remain (the tree grew, nothing replaced).
+    expect(status.nodes.map((n) => n.nodeId)).toEqual(
+      expect.arrayContaining(['p', 'p.1', 'p.1.1']),
+    );
+  });
+
+  it('refuses to decompose a stored TASK leaf — altitude descent (a task cannot decompose)', async () => {
+    const r = repo();
+    await programCommand(
+      ['create', '--goal', 'G', '--spec', writeSpec(r, [TASK]), '--id', 'q'],
+      makeIo(r).io,
+      helpers,
+    );
+    const { io, err } = makeIo(r);
+    const code = await programCommand(
+      ['decompose-node', '--program', 'q', '--node', 'q.1', '--spec', writeSpec(r, [TASK])],
+      io,
+      helpers,
+    );
+    expect(code).toBe(1);
+    expect((JSON.parse(err[0]!) as { error: string }).error).toBe('AltitudeDescentError');
+  });
+
+  it('an unknown node is a clean ProgramInputError exit', async () => {
+    const r = await createOne('p');
+    const { io, err } = makeIo(r);
+    const code = await programCommand(
+      ['decompose-node', '--program', 'p', '--node', 'p.99', '--spec', writeSpec(r, [TASK])],
+      io,
+      helpers,
+    );
+    expect(code).toBe(1);
+    expect((JSON.parse(err[0]!) as { error: string }).error).toBe('ProgramInputError');
+  });
+
+  it('re-decomposing the same node refuses to overwrite the children (no double-insert)', async () => {
+    const r = await createOne('p');
+    const spec = writeSpec(r, [TASK]);
+    await programCommand(
+      ['decompose-node', '--program', 'p', '--node', 'p.1', '--spec', spec],
+      makeIo(r).io,
+      helpers,
+    );
+    const { io, err } = makeIo(r);
+    const code = await programCommand(
+      ['decompose-node', '--program', 'p', '--node', 'p.1', '--spec', spec],
+      io,
+      helpers,
+    );
+    expect(code).toBe(1);
+    expect((JSON.parse(err[0]!) as { error: string }).error).toBe('DuplicateProgramNodeError');
+  });
+});

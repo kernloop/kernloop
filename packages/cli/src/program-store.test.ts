@@ -14,7 +14,9 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DuplicateProgramError,
+  DuplicateProgramNodeError,
   InvalidNodeTransitionError,
+  UnknownProgramError,
   UnknownProgramNodeError,
   createProgramStore,
   type ProgramStore,
@@ -280,6 +282,45 @@ describe('program ledger store', () => {
     // Both tables survive; the literal injection string is stored verbatim.
     expect(store.getProgram(evil)?.goal).toBe("g'); DROP TABLE program_nodes;--");
     expect(store.listNodes(evil).map((n) => n.nodeId)).toEqual([evil]);
+    store.close();
+  });
+});
+
+describe('program ledger store — addNodes (deeper trees, #118)', () => {
+  const CHILD = {
+    nodeId: 'p.1.1',
+    parentId: 'p.1',
+    goal: 'Write the form',
+    labels: ['altitude:task'],
+    taskJson: '{"id":"p.1.1"}',
+  };
+
+  it('appends new children to an existing program, returning the inserted rows', () => {
+    const store = createProgramStore(freshDbPath(), { clock: tickingClock() });
+    seed(store);
+    const rows = store.addNodes({ programId: 'p', nodes: [CHILD] });
+    expect(rows.map((r) => r.nodeId)).toEqual(['p.1.1']);
+    expect(rows[0]).toMatchObject({ parentId: 'p.1', state: 'planned', issueRef: null });
+    // the tree now holds the original two + the new child.
+    expect(store.listNodes('p').map((n) => n.nodeId)).toEqual(['p.1', 'p.1.1', 'p.2']);
+    store.close();
+  });
+
+  it('refuses a node-id collision (no silent overwrite)', () => {
+    const store = createProgramStore(freshDbPath(), { clock: tickingClock() });
+    seed(store);
+    // p.1 already exists from the seed.
+    expect(() => store.addNodes({ programId: 'p', nodes: [{ ...CHILD, nodeId: 'p.1' }] })).toThrow(
+      DuplicateProgramNodeError,
+    );
+    store.close();
+  });
+
+  it('refuses to add nodes to a program the ledger does not hold', () => {
+    const store = createProgramStore(freshDbPath(), { clock: tickingClock() });
+    expect(() => store.addNodes({ programId: 'ghost', nodes: [CHILD] })).toThrow(
+      UnknownProgramError,
+    );
     store.close();
   });
 });

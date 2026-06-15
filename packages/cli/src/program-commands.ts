@@ -45,7 +45,13 @@ import type { LoopInvoke } from './loop/invoke.js';
 import { buildProgramParent, checkIdLength, isCleanError, readSpecFile } from './program-shared.js';
 import { authorOp } from './program-author.js';
 import { emitOp } from './program-emit.js';
-import { advanceOp, createOp, listOp, statusOp } from './program-ledger-commands.js';
+import {
+  advanceOp,
+  createOp,
+  decomposeNodeOp,
+  listOp,
+  statusOp,
+} from './program-ledger-commands.js';
 import { reconcileOp } from './program-reconcile.js';
 
 export { ProgramInputError } from './program-shared.js';
@@ -54,6 +60,7 @@ export { ProgramInputError } from './program-shared.js';
  * ledger verbs create|list|status|advance=inc3, reconcile=#87). */
 export const PROGRAM_OPS = [
   'decompose',
+  'decompose-node',
   'author',
   'emit',
   'create',
@@ -171,6 +178,7 @@ export async function programCommand(
     if (op === 'list') return listOp(kern, io);
     if (op === 'status') return statusOp(kern, io, v, h.str);
     if (op === 'advance') return advanceOp(kern, io, v, h.str);
+    if (op === 'decompose-node') return decomposeNodeOp(kern, io, v, h.str);
     if (op === 'reconcile') return await reconcileForOp(kern, io, v, h.str, options.exec);
     return decomposeOp(kern, io, v, h.str);
   } finally {

@@ -9,6 +9,7 @@ import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { TaskContractSchema, type TaskContract } from '@kernloop/contracts';
 import {
+  AltitudeDescentError,
   InvalidParentError,
   InvalidStorySpecError,
   ScrumBudgetExceededError,
@@ -19,7 +20,9 @@ import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
 import {
   DuplicateProgramError,
+  DuplicateProgramNodeError,
   InvalidNodeTransitionError,
+  UnknownProgramError,
   UnknownProgramNodeError,
 } from './program-store.js';
 
@@ -50,7 +53,10 @@ export function isCleanError(error: unknown): error is Error {
     error instanceof ProgramInputError ||
     error instanceof DuplicateProgramError ||
     error instanceof UnknownProgramNodeError ||
-    error instanceof InvalidNodeTransitionError
+    error instanceof InvalidNodeTransitionError ||
+    error instanceof AltitudeDescentError ||
+    error instanceof UnknownProgramError ||
+    error instanceof DuplicateProgramNodeError
   );
 }
 
