@@ -35,7 +35,7 @@ import {
   readSpecFile,
 } from './program-shared.js';
 import { emitLedgerOp } from './program-emit-ledger.js';
-import { checkSpamGuard } from './program-emit-shared.js';
+import { checkSpamGuard, emitTrackerConfig, PREVIEW_NOTICE } from './program-emit-shared.js';
 import { resolveMode } from './tracker-commands.js';
 
 const EMIT_USAGE =
@@ -141,17 +141,10 @@ async function runEmit(
   executeFlag: boolean,
   exec: TrackerExec | undefined,
 ): Promise<number> {
-  const cfg = kern.config.tracker;
-  if (cfg === undefined) {
-    throw new ProgramInputError(
-      'no tracker configured — add tracker: { provider: github, repo: owner/name } to overlay.yaml',
-    );
-  }
-  const { mode, refusedExecute } = resolveMode(cfg.tier, executeFlag);
+  const { repo, tier, previewOnly } = emitTrackerConfig(kern.config.tracker, executeFlag);
+  const { mode, refusedExecute } = resolveMode(tier, executeFlag);
   const provider =
-    exec === undefined
-      ? githubProvider({ repo: cfg.repo }, mode)
-      : githubProvider({ repo: cfg.repo }, mode, exec);
+    exec === undefined ? githubProvider({ repo }, mode) : githubProvider({ repo }, mode, exec);
   const nodes = await emitNodes(provider, children);
   auditEmit(kern, { parentId, mode, refusedExecute, nodes });
   const report: EmitReport = {
@@ -160,7 +153,7 @@ async function runEmit(
     refusedExecute,
     parentId,
     nodeCount: nodes.length,
-    notice: emitNotice(mode, refusedExecute),
+    notice: previewOnly ? PREVIEW_NOTICE : emitNotice(mode, refusedExecute),
     nodes,
   };
   io.out(JSON.stringify(report, null, 2));

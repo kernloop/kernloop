@@ -55,9 +55,9 @@ export const E2E_SANDBOX_REPO = 'kernloop-e2e/sandbox';
  * Rewrite the overlay with a `tracker:` block at `tier`, preserving the id init
  * derived. The minimal `id + tracker` overlay is byte-valid (every other field
  * defaults), matching the format the tracker CLI test uses. `program emit`
- * REQUIRES a tracker block — without one it exits 1 ("no tracker configured") —
- * so even the suggest-tier dry-run scenarios call this first. The repo defaults
- * to the fake {@link E2E_SANDBOX_REPO} — never a live repo.
+ * `--execute` REQUIRES a tracker block (a pure dry-run previews without one since
+ * #94), so the scenarios call this first; the repo defaults to the fake
+ * {@link E2E_SANDBOX_REPO} — never a live repo.
  */
 export function withTracker(repoDir: string, tier: TrackerTier, repo = E2E_SANDBOX_REPO): void {
   const id = readOverlayId(repoDir);

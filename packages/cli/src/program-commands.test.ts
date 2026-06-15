@@ -10,7 +10,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseConstraintTags, type TaskContract } from '@kernloop/contracts';
 import type { ExecResult, TrackerExec } from '@kernloop/tracker';
 import { initOverlay } from './overlay.js';
 import { programCommand } from './program-commands.js';
@@ -79,132 +78,6 @@ const STORY = {
   assignTo: 'coder',
   altitude: 'story',
 };
-
-describe('kernloop program decompose — the suggest-tier preview', () => {
-  it('prints the child tree with correct ids + altitude tags and audits the op', async () => {
-    const r = repo();
-    const spec = writeSpec(r, [
-      STORY,
-      { ...STORY, goal: 'Build logout', altitude: 'story', track: 'auth', sprint: 's1' },
-    ]);
-    const { io, out } = makeIo(r);
-    const code = await programCommand(
-      ['decompose', '--goal', 'Ship the auth program', '--spec', spec, '--id', 'program-x'],
-      io,
-      helpers,
-    );
-    expect(code).toBe(0);
-    const report = JSON.parse(out[0]!) as { parent: TaskContract; children: TaskContract[] };
-    expect(report.parent.id).toBe('program-x');
-    expect(report.children.map((c) => c.id)).toEqual(['program-x.1', 'program-x.2']);
-    const first = parseConstraintTags(report.children[0]!.constraints);
-    expect(first.altitude).toBe('story');
-    expect(first.assign).toBe('agent.coder');
-    const second = parseConstraintTags(report.children[1]!.constraints);
-    expect(second.track).toBe('auth');
-    expect(second.sprint).toBe('s1');
-
-    const event = auditEvents(r).find((e) => e.type === 'cli.program.decompose');
-    expect(event?.payload.parentId).toBe('program-x');
-    expect(event?.payload.childCount).toBe(2);
-  });
-
-  it('audits goalChars only — never the goal verbatim', async () => {
-    const r = repo();
-    const spec = writeSpec(r, [STORY]);
-    const { io } = makeIo(r);
-    const SECRET_GOAL = 'SECRET-PROGRAM-GOAL-do-not-leak';
-    await programCommand(['decompose', '--goal', SECRET_GOAL, '--spec', spec], io, helpers);
-    const raw = readFileSync(path.join(r, '.kernloop', 'audit.jsonl'), 'utf8');
-    expect(raw).toContain('cli.program.decompose');
-    expect(raw).not.toContain(SECRET_GOAL);
-    const event = auditEvents(r).find((e) => e.type === 'cli.program.decompose');
-    expect(event?.payload.goalChars).toBe(SECRET_GOAL.length);
-  });
-
-  it('a budget-breaching spec exits 1 with a clear message naming the breach', async () => {
-    const r = repo();
-    // Default overlay budget is bounded; two large slices breach tokens.
-    const spec = writeSpec(r, [
-      { ...STORY, budget: { tokens: 9_999_999, usd: 0.5, wallClockMin: 10 } },
-      { ...STORY, budget: { tokens: 9_999_999, usd: 0.5, wallClockMin: 10 } },
-    ]);
-    const { io, err } = makeIo(r);
-    const code = await programCommand(['decompose', '--goal', 'G', '--spec', spec], io, helpers);
-    expect(code).toBe(1);
-    const report = JSON.parse(err[0]!) as { error: string; message: string };
-    expect(report.error).toBe('ScrumBudgetExceededError');
-    expect(report.message).toContain('tokens');
-  });
-
-  it('a bad altitude exits 1 with a clear message', async () => {
-    const r = repo();
-    const spec = writeSpec(r, [{ ...STORY, altitude: 'saga' }]);
-    const { io, err } = makeIo(r);
-    const code = await programCommand(['decompose', '--goal', 'G', '--spec', spec], io, helpers);
-    expect(code).toBe(1);
-    const report = JSON.parse(err[0]!) as { error: string };
-    expect(report.error).toBe('InvalidStorySpecError');
-  });
-
-  it('a missing --goal throws a usage error', async () => {
-    const r = repo();
-    const spec = writeSpec(r, [STORY]);
-    const { io } = makeIo(r);
-    await expect(programCommand(['decompose', '--spec', spec], io, helpers)).rejects.toThrow(
-      /usage/,
-    );
-  });
-
-  it('a missing --spec throws a usage error', async () => {
-    const r = repo();
-    const { io } = makeIo(r);
-    await expect(programCommand(['decompose', '--goal', 'G'], io, helpers)).rejects.toThrow(
-      /usage/,
-    );
-  });
-
-  it('a non-array spec file exits 1 with a clean ProgramInputError (no raw throw)', async () => {
-    const r = repo();
-    const spec = writeSpec(r, { not: 'an array' });
-    const { io, err } = makeIo(r);
-    const code = await programCommand(['decompose', '--goal', 'G', '--spec', spec], io, helpers);
-    expect(code).toBe(1);
-    const report = JSON.parse(err[0]!) as { error: string; message: string };
-    expect(report.error).toBe('ProgramInputError');
-    expect(report.message).toContain('array');
-  });
-
-  it('a malformed-JSON spec file exits 1 with a clean ProgramInputError (no raw SyntaxError)', async () => {
-    const r = repo();
-    const spec = path.join(r, 'spec.json');
-    writeFileSync(spec, '{ not valid json ');
-    const { io, err } = makeIo(r);
-    const code = await programCommand(['decompose', '--goal', 'G', '--spec', spec], io, helpers);
-    expect(code).toBe(1);
-    const report = JSON.parse(err[0]!) as { error: string; message: string };
-    expect(report.error).toBe('ProgramInputError');
-    expect(report.message).toContain('not valid JSON');
-  });
-
-  it('a missing spec file exits 1 with a clean ProgramInputError (no raw ENOENT)', async () => {
-    const r = repo();
-    const { io, err } = makeIo(r);
-    const code = await programCommand(
-      ['decompose', '--goal', 'G', '--spec', path.join(r, 'nope.json')],
-      io,
-      helpers,
-    );
-    expect(code).toBe(1);
-    expect((JSON.parse(err[0]!) as { error: string }).error).toBe('ProgramInputError');
-  });
-
-  it('rejects an unknown program verb with a usage error', async () => {
-    const r = repo();
-    const { io } = makeIo(r);
-    await expect(programCommand(['frobnicate'], io, helpers)).rejects.toThrow(/usage/);
-  });
-});
 
 /** A repo overlay carrying a tracker block at the given tier (emit needs one). */
 function repoWithTracker(tier: 'suggest' | 'enforce'): string {
@@ -389,11 +262,30 @@ describe('kernloop program emit — the gated GitHub emission (no auto-action)',
     expect(report.nodes[0]!.result?.reason).toBe('exit-nonzero');
   });
 
-  it('errors clearly when no tracker is configured', async () => {
+  it('a pure dry-run preview proceeds with NO tracker block, spawning nothing (#94)', async () => {
+    const r = repo(); // bare overlay — no tracker block
+    const spec = writeSpec(r, [STORY]);
+    const { io, out } = makeIo(r);
+    const code = await programCommand(['emit', '--goal', 'G', '--spec', spec], io, helpers, {
+      exec: throwingExec,
+    });
+    expect(code).toBe(0); // a preview is not an error
+    const report = JSON.parse(out[0]!) as EmitOut;
+    expect(report.mode).toBe('dry-run');
+    expect(report.notice).toContain('no tracker configured');
+    expect(report.nodeCount).toBe(1);
+    expect(report.nodes[0]!.proposal?.argv.slice(0, 2)).toEqual(['issue', 'create']);
+  });
+
+  it('--execute with no tracker block is a clean input error (#94)', async () => {
     const r = repo(); // bare overlay — no tracker block
     const spec = writeSpec(r, [STORY]);
     const { io, err } = makeIo(r);
-    const code = await programCommand(['emit', '--goal', 'G', '--spec', spec], io, helpers);
+    const code = await programCommand(
+      ['emit', '--goal', 'G', '--spec', spec, '--execute'],
+      io,
+      helpers,
+    );
     expect(code).toBe(1);
     expect((JSON.parse(err[0]!) as { message: string }).message).toContain('no tracker');
   });

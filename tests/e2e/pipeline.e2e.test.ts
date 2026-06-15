@@ -296,11 +296,13 @@ describe('Scenario A — the AGILE pipeline, real binary, hermetic gh', () => {
     // The clean-error JSON is written to STDERR with exit code 1 (not stdout/0).
     const errOf = (r: { stderr: string }): string =>
       (JSON.parse(r.stderr) as { error: string }).error;
-    // (a) emit with no tracker configured → a clean exit 1, not a crash/0.
+    // (a) emit --execute with no tracker configured → a clean exit 1, not a
+    // crash/0 (a pure dry-run previews without a tracker since #94; only an
+    // actual --execute requires the block).
     const repo = freshOverlay();
     const spec = writeSpec(repo, TWO_NODE_SPEC);
     const noTracker = runCli(
-      ['program', 'emit', '--goal', PROGRAM_GOAL, '--spec', spec, '--id', ID],
+      ['program', 'emit', '--goal', PROGRAM_GOAL, '--spec', spec, '--id', ID, '--execute'],
       {
         cwd: repo,
       },

@@ -17,7 +17,10 @@ statement: >-
   files nothing), still dry-run-default + enforce-gated + spam-guarded, an
   execute failure leaving the node planned, and a filed issue whose returned ref
   is unrecordable surfaced per-node WITH its ref (exit 1, node left planned) so a
-  retry is a deliberate operator act, never a silent double-file.
+  retry is a deliberate operator act, never a silent double-file. A pure dry-run
+  preview needs NO tracker block (#94): with none configured the preview renders
+  the would-be proposals against a placeholder repo and spawns nothing; only an
+  --execute requires a configured tracker (a clean input error without one).
 evidence:
   - 'test:packages/cli/src/program-commands.test.ts::dry-run prints per-node proposals + mapped labels and spawns nothing'
   - 'test:packages/cli/src/program-commands.test.ts::refuses --execute at the suggest tier (stays dry-run, spawns nothing)'
@@ -25,6 +28,8 @@ evidence:
   - 'test:packages/cli/src/program-commands.test.ts::the spam guard refuses >20 nodes without --confirm-count, and proceeds with the exact count'
   - 'test:packages/cli/src/program-commands.test.ts::audits cli.program.emit once and never the node goal/body verbatim'
   - 'test:packages/cli/src/program-commands.test.ts::an execute-mode tracker failure exits 1 (errors-as-data, not a throw)'
+  - 'test:packages/cli/src/program-commands.test.ts::a pure dry-run preview proceeds with NO tracker block, spawning nothing (#94)'
+  - 'test:packages/cli/src/program-commands.test.ts::--execute with no tracker block is a clean input error (#94)'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::--execute files the umbrella first, links children, edits the epic body, records refs'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::is idempotent: a second --execute files NOTHING, exits 0, reports skipped'
   - 'test:packages/cli/src/program-emit-ledger.test.ts::dry-run files nothing and leaves the ledger nodes planned (poisoned exec)'
