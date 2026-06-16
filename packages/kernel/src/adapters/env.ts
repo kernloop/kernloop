@@ -51,6 +51,25 @@ export const SAFE_ENV_KEYS: readonly string[] = [
   'XDG_DATA_HOME',
   'XDG_STATE_HOME',
   'XDG_RUNTIME_DIR',
+  // Proxy + TLS operational vars (#227 review): non-credential peers of PATH —
+  // a spawned CLI behind a corporate proxy or a custom CA needs these to reach
+  // its own API at all; without them it fails with a confusing network error,
+  // not an obvious "env was scoped" signal. A proxy URL CAN embed credentials,
+  // but it is the operator's OWN outbound config the CLI legitimately uses, not
+  // an unrelated host secret like another provider's key — so defaulting these
+  // on (vs forcing every proxied operator to discover the escape hatch) is the
+  // right trade. The CA vars are file PATHS, never secret content.
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'NODE_EXTRA_CA_CERTS',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'CURL_CA_BUNDLE',
+  'REQUESTS_CA_BUNDLE',
   // Windows operational vars (harmless; absent on POSIX).
   'SystemRoot',
   'ComSpec',

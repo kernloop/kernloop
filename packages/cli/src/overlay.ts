@@ -222,7 +222,10 @@ export const OverlaySchema = z
      * host env — so other providers' keys, `GH_TOKEN`, and cloud creds are not
      * exposed to a third-party agentic binary. A login-authenticated CLI needs
      * none of these (it reads HOME); a key-authenticated one names its key var
-     * here (e.g. `ANTHROPIC_API_KEY`). Names only — never a literal secret value.
+     * here (e.g. `ANTHROPIC_API_KEY`). These are env-var NAMES, not values: a
+     * stray literal value placed here is inert — it matches no env var and is
+     * dropped, so it is never passed to the child (it is not actively rejected,
+     * just useless). The actual secret lives in your shell env, never here.
      */
     adapterEnvAllow: z.array(z.string().min(1)).default([]),
     /** Issue-tracker config (spec §5.5) [CLM-0093]; see {@link TrackerSchema}. */

@@ -28,6 +28,25 @@ describe('scopedChildEnv (CLM-0122)', () => {
     expect(out.GH_TOKEN).toBeUndefined();
   });
 
+  it('keeps proxy + CA operational vars so a proxied/custom-CA CLI still reaches its API (#227 review)', () => {
+    const out = scopedChildEnv({
+      HTTPS_PROXY: 'http://proxy:8080',
+      https_proxy: 'http://proxy:8080',
+      NO_PROXY: 'localhost',
+      NODE_EXTRA_CA_CERTS: '/etc/ca/corp.pem',
+      SSL_CERT_FILE: '/etc/ssl/cert.pem',
+      ANTHROPIC_API_KEY: 'sk-secret',
+    });
+    expect(out).toEqual({
+      HTTPS_PROXY: 'http://proxy:8080',
+      https_proxy: 'http://proxy:8080',
+      NO_PROXY: 'localhost',
+      NODE_EXTRA_CA_CERTS: '/etc/ca/corp.pem',
+      SSL_CERT_FILE: '/etc/ssl/cert.pem',
+    });
+    expect(out.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
   it('keeps LC_* locale categories by prefix', () => {
     const out = scopedChildEnv({ LC_ALL: 'C', LC_TIME: 'en_US.UTF-8', LCD_PANEL: 'nope' });
     expect(out).toEqual({ LC_ALL: 'C', LC_TIME: 'en_US.UTF-8' });
