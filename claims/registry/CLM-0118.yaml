@@ -1,0 +1,24 @@
+id: CLM-0118
+statement: >-
+  `kernloop run --closes-issue N` closes a GitHub issue when (and only when) the canonical-loop run it
+  names SUCCEEDS (#211, EPIC #50's last piece) — the run-success-driven counterpart to `program
+  close`'s ledger-driven closure. The run is the success signal: on a success Outcome the issue is
+  closed through the SAME hardened, shared gated primitive (closeOneIssue/buildGatedCloseProvider,
+  also used by `program close`), double-gated by `tracker.tier: enforce` (the `--closes-issue` flag is
+  the explicit opt-in); a run that ESCALATED, FAILED, or produced a failure Outcome SKIPS the close
+  and touches GitHub not at all — an issue is closed only by EARNED success, never optimistically. At
+  suggest tier it reports `would-close` (refused); an already-closed issue is a no-op; a missing
+  tracker block is a clean error. Audited once as `cli.run.close`. It NEVER auto-merges — it only
+  closes a tracker issue the run earned. No Frozen-Five contract change: the issue ref rides on the
+  CLI invocation, not the TaskContract.
+evidence:
+  - 'test:packages/cli/src/run-close.test.ts::closes the open issue when the run SUCCEEDED at enforce tier'
+  - 'test:packages/cli/src/run-close.test.ts::SKIPS the close when the run did not succeed — touches GitHub not at all'
+  - 'test:packages/cli/src/run-close.test.ts::REFUSES at suggest tier even on success (would-close, refusedExecute)'
+  - 'test:packages/cli/src/run-close.test.ts::an already-CLOSED issue is a no-op on success'
+  - 'test:packages/cli/src/run-close.test.ts::a --closes-issue with no tracker configured is a clean error'
+  - 'code:packages/cli/src/run-close.ts#closeIssueAfterRun@doc:/iff .runSucceeded/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

@@ -37,6 +37,7 @@ import { workshopCommand } from './workshop-commands.js';
 import { modelsCommand } from './models-commands.js';
 import { trackerCommand } from './tracker-commands.js';
 import { observerCommand } from './observer-commands.js';
+import { closeIssueAfterRun } from './run-close.js';
 import { programCommand } from './program-commands.js';
 import { USAGE } from './usage.js';
 
@@ -188,6 +189,7 @@ const HANDLERS: Record<string, Handler> = {
       adapter: S,
       resume: S,
       budget: S,
+      'closes-issue': S,
       plan: B,
       async: B,
       unlimited: B,
@@ -219,7 +221,12 @@ const HANDLERS: Record<string, Handler> = {
         { onBackground: (settled) => (background = settled) },
       );
       if (background !== undefined) await background;
-      return result;
+      // --closes-issue N (#211): on a SUCCESS Outcome, close issue N through the
+      // gated tracker (enforce-tier). A non-success run skips it; never auto-merge.
+      const closesIssue = str(v['closes-issue']);
+      if (closesIssue === undefined) return result;
+      const succeeded = result.kind === 'outcome' && result.outcome?.status === 'success';
+      return { ...result, issueClose: await closeIssueAfterRun(kern, closesIssue, succeeded) };
     });
   },
   status: (args, io) => {
