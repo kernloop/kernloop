@@ -11,22 +11,33 @@
  *
  * This faculty is model-free: generation arrives via the injected
  * InvokeToolGenerator bound at the composition root. Kernel-side audit of
- * builds, runs, and transitions happens at composition-root wiring; the
- * faculty imports only @kernloop/contracts and external dependencies
- * (constitutional rule 5).
+ * builds, runs, and transitions happens at composition-root wiring. The
+ * faculty imports @kernloop/contracts, the shared @kernloop/kernel sandbox
+ * primitive (#234 — faculty→kernel is allowed; rule 5 only bars faculty→
+ * faculty), and external dependencies — never another faculty.
  */
 export {
   ForgeBirthError,
   ForgeTestFailedError,
   LadderOrderError,
   RatificationRequiredError,
-  SandboxMountError,
-  SandboxProfileMismatchError,
-  SandboxUnavailableError,
   UnknownToolError,
   WorkshopCapError,
   WorkshopNameError,
 } from './errors.js';
+// The Docker sandbox primitive + its errors live in the kernel now (#234) so
+// faculty-gates can reuse them (#227 item 2); re-exported here from the kernel
+// so the toolsmith's documented surface and back-compat are unchanged.
+export {
+  buildDockerArgs,
+  runInSandbox,
+  SandboxMountError,
+  SandboxProfileMismatchError,
+  SandboxUnavailableError,
+  type SandboxMount,
+  type SandboxResult,
+  type SandboxRunOptions,
+} from '@kernloop/kernel';
 export {
   RATIFIED_PROFILE_HASH,
   RATIFIED_SANDBOX_PROFILE,
@@ -35,8 +46,6 @@ export {
   profileHash,
 } from './profile.js';
 export type { SandboxProfile } from './profile.js';
-export { buildDockerArgs, runInSandbox } from './sandbox.js';
-export type { SandboxMount, SandboxResult, SandboxRunOptions } from './sandbox.js';
 export { forge, ToolClaimSchema, ToolSpecSchema } from './forge.js';
 export type { ForgeOptions, ForgeResult, InvokeToolGenerator, ToolSpec } from './forge.js';
 export { runWorkshopTool } from './run.js';

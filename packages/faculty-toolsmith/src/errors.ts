@@ -1,7 +1,16 @@
 /**
  * Typed errors thrown at the toolsmith's boundaries. Callers discriminate on
  * `name` or `instanceof` — never on message text.
+ *
+ * The sandbox errors (`SandboxUnavailableError`, `SandboxProfileMismatchError`,
+ * `SandboxMountError`) moved to the kernel with the sandbox primitive (#234)
+ * and are re-exported here so existing `./errors.js` consumers are unchanged.
  */
+export {
+  SandboxUnavailableError,
+  SandboxProfileMismatchError,
+  SandboxMountError,
+} from '@kernloop/kernel';
 
 /**
  * Thrown when a tool spec arrives at `forge` without a complete birth
@@ -18,38 +27,6 @@ export class ForgeBirthError extends Error {
     super(`forge refused: birth requirements unmet (spec §5.6) — ${problems.join('; ')}`);
     this.name = 'ForgeBirthError';
     this.problems = problems;
-  }
-}
-
-/**
- * Thrown when the docker binary is missing or the daemon is unreachable.
- * The toolsmith NEVER runs generated code unsandboxed — docker absent means
- * forge refuses, not degrades (CLM-0052).
- */
-export class SandboxUnavailableError extends Error {
-  constructor(detail: string) {
-    super(`sandbox unavailable: ${detail} — refusing to run unsandboxed (spec §5.6)`);
-    this.name = 'SandboxUnavailableError';
-  }
-}
-
-/**
- * Thrown when the active sandbox profile's canonical-JSON sha256 differs
- * from RATIFIED_PROFILE_HASH. The profile was human-ratified as data (P3
- * design note, open question 4); forging under any other profile refuses.
- */
-export class SandboxProfileMismatchError extends Error {
-  readonly expectedHash: string;
-  readonly actualHash: string;
-
-  constructor(expectedHash: string, actualHash: string) {
-    super(
-      `sandbox profile hash ${actualHash} does not match the ratified profile hash ${expectedHash} — ` +
-        'forge refuses under an unratified profile',
-    );
-    this.name = 'SandboxProfileMismatchError';
-    this.expectedHash = expectedHash;
-    this.actualHash = actualHash;
   }
 }
 
@@ -124,18 +101,6 @@ export class WorkshopNameError extends Error {
   constructor(name: string) {
     super(`unsafe workshop tool name ${JSON.stringify(name)} — must match /^[a-z0-9][a-z0-9-]*$/`);
     this.name = 'WorkshopNameError';
-  }
-}
-
-/**
- * Thrown when a declared sandbox mount has an unsafe source or target —
- * a path that could inject extra fields into the docker `-v` spec. Guards
- * the otherwise-latent `-v` option-injection surface (a path with a colon).
- */
-export class SandboxMountError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'SandboxMountError';
   }
 }
 
