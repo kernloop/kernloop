@@ -111,6 +111,8 @@ export interface LoopReport {
    * sub-chain incurred model spend, sliced from the run-global meter by the
    * sequential child boundary. Each carries only its OWN sub-chain spend, so the
    * entries sum to at most the run `cost` (the main chain is not attributed).
+   * Both are per-PROCESS (#212): a resumed run reports only post-resume
+   * attribution, just as `cost` reflects only the post-resume meter.
    */
   readonly childSpend?: readonly { readonly childId: string; readonly spend: Cost }[];
   /**

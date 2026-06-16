@@ -19,9 +19,14 @@ export class ChildSpendTracker {
 
   constructor(private readonly meteredSpend: (() => BudgetSpend) | undefined) {}
 
-  /** Forget the baseline at the start of a run/resume loop. */
-  reset(): void {
+  /**
+   * Start-of-loop reset: forget the baseline AND drop any pre-resume child spend
+   * (#212), so attribution is per-PROCESS — a resumed run re-attributes from the
+   * fresh meter and `childSpend` stays within the (also per-process) run cost.
+   */
+  reset(state: RunState): void {
     this.baseline = undefined;
+    for (const r of state.childResults) r.spend = undefined;
   }
 
   /** Snapshot the meter as child `index`'s baseline the first time it is stepped. */
