@@ -38,7 +38,7 @@ drift-gated by `pnpm stats:check` (#189):
 
 | Frozen contracts | Kernel MCP tools | Doc-gate languages | Gated packages | Verified claims |
 | ---------------- | ---------------- | ------------------ | -------------- | --------------- |
-| 5                | 11               | 12                 | 12             | 120             |
+| 5                | 11               | 12                 | 12             | 121             |
 
 <!-- stats:end -->
 

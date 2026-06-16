@@ -1,0 +1,23 @@
+id: CLM-0124
+statement: >-
+  A spawned quality-gate check runs under a LEAST-PRIVILEGE environment, not the host env (#235, EPIC
+  #47·P2 / #227 item 2): the quality gate executes model-supplied and model-GENERATED code — `pnpm
+  test` runs model-written test files, and `dod:*` checks run model-supplied commands — so
+  `executeCheck` spawns each check with `scopedChildEnv(process.env, envAllow)` (the kernel allowlist
+  from CLM-0122: `SAFE_ENV_KEYS` ∪ the caller's extras), withholding host secrets (other providers'
+  API keys, `GH_TOKEN`/`GITHUB_TOKEN`, cloud credentials) from the check. The escape hatch is the
+  overlay's `gates.quality.envAllow` (env-var NAMES only), threaded through both gate entry points —
+  the `gate.quality` executor and the canonical loop's quality node — defaulting to `[]`; the
+  composition root audits the redaction with a `cli.gate.env-scoped` event (rule 7, never silent). This
+  is reliable, always-available containment (it needs no Docker or unprivileged user namespaces); the
+  per-check wall-clock timeout already bounds runtime, and stronger network/filesystem isolation is the
+  separately-tracked sandbox tier (#236).
+evidence:
+  - 'test:packages/faculty-gates/src/run.test.ts::withholds a host secret from a spawned check by default (the check cannot see it)'
+  - 'test:packages/faculty-gates/src/run.test.ts::passes an env var through to the check only when named in envAllow'
+  - 'test:packages/cli/src/overlay.test.ts::loads gates.quality.envAllow names for least-privilege check env [CLM-0124]'
+  - 'code:packages/faculty-gates/src/run.ts#executeCheck'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
