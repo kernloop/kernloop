@@ -8,6 +8,7 @@ import {
   main,
   normalizeBlock,
   referencedClaimIds,
+  renderCatalog,
   renderClaimLinks,
   renderEvidence,
   renderTable,
@@ -113,9 +114,25 @@ describe('claim-links block + dangling check (#219)', () => {
     expect(referencedClaimIds(readme)).toEqual(['CLM-0001', 'CLM-0003']); // 0099 (in the block) excluded
   });
 
-  test('renderClaimLinks emits one reference definition per id', () => {
+  test('renderCatalog emits an anchored section per claim with status, statement, evidence, source', () => {
+    const catalog = renderCatalog([
+      {
+        id: 'CLM-0001',
+        status: 'verified',
+        statement: 'A real capability.',
+        evidence: ['test:a.test.ts::x', 'ci:test'],
+      },
+    ]);
+    expect(catalog).toContain('## CLM-0001'); // GitHub anchors this to #clm-0001
+    expect(catalog).toContain('**Status:** verified');
+    expect(catalog).toContain('A real capability.');
+    expect(catalog).toContain('[`a.test.ts`](../a.test.ts)'); // docs/ → ../ prefix
+    expect(catalog).toContain('[`CLM-0001.yaml`](../claims/registry/CLM-0001.yaml)');
+  });
+
+  test('renderClaimLinks points each tag at its catalog anchor', () => {
     expect(renderClaimLinks(['CLM-0001', 'CLM-0002'])).toBe(
-      '[CLM-0001]: claims/registry/CLM-0001.yaml\n[CLM-0002]: claims/registry/CLM-0002.yaml',
+      '[CLM-0001]: docs/CLAIMS.md#clm-0001\n[CLM-0002]: docs/CLAIMS.md#clm-0002',
     );
   });
 
@@ -135,10 +152,14 @@ describe('claim-links block + dangling check (#219)', () => {
         '<!-- enforcement:begin -->\n<!-- enforcement:end -->\n\n' +
         '<!-- claim-links:begin -->\n<!-- claim-links:end -->\n',
     );
-    expect(main(root, false)).toBe(0); // writes both blocks
+    expect(main(root, false)).toBe(0); // writes both blocks + the catalog
     expect(fs.readFileSync(path.join(root, 'README.md'), 'utf8')).toContain(
-      '[CLM-0001]: claims/registry/CLM-0001.yaml',
+      '[CLM-0001]: docs/CLAIMS.md#clm-0001',
     );
+    // The catalog was generated with an anchored section + the YAML back-link.
+    const catalog = fs.readFileSync(path.join(root, 'docs', 'CLAIMS.md'), 'utf8');
+    expect(catalog).toContain('## CLM-0001');
+    expect(catalog).toContain('../claims/registry/CLM-0001.yaml');
     expect(main(root, true)).toBe(0); // current
     fs.appendFileSync(path.join(root, 'README.md'), '\nAlso [CLM-0404].\n'); // a tag with no file
     expect(main(root, true)).toBe(1); // dangling → fail

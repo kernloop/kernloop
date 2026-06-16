@@ -19,47 +19,85 @@ const END = '<!-- enforcement:end -->';
 const LINKS_BEGIN = '<!-- claim-links:begin -->';
 const LINKS_END = '<!-- claim-links:end -->';
 
-/** Render one evidence ref as a markdown cell fragment (file links, gate names). */
-export function renderEvidence(raw) {
+/**
+ * Render one evidence ref as a markdown fragment (file links, gate names).
+ * `prefix` is prepended to every repo-root-relative href — '' for the README
+ * (at the root), '../' for docs/CLAIMS.md (one level deep).
+ */
+export function renderEvidence(raw, prefix = '') {
   // Link text is wrapped in a code span so paths like `__tests__` survive
   // prettier's markdown normalization (which would rewrite `__x__` to bold).
   if (raw.startsWith('test:')) {
     const file = raw.slice('test:'.length).split('::')[0];
-    return `[\`${file}\`](${file})`;
+    return `[\`${file}\`](${prefix}${file})`;
   }
   if (raw.startsWith('ci:')) return `CI \`${raw.slice('ci:'.length)}\``;
   if (raw.startsWith('eval:')) {
     const p = raw.slice('eval:'.length);
-    return `[\`${p}\`](${p})`;
+    return `[\`${p}\`](${prefix}${p})`;
   }
   if (raw.startsWith('doc:')) {
     const p = raw.slice('doc:'.length);
-    return `[\`${p}\`](${p})`;
+    return `[\`${p}\`](${prefix}${p})`;
   }
   if (raw.startsWith('code:')) {
     // `code:<path>#<symbol>[@doc:/regex/]` → link the file, label `path#symbol`.
     const anchor = raw.slice('code:'.length).split('@doc:')[0];
     const file = anchor.split('#')[0];
-    return `[\`${anchor}\`](${file})`;
+    return `[\`${anchor}\`](${prefix}${file})`;
   }
   return raw;
 }
 
-/** Load verified claims sorted by id. */
-export function loadVerifiedClaims(registryDir) {
+/** Parse every claim in the registry, sorted by id (no status filter). */
+function loadAllClaims(registryDir) {
   return fs
     .readdirSync(registryDir)
     .filter((f) => f.endsWith('.yaml'))
     .map((f) => parseYaml(fs.readFileSync(path.join(registryDir, f), 'utf8')))
-    .filter((c) => c.status === 'verified')
     .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Verified claims sorted by id (the enforcement table's rows). */
+export function loadVerifiedClaims(registryDir) {
+  return loadAllClaims(registryDir).filter((c) => c.status === 'verified');
+}
+
+/**
+ * The DERIVED human-readable claims catalog (docs/CLAIMS.md, #219): one anchored
+ * `## CLM-NNNN` section per claim — its status, a link to the YAML source, its
+ * statement, and its evidence. The README's `[CLM-NNNN]` tags link to the
+ * `#clm-nnnn` anchors here, which in turn link to the registry. Paths use the
+ * `../` prefix because this file lives in docs/.
+ */
+export function renderCatalog(claims) {
+  const out = [
+    '# Claims catalog',
+    '',
+    '> DERIVED from `claims/registry/` by `pnpm claims:render` — every `[CLM-xxxx]` tag in',
+    '> the README links to a section here. Do not edit by hand; it is drift-checked in CI.',
+    '',
+  ];
+  for (const c of claims) {
+    const evidence = (c.evidence ?? []).map((e) => `- ${renderEvidence(e, '../')}`);
+    out.push(
+      `## ${c.id}`,
+      '',
+      `**Status:** ${c.status} — **source:** [\`${c.id}.yaml\`](../claims/registry/${c.id}.yaml)`,
+      '',
+      (c.statement ?? '').trim(),
+      '',
+      ...(evidence.length > 0 ? ['**Enforced by:**', '', ...evidence, ''] : []),
+    );
+  }
+  return `${out.join('\n').trim()}\n`;
 }
 
 /** Build the markdown table body (rows only — header is fixed). */
 export function renderTable(claims) {
   const lines = ['| Claim | Enforced by |', '| --- | --- |'];
   for (const claim of claims) {
-    const links = [...new Set((claim.evidence ?? []).map(renderEvidence))].join(', ');
+    const links = [...new Set((claim.evidence ?? []).map((e) => renderEvidence(e)))].join(', ');
     lines.push(`| [${claim.id}](claims/registry/${claim.id}.yaml) | ${links} |`);
   }
   return lines.join('\n');
@@ -93,9 +131,9 @@ export function referencedClaimIds(readme) {
   return [...ids].sort();
 }
 
-/** Markdown reference-link definitions: `[CLM-NNNN]: claims/registry/CLM-NNNN.yaml`. */
+/** Markdown reference-link definitions pointing at the catalog anchor (#219). */
 export function renderClaimLinks(ids) {
-  return ids.map((id) => `[${id}]: claims/registry/${id}.yaml`).join('\n');
+  return ids.map((id) => `[${id}]: docs/CLAIMS.md#${id.toLowerCase()}`).join('\n');
 }
 
 /** Referenced ids with NO registry file — a dangling tag the README must not carry. */
@@ -150,20 +188,29 @@ export function main(repoRoot, check) {
   if (readme.includes(LINKS_BEGIN)) {
     next = splice(next, LINKS_BEGIN, LINKS_END, renderClaimLinks(refs));
   }
+  // The DERIVED catalog the README tags link into (every claim, any status).
+  const catalogPath = path.join(repoRoot, 'docs', 'CLAIMS.md');
+  const catalog = renderCatalog(loadAllClaims(registryDir));
   if (check) {
+    const catalogStale =
+      !fs.existsSync(catalogPath) || fs.readFileSync(catalogPath, 'utf8') !== catalog;
     const stale =
       normalizeBlock(readme) !== normalizeBlock(next) ||
       blockBody(readme, LINKS_BEGIN, LINKS_END).trim() !==
         blockBody(next, LINKS_BEGIN, LINKS_END).trim();
-    if (stale) {
-      console.error('render-claims ✗ README claim blocks are stale — run `pnpm claims:render`');
+    if (stale || catalogStale) {
+      console.error(
+        'render-claims ✗ README claim blocks or docs/CLAIMS.md stale — `pnpm claims:render`',
+      );
       return 1;
     }
     console.log(
-      `render-claims ✓ claim blocks current (${claims.length} claims, ${refs.length} linked)`,
+      `render-claims ✓ claim blocks + catalog current (${claims.length} claims, ${refs.length} linked)`,
     );
     return 0;
   }
+  fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
+  fs.writeFileSync(catalogPath, catalog);
   fs.writeFileSync(readmePath, next);
   console.log(
     `render-claims ✓ wrote claim blocks (${claims.length} claims, ${refs.length} linked)`,
