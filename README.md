@@ -25,7 +25,7 @@ drift-gated by `pnpm stats:check` (#189):
 
 | Frozen contracts | Kernel MCP tools | Doc-gate languages | Gated packages | Verified claims |
 | ---------------- | ---------------- | ------------------ | -------------- | --------------- |
-| 5                | 11               | 12                 | 12             | 116             |
+| 5                | 11               | 12                 | 12             | 117             |
 
 <!-- stats:end -->
 
@@ -258,6 +258,7 @@ and `claims:verify-ran`, which proves the cited test actually ran and passed).
 | [CLM-0117](claims/registry/CLM-0117.yaml) | [`packages/cli/src/observer-distill.test.ts`](packages/cli/src/observer-distill.test.ts), [`packages/cli/src/observer-commands.ts#distillReport`](packages/cli/src/observer-commands.ts), CI `test`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | [CLM-0118](claims/registry/CLM-0118.yaml) | [`packages/cli/src/run-close.test.ts`](packages/cli/src/run-close.test.ts), [`packages/cli/src/run-close.ts#closeIssueAfterRun`](packages/cli/src/run-close.ts), CI `test`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | [CLM-0119](claims/registry/CLM-0119.yaml) | [`packages/cli/src/loop/downgrade.test.ts`](packages/cli/src/loop/downgrade.test.ts), [`packages/cli/src/overlay.test.ts`](packages/cli/src/overlay.test.ts), [`packages/cli/src/loop/downgrade.ts#applyDowngrade`](packages/cli/src/loop/downgrade.ts), CI `test`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| [CLM-0120](claims/registry/CLM-0120.yaml) | [`scripts/__tests__/render-claims.test.mjs`](scripts/__tests__/render-claims.test.mjs), [`scripts/render-claims.mjs#renderClaimLinks`](scripts/render-claims.mjs), [`scripts/render-claims.mjs#danglingClaimIds`](scripts/render-claims.mjs), CI `test`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 <!-- enforcement:end -->
 
@@ -311,3 +312,125 @@ agent charter is [`AGENTS.md`](AGENTS.md). Architecture overview:
 MIT — see [LICENSE](LICENSE). Ancestry: ported-by-evidence from
 [nexus-agents v1](https://github.com/nexus-substrate/nexus-agents) per the
 porting queue in the spec; see [NOTICE](NOTICE).
+
+<!-- claim-links:begin -->
+
+[CLM-0001]: claims/registry/CLM-0001.yaml
+[CLM-0002]: claims/registry/CLM-0002.yaml
+[CLM-0003]: claims/registry/CLM-0003.yaml
+[CLM-0004]: claims/registry/CLM-0004.yaml
+[CLM-0005]: claims/registry/CLM-0005.yaml
+[CLM-0006]: claims/registry/CLM-0006.yaml
+[CLM-0007]: claims/registry/CLM-0007.yaml
+[CLM-0008]: claims/registry/CLM-0008.yaml
+[CLM-0009]: claims/registry/CLM-0009.yaml
+[CLM-0010]: claims/registry/CLM-0010.yaml
+[CLM-0011]: claims/registry/CLM-0011.yaml
+[CLM-0012]: claims/registry/CLM-0012.yaml
+[CLM-0013]: claims/registry/CLM-0013.yaml
+[CLM-0014]: claims/registry/CLM-0014.yaml
+[CLM-0015]: claims/registry/CLM-0015.yaml
+[CLM-0016]: claims/registry/CLM-0016.yaml
+[CLM-0017]: claims/registry/CLM-0017.yaml
+[CLM-0018]: claims/registry/CLM-0018.yaml
+[CLM-0019]: claims/registry/CLM-0019.yaml
+[CLM-0020]: claims/registry/CLM-0020.yaml
+[CLM-0021]: claims/registry/CLM-0021.yaml
+[CLM-0022]: claims/registry/CLM-0022.yaml
+[CLM-0023]: claims/registry/CLM-0023.yaml
+[CLM-0024]: claims/registry/CLM-0024.yaml
+[CLM-0025]: claims/registry/CLM-0025.yaml
+[CLM-0026]: claims/registry/CLM-0026.yaml
+[CLM-0027]: claims/registry/CLM-0027.yaml
+[CLM-0028]: claims/registry/CLM-0028.yaml
+[CLM-0029]: claims/registry/CLM-0029.yaml
+[CLM-0030]: claims/registry/CLM-0030.yaml
+[CLM-0031]: claims/registry/CLM-0031.yaml
+[CLM-0032]: claims/registry/CLM-0032.yaml
+[CLM-0033]: claims/registry/CLM-0033.yaml
+[CLM-0034]: claims/registry/CLM-0034.yaml
+[CLM-0035]: claims/registry/CLM-0035.yaml
+[CLM-0036]: claims/registry/CLM-0036.yaml
+[CLM-0037]: claims/registry/CLM-0037.yaml
+[CLM-0038]: claims/registry/CLM-0038.yaml
+[CLM-0039]: claims/registry/CLM-0039.yaml
+[CLM-0040]: claims/registry/CLM-0040.yaml
+[CLM-0041]: claims/registry/CLM-0041.yaml
+[CLM-0042]: claims/registry/CLM-0042.yaml
+[CLM-0043]: claims/registry/CLM-0043.yaml
+[CLM-0044]: claims/registry/CLM-0044.yaml
+[CLM-0045]: claims/registry/CLM-0045.yaml
+[CLM-0046]: claims/registry/CLM-0046.yaml
+[CLM-0047]: claims/registry/CLM-0047.yaml
+[CLM-0048]: claims/registry/CLM-0048.yaml
+[CLM-0049]: claims/registry/CLM-0049.yaml
+[CLM-0050]: claims/registry/CLM-0050.yaml
+[CLM-0051]: claims/registry/CLM-0051.yaml
+[CLM-0052]: claims/registry/CLM-0052.yaml
+[CLM-0053]: claims/registry/CLM-0053.yaml
+[CLM-0054]: claims/registry/CLM-0054.yaml
+[CLM-0055]: claims/registry/CLM-0055.yaml
+[CLM-0056]: claims/registry/CLM-0056.yaml
+[CLM-0057]: claims/registry/CLM-0057.yaml
+[CLM-0058]: claims/registry/CLM-0058.yaml
+[CLM-0059]: claims/registry/CLM-0059.yaml
+[CLM-0060]: claims/registry/CLM-0060.yaml
+[CLM-0061]: claims/registry/CLM-0061.yaml
+[CLM-0062]: claims/registry/CLM-0062.yaml
+[CLM-0063]: claims/registry/CLM-0063.yaml
+[CLM-0064]: claims/registry/CLM-0064.yaml
+[CLM-0066]: claims/registry/CLM-0066.yaml
+[CLM-0067]: claims/registry/CLM-0067.yaml
+[CLM-0069]: claims/registry/CLM-0069.yaml
+[CLM-0070]: claims/registry/CLM-0070.yaml
+[CLM-0071]: claims/registry/CLM-0071.yaml
+[CLM-0072]: claims/registry/CLM-0072.yaml
+[CLM-0073]: claims/registry/CLM-0073.yaml
+[CLM-0074]: claims/registry/CLM-0074.yaml
+[CLM-0076]: claims/registry/CLM-0076.yaml
+[CLM-0077]: claims/registry/CLM-0077.yaml
+[CLM-0078]: claims/registry/CLM-0078.yaml
+[CLM-0079]: claims/registry/CLM-0079.yaml
+[CLM-0080]: claims/registry/CLM-0080.yaml
+[CLM-0081]: claims/registry/CLM-0081.yaml
+[CLM-0082]: claims/registry/CLM-0082.yaml
+[CLM-0083]: claims/registry/CLM-0083.yaml
+[CLM-0084]: claims/registry/CLM-0084.yaml
+[CLM-0085]: claims/registry/CLM-0085.yaml
+[CLM-0086]: claims/registry/CLM-0086.yaml
+[CLM-0087]: claims/registry/CLM-0087.yaml
+[CLM-0088]: claims/registry/CLM-0088.yaml
+[CLM-0089]: claims/registry/CLM-0089.yaml
+[CLM-0090]: claims/registry/CLM-0090.yaml
+[CLM-0091]: claims/registry/CLM-0091.yaml
+[CLM-0092]: claims/registry/CLM-0092.yaml
+[CLM-0093]: claims/registry/CLM-0093.yaml
+[CLM-0094]: claims/registry/CLM-0094.yaml
+[CLM-0095]: claims/registry/CLM-0095.yaml
+[CLM-0096]: claims/registry/CLM-0096.yaml
+[CLM-0097]: claims/registry/CLM-0097.yaml
+[CLM-0098]: claims/registry/CLM-0098.yaml
+[CLM-0099]: claims/registry/CLM-0099.yaml
+[CLM-0100]: claims/registry/CLM-0100.yaml
+[CLM-0101]: claims/registry/CLM-0101.yaml
+[CLM-0102]: claims/registry/CLM-0102.yaml
+[CLM-0103]: claims/registry/CLM-0103.yaml
+[CLM-0104]: claims/registry/CLM-0104.yaml
+[CLM-0105]: claims/registry/CLM-0105.yaml
+[CLM-0106]: claims/registry/CLM-0106.yaml
+[CLM-0107]: claims/registry/CLM-0107.yaml
+[CLM-0108]: claims/registry/CLM-0108.yaml
+[CLM-0109]: claims/registry/CLM-0109.yaml
+[CLM-0110]: claims/registry/CLM-0110.yaml
+[CLM-0111]: claims/registry/CLM-0111.yaml
+[CLM-0112]: claims/registry/CLM-0112.yaml
+[CLM-0113]: claims/registry/CLM-0113.yaml
+[CLM-0114]: claims/registry/CLM-0114.yaml
+[CLM-0115]: claims/registry/CLM-0115.yaml
+[CLM-0116]: claims/registry/CLM-0116.yaml
+[CLM-0117]: claims/registry/CLM-0117.yaml
+[CLM-0118]: claims/registry/CLM-0118.yaml
+[CLM-0119]: claims/registry/CLM-0119.yaml
+[CLM-0120]: claims/registry/CLM-0120.yaml
+
+<!-- claim-links:end -->

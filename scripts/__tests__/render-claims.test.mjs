@@ -3,9 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  danglingClaimIds,
   loadVerifiedClaims,
   main,
   normalizeBlock,
+  referencedClaimIds,
+  renderClaimLinks,
   renderEvidence,
   renderTable,
   spliceBlock,
@@ -90,5 +93,54 @@ describe('renderTable + spliceBlock + drift', () => {
     const a = `${'<!-- enforcement:begin -->'}\n| x | a--b.ts |\n${'<!-- enforcement:end -->'}`;
     const b = `${'<!-- enforcement:begin -->'}\n| x | a-b.ts |\n${'<!-- enforcement:end -->'}`;
     expect(normalizeBlock(a)).not.toBe(normalizeBlock(b));
+  });
+});
+
+describe('claim-links block + dangling check (#219)', () => {
+  function fixture(claims) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kernloop-links-'));
+    fs.mkdirSync(path.join(root, 'claims', 'registry'), { recursive: true });
+    for (const [id, body] of Object.entries(claims)) {
+      fs.writeFileSync(path.join(root, 'claims', 'registry', `${id}.yaml`), body);
+    }
+    return root;
+  }
+
+  test('referencedClaimIds collects DISTINCT prose tags, excluding the link block', () => {
+    const readme =
+      'foo [CLM-0001] bar [CLM-0003] [CLM-0001]\n' +
+      '<!-- claim-links:begin -->\n[CLM-0099]: x\n<!-- claim-links:end -->';
+    expect(referencedClaimIds(readme)).toEqual(['CLM-0001', 'CLM-0003']); // 0099 (in the block) excluded
+  });
+
+  test('renderClaimLinks emits one reference definition per id', () => {
+    expect(renderClaimLinks(['CLM-0001', 'CLM-0002'])).toBe(
+      '[CLM-0001]: claims/registry/CLM-0001.yaml\n[CLM-0002]: claims/registry/CLM-0002.yaml',
+    );
+  });
+
+  test('danglingClaimIds flags a referenced id with no registry file', () => {
+    const root = fixture({ 'CLM-0001': 'id: CLM-0001\nstatus: verified\nevidence: []\n' });
+    const dir = path.join(root, 'claims', 'registry');
+    expect(danglingClaimIds(['CLM-0001', 'CLM-0404'], dir)).toEqual(['CLM-0404']);
+  });
+
+  test('main writes the link block, is --check green, and FAILS on a dangling tag', () => {
+    const root = fixture({
+      'CLM-0001': "id: CLM-0001\nstatus: verified\nevidence:\n  - 'test:a.test.ts::x'\n",
+    });
+    fs.writeFileSync(
+      path.join(root, 'README.md'),
+      '# x\n\nProse cites [CLM-0001].\n\n' +
+        '<!-- enforcement:begin -->\n<!-- enforcement:end -->\n\n' +
+        '<!-- claim-links:begin -->\n<!-- claim-links:end -->\n',
+    );
+    expect(main(root, false)).toBe(0); // writes both blocks
+    expect(fs.readFileSync(path.join(root, 'README.md'), 'utf8')).toContain(
+      '[CLM-0001]: claims/registry/CLM-0001.yaml',
+    );
+    expect(main(root, true)).toBe(0); // current
+    fs.appendFileSync(path.join(root, 'README.md'), '\nAlso [CLM-0404].\n'); // a tag with no file
+    expect(main(root, true)).toBe(1); // dangling → fail
   });
 });
