@@ -12,7 +12,7 @@
  * constitutionally forbidden (spec §1 rule 1); one returns via a claim when
  * a real tool exists.
  */
-import type { Finding } from '@kernloop/contracts';
+import type { Check, Finding } from '@kernloop/contracts';
 import { scanDocComments } from './doc-scan.js';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
 
@@ -88,4 +88,27 @@ export function defaultQualityChecks(): QualityCheck[] {
     { name: 'test', command: 'pnpm', args: ['test'], parse: parseVitestOutput },
     docCommentCheck(),
   ];
+}
+
+/**
+ * Map a task's `definitionOfDone` into runnable quality checks (#226): each
+ * Check's `command` STRING is tokenized on whitespace into an executable + args
+ * and spawned WITH NO SHELL — so a model-supplied command cannot inject shell
+ * metacharacters (`;`/`&&`/`$()` become literal argv, harmless). Exit 0 is the
+ * pass authority (parse returns nothing); the runner turns a nonzero exit into
+ * an `error` finding naming the check, so an acceptance criterion that fails
+ * fails the gate. A blank command tokenizes to an empty executable and fails to
+ * start — fail CLOSED, a check that cannot run never silently passes. Names are
+ * `dod:<name>` so acceptance findings are distinct from the default tool checks.
+ *
+ * SECURITY: this runs spec/model-supplied content as a subprocess in the
+ * workspace; no-shell argv is the injection defense here. Scoping the child ENV
+ * (so a task command cannot read host secrets) hardens this path AND the default
+ * `pnpm test` path alike and is tracked as pipeline-hardening in #227.
+ */
+export function checksFromDefinitionOfDone(dod: readonly Check[]): SubprocessCheck[] {
+  return dod.map((check) => {
+    const [command = '', ...args] = check.command.trim().split(/\s+/);
+    return { name: `dod:${check.name}`, command, args, parse: (): Finding[] => [] };
+  });
 }

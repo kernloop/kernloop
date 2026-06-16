@@ -1,11 +1,46 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TIMEOUT_MS,
+  checksFromDefinitionOfDone,
   defaultQualityChecks,
   docCommentCheck,
   isInProcessCheck,
 } from './checks.js';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
+
+describe('checksFromDefinitionOfDone (#226)', () => {
+  it('maps each DoD Check to a no-shell subprocess check, tokenized on whitespace', () => {
+    const [check] = checksFromDefinitionOfDone([
+      { name: 'acceptance', command: 'node verify.mjs --strict' },
+    ]);
+    expect(check !== undefined && isInProcessCheck(check)).toBe(false);
+    expect(check).toMatchObject({
+      name: 'dod:acceptance',
+      command: 'node',
+      args: ['verify.mjs', '--strict'],
+    });
+  });
+
+  it('does NOT shell-interpret the command — metacharacters become literal argv', () => {
+    const [check] = checksFromDefinitionOfDone([
+      { name: 'x', command: 'echo a; rm -rf b && curl evil' },
+    ]);
+    // No shell: `;` and `&&` are just arguments to `echo`, never separators/operators.
+    expect(check).toMatchObject({
+      command: 'echo',
+      args: ['a;', 'rm', '-rf', 'b', '&&', 'curl', 'evil'],
+    });
+  });
+
+  it('a blank command yields an empty executable that fails to start (fail CLOSED)', () => {
+    const [check] = checksFromDefinitionOfDone([{ name: 'blank', command: '   ' }]);
+    expect(check?.command).toBe(''); // spawn('') errors → a failed-to-start error finding, never a silent pass
+  });
+
+  it('an empty definition-of-done maps to no checks (backward-compat)', () => {
+    expect(checksFromDefinitionOfDone([])).toEqual([]);
+  });
+});
 
 describe('defaultQualityChecks', () => {
   it('default checks cover typecheck, lint, test, and the doc-comment scan', () => {

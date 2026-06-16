@@ -314,6 +314,8 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
       executeQualityGate(b.kern, {
         taskId: ctx.child?.id ?? ctx.taskId,
         workspaceDir: b.workspaceDir,
+        // The child's OWN definition-of-done runs alongside the base checks (#226).
+        ...(ctx.child === undefined ? {} : { definitionOfDone: ctx.child.definitionOfDone }),
         ...(b.checks === undefined ? {} : { checks: b.checks }),
         ...(b.kern.config.gates.quality.timeoutMsPerCheck === undefined
           ? {}
