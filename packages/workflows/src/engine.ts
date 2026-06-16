@@ -205,7 +205,7 @@ class LoopEngine implements Engine {
     signal?: AbortSignal,
   ): Promise<RunResult> {
     let seq = seqStart;
-    this.childSpend.reset();
+    this.childSpend.reset(state); // per-process attribution; drops pre-resume spend (#212)
     while (state.status === 'running') {
       const step = nextStep(this.graph, state);
       const executor = this.executorFor(step.node);

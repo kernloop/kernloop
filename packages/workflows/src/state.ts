@@ -69,7 +69,9 @@ export const ChildResultSchema = z.strictObject({
    * run-global meter sliced by the SEQUENTIAL child boundary, summed across all
    * of the child's Kc iterations. Set as the fan-out runs the child when the
    * composition root injected a `meteredSpend` seam; absent on an unmetered run.
-   * Checkpointed, so a resume keeps every finished child's attribution.
+   * Per-PROCESS, like the meter it reads (#212): a resume re-attributes from the
+   * fresh meter and DROPS any pre-resume spend, so a child finished before a
+   * resume reports none — keeping the sum within the (also per-process) run cost.
    */
   spend: ChildSpendSchema.optional(),
 });

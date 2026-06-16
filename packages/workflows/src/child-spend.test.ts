@@ -126,4 +126,65 @@ describe('per-child budget attribution (#56)', () => {
     expect(result.status).toBe('completed');
     expect(qualityCalls['task-1.c1']).toBe(4); // Kc(3) re-iterations + the final reject = 4 quality runs
   });
+
+  it('a resume re-attributes per-process: childSpend never exceeds the post-resume meter (#212)', async () => {
+    // c1 finishes (attributed against the FIRST meter), then the run is killed on
+    // c2's first implement. A resume with a FRESH meter must DROP c1's stale
+    // attribution so the sum stays within the post-resume cost.
+    const store = new InMemoryCheckpointStore();
+    const meter1 = { tokens: 0, usd: 0 };
+    const first = scripted();
+    let c2Implements = 0;
+    const impl1 = first.executors['implement'] as NodeExecutor;
+    first.executors['implement'] = (input, ctx) => {
+      const c = input as TaskContract;
+      if (c.id === 'task-1.c2' && ++c2Implements === 1) {
+        const e = new Error('killed before c2 records its spend');
+        e.name = 'AbortError';
+        return Promise.reject(e);
+      }
+      meter1.tokens += 10;
+      return impl1(input, ctx);
+    };
+    const qual1 = first.executors['quality'] as NodeExecutor;
+    first.executors['quality'] = (i, ctx) => {
+      meter1.tokens += 5;
+      return qual1(i, ctx);
+    };
+    const killed = await createEngine({
+      executors: first.executors,
+      checkpoints: store,
+      meteredSpend: () => ({ ...meter1 }),
+    }).run(task, { runId: 'run-resume-attrib' });
+    expect(killed.status).toBe('failed');
+
+    // Resume in a FRESH "process": a new meter starting at 0.
+    const meter2 = { tokens: 0, usd: 0 };
+    const fresh = scripted();
+    const impl2 = fresh.executors['implement'] as NodeExecutor;
+    fresh.executors['implement'] = (i, ctx) => {
+      meter2.tokens += 10;
+      return impl2(i, ctx);
+    };
+    const qual2 = fresh.executors['quality'] as NodeExecutor;
+    fresh.executors['quality'] = (i, ctx) => {
+      meter2.tokens += 5;
+      return qual2(i, ctx);
+    };
+    const resumed = await createEngine({
+      executors: fresh.executors,
+      checkpoints: store,
+      meteredSpend: () => ({ ...meter2 }),
+    }).resume('run-resume-attrib');
+    expect(resumed.status).toBe('completed');
+    const byChild = Object.fromEntries(
+      (resumed.childSpend ?? []).map((e) => [e.childId, e.spend.tokens]),
+    );
+    // c1 finished pre-resume → its stale (first-meter) attribution is DROPPED.
+    expect(byChild['task-1.c1']).toBeUndefined();
+    expect(byChild['task-1.c2']).toBeGreaterThan(0);
+    // The invariant holds: attribution never exceeds the post-resume meter.
+    const sum = Object.values(byChild).reduce((s, t) => s + t, 0);
+    expect(sum).toBeLessThanOrEqual(meter2.tokens);
+  });
 });
