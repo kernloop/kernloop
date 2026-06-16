@@ -4,16 +4,19 @@ statement: >-
   gated package's public API surface to carry a real, non-placeholder doc-comment, rejecting
   trivially-empty docs and docs that merely restate the symbol name. The public-API resolver chases
   the barrel graph RECURSIVELY (#72): it follows named re-exports through NESTED barrels to the real
-  declaration that carries the doc-comment, and EXPANDS relative `export *` into its named symbols
-  (breaking any cycle, memoizing each file). Only an EXTERNAL `export *` stays opaque — gated in its
-  owning package — and is surfaced as a count, never hidden. So twelve packages are gated
+  declaration that carries the doc-comment, resolves a RENAME re-export (`export { X as Y }`) by its
+  local name while surfacing the alias (#214), surfaces a BARE local re-export (`export { foo }` with
+  no `from`, #213), and EXPANDS relative `export *` into its named symbols (breaking any cycle,
+  memoizing each file). Only an EXTERNAL `export *` stays opaque — gated in its owning package — and
+  is surfaced as a count, never hidden. So twelve packages are gated
   (contracts, kernel, cli, workflows, faculty-compiler, faculty-gates, faculty-memory,
   faculty-observer, faculty-scrum, faculty-toolsmith, faculty-workforce, tracker) — the nested-barrel
   and `export *` packages (cli/workflows/kernel) included, no longer under-reported. A gap exits 1
-  with a per-package report and the gate runs in CI. One scope decision is recorded permanently
-  (never a silent weakening): type-only re-exports (z.infer companions documented on the adjacent
-  schema) are excluded by policy. It is a QUALITY gate, not claim evidence — a doc-comment proves a
-  symbol is documented, never that it behaves; tests remain the verified bar.
+  with a per-package report and the gate runs in CI. The exclusion is by KIND, recorded permanently
+  (never a silent weakening): type aliases/interfaces (incl. z.infer companions) declare no runtime
+  value, so they are not gated — but a VALUE re-exported via `export type` still is (#215). It is a
+  QUALITY gate, not claim evidence — a doc-comment proves a symbol is documented, never that it
+  behaves; tests remain the verified bar.
 evidence:
   - 'test:scripts/__tests__/docs-coverage.test.mjs::every gated package has zero undocumented value exports (the CI invariant)'
   - 'test:scripts/__tests__/docs-coverage.test.mjs::flags an undocumented exported function, ignores documented ones'
@@ -29,6 +32,9 @@ evidence:
   - 'test:scripts/__tests__/public-api.test.mjs::counts an EXTERNAL `export *` opaquely (gated in its own package)'
   - 'test:scripts/__tests__/public-api.test.mjs::an explicit local/named export SHADOWS a star of the same name'
   - 'test:scripts/__tests__/public-api.test.mjs::breaks a re-export CYCLE instead of looping forever'
+  - 'test:scripts/__tests__/public-api.test.mjs::surfaces a BARE local re-export `export { foo }` (no from) (#213)'
+  - 'test:scripts/__tests__/public-api.test.mjs::resolves a RENAME re-export `export { X as Y } from` under the alias (#214)'
+  - 'test:scripts/__tests__/docs-coverage.test.mjs::a VALUE re-exported via `export type` is STILL gated (#215)'
   - 'code:scripts/docs-coverage.mjs#gapsForPackage@doc:/lack a real doc-comment/'
   - 'ci:test'
 status: verified

@@ -50,8 +50,8 @@ export const GATED_PACKAGES = [
  */
 export const EXCLUDED = [
   {
-    what: 'type-only re-exports (export type { X })',
-    why: 'z.infer<> companions / interface shapes documented on the adjacent schema; a separate doc would duplicate it',
+    what: 'type-only exports (type aliases, interfaces, z.infer companions)',
+    why: 'excluded by KIND — they declare no runtime VALUE to document (a value re-exported via `export type` is still gated, #215)',
   },
 ];
 
@@ -83,11 +83,13 @@ export function isTrivialDoc(doc, name) {
   return bareDoc === name.toLowerCase() || bareDoc === bareName;
 }
 
-/** Value exports of a gated package that lack a real doc-comment. */
+/** Value exports of a gated package that lack a real doc-comment. The exclusion
+ * is by KIND, not the type-only flag (#215): a VALUE re-exported via `export type`
+ * still declares a runtime value and is gated; type aliases/interfaces are not. */
 export function gapsForPackage(pkgDir, repoRoot) {
   const { symbols } = resolvePackageApi(pkgDir, repoRoot);
   return symbols
-    .filter((s) => !s.typeOnly && VALUE_KINDS.has(s.kind))
+    .filter((s) => VALUE_KINDS.has(s.kind))
     .filter((s) => isTrivialDoc(s.doc, s.name))
     .map((s) => ({ name: s.name, kind: s.kind, file: s.file }));
 }
