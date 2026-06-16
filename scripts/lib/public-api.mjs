@@ -1,18 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import { listExportedSymbols } from '../../claims/src/symbols.ts';
+import { findSymbol, listExportedSymbols } from '../../claims/src/symbols.ts';
 
 /**
  * Resolve a package's PUBLIC API surface — the symbols its `src/index.ts`
  * barrel actually exports — to each symbol's definition (kind, doc, line).
  *
- * Three export forms are followed, RECURSIVELY within the package (#72):
+ * Four export forms are followed, RECURSIVELY within the package (#72):
  *  - a LOCAL declaration in a barrel (`export const X = …`), read directly;
- *  - a NAMED re-export (`export { X } from './x.js'`), resolved to the symbol's
- *    real definition — even when `./x.ts` is itself a NESTED barrel that
- *    re-exports `X` from a deeper file (the resolver chases every hop until it
- *    reaches the declaration that carries the doc-comment);
+ *  - a NAMED re-export (`export { X as Y } from './x.js'`), resolved by the LOCAL
+ *    name to the symbol's real definition and surfaced under the alias (#214) —
+ *    even when `./x.ts` is itself a NESTED barrel that re-exports from a deeper
+ *    file (the resolver chases every hop to the declaration with the doc-comment);
+ *  - a BARE local re-export (`export { foo }` with no `from`, #213), resolved to
+ *    its same-file declaration (which may carry no inline `export` modifier);
  *  - a relative `export * from './x.js'`, EXPANDED into every named symbol on
  *    `./x.ts`'s own surface (again recursively, so a star through a nested
  *    barrel contributes the deep declarations, not an opaque count).
@@ -30,31 +32,40 @@ import { listExportedSymbols } from '../../claims/src/symbols.ts';
 /** A resolved public export: its name, kind, doc text (or null), and origin. */
 /** @typedef {{ name: string, kind: string, doc: string|null, file: string, line: number, typeOnly: boolean }} PublicSymbol */
 
-/** Parse a barrel file into its `export … from './x'` clauses (named + star). */
+/**
+ * Parse a barrel file's export clauses. `name` is the SURFACED binding; `local`
+ * is the name to look up in the source (they differ for a `X as Y` rename, #214).
+ * Three buckets: named re-exports (`export { … } from`), LOCAL re-exports
+ * (`export { … }` with no `from`, of a same-file declaration, #213), and `export *`.
+ */
 function readExportDeclarations(indexPath) {
   const source = fs.readFileSync(indexPath, 'utf8');
   const sf = ts.createSourceFile(indexPath, source, ts.ScriptTarget.Latest, true);
-  /** @type {{ names: { name: string, typeOnly: boolean }[], moduleSpec: string }[]} */
+  /** @type {{ names: { name: string, local: string, typeOnly: boolean }[], moduleSpec: string }[]} */
   const reExports = [];
+  /** @type {{ name: string, local: string, typeOnly: boolean }[]} */
+  const localReExports = [];
   /** @type {string[]} */
   const starModuleSpecs = [];
   sf.forEachChild((node) => {
-    if (!ts.isExportDeclaration(node) || node.moduleSpecifier === undefined) return;
-    if (!ts.isStringLiteral(node.moduleSpecifier)) return;
-    const moduleSpec = node.moduleSpecifier.text;
-    if (node.exportClause === undefined) {
-      starModuleSpecs.push(moduleSpec);
+    if (!ts.isExportDeclaration(node)) return;
+    if (node.exportClause !== undefined && ts.isNamedExports(node.exportClause)) {
+      const clauseTypeOnly = node.isTypeOnly;
+      const names = node.exportClause.elements.map((el) => ({
+        name: el.name.text,
+        local: el.propertyName?.text ?? el.name.text,
+        typeOnly: clauseTypeOnly || el.isTypeOnly,
+      }));
+      if (node.moduleSpecifier === undefined) localReExports.push(...names);
+      else if (ts.isStringLiteral(node.moduleSpecifier))
+        reExports.push({ names, moduleSpec: node.moduleSpecifier.text });
       return;
     }
-    if (!ts.isNamedExports(node.exportClause)) return;
-    const clauseTypeOnly = node.isTypeOnly;
-    const names = node.exportClause.elements.map((el) => ({
-      name: el.name.text,
-      typeOnly: clauseTypeOnly || el.isTypeOnly,
-    }));
-    reExports.push({ names, moduleSpec });
+    if (node.moduleSpecifier !== undefined && ts.isStringLiteral(node.moduleSpecifier)) {
+      starModuleSpecs.push(node.moduleSpecifier.text); // `export * from '…'`
+    }
   });
-  return { reExports, starModuleSpecs };
+  return { reExports, localReExports, starModuleSpecs };
 }
 
 /** Resolve a JS-style relative module specifier to its sibling `.ts` source file. */
@@ -75,7 +86,7 @@ function requireModuleFile(ctx, file, moduleSpec) {
   return defFile;
 }
 
-/** Resolve each `export { name } from './def'` clause to the def's real symbol. */
+/** Resolve each `export { local as name } from './def'` clause to the def's symbol. */
 function pushNamedReExports(ctx, file, reExports, push) {
   for (const { names, moduleSpec } of reExports) {
     // External re-exports belong to another package's surface and are gated
@@ -83,13 +94,34 @@ function pushNamedReExports(ctx, file, reExports, push) {
     if (!moduleSpec.startsWith('.')) continue;
     const defFile = requireModuleFile(ctx, file, moduleSpec);
     const byName = new Map(surfaceOf(ctx, defFile).map((s) => [s.name, s]));
-    for (const { name, typeOnly } of names) {
-      const found = byName.get(name);
+    for (const { name, local, typeOnly } of names) {
+      const found = byName.get(local); // look up by the LOCAL name, surface under `name` (#214)
       if (found === undefined) {
         throw new Error(`${ctx.rel(file)}: re-exported "${name}" not found in ${ctx.rel(defFile)}`);
       }
-      push({ ...found, typeOnly: typeOnly || found.typeOnly });
+      push({ ...found, name, typeOnly: typeOnly || found.typeOnly });
     }
+  }
+}
+
+/** Resolve each bare `export { local as name }` (no `from`) to its same-file decl (#213). */
+function pushLocalReExports(ctx, file, localReExports, push) {
+  for (const { name, local, typeOnly } of localReExports) {
+    if (local === 'default') continue; // a re-exported default import has no named local decl
+    const found = findSymbol(file, local);
+    if (!found.found) {
+      throw new Error(
+        `${ctx.rel(file)}: locally exported "${name}" has no declaration in its file`,
+      );
+    }
+    push({
+      name,
+      kind: found.kind ?? 'Unknown',
+      doc: found.doc ?? null,
+      file: ctx.rel(file),
+      line: 0,
+      typeOnly,
+    });
   }
 }
 
@@ -135,8 +167,9 @@ function surfaceOf(ctx, file) {
   for (const local of listExportedSymbols(file)) {
     push({ ...local, file: ctx.rel(file), typeOnly: false });
   }
-  const { reExports, starModuleSpecs } = readExportDeclarations(file);
+  const { reExports, localReExports, starModuleSpecs } = readExportDeclarations(file);
   pushNamedReExports(ctx, file, reExports, push);
+  pushLocalReExports(ctx, file, localReExports, push);
   pushStarReExports(ctx, file, starModuleSpecs, push);
 
   ctx.inProgress.delete(file);

@@ -72,6 +72,17 @@ describe('gapsForPackage — undocumented value exports', () => {
     expect(gaps).toEqual([]); // a TYPE re-export is excluded by policy, not a gap
   });
 
+  test('a VALUE re-exported via `export type` is STILL gated (#215)', () => {
+    // `export type { bare }` of a function: kind is a value, so the type-only flag
+    // must NOT exempt it — the exclusion is by kind, not the flag.
+    const root = fixturePkg(
+      "export type { bare } from './def.js';",
+      ['export function bare(): void {}'].join('\n'),
+    );
+    const gaps = gapsForPackage(path.join(root, 'packages', 'contracts'), root);
+    expect(gaps.map((g) => g.name)).toEqual(['bare']);
+  });
+
   test('an undocumented value reached through a NESTED barrel is still a gap (#72)', () => {
     // index → inner barrel → def: the recursive resolver must chase both hops
     // and surface the deep declaration so its missing doc is caught.

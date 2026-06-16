@@ -117,6 +117,27 @@ describe('resolvePackageApi', () => {
     expect(symbols.map((s) => s.name).sort()).toEqual(['A', 'B', 'TOP']);
   });
 
+  test('surfaces a BARE local re-export `export { foo }` (no from) (#213)', () => {
+    // declare-then-export-at-bottom: foo has no inline export modifier, so the old
+    // resolver missed it entirely — an undocumented value export escaping the gate.
+    const { root, pkgDir } = fixture(
+      '/** A bare-exported helper. */\nfunction helper() {}\nexport { helper };',
+    );
+    const { symbols } = resolvePackageApi(pkgDir, root);
+    expect(symbols.map((s) => s.name)).toEqual(['helper']);
+    expect(symbols[0].kind).toBe('FunctionDeclaration');
+    expect(symbols[0].doc).toContain('bare-exported helper');
+  });
+
+  test('resolves a RENAME re-export `export { X as Y } from` under the alias (#214)', () => {
+    const { root, pkgDir } = fixture("export { X as Y } from './def.js';", {
+      'def.ts': '/** The X declaration. */\nexport const X = 1;',
+    });
+    const { symbols } = resolvePackageApi(pkgDir, root);
+    expect(symbols.map((s) => s.name)).toEqual(['Y']); // surfaced under the alias
+    expect(symbols[0].doc).toContain('X declaration'); // doc mined from the local X
+  });
+
   test('throws when a re-export module cannot be resolved', () => {
     const { root, pkgDir } = fixture("export { x } from './missing.js';");
     expect(() => resolvePackageApi(pkgDir, root)).toThrow('cannot resolve re-export module');
