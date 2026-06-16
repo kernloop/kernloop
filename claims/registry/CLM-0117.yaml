@@ -1,0 +1,23 @@
+id: CLM-0117
+statement: >-
+  `kernloop observer distill --subject S` (EPIC #50, the SAFE half) is a FITNESS-GATED distill: it
+  distills a subject's recent successful trace into a suggest-tier skill proposal ONLY when the
+  Observer's lifecycle pass already deems that subject distill-worthy — i.e. a `distill`
+  LifecycleProposal exists for it (sustained lifetime success at/above the high-fitness bar over the
+  minimum invocations, citing a real recent successful trace via the observer outcome log, CLM-0092).
+  The proposal now carries that trace id, so the verb acts on it without re-parsing prose; a subject
+  that has NOT earned it (no such proposal) is REFUSED with a clear message, never distilled — so
+  distillation is governed by earned fitness, not invoked ad hoc. The distill reuses the existing
+  `distill` tool (CLM-0049/0050): it writes the SKILL.md + PROPOSAL.yaml under `skills/proposed/`,
+  NEVER the live library, so a human-reviewed PR is the only path live — this NEVER auto-merges. The
+  act is audited once as `cli.observer.distill` (subject, trace, skill name, tier). It is a CLI verb,
+  not a 12th MCP tool.
+evidence:
+  - 'test:packages/cli/src/observer-distill.test.ts::distills an EARNED subject’s recent trace into a suggest-tier proposal, audited, never live'
+  - 'test:packages/cli/src/observer-distill.test.ts::REFUSES to distill a subject that has not earned it (no high-fitness proposal)'
+  - 'test:packages/cli/src/observer-distill.test.ts::requires --subject'
+  - 'code:packages/cli/src/observer-commands.ts#distillReport@doc:/FITNESS-GATED distill/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
