@@ -21,8 +21,9 @@ import type { AdapterEnv } from './invoke.js';
 
 /**
  * Benign operational env vars always passed to a model-CLI child: enough to
- * find executables (PATH), read its own config/login (HOME, XDG_*), render
- * correctly (locale, TERM), and use scratch space (TMPDIR) — but NO credentials.
+ * find executables (PATH), read its own config/login (HOME, the XDG dirs),
+ * render correctly (locale, TERM), and use scratch space (TMPDIR) — but NO
+ * credentials.
  * `LC_*` is matched by prefix (locale categories vary); everything else here is
  * an exact name.
  */
