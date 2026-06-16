@@ -18,6 +18,7 @@ export {
   type SubprocessSpec,
   type SubprocessResult,
 } from './subprocess.js';
+export { SAFE_ENV_KEYS, scopedChildEnv, droppedEnvKeys } from './env.js';
 export {
   ADAPTER_NAMES,
   adapterDefinitions,

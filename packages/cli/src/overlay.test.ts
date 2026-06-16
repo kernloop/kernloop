@@ -131,6 +131,14 @@ describe('loadOverlay defaults and precedence', () => {
     });
   });
 
+  it('defaults adapterEnvAllow to an empty list and accepts named extras [CLM-0122]', () => {
+    expect(loadFrom('id: x\n').adapterEnvAllow).toEqual([]);
+    expect(
+      loadFrom('id: x\nadapterEnvAllow:\n  - ANTHROPIC_API_KEY\n  - OPENAI_API_KEY\n')
+        .adapterEnvAllow,
+    ).toEqual(['ANTHROPIC_API_KEY', 'OPENAI_API_KEY']);
+  });
+
   it('file values win over defaults; unset knobs still default (precedence)', () => {
     const overlay = loadFrom('id: my-overlay\nK: 5\nbudgets:\n  usd: 2.5\n');
     expect(overlay.K).toBe(5); // file wins

@@ -108,7 +108,7 @@ export function buildInvokeForNode(
     return endpoint === undefined
       ? buildNodeSeam(
           resolveServed(req, name as AdapterName),
-          adapterInvoke(name as AdapterName),
+          adapterInvoke(name as AdapterName, undefined, undefined, overlay.adapterEnvAllow),
           totals,
           timeoutMs,
         )

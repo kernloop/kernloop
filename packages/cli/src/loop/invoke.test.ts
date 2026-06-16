@@ -25,6 +25,7 @@ import {
   LoopParseError,
   LoopResumeError,
   SubtasksEmissionSchema,
+  adapterInvoke,
   ensureAdapterAvailable,
   extractJsonObject,
   meteredInvoke,
@@ -214,6 +215,41 @@ describe('ensureAdapterAvailable', () => {
     writeFileSync(fake, '#!/bin/sh\nexit 0\n');
     chmodSync(fake, 0o755);
     expect(() => ensureAdapterAvailable('claude', { PATH: scratch })).not.toThrow();
+  });
+});
+
+describe('adapterInvoke threads the env-scoping escape hatch (#227, CLM-0122)', () => {
+  // A fake `ollama` whose plain-text output echoes a host secret and a named
+  // extra, proving adapterInvoke's `envAllow` reaches the kernel's child scoping.
+  const fakeEnv = {
+    PATH: scratch,
+    HOME: '/home/scoped',
+    SECRET_SENTINEL: 'leaked-key',
+    MY_ALLOWED_KEY: 'allowed',
+  };
+  function writeEchoOllama(): void {
+    const fake = path.join(scratch, 'ollama');
+    writeFileSync(
+      fake,
+      '#!/bin/sh\nprintf "SECRET[%s] EXTRA[%s]\\n" "$SECRET_SENTINEL" "$MY_ALLOWED_KEY"\nexit 0\n',
+    );
+    chmodSync(fake, 0o755);
+  }
+
+  it('withholds a host secret from the spawned CLI by default', async () => {
+    writeEchoOllama();
+    const invoke = adapterInvoke('ollama', fakeEnv);
+    const { output } = await invoke('hi', { model: 'llama3' });
+    expect(output).toContain('SECRET[]');
+    expect(output).toContain('EXTRA[]');
+  });
+
+  it('passes an extra named in envAllow through to the spawned CLI', async () => {
+    writeEchoOllama();
+    const invoke = adapterInvoke('ollama', fakeEnv, undefined, ['MY_ALLOWED_KEY']);
+    const { output } = await invoke('hi', { model: 'llama3' });
+    expect(output).toContain('EXTRA[allowed]');
+    expect(output).toContain('SECRET[]');
   });
 });
 

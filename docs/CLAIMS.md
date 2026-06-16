@@ -1989,3 +1989,22 @@ The quality gate runs the task's OWN machine-checkable acceptance criteria (#226
 - [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
 - [`packages/faculty-gates/src/checks.ts#checksFromDefinitionOfDone`](../packages/faculty-gates/src/checks.ts)
 - CI `test`
+
+## CLM-0122
+
+**Status:** verified — **source:** [`CLM-0122.yaml`](../claims/registry/CLM-0122.yaml)
+
+A spawned model-CLI adapter child receives a LEAST-PRIVILEGE environment, not the parent's whole `process.env` (#227, EPIC #47·P1): `scopedChildEnv` hands the child only the kernel's benign base allowlist (`SAFE_ENV_KEYS` — PATH/HOME/locale/tmp/XDG, proxy + CA-cert operational vars, and `LC_*` by prefix) UNION the caller's declared extras, dropping everything else — so other providers' API keys, `GH_TOKEN`/`GITHUB_TOKEN`, and cloud credentials in kernloop's own env are NOT exposed to a third-party agentic binary for exfiltration. `invokeAdapter` scopes the child env on every CLI spawn while still PATH-probing on the full env (a read, never a hand-off). The escape hatch is the overlay's `adapterEnvAllow` (env-var NAMES only — a stray literal value is inert, matching no var and dropped, never a stored secret), threaded by the CLI through every adapter-spawn path — the canonical loop's base + per-node seams and the author/distill/gate/forge tools — defaulting to `[]` (a login-authed CLI works on HOME alone; a key-authed one names its key var). The redaction is audited, never silent: a real run appends a `cli.run.env-scoped` event recording how many host vars were withheld. The api-endpoint (OpenAI-compatible HTTP) adapter is UNAFFECTED — it `fetch`es with one configured key and never spawns.
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/env.test.ts`](../packages/kernel/src/adapters/env.test.ts)
+- [`packages/kernel/src/adapters/env.test.ts`](../packages/kernel/src/adapters/env.test.ts)
+- [`packages/kernel/src/adapters/env.test.ts`](../packages/kernel/src/adapters/env.test.ts)
+- [`packages/kernel/src/adapters/env.test.ts`](../packages/kernel/src/adapters/env.test.ts)
+- [`packages/kernel/src/adapters/env.test.ts`](../packages/kernel/src/adapters/env.test.ts)
+- [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
+- [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/kernel/src/adapters/env.ts#scopedChildEnv`](../packages/kernel/src/adapters/env.ts)
+- CI `test`

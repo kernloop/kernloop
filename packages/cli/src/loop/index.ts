@@ -22,7 +22,7 @@ import {
   type Outcome,
   type TaskContract,
 } from '@kernloop/contracts';
-import { appendEvent, type AdapterName } from '@kernloop/kernel';
+import { appendEvent, droppedEnvKeys, type AdapterName } from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import {
   JsonlCheckpointStore,
@@ -213,6 +213,42 @@ function downgradeAudit(kern: Kernloop, runId: string): OnDowngrade {
   };
 }
 
+/**
+ * Audit the env scoping once per real run (rule 7): a spawned model CLI gets
+ * the benign base allowlist ∪ `adapterEnvAllow`, NOT the host env — record how
+ * many host vars were withheld so the redaction is never silent (#227,
+ * CLM-0122). Skipped when the caller injects its own invoke (no CLI spawns).
+ */
+function auditEnvScoping(kern: Kernloop, runId: string): void {
+  appendEvent(kern.store, {
+    type: 'cli.run.env-scoped',
+    payload: {
+      runId,
+      droppedCount: droppedEnvKeys(process.env, kern.config.adapterEnvAllow).length,
+      allowExtra: kern.config.adapterEnvAllow.length,
+    },
+  });
+}
+
+/**
+ * The run's base model seam: a caller-injected invoke verbatim, else the real
+ * adapter — probed up front (absence is the kernel's typed error, never a stub),
+ * its child env scoped to the benign allowlist ∪ `adapterEnvAllow` and that
+ * scoping audited (#227). Model-CLI subprocesses run in the task WORKSPACE, not
+ * kernloop's launch dir (#146).
+ */
+function resolveBaseInvoke(
+  kern: Kernloop,
+  request: LoopRequest,
+  adapter: AdapterName,
+  runId: string,
+): LoopInvoke {
+  if (request.invoke !== undefined) return request.invoke;
+  ensureRunAdaptersAvailable(adapter, kern.config);
+  auditEnvScoping(kern, runId);
+  return adapterInvoke(adapter, undefined, request.workspaceDir, kern.config.adapterEnvAllow);
+}
+
 function documentDeliverable(
   kern: Kernloop,
   runId: string,
@@ -243,10 +279,8 @@ export async function executeCanonicalLoop(
   request: LoopRequest,
 ): Promise<LoopReport> {
   const adapter = request.adapter ?? 'claude';
-  if (request.invoke === undefined) ensureRunAdaptersAvailable(adapter, kern.config);
-  // Model-CLI subprocesses run in the task workspace, not the launch dir (#146).
-  const base = request.invoke ?? adapterInvoke(adapter, undefined, request.workspaceDir);
   const runId = request.resumeRunId ?? request.runId ?? randomUUID();
+  const base = resolveBaseInvoke(kern, request, adapter, runId);
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};
   if (request.resumeRunId !== undefined) {

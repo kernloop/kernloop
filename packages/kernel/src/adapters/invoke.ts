@@ -31,6 +31,7 @@ import {
   AdapterUnavailableError,
 } from './errors.js';
 import { runSubprocess, type SubprocessResult } from './subprocess.js';
+import { scopedChildEnv } from './env.js';
 
 /** Environment shape accepted everywhere here (process.env-compatible). */
 export type AdapterEnv = Readonly<Record<string, string | undefined>>;
@@ -66,6 +67,14 @@ export interface AdapterInvocation {
   readonly effort?: AdapterCommandEffort;
   /** Environment for PATH probing and the child; default `process.env`. */
   readonly env?: AdapterEnv;
+  /**
+   * Extra env var NAMES to pass through to the CLI child beyond the benign base
+   * allowlist (#227): a key-authenticated CLI names its provider key here (the
+   * composition root threads the overlay's `adapterEnvAllow`). The child NEVER
+   * receives the full parent env — only the allowlist ∪ these names — so host
+   * secrets (other providers' keys, GH_TOKEN, cloud creds) are not exposed.
+   */
+  readonly envAllow?: readonly string[];
   /**
    * Working directory for the CLI child — the task WORKSPACE (#146). Omitted ⇒
    * the child inherits kernloop's launch cwd, which for an agentic CLI exposes
@@ -191,7 +200,10 @@ export async function invokeAdapter(
     args: command.args,
     ...(command.stdin === undefined ? {} : { stdin: command.stdin }),
     timeoutMs: invocation.timeoutMs,
-    env,
+    // Least-privilege CHILD env (#227): the benign allowlist plus the caller's
+    // declared extras — NOT the full parent env. PATH probing above still used
+    // the full `env` (a read, not a hand-off to the third-party binary).
+    env: scopedChildEnv(env, invocation.envAllow ?? []),
     ...(invocation.cwd === undefined ? {} : { cwd: invocation.cwd }),
   });
 

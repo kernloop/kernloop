@@ -129,10 +129,14 @@ function parseAuthoredSpecs(raw: string): StorySpec[] {
 
 /** The chosen invoke, or the real adapter (probed; absence is the kernel's
  * typed error) — mirrors distill/gate exactly. */
-function resolveInvoke(adapter: AdapterName, invoke?: LoopInvoke): LoopInvoke {
+function resolveInvoke(
+  adapter: AdapterName,
+  envAllow: readonly string[],
+  invoke?: LoopInvoke,
+): LoopInvoke {
   if (invoke !== undefined) return invoke;
   ensureAdapterAvailable(adapter);
-  return adapterInvoke(adapter);
+  return adapterInvoke(adapter, undefined, undefined, envAllow);
 }
 
 /**
@@ -161,7 +165,11 @@ export async function authorOp(
     }
     const adapter = adapterParsed.data;
     const parent = buildProgramParent(kern, id, goal);
-    const { output } = await resolveInvoke(adapter, invoke)(authorPrompt(goal, parent.budget));
+    const { output } = await resolveInvoke(
+      adapter,
+      kern.config.adapterEnvAllow,
+      invoke,
+    )(authorPrompt(goal, parent.budget));
     const specs = parseAuthoredSpecs(output);
     const children = decomposeGoal({ parent, subtasks: specs });
     appendEvent(kern.store, {
