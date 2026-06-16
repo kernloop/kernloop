@@ -104,6 +104,14 @@ describe('loadOverlay defaults and precedence', () => {
     expect(() => loadFrom('id: x\nbudgetMode: yolo\n')).toThrow(); // enforce | unlimited only
   });
 
+  it('loads the optional budget-downgrade block and bounds the fraction (0,1] [CLM-0119]', () => {
+    const overlay = loadFrom('id: x\ndowngrade:\n  atSpendFraction: 0.8\n');
+    expect(overlay.downgrade).toEqual({ atSpendFraction: 0.8 });
+    expect(loadFrom('id: x\n').downgrade).toBeUndefined(); // absent → no downgrade
+    expect(() => loadFrom('id: x\ndowngrade:\n  atSpendFraction: 0\n')).toThrow(); // must be > 0
+    expect(() => loadFrom('id: x\ndowngrade:\n  atSpendFraction: 1.5\n')).toThrow(); // must be <= 1
+  });
+
   it('loads the optional per-tier adapters block [CLM-0078]', () => {
     const overlay = loadFrom(
       'id: tiered\nadapters:\n  frontier: claude\n  large: claude\n  medium: codex\n  small: ollama\n',

@@ -29,6 +29,50 @@ import { buildNodeSeam, resolveServed, type NodeSeam } from './node-seam.js';
 import { buildApiNodeSeam, resolveServedApi } from './api-seam.js';
 import { apiDefinitionFor } from '../endpoints.js';
 import { requirementForNode, type Overlay } from '../overlay.js';
+import { applyDowngrade, type BudgetDowngrade, type OnDowngrade } from './downgrade.js';
+
+/** The node's requirement from its single source + overlay override (pre-downgrade). */
+function baseReq(overlay: Overlay, node: TieredNode): ModelRequirement {
+  return requirementForNode(overlay, node, nodeRequirement(node));
+}
+
+/** Resolve the budget-downgrade context from the overlay + run budget, or undefined (#194). */
+function downgradeFor(
+  overlay: Overlay,
+  budget: BudgetDowngrade['budget'] | undefined,
+): BudgetDowngrade | undefined {
+  return overlay.downgrade !== undefined && budget !== undefined
+    ? { atSpendFraction: overlay.downgrade.atSpendFraction, budget }
+    : undefined;
+}
+
+/**
+ * Wrap a per-path seam `build(req, node)` with the cache-or-downgrade policy:
+ * with NO downgrade configured, seams are cached per node (byte-identical to
+ * before); with a downgrade, the requirement is re-resolved against CURRENT
+ * spend each call, so a node that runs after the spend threshold binds the lower
+ * tier (#194). Cache bypass is necessary — a cached seam would freeze the tier.
+ */
+function seamFactory(
+  build: (req: ModelRequirement, node: TieredNode) => NodeSeam,
+  overlay: Overlay,
+  totals: RunTotals,
+  dg: BudgetDowngrade | undefined,
+  onDowngrade: OnDowngrade | undefined,
+): (node: TieredNode) => NodeSeam {
+  const cache = new Map<TieredNode, NodeSeam>();
+  return (node) => {
+    if (dg !== undefined) {
+      return build(applyDowngrade(node, baseReq(overlay, node), totals, dg, onDowngrade), node);
+    }
+    let seam = cache.get(node);
+    if (seam === undefined) {
+      seam = build(baseReq(overlay, node), node);
+      cache.set(node, seam);
+    }
+    return seam;
+  };
+}
 
 /**
  * Resolve which adapter (CLI name or registered endpoint id) serves a tier: the
@@ -44,35 +88,33 @@ function resolveTierAdapterName(
   return overlay.adapters?.[tier] ?? runAdapter;
 }
 
-/** Build the per-node DEFAULT model seam — CLI or api endpoint, both metered. */
+/**
+ * Build the per-node DEFAULT model seam — CLI or api endpoint, both metered.
+ * With `budget` + an overlay `downgrade`, nodes past the spend threshold route a
+ * tier lower (#194); `onDowngrade` audits each drop.
+ */
 export function buildInvokeForNode(
   runAdapter: AdapterName,
   overlay: Overlay,
   totals: RunTotals,
+  budget?: BudgetDowngrade['budget'],
+  onDowngrade?: OnDowngrade,
 ): (node: TieredNode) => NodeSeam {
-  const cache = new Map<TieredNode, NodeSeam>();
-  return (node) => {
-    let seam = cache.get(node);
-    if (seam === undefined) {
-      const req = requirementForNode(overlay, node, nodeRequirement(node));
-      const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
-      const endpoint = overlay.endpoints[name];
-      // Per-node model-call budget (#127): the configured base, capped per node.
-      const base = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
-      const timeoutMs = invokeTimeoutForNode(node, base);
-      seam =
-        endpoint === undefined
-          ? buildNodeSeam(
-              resolveServed(req, name as AdapterName),
-              adapterInvoke(name as AdapterName),
-              totals,
-              timeoutMs,
-            )
-          : buildApiNodeSeam(req, apiDefinitionFor(name, endpoint), totals, undefined, timeoutMs);
-      cache.set(node, seam);
-    }
-    return seam;
+  const timeoutBase = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
+  const build = (req: ModelRequirement, node: TieredNode): NodeSeam => {
+    const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
+    const endpoint = overlay.endpoints[name];
+    const timeoutMs = invokeTimeoutForNode(node, timeoutBase);
+    return endpoint === undefined
+      ? buildNodeSeam(
+          resolveServed(req, name as AdapterName),
+          adapterInvoke(name as AdapterName),
+          totals,
+          timeoutMs,
+        )
+      : buildApiNodeSeam(req, apiDefinitionFor(name, endpoint), totals, undefined, timeoutMs);
   };
+  return seamFactory(build, overlay, totals, downgradeFor(overlay, budget), onDowngrade);
 }
 
 /**
@@ -90,28 +132,20 @@ export function injectedSeamFor(
   overlay: Overlay,
   base: LoopInvoke,
   totals: RunTotals,
+  budget?: BudgetDowngrade['budget'],
+  onDowngrade?: OnDowngrade,
 ): (node: TieredNode) => NodeSeam {
-  const cache = new Map<TieredNode, NodeSeam>();
-  return (node) => {
-    let seam = cache.get(node);
-    if (seam === undefined) {
-      const req = requirementForNode(overlay, node, nodeRequirement(node));
-      const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
-      const endpoint = overlay.endpoints[name];
-      const served =
-        endpoint === undefined
-          ? resolveServed(req, name as AdapterName)
-          : resolveServedApi(req, apiDefinitionFor(name, endpoint));
-      // Per-node model-call budget (#127/#142): the configured base, capped per
-      // node — bound on the injected path so MCP sampling honors it, not the
-      // SDK's 60s createMessage default.
-      const timeoutMs = invokeTimeoutForNode(
-        node,
-        overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS,
-      );
-      seam = buildNodeSeam(served, base, totals, timeoutMs);
-      cache.set(node, seam);
-    }
-    return seam;
+  const timeoutBase = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
+  const build = (req: ModelRequirement, node: TieredNode): NodeSeam => {
+    const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
+    const endpoint = overlay.endpoints[name];
+    const served =
+      endpoint === undefined
+        ? resolveServed(req, name as AdapterName)
+        : resolveServedApi(req, apiDefinitionFor(name, endpoint));
+    // Per-node model-call budget (#127/#142): the configured base, capped per
+    // node — bound here so MCP sampling honors it, not the SDK's 60s default.
+    return buildNodeSeam(served, base, totals, invokeTimeoutForNode(node, timeoutBase));
   };
+  return seamFactory(build, overlay, totals, downgradeFor(overlay, budget), onDowngrade);
 }

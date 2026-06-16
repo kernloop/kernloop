@@ -1,0 +1,26 @@
+id: CLM-0119
+statement: >-
+  Budget-aware model DOWNGRADE (#194, spec §8.4 cost lever): when an overlay declares
+  `downgrade.atSpendFraction` and a run's metered spend reaches that fraction of the parent budget
+  (the MAX of the token/usd fractions), the model-calling nodes that run AFTER that point route ONE
+  model tier lower along MODEL_TIER_ORDER (frontier→large→medium→small) — a cheaper finish rather than
+  only halting at the cap (CLM-0077). It is purely a cost lever: it only ever moves DOWN (never an
+  upgrade), floors at `small`, changes only the tier (effort/capabilities untouched), and the lower
+  served model is recorded honestly in the node's provenance plus a `cli.loop.downgrade` audit event
+  (deduped once per node). Fail-safe and backward-compatible: with no `downgrade` config (or no
+  budget) binding is byte-identical to before, and the per-node seam cache is bypassed ONLY when a
+  downgrade is active, so the tier is re-resolved against live spend instead of frozen at first build.
+evidence:
+  - 'test:packages/cli/src/loop/downgrade.test.ts::steps frontier→large→medium→small and floors at small'
+  - 'test:packages/cli/src/loop/downgrade.test.ts::takes the larger of the two dimensions; 0 when a dim has no budget'
+  - 'test:packages/cli/src/loop/downgrade.test.ts::returns the requirement UNCHANGED below the threshold (no audit)'
+  - 'test:packages/cli/src/loop/downgrade.test.ts::drops one tier AT/above the threshold and fires the audit hook once'
+  - 'test:packages/cli/src/loop/downgrade.test.ts::a `small` node over the threshold stays small and does NOT fire (already the floor)'
+  - 'test:packages/cli/src/loop/downgrade.test.ts::binds the lower tier once spend crosses the fraction; audits the drop'
+  - 'test:packages/cli/src/loop/downgrade.test.ts::with NO downgrade config, binding is unchanged even at high spend (backward-compat)'
+  - 'test:packages/cli/src/overlay.test.ts::loads the optional budget-downgrade block and bounds the fraction (0,1] [CLM-0119]'
+  - 'code:packages/cli/src/loop/downgrade.ts#applyDowngrade@doc:/drop the node one tier and fire/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
