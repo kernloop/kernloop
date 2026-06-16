@@ -11,6 +11,7 @@
  */
 import { spawn } from 'node:child_process';
 import { VerdictSchema, type Finding, type Verdict } from '@kernloop/contracts';
+import { scopedChildEnv } from '@kernloop/kernel';
 import {
   DEFAULT_TIMEOUT_MS,
   defaultQualityChecks,
@@ -31,6 +32,16 @@ export interface RunQualityGateOptions {
   readonly checks?: readonly QualityCheck[];
   /** Per-check timeout in ms; defaults to {@link DEFAULT_TIMEOUT_MS}. */
   readonly timeoutMsPerCheck?: number;
+  /**
+   * Extra env-var NAMES a spawned check may receive beyond the kernel's benign
+   * base allowlist (#227/#235, CLM-0124). A check command runs model-supplied or
+   * model-GENERATED code (`pnpm test` executes model-written test files), so it
+   * is spawned with a LEAST-PRIVILEGE env — `SAFE_ENV_KEYS` ∪ these names, NOT
+   * the host env — so host secrets (provider keys, GH_TOKEN, cloud creds) are not
+   * exposed to it. The composition root threads the overlay's
+   * `gates.quality.envAllow`. Default `[]`.
+   */
+  readonly envAllow?: readonly string[];
 }
 
 /** Captured result of one spawned check command. */
@@ -47,11 +58,16 @@ function executeCheck(
   check: SubprocessCheck,
   cwd: string,
   timeoutMs: number,
+  envAllow: readonly string[],
 ): Promise<CheckExecution> {
   return new Promise((resolve) => {
     const child = spawn(check.command, [...check.args], {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      // Least-privilege env (#235): a check runs model-generated code, so it
+      // gets the benign allowlist ∪ envAllow, NOT the host env — host secrets
+      // are withheld. The kernel owns the allowlist policy (CLM-0122).
+      env: scopedChildEnv(process.env, envAllow),
     });
     let stdout = '';
     let stderr = '';
@@ -163,11 +179,12 @@ async function findingsFor(
   check: QualityCheck,
   cwd: string,
   timeoutMs: number,
+  envAllow: readonly string[],
 ): Promise<Finding[]> {
   if (isInProcessCheck(check)) {
     return runInProcessCheck(check, cwd, timeoutMs);
   }
-  const exec = await executeCheck(check, cwd, timeoutMs);
+  const exec = await executeCheck(check, cwd, timeoutMs, envAllow);
   return findingsForCheck(check, exec, timeoutMs);
 }
 
@@ -180,10 +197,11 @@ async function findingsFor(
 export async function runQualityGate(options: RunQualityGateOptions): Promise<Verdict> {
   const checks = options.checks ?? defaultQualityChecks();
   const timeoutMs = options.timeoutMsPerCheck ?? DEFAULT_TIMEOUT_MS;
+  const envAllow = options.envAllow ?? [];
   const started = Date.now();
   const findings: Finding[] = [];
   for (const check of checks) {
-    findings.push(...(await findingsFor(check, options.workspaceDir, timeoutMs)));
+    findings.push(...(await findingsFor(check, options.workspaceDir, timeoutMs, envAllow)));
   }
   const blocking = findings.some((f) => f.severity === 'error' || f.severity === 'blocker');
   return VerdictSchema.parse({

@@ -261,3 +261,39 @@ describe('runQualityGate — in-process checks', () => {
     ).toBe(true);
   });
 });
+
+describe('runQualityGate — least-privilege check env (#235, CLM-0124)', () => {
+  // A check that EXITS NONZERO iff it can see SECRET_SENTINEL — so the verdict
+  // result reports whether a host secret leaked into the spawned check.
+  const leakProbe = (): ReturnType<typeof scriptCheck> =>
+    scriptCheck('leak', 'process.exit(process.env.SECRET_SENTINEL ? 1 : 0);');
+
+  it('withholds a host secret from a spawned check by default (the check cannot see it)', async () => {
+    process.env.SECRET_SENTINEL = 'leaked-provider-key';
+    try {
+      const verdict = await runQualityGate({
+        taskId: 'env-scope-default',
+        workspaceDir: fixtureDir,
+        checks: [leakProbe()],
+      });
+      expect(verdict.result).toBe('pass'); // secret withheld → probe exits 0
+    } finally {
+      delete process.env.SECRET_SENTINEL;
+    }
+  });
+
+  it('passes an env var through to the check only when named in envAllow', async () => {
+    process.env.SECRET_SENTINEL = 'explicitly-allowed';
+    try {
+      const verdict = await runQualityGate({
+        taskId: 'env-scope-allow',
+        workspaceDir: fixtureDir,
+        checks: [leakProbe()],
+        envAllow: ['SECRET_SENTINEL'],
+      });
+      expect(verdict.result).toBe('fail'); // allow-listed → probe sees it → exits 1
+    } finally {
+      delete process.env.SECRET_SENTINEL;
+    }
+  });
+});

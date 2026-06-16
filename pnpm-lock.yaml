@@ -166,6 +166,9 @@ importers:
       '@kernloop/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@kernloop/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

@@ -2026,3 +2026,17 @@ The Docker sandbox primitive is a SHARED KERNEL primitive (#234, EPIC #47·P2 / 
 - [`packages/faculty-toolsmith/src/profile.test.ts`](../packages/faculty-toolsmith/src/profile.test.ts)
 - [`packages/kernel/src/sandbox/sandbox.ts#runInSandbox`](../packages/kernel/src/sandbox/sandbox.ts)
 - CI `test`
+
+## CLM-0124
+
+**Status:** verified — **source:** [`CLM-0124.yaml`](../claims/registry/CLM-0124.yaml)
+
+A spawned quality-gate check runs under a LEAST-PRIVILEGE environment, not the host env (#235, EPIC #47·P2 / #227 item 2): the quality gate executes model-supplied and model-GENERATED code — `pnpm test` runs model-written test files, and `dod:*` checks run model-supplied commands — so `executeCheck` spawns each check with `scopedChildEnv(process.env, envAllow)` (the kernel allowlist from CLM-0122: `SAFE_ENV_KEYS` ∪ the caller's extras), withholding host secrets (other providers' API keys, `GH_TOKEN`/`GITHUB_TOKEN`, cloud credentials) from the check. The escape hatch is the overlay's `gates.quality.envAllow` (env-var NAMES only), threaded through both gate entry points — the `gate.quality` executor and the canonical loop's quality node — defaulting to `[]`; the composition root audits the redaction with a `cli.gate.env-scoped` event (rule 7, never silent). This is reliable, always-available containment (it needs no Docker or unprivileged user namespaces); the per-check wall-clock timeout already bounds runtime, and stronger network/filesystem isolation is the separately-tracked sandbox tier (#236).
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
+- [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/faculty-gates/src/run.ts#executeCheck`](../packages/faculty-gates/src/run.ts)
+- CI `test`

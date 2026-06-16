@@ -317,6 +317,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
         // The child's OWN definition-of-done runs alongside the base checks (#226).
         ...(ctx.child === undefined ? {} : { definitionOfDone: ctx.child.definitionOfDone }),
         ...(b.checks === undefined ? {} : { checks: b.checks }),
+        envAllow: b.kern.config.gates.quality.envAllow, // least-privilege check env (#235)
         ...(b.kern.config.gates.quality.timeoutMsPerCheck === undefined
           ? {}
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),

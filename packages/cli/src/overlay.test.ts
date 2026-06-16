@@ -91,7 +91,10 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.K).toBe(3);
     expect(overlay.Kc).toBe(3); // child-iterate bound default [CLM-0043]
     expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
-    expect(overlay.gates).toEqual({ vote: { strategy: 'simple_majority', panel: 3 }, quality: {} });
+    expect(overlay.gates).toEqual({
+      vote: { strategy: 'simple_majority', panel: 3 },
+      quality: { envAllow: [] },
+    });
     expect(overlay.nodeOverrides).toEqual({});
     expect(overlay.adapters).toBeUndefined(); // per-tier adapters are opt-in [CLM-0078]
   });
@@ -131,6 +134,13 @@ describe('loadOverlay defaults and precedence', () => {
     });
   });
 
+  it('loads gates.quality.envAllow names for least-privilege check env [CLM-0124]', () => {
+    expect(
+      loadFrom('id: x\ngates:\n  quality:\n    envAllow: [NODE_OPTIONS, FOO_TOKEN]\n').gates.quality
+        .envAllow,
+    ).toEqual(['NODE_OPTIONS', 'FOO_TOKEN']);
+  });
+
   it('defaults adapterEnvAllow to an empty list and accepts named extras [CLM-0122]', () => {
     expect(loadFrom('id: x\n').adapterEnvAllow).toEqual([]);
     expect(
@@ -166,6 +176,7 @@ describe('loadOverlay defaults and precedence', () => {
     );
     expect(overlay.gates.vote).toEqual({ strategy: 'supermajority', panel: 7 });
     expect(overlay.gates.quality.timeoutMsPerCheck).toBe(60_000);
+    expect(overlay.gates.quality.envAllow).toEqual([]); // defaults empty when unset
     expect(overlay.nodeOverrides['review']).toEqual({ gate: 'security-review' });
     expect(overlay.nodeOverrides['fan-out']?.specialists).toEqual([
       'api-designer',

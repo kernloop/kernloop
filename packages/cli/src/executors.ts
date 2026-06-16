@@ -36,7 +36,7 @@ import type {
   TaskContract,
   Verdict,
 } from '@kernloop/contracts';
-import { appendEvent, type AdapterName } from '@kernloop/kernel';
+import { appendEvent, droppedEnvKeys, type AdapterName } from '@kernloop/kernel';
 import type { Kernloop } from './kernel.js';
 import { assembleBrief } from './gather.js';
 import { executeCanonicalLoop, type LoopInvoke, type LoopReport } from './loop/index.js';
@@ -98,6 +98,12 @@ export interface QualityGateRequest {
   readonly definitionOfDone?: readonly Check[];
   /** Per-check timeout override (the overlay's gates.quality knob). */
   readonly timeoutMsPerCheck?: number;
+  /**
+   * Extra env-var NAMES a spawned check may receive beyond the benign base
+   * allowlist (#235, CLM-0124) — the overlay's `gates.quality.envAllow`. The
+   * check's child env is `SAFE_ENV_KEYS` ∪ these, never the host env.
+   */
+  readonly envAllow?: readonly string[];
 }
 
 /**
@@ -134,6 +140,18 @@ export async function executeQualityGate(
   kern: Kernloop,
   request: QualityGateRequest,
 ): Promise<Verdict> {
+  const envAllow = request.envAllow ?? [];
+  // Audit the env scoping (rule 7): a spawned check runs model-generated code
+  // under a least-privilege env — record how many host vars were withheld so the
+  // redaction is never silent (#235).
+  appendEvent(kern.store, {
+    type: 'cli.gate.env-scoped',
+    payload: {
+      taskId: request.taskId,
+      droppedCount: droppedEnvKeys(process.env, envAllow).length,
+      allowExtra: envAllow.length,
+    },
+  });
   const verdict = await runQualityGate({
     taskId: request.taskId,
     workspaceDir: request.workspaceDir,
@@ -143,6 +161,7 @@ export async function executeQualityGate(
       ...(request.checks ?? defaultQualityChecks()),
       ...checksFromDefinitionOfDone(request.definitionOfDone ?? []),
     ],
+    envAllow,
     ...(request.timeoutMsPerCheck === undefined
       ? {}
       : { timeoutMsPerCheck: request.timeoutMsPerCheck }),
@@ -164,6 +183,7 @@ function gateQualityExecutor(kern: Kernloop): CapabilityExecutor {
       taskId: task.id,
       workspaceDir,
       definitionOfDone: task.definitionOfDone, // run the task's own acceptance criteria (#226)
+      envAllow: kern.config.gates.quality.envAllow, // least-privilege check env (#235)
       ...(checks === undefined ? {} : { checks }),
     });
     const passed = verdict.result === 'pass';
