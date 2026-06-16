@@ -2008,3 +2008,21 @@ A spawned model-CLI adapter child receives a LEAST-PRIVILEGE environment, not th
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - [`packages/kernel/src/adapters/env.ts#scopedChildEnv`](../packages/kernel/src/adapters/env.ts)
 - CI `test`
+
+## CLM-0123
+
+**Status:** verified — **source:** [`CLM-0123.yaml`](../claims/registry/CLM-0123.yaml)
+
+The Docker sandbox primitive is a SHARED KERNEL primitive (#234, EPIC #47·P2 / #227 item 2): `runInSandbox`/`buildDockerArgs` and the sandbox errors live in `packages/kernel/src/sandbox/`, so any faculty can run model-supplied content under isolation by depending on `@kernloop/kernel` (faculty→kernel is permitted; rule 5 only bars faculty→faculty) — without duplicating the primitive. The kernel holds no intelligence (rule 4): this is process-isolation mechanism, no model call, and the docker binary is injectable (`dockerBin`) so the refusal path and every kernel unit test run hermetically (no daemon). The relocation is BEHAVIOR-PRESERVING and does NOT reopen the toolsmith's 6-1 ratification: the kernel validates only the generic EXECUTION knobs (a `SandboxExecProfile` — image/network='none'/user/workdir/memory/cpus/pidsLimit/timeoutMs), stripping a richer caller profile's governance fields, while `RATIFIED_SANDBOX_PROFILE` and its `RATIFIED_PROFILE_HASH` stay frozen in faculty-toolsmith with a byte-identical hash. The primitive still REFUSES (typed `SandboxUnavailableError`) when docker is absent — never an unsandboxed fallback — and the toolsmith's ratified profile drives the relocated primitive end-to-end.
+
+**Enforced by:**
+
+- [`packages/kernel/src/sandbox/sandbox.test.ts`](../packages/kernel/src/sandbox/sandbox.test.ts)
+- [`packages/kernel/src/sandbox/sandbox.test.ts`](../packages/kernel/src/sandbox/sandbox.test.ts)
+- [`packages/kernel/src/sandbox/sandbox.test.ts`](../packages/kernel/src/sandbox/sandbox.test.ts)
+- [`packages/kernel/src/sandbox/sandbox.test.ts`](../packages/kernel/src/sandbox/sandbox.test.ts)
+- [`packages/kernel/src/sandbox/errors.test.ts`](../packages/kernel/src/sandbox/errors.test.ts)
+- [`packages/faculty-toolsmith/src/sandbox.test.ts`](../packages/faculty-toolsmith/src/sandbox.test.ts)
+- [`packages/faculty-toolsmith/src/profile.test.ts`](../packages/faculty-toolsmith/src/profile.test.ts)
+- [`packages/kernel/src/sandbox/sandbox.ts#runInSandbox`](../packages/kernel/src/sandbox/sandbox.ts)
+- CI `test`

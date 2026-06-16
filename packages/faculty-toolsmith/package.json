@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@kernloop/contracts": "workspace:*",
+    "@kernloop/kernel": "workspace:*",
     "yaml": "^2.8.2",
     "zod": "^4.4.3"
   },

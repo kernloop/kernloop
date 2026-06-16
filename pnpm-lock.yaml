@@ -245,6 +245,9 @@ importers:
       '@kernloop/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@kernloop/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       yaml:
         specifier: ^2.8.2
         version: 2.9.0
