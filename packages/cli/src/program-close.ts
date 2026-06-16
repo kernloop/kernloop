@@ -11,15 +11,14 @@
  * auto-merges anything. The gh READ (getIssue, to skip an already-closed issue)
  * runs at any tier — a read is not a mutation. The CLOSE is double-gated:
  * `--execute` AND `tracker.tier: enforce` (resolveMode); otherwise it stays a
- * dry-run that proposes the would-be closes and writes nothing. A success
- * Outcome cannot trigger this automatically — the canonical loop carries no
- * issue ref (deferred, needs a contract change + ratification); the ledger
- * `done` state is the honest, already-present proxy. Audited once
- * (`cli.program.close`) with counts only — never a goal or body.
+ * dry-run that proposes the would-be closes and writes nothing. This is the
+ * LEDGER-driven closure; the run-success-driven counterpart is `kernloop run
+ * --closes-issue` (#211, CLM-0118), which shares the same gated close primitive
+ * ({@link closeOneIssue}). Audited once (`cli.program.close`) with counts only —
+ * never a goal or body.
  */
 import { appendEvent } from '@kernloop/kernel';
 import {
-  githubProvider,
   type GithubProviderHandle,
   type IssueState,
   type TrackerExec,
@@ -29,17 +28,14 @@ import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
 import { checkIdLength, ProgramInputError } from './program-shared.js';
 import type { ProgramNodeRow } from './program-store.js';
-import { resolveMode } from './tracker-commands.js';
-
-/** What close decides for one `done` node after reading its GitHub issue. */
-type CloseAction = 'closed' | 'would-close' | 'already-closed' | 'read-failed' | 'close-failed';
+import { buildGatedCloseProvider, closeOneIssue, type IssueCloseAction } from './tracker-close.js';
 
 /** One node's close-outcome row (the printable per-node result). */
 interface CloseNodeResult {
   readonly nodeId: string;
   readonly issueRef: string;
   readonly githubState?: IssueState;
-  readonly action: CloseAction;
+  readonly action: IssueCloseAction;
   /** Typed failure detail on a failed read/close — never set on success. */
   readonly reason?: string;
 }
@@ -60,11 +56,7 @@ interface CloseReport {
   readonly nodes: CloseNodeResult[];
 }
 
-/**
- * Read one `done` node's GitHub issue and (in execute mode) close it if open.
- * The READ always happens; the CLOSE mutation only when `mode === 'execute'`,
- * so a dry-run reports `would-close` and writes nothing.
- */
+/** Close one `done` node's issue via the shared gated primitive, tagged by node. */
 async function classifyAndClose(
   provider: GithubProviderHandle,
   row: ProgramNodeRow,
@@ -72,26 +64,14 @@ async function classifyAndClose(
   mode: TrackerMode,
   closeReason: string,
 ): Promise<CloseNodeResult> {
-  const read = await provider.getIssue(ref);
-  if (!read.ok) {
-    return { nodeId: row.nodeId, issueRef: ref, action: 'read-failed', reason: read.reason };
-  }
-  if (read.state === 'closed') {
-    return { nodeId: row.nodeId, issueRef: ref, githubState: 'closed', action: 'already-closed' };
-  }
-  if (mode !== 'execute') {
-    return { nodeId: row.nodeId, issueRef: ref, githubState: 'open', action: 'would-close' };
-  }
-  const res = await provider.closeIssue(ref, closeReason);
-  return res.ok
-    ? { nodeId: row.nodeId, issueRef: ref, githubState: 'open', action: 'closed' }
-    : {
-        nodeId: row.nodeId,
-        issueRef: ref,
-        githubState: 'open',
-        action: 'close-failed',
-        reason: res.reason,
-      };
+  const out = await closeOneIssue(provider, ref, mode, closeReason);
+  return {
+    nodeId: row.nodeId,
+    issueRef: ref,
+    action: out.action,
+    ...(out.githubState === undefined ? {} : { githubState: out.githubState }),
+    ...(out.reason === undefined ? {} : { reason: out.reason }),
+  };
 }
 
 /** The dry-run/execute notice (refused-execute spells out the enforce promotion). */
@@ -122,26 +102,6 @@ function auditClose(
       failed: args.report.failed,
     },
   });
-}
-
-/** Build the gated provider: read at any tier, close double-gated by resolveMode. */
-function buildCloseProvider(
-  kern: Kernloop,
-  executeFlag: boolean,
-  exec: TrackerExec | undefined,
-): { provider: GithubProviderHandle; mode: TrackerMode; refusedExecute: boolean } {
-  const cfg = kern.config.tracker;
-  if (cfg === undefined) {
-    throw new ProgramInputError(
-      'no tracker configured — add tracker: { provider: github, repo: owner/name } to overlay.yaml',
-    );
-  }
-  const { mode, refusedExecute } = resolveMode(cfg.tier, executeFlag);
-  const provider =
-    exec === undefined
-      ? githubProvider({ repo: cfg.repo }, mode)
-      : githubProvider({ repo: cfg.repo }, mode, exec);
-  return { provider, mode, refusedExecute };
 }
 
 /** The `done` nodes carrying a filed issueRef, optionally narrowed to one node. */
@@ -179,14 +139,14 @@ export async function closeOp(
     throw new ProgramInputError(`no program "${programId}" in the ledger`);
   }
   const targets = selectDoneNodes(kern, programId, opts.node);
-  const { provider, mode, refusedExecute } = buildCloseProvider(kern, opts.executeFlag, exec);
+  const { provider, mode, refusedExecute } = buildGatedCloseProvider(kern, opts.executeFlag, exec);
   const nodes: CloseNodeResult[] = [];
   for (const row of targets) {
     nodes.push(
       await classifyAndClose(provider, row, row.issueRef as string, mode, opts.closeReason),
     );
   }
-  const count = (a: CloseAction): number => nodes.filter((n) => n.action === a).length;
+  const count = (a: IssueCloseAction): number => nodes.filter((n) => n.action === a).length;
   const failed = count('read-failed') + count('close-failed');
   const report: CloseReport = {
     op: 'close',
