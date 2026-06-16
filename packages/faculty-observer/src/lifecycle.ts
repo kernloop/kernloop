@@ -60,6 +60,13 @@ export interface LifecycleProposal extends IssueProposalInput {
   readonly subject: string;
   /** Always `suggest` — the Observer never acts above it (spec §3.2, §5.5). */
   readonly tier: 'suggest';
+  /**
+   * On a `distill` proposal: the recent successful trace id the distill should
+   * consume (the `distill` tool's input), so a fitness-gated `kernloop observer
+   * distill` can act on the proposal without re-parsing its prose. Absent on a
+   * `deprecation` proposal.
+   */
+  readonly traceId?: string;
 }
 
 /** Options for {@link lifecycleProposals}; defaults documented on the constants. */
@@ -89,6 +96,7 @@ export const LifecycleProposalSchema = z.strictObject({
     goal: z.string().min(1),
     constraints: z.array(z.string().min(1)).optional(),
   }),
+  traceId: z.string().min(1).optional(),
 });
 
 /** Render a 0–1 rate as an integer-percent string for proposal prose. */
@@ -125,6 +133,7 @@ function distillProposal(record: FitnessRecord, traceId: string): LifecyclePropo
     kind: 'distill',
     subject: record.subject,
     tier: 'suggest',
+    traceId,
     title: `distill ${traceId} for ${record.subject} into a skill`,
     body:
       `Observer suggests distilling trace ${traceId} (a successful run of ` +
