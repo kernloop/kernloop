@@ -111,7 +111,7 @@ export async function forgeTool(
     invoke = (prompt, opts) => {
       if (bound === undefined) {
         ensureAdapterAvailable(adapter);
-        bound = adapterInvoke(adapter);
+        bound = adapterInvoke(adapter, undefined, undefined, kern.config.adapterEnvAllow);
       }
       return bound(prompt, opts);
     };

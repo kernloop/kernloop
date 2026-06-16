@@ -94,10 +94,14 @@ export interface GateToolOptions {
 }
 
 /** The chosen invoke, or the real adapter (probed; absence is typed). */
-function resolveInvoke(adapter: (typeof ADAPTER_NAMES)[number], invoke?: LoopInvoke): LoopInvoke {
+function resolveInvoke(
+  adapter: (typeof ADAPTER_NAMES)[number],
+  envAllow: readonly string[],
+  invoke?: LoopInvoke,
+): LoopInvoke {
   if (invoke !== undefined) return invoke;
   ensureAdapterAvailable(adapter);
-  return adapterInvoke(adapter);
+  return adapterInvoke(adapter, undefined, undefined, envAllow);
 }
 
 /** Run the vote gate over one shared compiled Brief (spec §8.3). */
@@ -117,7 +121,7 @@ async function voteGate(
     invokeVoter: ballotInvoker({
       overlayDir: kern.paths.dir,
       runId: taskId,
-      invoke: resolveInvoke(input.adapter, invoke),
+      invoke: resolveInvoke(input.adapter, kern.config.adapterEnvAllow, invoke),
     }),
   });
 }
@@ -137,7 +141,7 @@ async function reviewGate(
     invokeReviewer: reviewerInvoker({
       overlayDir: kern.paths.dir,
       runId: taskId,
-      invoke: resolveInvoke(input.adapter, invoke),
+      invoke: resolveInvoke(input.adapter, kern.config.adapterEnvAllow, invoke),
     }),
   });
 }

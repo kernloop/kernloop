@@ -93,11 +93,15 @@ export function ensureAdapterAvailable(
  * call. `env` is injectable for tests; default `process.env`. `cwd`, when set,
  * is the task WORKSPACE every adapter subprocess runs in — so an agentic model
  * CLI is grounded in (and confined to) the workspace, not kernloop's launch
- * directory (#146). Omitted ⇒ the child inherits the launch cwd. */
+ * directory (#146). Omitted ⇒ the child inherits the launch cwd. `envAllow` is
+ * the overlay's `adapterEnvAllow` (#227, CLM-0122): the extra env-var NAMES the
+ * spawned CLI receives beyond the kernel's benign base allowlist — the child
+ * NEVER sees the full host env, so other providers' keys/tokens stay unexposed. */
 export function adapterInvoke(
   adapter: AdapterName,
   env?: Readonly<Record<string, string | undefined>>,
   cwd?: string,
+  envAllow?: readonly string[],
 ): LoopInvoke {
   return async (prompt, options = {}) => {
     const result = await invokeAdapter(adapter, {
@@ -107,6 +111,7 @@ export function adapterInvoke(
       ...(options.effort === undefined ? {} : { effort: options.effort }),
       ...(env === undefined ? {} : { env }),
       ...(cwd === undefined ? {} : { cwd }),
+      ...(envAllow === undefined ? {} : { envAllow }),
     });
     return { output: result.output, cost: result.cost };
   };

@@ -217,7 +217,8 @@ export async function distillFromTrace(request: DistillRequest): Promise<SkillPr
   const nodeTrace = await gatherNodeTrace(kern.paths.dir, trace);
   const adapter = request.adapter ?? 'claude';
   if (request.invoke === undefined) ensureAdapterAvailable(adapter);
-  const invoke = request.invoke ?? adapterInvoke(adapter);
+  const invoke =
+    request.invoke ?? adapterInvoke(adapter, undefined, undefined, kern.config.adapterEnvAllow);
   const { output, cost } = await invoke(distillPrompt(summary, nodeTrace));
   const emission = parseEmission(output, SkillProposalEmissionSchema, 'skill-proposal', {
     overlayDir: kern.paths.dir,

@@ -215,6 +215,16 @@ export const OverlaySchema = z
      * an env var (`apiKeyEnv`); a literal key is rejected at parse (see endpoints.ts).
      */
     endpoints: EndpointsSchema.default({}),
+    /**
+     * Extra env-var NAMES handed to a spawned model-CLI child beyond the benign
+     * base allowlist (#227, CLM-0122). A spawned CLI receives ONLY the kernel's
+     * SAFE_ENV_KEYS (PATH/HOME/locale/tmp/XDG…) plus these names — never the full
+     * host env — so other providers' keys, `GH_TOKEN`, and cloud creds are not
+     * exposed to a third-party agentic binary. A login-authenticated CLI needs
+     * none of these (it reads HOME); a key-authenticated one names its key var
+     * here (e.g. `ANTHROPIC_API_KEY`). Names only — never a literal secret value.
+     */
+    adapterEnvAllow: z.array(z.string().min(1)).default([]),
     /** Issue-tracker config (spec §5.5) [CLM-0093]; see {@link TrackerSchema}. */
     tracker: TrackerSchema.optional(),
   })
