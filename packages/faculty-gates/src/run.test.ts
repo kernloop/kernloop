@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { VerdictSchema, type Finding } from '@kernloop/contracts';
-import type { InProcessCheck, SubprocessCheck } from './checks.js';
+import { checksFromDefinitionOfDone, type InProcessCheck, type SubprocessCheck } from './checks.js';
 import { parseTscOutput } from './parsers.js';
 import { runQualityGate } from './run.js';
 
@@ -238,5 +238,26 @@ describe('runQualityGate — in-process checks', () => {
     });
     expect(verdict.result).toBe('fail');
     expect(verdict.findings.some((f) => f.message.includes('timed out'))).toBe(true);
+  });
+
+  it('a PASSING definition-of-done check (exit 0) does not block the verdict (#226)', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'dod-pass',
+      workspaceDir: fixtureDir,
+      checks: checksFromDefinitionOfDone([{ name: 'acceptance', command: 'true' }]),
+    });
+    expect(verdict.result).toBe('pass');
+  });
+
+  it('a FAILING definition-of-done check (nonzero exit) fails the verdict with a dod: finding (#226)', async () => {
+    const verdict = await runQualityGate({
+      taskId: 'dod-fail',
+      workspaceDir: fixtureDir,
+      checks: checksFromDefinitionOfDone([{ name: 'acceptance', command: 'false' }]),
+    });
+    expect(verdict.result).toBe('fail');
+    expect(
+      verdict.findings.some((f) => f.severity === 'error' && f.message.includes('dod:acceptance')),
+    ).toBe(true);
   });
 });

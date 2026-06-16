@@ -1970,3 +1970,22 @@ Every `[CLM-NNNN]` tag in README.md is a clickable link to a DERIVED, human-read
 - [`scripts/render-claims.mjs#renderCatalog`](../scripts/render-claims.mjs)
 - [`scripts/render-claims.mjs#danglingClaimIds`](../scripts/render-claims.mjs)
 - CI `test`
+
+## CLM-0121
+
+**Status:** verified — **source:** [`CLM-0121.yaml`](../claims/registry/CLM-0121.yaml)
+
+The quality gate runs the task's OWN machine-checkable acceptance criteria (#226, EPIC #47·P1): `executeQualityGate` maps each `TaskContract.definitionOfDone` Check to a subprocess check (`checksFromDefinitionOfDone`) and runs them ALONGSIDE the base checks, so a child passes only when its own definition-of-done passes — not merely the repo's generic `pnpm typecheck/lint/test`. Wired at BOTH entry points the gate has a contract at: the `gate.quality` capability executor (the task's DoD) and the canonical loop's quality node (the child's DoD via `ctx.child.definitionOfDone`). Mapping is SECURE-by-default: each Check's `command` string is tokenized on whitespace into an executable + args and spawned WITH NO SHELL, so a model/spec-supplied command cannot inject shell metacharacters (`;`/`&&`/`$()` become literal argv). Exit 0 is the pass authority; a nonzero exit yields a `dod:<name>` error finding that fails the verdict; a blank command fails to start (fail CLOSED — a check that cannot run never silently passes). An empty/absent definitionOfDone adds no checks (byte-identical to before). Specs already carry `definitionOfDone` (StorySpec/SubtaskSpec), so this is end-to-end with no contract change. Env-scoping the check subprocess so a task command cannot read host secrets hardens this and the default `pnpm test` path alike, tracked in #227.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
+- [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/faculty-gates/src/checks.ts#checksFromDefinitionOfDone`](../packages/faculty-gates/src/checks.ts)
+- CI `test`

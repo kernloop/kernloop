@@ -31,6 +31,7 @@
  */
 export {
   DEFAULT_TIMEOUT_MS,
+  checksFromDefinitionOfDone,
   defaultQualityChecks,
   docCommentCheck,
   isInProcessCheck,

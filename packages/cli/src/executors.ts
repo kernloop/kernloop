@@ -21,8 +21,21 @@
  * be a stub. They are wired through their real entry points instead — the
  * `remember` tool and `run`'s own Outcome recording.
  */
-import { defaultQualityChecks, runQualityGate, type QualityCheck } from '@kernloop/faculty-gates';
-import type { Cost, Finding, Outcome, Signal, TaskContract, Verdict } from '@kernloop/contracts';
+import {
+  checksFromDefinitionOfDone,
+  defaultQualityChecks,
+  runQualityGate,
+  type QualityCheck,
+} from '@kernloop/faculty-gates';
+import type {
+  Check,
+  Cost,
+  Finding,
+  Outcome,
+  Signal,
+  TaskContract,
+  Verdict,
+} from '@kernloop/contracts';
 import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import type { Kernloop } from './kernel.js';
 import { assembleBrief } from './gather.js';
@@ -76,6 +89,13 @@ export interface QualityGateRequest {
   readonly taskId: string;
   readonly workspaceDir: string;
   readonly checks?: readonly QualityCheck[];
+  /**
+   * The task's machine-checkable acceptance criteria (#226): each is mapped to a
+   * no-shell subprocess check and run ALONGSIDE the base checks, so a child
+   * passes only when its OWN definition-of-done passes, not just the repo's
+   * generic gates. Empty/absent → no change (byte-identical to before).
+   */
+  readonly definitionOfDone?: readonly Check[];
   /** Per-check timeout override (the overlay's gates.quality knob). */
   readonly timeoutMsPerCheck?: number;
 }
@@ -117,7 +137,12 @@ export async function executeQualityGate(
   const verdict = await runQualityGate({
     taskId: request.taskId,
     workspaceDir: request.workspaceDir,
-    checks: request.checks ?? defaultQualityChecks(),
+    // The repo's base checks (or the override) PLUS the task's own acceptance
+    // criteria (#226) — a child must pass its definition-of-done, not just `pnpm test`.
+    checks: [
+      ...(request.checks ?? defaultQualityChecks()),
+      ...checksFromDefinitionOfDone(request.definitionOfDone ?? []),
+    ],
     ...(request.timeoutMsPerCheck === undefined
       ? {}
       : { timeoutMsPerCheck: request.timeoutMsPerCheck }),
@@ -135,12 +160,12 @@ function gateQualityExecutor(kern: Kernloop): CapabilityExecutor {
         'gate.quality needs a workspaceDir to run checks in',
       );
     }
-    const verdict = await executeQualityGate(
-      kern,
-      checks === undefined
-        ? { taskId: task.id, workspaceDir }
-        : { taskId: task.id, workspaceDir, checks },
-    );
+    const verdict = await executeQualityGate(kern, {
+      taskId: task.id,
+      workspaceDir,
+      definitionOfDone: task.definitionOfDone, // run the task's own acceptance criteria (#226)
+      ...(checks === undefined ? {} : { checks }),
+    });
     const passed = verdict.result === 'pass';
     return {
       status: passed ? 'success' : 'failure',

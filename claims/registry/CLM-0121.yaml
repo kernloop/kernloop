@@ -1,0 +1,30 @@
+id: CLM-0121
+statement: >-
+  The quality gate runs the task's OWN machine-checkable acceptance criteria (#226, EPIC #47·P1):
+  `executeQualityGate` maps each `TaskContract.definitionOfDone` Check to a subprocess check
+  (`checksFromDefinitionOfDone`) and runs them ALONGSIDE the base checks, so a child passes only when
+  its own definition-of-done passes — not merely the repo's generic `pnpm typecheck/lint/test`. Wired
+  at BOTH entry points the gate has a contract at: the `gate.quality` capability executor (the task's
+  DoD) and the canonical loop's quality node (the child's DoD via `ctx.child.definitionOfDone`).
+  Mapping is SECURE-by-default: each Check's `command` string is tokenized on whitespace into an
+  executable + args and spawned WITH NO SHELL, so a model/spec-supplied command cannot inject shell
+  metacharacters (`;`/`&&`/`$()` become literal argv). Exit 0 is the pass authority; a nonzero exit
+  yields a `dod:<name>` error finding that fails the verdict; a blank command fails to start (fail
+  CLOSED — a check that cannot run never silently passes). An empty/absent definitionOfDone adds no
+  checks (byte-identical to before). Specs already carry `definitionOfDone` (StorySpec/SubtaskSpec),
+  so this is end-to-end with no contract change. Env-scoping the check subprocess so a task command
+  cannot read host secrets hardens this and the default `pnpm test` path alike, tracked in #227.
+evidence:
+  - 'test:packages/faculty-gates/src/checks.test.ts::maps each DoD Check to a no-shell subprocess check, tokenized on whitespace'
+  - 'test:packages/faculty-gates/src/checks.test.ts::does NOT shell-interpret the command — metacharacters become literal argv'
+  - 'test:packages/faculty-gates/src/checks.test.ts::a blank command yields an empty executable that fails to start (fail CLOSED)'
+  - 'test:packages/faculty-gates/src/checks.test.ts::an empty definition-of-done maps to no checks (backward-compat)'
+  - 'test:packages/faculty-gates/src/run.test.ts::a PASSING definition-of-done check (exit 0) does not block the verdict (#226)'
+  - 'test:packages/faculty-gates/src/run.test.ts::a FAILING definition-of-done check (nonzero exit) fails the verdict with a dod: finding (#226)'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::fails the verdict when the child’s acceptance command fails'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::passes when the child’s acceptance command passes'
+  - 'code:packages/faculty-gates/src/checks.ts#checksFromDefinitionOfDone@doc:/spawned WITH NO SHELL/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

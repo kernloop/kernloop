@@ -231,3 +231,37 @@ describe('research executor — folds Researcher findings into the Brief [CLM-00
     kern.close();
   });
 });
+
+describe('the quality node runs the child task’s definition-of-done (#226)', () => {
+  /** A quality node whose ONLY checks are the child's DoD (base checks suppressed). */
+  function qualityWith(kern: Kernloop) {
+    return buildLoopExecutors({ ...bindingsFor(kern), checks: [] })['quality'];
+  }
+  const childWithDod = (id: string, command: string) =>
+    TaskContractSchema.parse({ ...task, id, definitionOfDone: [{ name: 'acc', command }] });
+
+  it('fails the verdict when the child’s acceptance command fails', async () => {
+    const kern = kernloopFor('dod-loop-fail');
+    const child = childWithDod('task-unit.dod', 'false');
+    const verdict = (await qualityWith(kern)?.(undefined, {
+      ...reviewCtx(),
+      node: 'quality',
+      child,
+    })) as Verdict;
+    expect(verdict.result).toBe('fail');
+    expect(verdict.findings.some((f) => f.message.includes('dod:acc'))).toBe(true);
+    kern.close();
+  });
+
+  it('passes when the child’s acceptance command passes', async () => {
+    const kern = kernloopFor('dod-loop-pass');
+    const child = childWithDod('task-unit.dod', 'true');
+    const verdict = (await qualityWith(kern)?.(undefined, {
+      ...reviewCtx(),
+      node: 'quality',
+      child,
+    })) as Verdict;
+    expect(verdict.result).toBe('pass');
+    kern.close();
+  });
+});
