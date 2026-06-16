@@ -252,13 +252,6 @@ async function fileOp(
   return fileReportFor(kern, provider, id, refusedExecute, result);
 }
 
-/**
- * `kernloop observer <op> ...` — the gated self-issue closure path [CLM-0094].
- * Surface the live lifecycle proposals, snapshot one into `observer_issues`,
- * list the persisted proposals, or file one through the gated tracker (dry-run
- * by default). Reads `tracker.{provider,repo,tier}` from the overlay; `file`
- * acts only at the enforce tier with `--execute` — never defaults upward.
- */
 /** Parse the `propose` verb's positional and snapshot the n-th live proposal. */
 function proposeDispatch(kern: Kernloop, positional: string | undefined): unknown {
   if (positional === undefined) throw new Error('usage: kernloop observer propose <n>');
@@ -283,6 +276,14 @@ function distillDispatch(
   return distillReport(kern, subject, adapter, invoke);
 }
 
+/**
+ * `kernloop observer <op> ...` — the gated self-issue closure path [CLM-0094].
+ * Surface the live lifecycle proposals, snapshot one into `observer_issues`,
+ * list the persisted proposals, file one through the gated tracker (dry-run by
+ * default), or run the fitness-gated `distill` [CLM-0117]. Reads
+ * `tracker.{provider,repo,tier}` from the overlay; `file` acts only at the
+ * enforce tier with `--execute` — never defaults upward.
+ */
 export async function observerCommand(
   args: string[],
   io: CliIo,
