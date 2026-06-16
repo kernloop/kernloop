@@ -193,6 +193,17 @@ export const OverlaySchema = z
      * `unlimited` regardless of this default.
      */
     budgetMode: BudgetModeSchema.default('enforce'),
+    /**
+     * Budget-aware model DOWNGRADE (spec §8.4 cost lever, #194) [CLM-0119]: once
+     * a run's metered spend reaches `atSpendFraction` of its budget, the nodes
+     * that run AFTER that point route one model tier LOWER (frontier→large→
+     * medium→small) — a cheaper finish instead of halting at the cap. Absent →
+     * no downgrade (byte-identical to today). Orthogonal to `budgetMode`: an
+     * `enforce` run still HALTS at 1.0 of budget; the downgrade just makes the
+     * approach to that cap cheaper. Never an upgrade; recorded in provenance + a
+     * `cli.loop.downgrade` audit event.
+     */
+    downgrade: z.strictObject({ atSpendFraction: z.number().gt(0).lte(1) }).optional(),
     gates: GatesSchema.prefault({}),
     nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
     adapters: AdaptersSchema.optional(),

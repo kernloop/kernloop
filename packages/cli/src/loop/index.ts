@@ -37,6 +37,7 @@ import { LoopResumeError, adapterInvoke, type LoopInvoke, type RunTotals } from 
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
 import { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
+import { type OnDowngrade } from './downgrade.js';
 
 export { TIERED_NODES, type TieredNode } from './node-model.js';
 export {
@@ -188,6 +189,30 @@ function report(
  * produces no artifact. Audited once with counts only — never a symbol name,
  * never code.
  */
+/**
+ * Audit each node's first budget-aware downgrade (#194) as `cli.loop.downgrade`
+ * — the run-global meter crossed the configured fraction, so this node dropped a
+ * tier. Deduped per node (a re-resolved node fires the callback every call; we
+ * record the first drop only) so the audit names which nodes ran cheaper.
+ */
+function downgradeAudit(kern: Kernloop, runId: string): OnDowngrade {
+  const seen = new Set<string>();
+  return (e) => {
+    if (seen.has(e.node)) return;
+    seen.add(e.node);
+    appendEvent(kern.store, {
+      type: 'cli.loop.downgrade',
+      payload: {
+        runId,
+        node: e.node,
+        fromTier: e.fromTier,
+        toTier: e.toTier,
+        spendFraction: e.spendFraction,
+      },
+    });
+  };
+}
+
 function documentDeliverable(
   kern: Kernloop,
   runId: string,
@@ -237,10 +262,13 @@ export async function executeCanonicalLoop(
   // injected invoke routes every node through that one base, but still resolves
   // the node's SERVED model+effort against the run adapter so provenance stays
   // honest about what each node requested.
+  // Budget-aware downgrade (#194): past the overlay fraction, later nodes route a tier lower.
+  const budget = { tokens: request.task.budget.tokens, usd: request.task.budget.usd };
+  const onDowngrade = downgradeAudit(kern, runId);
   const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
-      ? buildInvokeForNode(adapter, kern.config, totals)
-      : injectedSeamFor(adapter, kern.config, base, totals);
+      ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade)
+      : injectedSeamFor(adapter, kern.config, base, totals, budget, onDowngrade);
   // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
   const mode = resolveBudgetMode(kern, request, runId);
