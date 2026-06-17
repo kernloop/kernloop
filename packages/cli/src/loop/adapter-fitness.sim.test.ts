@@ -90,6 +90,30 @@ function runSim(
   return { picks, aTotal: a.inv, bTotal: b.inv };
 }
 
+/**
+ * The FLOOR-distinguishing scenario: A is mediocre-but-tried-first (0.6),
+ * B is much better but starts UNTRIED (0.97). Pure exploit picks A forever
+ * (B's neutral 0.5 < A's 0.6) and STARVES B — only a working exploration floor
+ * ever samples B, discovers it is better, and switches to it. A run with the
+ * epsilon branch removed leaves B's tail share ~0; this test fails for it.
+ */
+function runDiscoverySim(seed: number, rounds: number): { picks: string[]; bTotal: number } {
+  const rng = lcg(seed);
+  const outcome = lcg(seed + 7919);
+  const a: Counter = { inv: 0, succ: 0 };
+  const b: Counter = { inv: 0, succ: 0 };
+  const picks: string[] = [];
+  for (let r = 0; r < rounds; r++) {
+    const { chosen } = chooseAdapter(CANDS, ledgerFrom(a, b), rng, 0.1, NOW);
+    picks.push(chosen);
+    const trueRate = chosen === 'adapter-a' ? 0.6 : 0.97;
+    const counter = chosen === 'adapter-a' ? a : b;
+    counter.inv += 1;
+    if (outcome() < trueRate) counter.succ += 1;
+  }
+  return { picks, bTotal: b.inv };
+}
+
 describe('adapter-fitness — bounded reinforcement (#252, condition 7)', () => {
   const SEEDS = Array.from({ length: 40 }, (_, i) => i + 1);
   const ROUNDS = 400;
@@ -107,11 +131,13 @@ describe('adapter-fitness — bounded reinforcement (#252, condition 7)', () => 
     }
   }, 120_000);
 
-  it('never starves an adapter — the underdog is explored despite low early fitness', () => {
+  it('the exploration floor DISCOVERS a better-but-untried adapter (no-starvation; a broken floor fails this)', () => {
     for (const seed of SEEDS) {
-      const { aTotal, bTotal } = runSim(seed, ROUNDS, FLIP);
-      expect(bTotal, `seed ${String(seed)} bTotal`).toBeGreaterThanOrEqual(3);
-      expect(aTotal, `seed ${String(seed)} aTotal`).toBeGreaterThanOrEqual(3);
+      const { picks, bTotal } = runDiscoverySim(seed, ROUNDS);
+      // Only the floor ever samples B; once sampled it dominates the tail.
+      const tailB = picks.slice(ROUNDS - TAIL).filter((p) => p === 'adapter-b').length / TAIL;
+      expect(bTotal, `seed ${String(seed)} bTotal`).toBeGreaterThan(10);
+      expect(tailB, `seed ${String(seed)} tailB`).toBeGreaterThan(0.6);
     }
   }, 120_000);
 });

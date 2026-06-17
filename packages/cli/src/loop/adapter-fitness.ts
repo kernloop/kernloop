@@ -8,10 +8,18 @@
  *
  * Reuses the CLM-0128 `liveFitnessPriors` scoring (exact (provider,family,
  * generation,tier) with generation-agnostic recency-decayed bootstrap, bounded
- * clamps, malformed->neutral). An EXPLORATION FLOOR (epsilon) keeps a
- * lower-fitness candidate selectable so none is starved; epsilon=0 is pure
- * exploit. The served identity is predicted by the SAME deterministic
+ * clamps, malformed->neutral) over a NEUTRAL (live-only) baseline — the seeded
+ * priors.yaml is NOT applied here (that biases the Router, not adapter choice).
+ * An EXPLORATION FLOOR (epsilon) keeps a lower-fitness candidate selectable so a
+ * better-but-untried one is not starved; epsilon=0 is pure exploit.
+ *
+ * A CLI candidate's served identity is predicted by the SAME deterministic
  * resolveServed+servedIdentity the seam uses at call time, so predicted==served.
+ * An ENDPOINT candidate scores NEUTRAL (resolveServed throws for an endpoint id;
+ * its identity is resolved on the api path, not predicted here) — endpoint-fitness
+ * selection is deferred. The selection is made once per node and cached, EXCEPT
+ * under a budget `downgrade` (#194), where node-bind re-resolves each call, so the
+ * selector (and its rng draw + audit) then fire per model call.
  */
 import {
   appendEvent,
