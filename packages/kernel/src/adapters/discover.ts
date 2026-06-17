@@ -163,11 +163,18 @@ function parseListing<T>(
     );
   }
   // De-duplicate while preserving order; drop empties (never a fabricated id);
-  // bound to the count cap (#266) so a pathological listing can't blow up the cache.
-  return [...new Set(extract(result.data).filter((id) => id !== ''))].slice(
-    0,
-    MAX_DISCOVERED_MODELS,
-  );
+  // bound to the count cap (#266) with an EARLY EXIT so a pathological listing is
+  // not fully de-duplicated before truncation (the zod parse already bounded the
+  // array against the byte cap; this caps the dedup pass too).
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of extract(result.data)) {
+    if (id === '' || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= MAX_DISCOVERED_MODELS) break;
+  }
+  return out;
 }
 
 /**
