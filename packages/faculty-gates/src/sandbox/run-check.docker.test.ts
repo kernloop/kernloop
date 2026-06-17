@@ -97,6 +97,7 @@ describe('gate sandbox — real docker isolation (#236)', () => {
       ws,
     );
     expect(exec.timedOut).toBe(false);
-    expect(exec.exitCode).toBe(0); // native dep loaded, test passed, offline
+    // Surface the container's stderr if it failed (diagnose env-specific failures).
+    expect(exec.exitCode, `stderr: ${exec.stderr}\nstdout: ${exec.stdout}`).toBe(0);
   }, 300_000);
 });
