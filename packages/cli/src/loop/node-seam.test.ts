@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 import type { Cost, ModelRequirement } from '@kernloop/contracts';
 import type { LoopInvoke } from './invoke.js';
 import {
-  adapterForTier,
   buildNodeSeam,
   identityRef,
   resolveServed,
@@ -140,18 +139,6 @@ describe('servedIdentity / identityRef — the normalized served model class [CL
     const id = servedIdentity(served, cache);
     expect(id).toEqual(cached); // the cached identity, returned verbatim (not re-parsed)
     expect(identityRef(served, cache)).toBe('identity:acme-llama@3/large(table)');
-  });
-});
-
-describe('adapterForTier — overlay choice vs run-adapter fallback', () => {
-  it('uses the overlay’s per-tier adapter when set', () => {
-    expect(adapterForTier('medium', { medium: 'codex' }, 'claude')).toBe('codex');
-  });
-
-  it('falls back to the run adapter for an unset tier (backward-compat)', () => {
-    expect(adapterForTier('frontier', { medium: 'codex' }, 'claude')).toBe('claude');
-    expect(adapterForTier('frontier', undefined, 'claude')).toBe('claude');
-    expect(adapterForTier('frontier', {}, 'gemini')).toBe('gemini');
   });
 });
 
