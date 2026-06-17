@@ -113,6 +113,18 @@ describe('discoverApiModels — enumerates /v1/models', () => {
     expect(await discoverApiModels(def(), { TEST_API_KEY: 'k' })).toEqual([]);
   });
 
+  it('caps a pathological listing at the count limit (#266) — never an unbounded set', async () => {
+    // 5001 unique ids (well under the 4 MiB byte cap) → returned set is bounded.
+    const ids = Array.from({ length: 5_001 }, (_v, i) => `vendor/model-${String(i)}`);
+    handler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(modelsBody(ids));
+    };
+    const got = await discoverApiModels(def(), { TEST_API_KEY: 'k' });
+    expect(got).toHaveLength(5_000); // MAX_DISCOVERED_MODELS, symmetric with the CLI path
+    expect(got[0]).toBe('vendor/model-0'); // order-preserving prefix, not a guess
+  });
+
   it('fails closed (ApiKeyMissingError) when the key env var is unset, BEFORE any egress', async () => {
     recorded.length = 0;
     const error = await discoverApiModels(def(), {}).catch((e: unknown) => e);

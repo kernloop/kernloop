@@ -1215,10 +1215,11 @@ When a loop node's tier resolves to a registered api endpoint, the composition r
 
 **Status:** verified — **source:** [`CLM-0086.yaml`](../claims/registry/CLM-0086.yaml)
 
-Model discovery enumerates the models an endpoint serves via its stable PUBLIC contract — an OpenAI-compatible GET /v1/models (bearer key read env-only at call time) and ollama GET /api/tags (local, no secret) — reusing the api adapter's security primitives: the baseUrl scheme/credential guard runs before any egress, only the FIXED discovery path is appended, cross-host redirects are refused, the body is read under the same streamed size cap, and one AbortController bounds the request and the body read. The response is zod-validated defensively, so a non-2xx or malformed body is a typed error rather than a guessed model, and the key appears in no error, body, or surfaced string.
+Model discovery enumerates the models an endpoint serves via its stable PUBLIC contract — an OpenAI-compatible GET /v1/models (bearer key read env-only at call time) and ollama GET /api/tags (local, no secret) — reusing the api adapter's security primitives: the baseUrl scheme/credential guard runs before any egress, only the FIXED discovery path is appended, cross-host redirects are refused, the body is read under the same streamed size cap, and one AbortController bounds the request and the body read. The response is zod-validated defensively, so a non-2xx or malformed body is a typed error rather than a guessed model, and the key appears in no error, body, or surfaced string. The returned id set is also COUNT-bounded (#266): a pathological listing that fits under the byte cap is truncated to a fixed maximum after de-duplication, symmetric with the CLI probe, so it cannot blow up the discovered-cache write.
 
 **Enforced by:**
 
+- [`packages/kernel/src/adapters/discover.test.ts`](../packages/kernel/src/adapters/discover.test.ts)
 - [`packages/kernel/src/adapters/discover.test.ts`](../packages/kernel/src/adapters/discover.test.ts)
 - [`packages/kernel/src/adapters/discover.test.ts`](../packages/kernel/src/adapters/discover.test.ts)
 - [`packages/kernel/src/adapters/discover.test.ts`](../packages/kernel/src/adapters/discover.test.ts)
