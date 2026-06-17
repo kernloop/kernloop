@@ -26,6 +26,11 @@
  * DEFENSIVE zod parse is a TYPED error, never a guessed/fabricated model. The
  * ollama path is LOCAL and carries no secret.
  *
+ * COUNT CAP (#266): every listing — http or CLI — is bounded to
+ * {@link MAX_DISCOVERED_MODELS} ids after de-duplication, so a pathological
+ * endpoint that returns a huge (yet under-the-byte-cap) `data` array cannot
+ * blow up the discovered-cache write; the bound is symmetric across transports.
+ *
  * @module kernel/adapters/discover
  */
 import { tmpdir } from 'node:os';
@@ -44,6 +49,14 @@ import { runSubprocess, type SubprocessResult, type SubprocessSpec } from './sub
 
 /** Wall-clock budget for a single discovery request (ms) — discovery is a read. */
 export const DISCOVERY_TIMEOUT_MS = 20_000;
+
+/**
+ * Hard cap on the model ids any single discovery source returns (#266) — http or
+ * CLI. Bounds a pathological listing (a huge-but-under-the-byte-cap `data` array,
+ * or a runaway CLI) before it reaches the discovered-cache write. Generous: real
+ * catalogs are in the hundreds.
+ */
+const MAX_DISCOVERED_MODELS = 5_000;
 
 /**
  * The untrusted OpenAI `GET /v1/models` body, validated DEFENSIVELY: a top-level
@@ -149,8 +162,12 @@ function parseListing<T>(
       scrub(z.prettifyError(result.error), key),
     );
   }
-  // De-duplicate while preserving order; drop empties (never a fabricated id).
-  return [...new Set(extract(result.data).filter((id) => id !== ''))];
+  // De-duplicate while preserving order; drop empties (never a fabricated id);
+  // bound to the count cap (#266) so a pathological listing can't blow up the cache.
+  return [...new Set(extract(result.data).filter((id) => id !== ''))].slice(
+    0,
+    MAX_DISCOVERED_MODELS,
+  );
 }
 
 /**
@@ -217,8 +234,6 @@ export const CLI_DISCOVERY_ADAPTERS: readonly string[] = Object.freeze(
 export const CLI_DISCOVERY_TIMEOUT_MS = 30_000;
 /** Capture cap for the list — a model list is tiny; this bounds a runaway CLI. */
 const CLI_LIST_CAPTURE_BYTES = 1024 * 1024;
-/** Hard cap on returned model ids — bounds a pathological list (#131 security). */
-const MAX_CLI_MODELS = 5_000;
 
 /**
  * Discover the models an agent-CLI adapter enumerates by spawning its fixed
@@ -278,5 +293,5 @@ export async function discoverCliModels(
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && line.length <= 256);
-  return [...new Set(ids)].slice(0, MAX_CLI_MODELS);
+  return [...new Set(ids)].slice(0, MAX_DISCOVERED_MODELS);
 }
