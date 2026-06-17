@@ -11,10 +11,10 @@ statement: >-
   failed before retrospect produces no artifact, and it reflects doc-comment
   PRESENCE, never accuracy.
 evidence:
-  - 'test:packages/faculty-gates/src/doc-scan.test.ts::returns each file with its exported symbols + doc presence, relative path'
-  - 'test:packages/faculty-gates/src/doc-scan.test.ts::omits files with no exported symbols'
-  - 'test:packages/faculty-gates/src/doc-scan.test.ts::skips a file over the per-file byte budget (never parses it)'
-  - 'test:packages/faculty-gates/src/doc-scan.test.ts::truncates at the cumulative byte budget but still mines earlier files (#114)'
+  - 'test:packages/docscan/src/doc-scan.test.ts::returns each file with its exported symbols + doc presence, relative path'
+  - 'test:packages/docscan/src/doc-scan.test.ts::omits files with no exported symbols'
+  - 'test:packages/docscan/src/doc-scan.test.ts::skips a file over the per-file byte budget (never parses it)'
+  - 'test:packages/docscan/src/doc-scan.test.ts::truncates at the cumulative byte budget but still mines earlier files (#114)'
   - 'test:packages/cli/src/loop/doc-artifact.test.ts::renders documented symbols with their doc and marks undocumented ones'
   - 'test:packages/cli/src/loop/doc-artifact.test.ts::is deterministic — same input, identical bytes'
   - 'test:packages/cli/src/loop/doc-artifact.test.ts::sorts files by path so output is byte-stable regardless of walk order'
@@ -24,7 +24,7 @@ evidence:
   - 'test:packages/cli/src/loop.test.ts::propagates a child quality failure honestly: a persistently-broken child escalates at Kc and the loop completes with a failure Outcome'
   - 'test:packages/cli/src/loop.test.ts::fails the run on a malformed PM decomposition: typed executor error, no fabricated children'
   - 'code:packages/cli/src/loop/doc-artifact.ts#writeDocArtifact@doc:/CLM-0105/'
-  - 'code:packages/faculty-gates/src/doc-scan.ts#mineExportedSymbols@doc:/CLM-0105/'
+  - 'code:packages/docscan/src/doc-scan.ts#mineExportedSymbols@doc:/CLM-0105/'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

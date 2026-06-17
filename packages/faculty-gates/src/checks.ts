@@ -13,7 +13,7 @@
  * a real tool exists.
  */
 import type { Check, Finding } from '@kernloop/contracts';
-import { scanDocComments } from './doc-scan.js';
+import { scanDocComments } from '@kernloop/docscan';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
 
 /**

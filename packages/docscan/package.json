@@ -1,7 +1,7 @@
 {
-  "name": "@kernloop/faculty-gates",
+  "name": "@kernloop/docscan",
   "version": "0.1.0",
-  "description": "Kernloop Layer 2 — the gates faculty (spec §5.3). P1 scope: the mechanical quality gate (typecheck/lint/test/coverage over a workspace) emitting uniform Verdicts. The vote gate (P2) and review gate (P3) arrive in later phases; absent here by design, not stubbed.",
+  "description": "Kernloop doc-comment scanner — the in-process AST machinery that mines exported symbols and gates language-appropriate doc-comments (TS via the typescript compiler API; Python/Go/Rust/… via vendored tree-sitter WASM grammars). A check-providing LIBRARY consumed by faculty-gates' quality gate (spec §5.3, CLM-0104), not a faculty.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,7 +13,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "grammars"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -22,9 +23,8 @@
   },
   "dependencies": {
     "@kernloop/contracts": "workspace:*",
-    "@kernloop/docscan": "workspace:*",
-    "@kernloop/kernel": "workspace:*",
-    "zod": "^4.4.3"
+    "typescript": "^6.0.3",
+    "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
     "@types/node": "^25.9.2"

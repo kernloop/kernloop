@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@kernloop/contracts": "workspace:*",
+    "@kernloop/docscan": "workspace:*",
     "@kernloop/faculty-compiler": "workspace:*",
     "@kernloop/faculty-gates": "workspace:*",
     "@kernloop/faculty-memory": "workspace:*",

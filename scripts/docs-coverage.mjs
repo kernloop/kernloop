@@ -33,6 +33,7 @@ export const GATED_PACKAGES = [
   'contracts',
   'kernel',
   'cli',
+  'docscan',
   'workflows',
   'faculty-compiler',
   'faculty-gates',

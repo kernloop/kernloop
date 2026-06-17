@@ -28,6 +28,7 @@ export const REQUIRED_PATHS = [
 export const ALLOWED_PACKAGES = new Set([
   'contracts',
   'kernel',
+  'docscan',
   'faculty-compiler',
   'faculty-memory',
   'faculty-gates',
