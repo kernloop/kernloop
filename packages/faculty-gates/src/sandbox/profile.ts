@@ -28,10 +28,15 @@ export const RATIFIED_GATE_PROFILE: SandboxExecProfile = Object.freeze(
   }),
 );
 
-/** sha256 hex of a profile's canonical JSON — the content gate for overrides. */
+/** sha256 hex of a profile's canonical JSON — the content pin for the ratified profile. */
 export function gateProfileHash(profile: SandboxExecProfile): string {
   return createHash('sha256').update(canonicalJson(profile), 'utf8').digest('hex');
 }
 
-/** The hash an overlay-supplied profile must match to be honored (fail-closed). */
+/**
+ * Content hash of the ratified profile (CLM-0129). The gate is RATIFIED-PROFILE-
+ * ONLY — there is no overlay override path, so this pins the profile content (a
+ * test fails if any field changes), making a profile swap a deliberate
+ * re-ratification; it does NOT verify a runtime override (there is none).
+ */
 export const RATIFIED_GATE_PROFILE_HASH: string = gateProfileHash(RATIFIED_GATE_PROFILE);

@@ -24,12 +24,10 @@
  * Auditing of emitted Verdicts happens kernel-side at the bus boundary.
  * This faculty imports @kernloop/contracts, the shared @kernloop/kernel
  * least-privilege env primitive (`scopedChildEnv`, #235 — faculty→kernel is
- * allowed; rule 5 only bars faculty→faculty), zod, node builtins, the
- * `typescript` compiler API (the in-process TS/JS doc-comment scanner, #65), and
- * `web-tree-sitter` (the in-process doc-comment scanner for twelve languages —
- * Python/Go/Rust/Java/C/PHP/Ruby #108/#122 and C++/C#/Kotlin/Swift/Scala #120,
- * grammars vendored under `grammars/`) — never another faculty (constitutional
- * rule 5); both parsers are external libraries, not faculties.
+ * allowed; rule 5 only bars faculty→faculty), zod, node builtins, and
+ * `@kernloop/docscan` for the in-process doc-comment scan (TS/JS via the
+ * `typescript` compiler API + twelve tree-sitter languages; the parsers and
+ * vendored grammars live in docscan since #256 — a library, not a faculty).
  */
 export {
   DEFAULT_TIMEOUT_MS,

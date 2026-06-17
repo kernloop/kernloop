@@ -40,7 +40,7 @@ was chosen over the repo-size cost. Any further known-but-unvendored language
 ```sh
 pnpm dlx tree-sitter-wasms@0.1.13   # populates node_modules/tree-sitter-wasms/out
 cp "$(node -e "console.log(require('path').dirname(require.resolve('tree-sitter-wasms/out/tree-sitter-python.wasm')))")/tree-sitter-<lang>.wasm" \
-   packages/faculty-gates/grammars/
+   packages/docscan/grammars/
 ```
 
 Then add the extension → language spec + extractor in `src/treesitter-langs.ts`,
