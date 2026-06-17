@@ -4,13 +4,33 @@
  * runs there under RATIFIED_GATE_PROFILE via `runInSandbox`, only the structured
  * exit/output returns, and the scratch is destroyed.
  */
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInSandbox, SandboxUnavailableError } from '@kernloop/kernel';
 import type { SubprocessCheck } from '../checks.js';
 import { RATIFIED_GATE_PROFILE } from './profile.js';
 import { populateScratch } from './copy.js';
+
+/**
+ * Make the ephemeral scratch accessible to the container's non-root user. The
+ * container runs as `RATIFIED_GATE_PROFILE.user` (uid 1000), but the host
+ * creating the scratch often has a DIFFERENT uid (CI runners especially), and
+ * `mkdtempSync` is mode 0700 (owner-only) — so the container user would get
+ * EACCES traversing/reading/writing the bind-mounted tree. `a+rwX` opens the
+ * throwaway scratch to all (read/write files, traverse dirs); it is short-lived,
+ * isolated (`--network none`), and destroyed after the run. A full recursive
+ * `chmod` (a check writes coverage/caches under the tree, not just the root) via
+ * the system `chmod` falls back to a top-dir `chmodSync` if the binary is absent.
+ */
+function openScratchPerms(scratchDir: string): void {
+  try {
+    execFileSync('chmod', ['-R', 'a+rwX', scratchDir], { stdio: 'ignore' });
+  } catch {
+    chmodSync(scratchDir, 0o777);
+  }
+}
 
 /** The execution shape the gate runner consumes (mirrors run.ts CheckExecution). */
 export interface SandboxExecution {
@@ -72,6 +92,7 @@ export async function runCheckInSandbox(
   const scratch = mkdtempSync(join(tmpdir(), 'kernloop-gate-sbx-'));
   try {
     populateScratch(workspaceDir, scratch);
+    openScratchPerms(scratch); // container user (uid 1000) != host uid → grant access
     const result = await runInSandbox({
       scratchDir: scratch,
       command: containerArgv(check),
