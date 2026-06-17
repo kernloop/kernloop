@@ -28,6 +28,18 @@ export class InvalidVerdictError extends Error {
 }
 
 /**
+ * Thrown when `ingestModelFitness` receives a value failing
+ * `ModelIdentitySchema` or `CostSchema` validation at the boundary (#66; the
+ * charter's zod-validate-at-every-boundary rule; CLM-0125).
+ */
+export class InvalidModelFitnessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidModelFitnessError';
+  }
+}
+
+/**
  * Thrown when an issue proposal is malformed (empty title/body/goal), or when
  * marking a proposal filed references a proposal that does not exist, was
  * already filed, or carries a non-http(s) url (CLM-0056).

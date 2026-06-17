@@ -77,7 +77,8 @@ describe('observer storage (spec §3.3 — one DB per overlay)', () => {
       .all() as { name: string }[];
     const names = tables.map((t) => t.name);
     expect(names).toContain('facts');
-    expect(names.filter((n) => n.startsWith('observer_'))).toHaveLength(6);
+    expect(names).toContain('observer_fitness_identity'); // the additive identity series (#66)
+    expect(names.filter((n) => n.startsWith('observer_'))).toHaveLength(7);
     observer.close();
     memoryConn.close();
   });

@@ -18,6 +18,7 @@
  */
 import type { AdapterName } from '@kernloop/kernel';
 import type { ModelRequirement } from '@kernloop/contracts';
+import type { DiscoveredCache } from '@kernloop/faculty-models';
 import { adapterInvoke, type LoopInvoke, type RunTotals } from './invoke.js';
 import {
   DEFAULT_INVOKE_TIMEOUT_MS,
@@ -25,7 +26,13 @@ import {
   nodeRequirement,
   type TieredNode,
 } from './node-model.js';
-import { buildNodeSeam, resolveServed, type NodeSeam } from './node-seam.js';
+import {
+  buildNodeSeam,
+  resolveServed,
+  type NodeSeam,
+  type NodeSeamHooks,
+  type OnModelCall,
+} from './node-seam.js';
 import { buildApiNodeSeam, resolveServedApi } from './api-seam.js';
 import { apiDefinitionFor } from '../endpoints.js';
 import { requirementForNode, type Overlay } from '../overlay.js';
@@ -89,9 +96,23 @@ function resolveTierAdapterName(
 }
 
 /**
+ * The per-MODEL-CALL fitness wiring threaded into every default seam (#66,
+ * CLM-0125): the discovered cache the served alias normalizes against (so the
+ * reported identity matches provenance) and the `onModelCall` hook the
+ * composition root binds to `Observer.ingestModelFitness`. Both optional — an
+ * unsynced run uses the empty cache, and a run with no observer records nothing.
+ */
+export interface ModelFitnessWiring {
+  readonly discovered?: DiscoveredCache;
+  readonly onModelCall?: OnModelCall;
+}
+
+/**
  * Build the per-node DEFAULT model seam — CLI or api endpoint, both metered.
  * With `budget` + an overlay `downgrade`, nodes past the spend threshold route a
- * tier lower (#194); `onDowngrade` audits each drop.
+ * tier lower (#194); `onDowngrade` audits each drop. `fitness` (#66) threads the
+ * per-model-call fitness hook + discovered cache into each seam so each node's
+ * served identity re-keys the Observer's additive identity-fitness series.
  */
 export function buildInvokeForNode(
   runAdapter: AdapterName,
@@ -99,8 +120,13 @@ export function buildInvokeForNode(
   totals: RunTotals,
   budget?: BudgetDowngrade['budget'],
   onDowngrade?: OnDowngrade,
+  fitness: ModelFitnessWiring = {},
 ): (node: TieredNode) => NodeSeam {
   const timeoutBase = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
+  const hooks: NodeSeamHooks = {
+    ...(fitness.discovered === undefined ? {} : { discovered: fitness.discovered }),
+    ...(fitness.onModelCall === undefined ? {} : { onModelCall: fitness.onModelCall }),
+  };
   const build = (req: ModelRequirement, node: TieredNode): NodeSeam => {
     const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
     const endpoint = overlay.endpoints[name];
@@ -111,8 +137,16 @@ export function buildInvokeForNode(
           adapterInvoke(name as AdapterName, undefined, undefined, overlay.adapterEnvAllow),
           totals,
           timeoutMs,
+          hooks,
         )
-      : buildApiNodeSeam(req, apiDefinitionFor(name, endpoint), totals, undefined, timeoutMs);
+      : buildApiNodeSeam(
+          req,
+          apiDefinitionFor(name, endpoint),
+          totals,
+          undefined,
+          timeoutMs,
+          hooks,
+        );
   };
   return seamFactory(build, overlay, totals, downgradeFor(overlay, budget), onDowngrade);
 }

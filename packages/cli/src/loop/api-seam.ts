@@ -20,7 +20,7 @@ import {
 } from '@kernloop/kernel';
 import type { ModelRequirement } from '@kernloop/contracts';
 import { type LoopInvoke, type RunTotals, LOOP_INVOKE_TIMEOUT_MS } from './invoke.js';
-import { buildNodeSeam, type NodeSeam, type ServedModel } from './node-seam.js';
+import { buildNodeSeam, type NodeSeam, type NodeSeamHooks, type ServedModel } from './node-seam.js';
 
 /**
  * The bounded `max_tokens` an api call sends (spend ceiling, spec §3.1). A node
@@ -83,7 +83,9 @@ export function apiInvoke(
 /**
  * Build a node's metered {@link NodeSeam} for an api endpoint: resolve the served
  * model+effort, then bind a metered api invoke carrying it. Spend accumulates
- * into `totals` (the run budget). `env` is injectable for tests.
+ * into `totals` (the run budget). `env` is injectable for tests. `hooks` threads
+ * the per-model-call fitness hook + discovered cache (#66) so an endpoint-served
+ * node feeds the Observer's identity-fitness series at parity with the CLI arm.
  */
 export function buildApiNodeSeam(
   req: ModelRequirement,
@@ -91,7 +93,8 @@ export function buildApiNodeSeam(
   totals: RunTotals,
   env?: Readonly<Record<string, string | undefined>>,
   timeoutMs?: number,
+  hooks: NodeSeamHooks = {},
 ): NodeSeam {
   const served = resolveServedApi(req, def);
-  return buildNodeSeam(served, apiInvoke(def, env), totals, timeoutMs);
+  return buildNodeSeam(served, apiInvoke(def, env), totals, timeoutMs, hooks);
 }

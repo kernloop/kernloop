@@ -2040,3 +2040,20 @@ A spawned quality-gate check runs under a LEAST-PRIVILEGE environment, not the h
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - [`packages/faculty-gates/src/run.ts#executeCheck`](../packages/faculty-gates/src/run.ts)
 - CI `test`
+
+## CLM-0125
+
+**Status:** verified — **source:** [`CLM-0125.yaml`](../claims/registry/CLM-0125.yaml)
+
+The Observer keeps an ADDITIVE per-model-call fitness series keyed on the normalized ModelIdentity tuple (provider, family, generation, tier), bucketing an `unknown` identity separately and never inventing a class, wired from each loop node's served identity via the seam's `onModelCall` hook, while the subject-keyed ledger (and the priors/router that read it) are unchanged.
+
+**Enforced by:**
+
+- [`packages/faculty-observer/src/identity-ledger.test.ts`](../packages/faculty-observer/src/identity-ledger.test.ts)
+- [`packages/faculty-observer/src/identity-ledger.test.ts`](../packages/faculty-observer/src/identity-ledger.test.ts)
+- [`packages/faculty-observer/src/identity-ledger.test.ts`](../packages/faculty-observer/src/identity-ledger.test.ts)
+- [`packages/faculty-observer/src/identity-ledger.test.ts`](../packages/faculty-observer/src/identity-ledger.test.ts)
+- [`packages/cli/src/loop/api-loop.test.ts`](../packages/cli/src/loop/api-loop.test.ts)
+- [`packages/cli/src/loop/api-loop.test.ts`](../packages/cli/src/loop/api-loop.test.ts)
+- [`packages/faculty-observer/src/identity-ledger.ts#ingestModelFitness`](../packages/faculty-observer/src/identity-ledger.ts)
+- CI `test`

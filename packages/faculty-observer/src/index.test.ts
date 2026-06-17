@@ -16,6 +16,7 @@ describe('the no-privileged-path property (CLM-0056)', () => {
       'HIGH_FITNESS_BAR',
       'HIGH_FITNESS_MIN_INVOCATIONS',
       'InvalidIssueProposalError',
+      'InvalidModelFitnessError',
       'InvalidOutcomeError',
       'InvalidVerdictError',
       'LOW_FITNESS_FLOOR',
