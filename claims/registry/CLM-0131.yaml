@@ -8,7 +8,12 @@ statement: >-
   length-bounded, de-duplicated, count-capped — a model id is never executed; one
   that fails identity normalization just resolves to unknown), normalizes the ids
   through the vendored catalog, and REPLACES the `cli-live:<adapter>` source in the
-  machine-local discovered cache. An adapter with no list command yields no live
+  machine-local discovered cache. The third-party CLI's child env is SCOPED (the
+  benign operational allowlist ∪ the overlay's `adapterEnvAllow`) so the host
+  secrets — other providers' keys, GH_TOKEN, cloud creds — never reach it, and a
+  hostile-discovered id that collides with an Object.prototype member (`__proto__`,
+  `constructor`) is NOT a table hit (own-property guard), so it cannot DoS the
+  source. An adapter with no list command yields no live
   source (its declared `cli:<adapter>` tier-bindings cover it, #171); an
   absent/failed/timed-out CLI is an honest typed per-source failure
   (AdapterExecutionError/AdapterTimeoutError), never a fabricated list. The live
@@ -20,6 +25,9 @@ evidence:
   - 'test:packages/kernel/src/adapters/discover-cli.test.ts::a nonzero exit is a typed AdapterExecutionError, never a guessed list'
   - 'test:packages/kernel/src/adapters/discover-cli.test.ts::a timeout is a typed AdapterTimeoutError'
   - 'test:packages/kernel/src/adapters/discover-cli.test.ts::a spawn failure (absent CLI) is a typed AdapterExecutionError'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::scopes the child env — the host secrets never reach the third-party CLI (#131)'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::honors envAllow — a named extra var is passed through to the CLI (#131)'
+  - 'test:packages/faculty-models/src/resolve.test.ts::a prototype-chain key from a hostile-discovered list is NOT a table hit (#131)'
   - 'test:packages/cli/src/tools/models.test.ts::records a cli-live:<adapter> source from the probed model list'
   - 'test:packages/cli/src/tools/models.test.ts::an absent/failed CLI is an honest per-source failure, not a fabricated list'
   - 'test:packages/cli/src/tools/models.test.ts::skipCliLive omits the live probe entirely (no cli-live source, no spawn)'

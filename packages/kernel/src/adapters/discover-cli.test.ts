@@ -60,6 +60,34 @@ describe('discoverCliModels (#131)', () => {
     expect(await discoverCliModels('opencode', run)).toEqual(['opencode/a', 'opencode/b']);
   });
 
+  it('scopes the child env — the host secrets never reach the third-party CLI (#131)', async () => {
+    const planted = process.env.GH_TOKEN;
+    process.env.GH_TOKEN = 'super-secret-token';
+    try {
+      const { run, calls } = scripted(result({ stdout: 'opencode/a\n' }));
+      await discoverCliModels('opencode', run);
+      const env = calls[0]?.env ?? {};
+      expect(env.GH_TOKEN).toBeUndefined(); // dropped — not the host process.env
+      expect('PATH' in env).toBe(true); // benign operational var survives
+    } finally {
+      if (planted === undefined) delete process.env.GH_TOKEN;
+      else process.env.GH_TOKEN = planted;
+    }
+  });
+
+  it('honors envAllow — a named extra var is passed through to the CLI (#131)', async () => {
+    const planted = process.env.OPENCODE_API_KEY;
+    process.env.OPENCODE_API_KEY = 'key-value';
+    try {
+      const { run, calls } = scripted(result({ stdout: 'opencode/a\n' }));
+      await discoverCliModels('opencode', run, ['OPENCODE_API_KEY']);
+      expect(calls[0]?.env?.OPENCODE_API_KEY).toBe('key-value');
+    } finally {
+      if (planted === undefined) delete process.env.OPENCODE_API_KEY;
+      else process.env.OPENCODE_API_KEY = planted;
+    }
+  });
+
   it('returns [] for a harness-routed CLI with no list command (honest, no spawn)', async () => {
     const { run, calls } = scripted(result({ stdout: 'should not be read' }));
     expect(await discoverCliModels('claude', run)).toEqual([]);

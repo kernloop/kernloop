@@ -39,6 +39,7 @@ import {
   AdapterTimeoutError,
   ApiKeyMissingError,
 } from './errors.js';
+import { scopedChildEnv } from './env.js';
 import { runSubprocess, type SubprocessResult, type SubprocessSpec } from './subprocess.js';
 
 /** Wall-clock budget for a single discovery request (ms) — discovery is a read. */
@@ -229,11 +230,20 @@ const MAX_CLI_MODELS = 5_000;
  * to `unknown`). An adapter with no list command returns `[]` (honest — its
  * declared bindings cover it, #171); an absent/failed/timed-out CLI is a typed
  * error ({@link AdapterExecutionError}/{@link AdapterTimeoutError}), never a guess
- * (#131, CLM-0131). `run` is injectable for tests.
+ * (#131, CLM-0131).
+ *
+ * SECRET HYGIENE (#131 security round): the spawned CLI is a third-party agentic
+ * binary, so its child env is SCOPED via {@link scopedChildEnv} to the benign
+ * operational allowlist ∪ `envAllow` — it is NEVER handed the host `process.env`
+ * (other providers' keys, `GH_TOKEN`, cloud creds), exactly as the model-CALL
+ * path scopes it. A login-authed CLI works on the base allowlist (HOME/XDG); a
+ * key-authed one names its var in the overlay's `adapterEnvAllow`, threaded here
+ * as `envAllow`. `run` is injectable for tests.
  */
 export async function discoverCliModels(
   adapter: string,
   run: (spec: SubprocessSpec) => Promise<SubprocessResult> = runSubprocess,
+  envAllow: readonly string[] = [],
 ): Promise<string[]> {
   const args = CLI_LIST_COMMANDS[adapter];
   if (args === undefined) return [];
@@ -245,6 +255,8 @@ export async function discoverCliModels(
       // Neutral cwd: an agentic CLI must NOT inherit the launch dir (#146 / the
       // runSubprocess cwd warning) — the list command needs no project context.
       cwd: tmpdir(),
+      // Least-privilege child env — never the host secrets (#131 security round).
+      env: scopedChildEnv(process.env, envAllow),
       timeoutMs: CLI_DISCOVERY_TIMEOUT_MS,
       maxCaptureBytes: CLI_LIST_CAPTURE_BYTES,
     });

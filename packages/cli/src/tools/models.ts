@@ -10,7 +10,8 @@
  * agent-CLI adapter's DECLARED tier-bindings (`cli:<name>`, a pure static read —
  * no network, no subprocess, #171) plus a LIVE model-list probe for a
  * list-exposing CLI (opencode) via a bounded subprocess (`cli-live:<adapter>`,
- * `discoverCliModels`, #131/CLM-0131), normalizes the served ids through
+ * `discoverCliModels` with its child env scoped to `adapterEnvAllow`, never the
+ * host secrets, #131/CLM-0131), normalizes the served ids through
  * `@kernloop/faculty-models` (`mergeDiscovered`), and REPLACES each source's set
  * in the machine-local discovered cache. It audits a `cli.models.sync` event
  * carrying source ids + counts — NEVER the key.
@@ -186,10 +187,11 @@ async function syncCliLiveSource(
   adapter: string,
   syncedAt: string,
   run: ModelsSyncOptions['cliRun'],
+  envAllow: readonly string[],
 ): Promise<{ cache: DiscoveredCache; result: SourceSyncResult }> {
   const source = `cli-live:${adapter}`;
   try {
-    const ids = await discoverCliModels(adapter, run);
+    const ids = await discoverCliModels(adapter, run, envAllow);
     const models = mergeDiscovered(catalog, ids);
     return {
       cache: upsertSource(cache, source, models, syncedAt),
@@ -205,6 +207,26 @@ async function syncCliLiveSource(
   } catch (error) {
     return { cache, result: failure(source, 'cli-live', describeError(error)) };
   }
+}
+
+/**
+ * Live-probe every list-exposing agent-CLI adapter (#131), threading the
+ * overlay's `adapterEnvAllow` so each probe's child env is least-privilege. Each
+ * source's failure is isolated; the cache is folded forward across adapters.
+ */
+async function syncCliLive(
+  cache: DiscoveredCache,
+  syncedAt: string,
+  options: ModelsSyncOptions,
+  envAllow: readonly string[],
+): Promise<{ cache: DiscoveredCache; results: SourceSyncResult[] }> {
+  const results: SourceSyncResult[] = [];
+  for (const adapter of CLI_DISCOVERY_ADAPTERS) {
+    const step = await syncCliLiveSource(cache, adapter, syncedAt, options.cliRun, envAllow);
+    cache = step.cache;
+    results.push(step.result);
+  }
+  return { cache, results };
 }
 
 /** A failed source result — prior cache set is left untouched (not wiped). */
@@ -271,11 +293,9 @@ export async function modelsSyncTool(
     results.push(step.result);
   }
   if (options.skipCliLive !== true) {
-    for (const adapter of CLI_DISCOVERY_ADAPTERS) {
-      const step = await syncCliLiveSource(cache, adapter, syncedAt, options.cliRun);
-      cache = step.cache;
-      results.push(step.result);
-    }
+    const step = await syncCliLive(cache, syncedAt, options, kern.config.adapterEnvAllow);
+    cache = step.cache;
+    results.push(...step.results);
   }
   if (options.skipCliAdapters !== true) {
     const step = syncCliBindings(cache, syncedAt);

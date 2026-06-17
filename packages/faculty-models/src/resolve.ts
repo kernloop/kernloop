@@ -128,7 +128,11 @@ function ruleParse(rawId: string): ModelIdentity | null {
  * harness default (kernloop pinned no model) and resolves to an honest UNKNOWN.
  */
 export function resolveIdentity(rawId: string, catalog: Catalog): ModelIdentity {
-  const hit = catalog.models[rawId];
+  // OWN-property only: a hostile-discovered id like `__proto__`/`constructor`
+  // resolves to an Object.prototype member under a bare index, wrongly taking
+  // the TABLE branch and throwing on the partial parse. `Object.hasOwn` confines
+  // the table to real catalogued ids — anything else falls through to rule/unknown.
+  const hit = Object.hasOwn(catalog.models, rawId) ? catalog.models[rawId] : undefined;
   if (hit !== undefined) {
     return ModelIdentitySchema.parse({ ...hit, raw: rawId, resolvedBy: 'table' });
   }
