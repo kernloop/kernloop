@@ -1,0 +1,30 @@
+id: CLM-0131
+statement: >-
+  `models sync` discovers an agent-CLI adapter's ENUMERABLE model list (#131):
+  for a list-exposing CLI (opencode) it spawns the FIXED `<adapter> models`
+  command under a bounded subprocess (static argv, no shell, a neutral cwd so the
+  agentic CLI never inherits the launch dir, a per-stream capture cap, and a
+  wall-clock timeout), parses stdout as DATA ONLY (one id per line, trimmed,
+  length-bounded, de-duplicated, count-capped — a model id is never executed; one
+  that fails identity normalization just resolves to unknown), normalizes the ids
+  through the vendored catalog, and REPLACES the `cli-live:<adapter>` source in the
+  machine-local discovered cache. An adapter with no list command yields no live
+  source (its declared `cli:<adapter>` tier-bindings cover it, #171); an
+  absent/failed/timed-out CLI is an honest typed per-source failure
+  (AdapterExecutionError/AdapterTimeoutError), never a fabricated list. The live
+  probe is skippable (skipCliLive) and the runner is injectable.
+evidence:
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::spawns the FIXED `<adapter> models` argv (no shell) and parses one id per line'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::trims, drops blanks, de-duplicates, and bounds line length (output is data)'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::returns [] for a harness-routed CLI with no list command (honest, no spawn)'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::a nonzero exit is a typed AdapterExecutionError, never a guessed list'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::a timeout is a typed AdapterTimeoutError'
+  - 'test:packages/kernel/src/adapters/discover-cli.test.ts::a spawn failure (absent CLI) is a typed AdapterExecutionError'
+  - 'test:packages/cli/src/tools/models.test.ts::records a cli-live:<adapter> source from the probed model list'
+  - 'test:packages/cli/src/tools/models.test.ts::an absent/failed CLI is an honest per-source failure, not a fabricated list'
+  - 'test:packages/cli/src/tools/models.test.ts::skipCliLive omits the live probe entirely (no cli-live source, no spawn)'
+  - 'code:packages/kernel/src/adapters/discover.ts#discoverCliModels@doc:/CLM-0131/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

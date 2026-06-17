@@ -8,7 +8,9 @@
  * kernel `discoverApiModels`, key read env-only at call time) plus a local
  * ollama daemon if it answers (`discoverOllamaModels`, no secret) plus each
  * agent-CLI adapter's DECLARED tier-bindings (`cli:<name>`, a pure static read —
- * no network, no subprocess, #131), normalizes the served ids through
+ * no network, no subprocess, #171) plus a LIVE model-list probe for a
+ * list-exposing CLI (opencode) via a bounded subprocess (`cli-live:<adapter>`,
+ * `discoverCliModels`, #131/CLM-0131), normalizes the served ids through
  * `@kernloop/faculty-models` (`mergeDiscovered`), and REPLACES each source's set
  * in the machine-local discovered cache. It audits a `cli.models.sync` event
  * carrying source ids + counts — NEVER the key.
@@ -35,7 +37,11 @@ import {
   adapterDefinitions,
   discoverApiModels,
   discoverOllamaModels,
+  discoverCliModels,
+  CLI_DISCOVERY_ADAPTERS,
   DEFAULT_OLLAMA_HOST,
+  type SubprocessResult,
+  type SubprocessSpec,
 } from '@kernloop/kernel';
 import {
   catalog,
@@ -62,10 +68,10 @@ const CLI_AGENT_ADAPTERS = ['claude', 'codex', 'gemini', 'opencode'] as const;
 
 /** One source's sync outcome — honest about whether it succeeded and why not. */
 export interface SourceSyncResult {
-  /** Source id (an endpoint id, `ollama`, or `cli:<adapter>` for a tier-binding). */
+  /** Source id (an endpoint id, `ollama`, `cli:<adapter>`, or `cli-live:<adapter>`). */
   readonly source: string;
-  /** `'api'` (endpoint), `'ollama'` (daemon), or `'cli'` (declared tier-binding). */
-  readonly kind: 'api' | 'ollama' | 'cli';
+  /** `'api'`, `'ollama'`, `'cli'` (declared binding), or `'cli-live'` (probed list, #131). */
+  readonly kind: 'api' | 'ollama' | 'cli' | 'cli-live';
   /** True when the source answered and its set was replaced in the cache. */
   readonly ok: boolean;
   /** Models the source returned (only meaningful when `ok`). */
@@ -94,6 +100,10 @@ export interface ModelsSyncOptions {
   readonly skipOllama?: boolean;
   /** Skip the agent-CLI tier-binding sources (claude/codex/gemini/opencode). */
   readonly skipCliAdapters?: boolean;
+  /** Skip the LIVE agent-CLI model-list probe (opencode); spawns a subprocess (#131). */
+  readonly skipCliLive?: boolean;
+  /** Injectable subprocess runner for the live CLI probe (tests script the CLI). */
+  readonly cliRun?: (spec: SubprocessSpec) => Promise<SubprocessResult>;
 }
 
 /** The error's typed name + message, with no chance of a key (the adapter scrubs). */
@@ -163,8 +173,46 @@ async function syncOllamaSource(
   }
 }
 
+/**
+ * Live-probe one agent-CLI adapter's enumerable model list (#131) via the
+ * bounded kernel {@link discoverCliModels} (fixed `<adapter> models` argv, no
+ * shell, capture-capped, timeout-bounded), normalize through the vendored
+ * catalog, and REPLACE the `cli-live:<adapter>` source. An absent/failed CLI is
+ * recorded as an honest failure (the declared `cli:<adapter>` binding still
+ * stands); the probe is never a fabricated list.
+ */
+async function syncCliLiveSource(
+  cache: DiscoveredCache,
+  adapter: string,
+  syncedAt: string,
+  run: ModelsSyncOptions['cliRun'],
+): Promise<{ cache: DiscoveredCache; result: SourceSyncResult }> {
+  const source = `cli-live:${adapter}`;
+  try {
+    const ids = await discoverCliModels(adapter, run);
+    const models = mergeDiscovered(catalog, ids);
+    return {
+      cache: upsertSource(cache, source, models, syncedAt),
+      result: {
+        source,
+        kind: 'cli-live',
+        ok: true,
+        discovered: models.length,
+        catalogued: countCatalogued(models),
+        error: null,
+      },
+    };
+  } catch (error) {
+    return { cache, result: failure(source, 'cli-live', describeError(error)) };
+  }
+}
+
 /** A failed source result — prior cache set is left untouched (not wiped). */
-function failure(source: string, kind: 'api' | 'ollama', error: string): SourceSyncResult {
+function failure(
+  source: string,
+  kind: 'api' | 'ollama' | 'cli-live',
+  error: string,
+): SourceSyncResult {
   return { source, kind, ok: false, discovered: 0, catalogued: 0, error };
 }
 
@@ -221,6 +269,13 @@ export async function modelsSyncTool(
     const step = await syncOllamaSource(cache, options.ollamaHost ?? DEFAULT_OLLAMA_HOST, syncedAt);
     cache = step.cache;
     results.push(step.result);
+  }
+  if (options.skipCliLive !== true) {
+    for (const adapter of CLI_DISCOVERY_ADAPTERS) {
+      const step = await syncCliLiveSource(cache, adapter, syncedAt, options.cliRun);
+      cache = step.cache;
+      results.push(step.result);
+    }
   }
   if (options.skipCliAdapters !== true) {
     const step = syncCliBindings(cache, syncedAt);
