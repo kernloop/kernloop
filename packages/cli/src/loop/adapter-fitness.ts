@@ -13,13 +13,14 @@
  * An EXPLORATION FLOOR (epsilon) keeps a lower-fitness candidate selectable so a
  * better-but-untried one is not starved; epsilon=0 is pure exploit.
  *
- * A CLI candidate's served identity is predicted by the SAME deterministic
- * resolveServed+servedIdentity the seam uses at call time, so predicted==served.
- * An ENDPOINT candidate scores NEUTRAL (resolveServed throws for an endpoint id;
- * its identity is resolved on the api path, not predicted here) — endpoint-fitness
- * selection is deferred. The selection is made once per node and cached, EXCEPT
- * under a budget `downgrade` (#194), where node-bind re-resolves each call, so the
- * selector (and its rng draw + audit) then fire per model call.
+ * Each candidate's served identity is predicted by the SAME deterministic
+ * resolution the seam uses at call time, so predicted==served for BOTH transports:
+ * a CLI candidate via resolveServed, a registered ENDPOINT candidate via the api
+ * path (resolveServedApi over its apiDefinitionFor), both normalized through
+ * servedIdentity (#260). A name that resolves to neither (unknown adapter) scores
+ * NEUTRAL. The selection is made once per node and cached, EXCEPT under a budget
+ * `downgrade` (#194), where node-bind re-resolves each call, so the selector (and
+ * its rng draw + audit) then fire per model call.
  */
 import {
   appendEvent,
@@ -36,6 +37,8 @@ import {
   type LiveFitnessDecision,
 } from '../tools/live-fitness.js';
 import { resolveServed, servedIdentity } from './node-seam.js';
+import { resolveServedApi } from './api-seam.js';
+import { apiDefinitionFor, type Endpoints } from '../endpoints.js';
 
 /** One adapter-selection outcome — chosen adapter + reproducible provenance. */
 export interface AdapterChoice {
@@ -90,21 +93,34 @@ export interface AdapterSelectorDeps {
   readonly epsilon: number;
   readonly ledger: readonly IdentityFitnessRecord[];
   readonly discovered: DiscoveredCache;
+  /** The overlay's registered endpoints, so an endpoint candidate is predicted (not neutral, #260). */
+  readonly endpoints: Endpoints;
   readonly store: AuditStore;
   readonly rng: () => number;
   readonly now: () => number;
 }
 
-/** Predict a candidate's served identity by the SAME path the seam uses (predicted==served). */
+/**
+ * Predict a candidate's served identity by the SAME resolution node-bind uses at
+ * call time, so predicted==served (#260): a registered endpoint id resolves on the
+ * api path, every other name on the CLI path. A name that resolves to neither (an
+ * unknown adapter) → null (neutral). Pure over its inputs.
+ */
 function predictIdentity(
   req: ModelRequirement,
   name: string,
+  endpoints: Endpoints,
   discovered: DiscoveredCache,
 ): ModelIdentity | null {
   try {
-    return servedIdentity(resolveServed(req, name as AdapterName), discovered);
+    const endpoint = endpoints[name];
+    const served =
+      endpoint === undefined
+        ? resolveServed(req, name as AdapterName)
+        : resolveServedApi(req, apiDefinitionFor(name, endpoint));
+    return servedIdentity(served, discovered);
   } catch {
-    return null; // a registered endpoint id (api path) or unresolvable → neutral
+    return null; // an unknown adapter / unresolvable endpoint → neutral
   }
 }
 
@@ -122,7 +138,7 @@ export function buildAdapterSelector(
   return (tier, req, candidateNames) => {
     const candidates: CandidateIdentity[] = candidateNames.map((name) => ({
       subject: name,
-      identity: predictIdentity(req, name, deps.discovered),
+      identity: predictIdentity(req, name, deps.endpoints, deps.discovered),
     }));
     const choice = chooseAdapter(candidates, deps.ledger, deps.rng, deps.epsilon, deps.now());
     appendEvent(deps.store, {
