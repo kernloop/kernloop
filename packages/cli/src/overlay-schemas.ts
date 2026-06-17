@@ -94,22 +94,50 @@ export const NodeOverrideSchema = z
 export type NodeOverride = z.infer<typeof NodeOverrideSchema>;
 
 /**
- * Per-tier model adapters (spec §8.4 cost lever [CLM-0078]): which adapter the
- * loop binds for each model {@link ModelTierSchema} tier (frontier/large/
- * medium/small). EVERY key is optional — an unset tier falls back to the run's
- * `--adapter`, so an overlay with no `adapters` block is byte-identical to the
- * single-adapter behavior (the backward-compat guarantee). Each value is one of
- * the five kernel adapter names. Consumed only at the loop composition root
- * (loop/index.ts), never by the Router — see loop/node-model.ts for the
- * loop-vs-Router honesty note.
+ * One tier's adapter spec (spec §8.4 cost lever [CLM-0078]): a single adapter
+ * name (backward-compatible) OR a non-empty array of CANDIDATE adapter names.
+ * With >=2 candidates and `adapterFitness.enabled`, the loop picks the
+ * higher-fitness candidate per measured ModelIdentity fitness (#252); otherwise
+ * the first candidate is bound deterministically (byte-identical to the single
+ * string form). Each name is a built-in CLI adapter or a registered endpoint id.
+ */
+export const AdapterSpecSchema = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+
+/**
+ * Per-tier model adapters: which adapter(s) the loop may bind for each model
+ * {@link ModelTierSchema} tier (frontier/large/medium/small). EVERY key is
+ * optional — an unset tier falls back to the run's `--adapter`, so an overlay
+ * with no `adapters` block is byte-identical to single-adapter behavior.
+ * Consumed at the loop composition root (loop/index.ts), never by the Router.
  */
 export const AdaptersSchema = z.strictObject({
-  frontier: z.string().min(1).optional(),
-  large: z.string().min(1).optional(),
-  medium: z.string().min(1).optional(),
-  small: z.string().min(1).optional(),
+  frontier: AdapterSpecSchema.optional(),
+  large: AdapterSpecSchema.optional(),
+  medium: AdapterSpecSchema.optional(),
+  small: AdapterSpecSchema.optional(),
 });
 export type TierAdapters = z.infer<typeof AdaptersSchema>;
+
+/**
+ * Live identity-fitness adapter selection (#252, CLM-0130). Opt-in (default
+ * off, rule 6 — separate from router priors). `epsilon` is the exploration
+ * floor (0 = pure exploit, no live-traffic exploration; default 0.1) keeping a
+ * lower-fitness candidate selectable so no adapter is starved.
+ */
+export const AdapterFitnessSchema = z.strictObject({
+  enabled: z.boolean().default(false),
+  epsilon: z.number().min(0).max(1).default(0.1),
+});
+
+/** Normalize a tier's adapter spec to a candidate list ([] when unset). */
+export function tierCandidates(
+  adapters: TierAdapters | undefined,
+  tier: keyof TierAdapters,
+): string[] {
+  const spec = adapters?.[tier];
+  if (spec === undefined) return [];
+  return Array.isArray(spec) ? [...spec] : [spec];
+}
 
 /** True when `name` is one of the five built-in CLI adapters (vs an endpoint id). */
 export function isCliAdapter(name: string): name is (typeof ADAPTER_NAMES)[number] {

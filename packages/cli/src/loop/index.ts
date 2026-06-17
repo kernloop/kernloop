@@ -38,6 +38,8 @@ import { LoopResumeError, adapterInvoke, type LoopInvoke, type RunTotals } from 
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
 import { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
+import { buildAdapterSelector } from './adapter-fitness.js';
+import { LIVE_FITNESS_LEDGER_LIMIT } from '../tools/live-fitness-wiring.js';
 import { type OnDowngrade } from './downgrade.js';
 
 export { TIERED_NODES, type TieredNode } from './node-model.js';
@@ -224,10 +226,23 @@ function downgradeAudit(kern: Kernloop, runId: string): OnDowngrade {
  * (tests / MCP sampling) omits it.
  */
 function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] {
+  const discovered = loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString());
+  // Live identity-fitness adapter selection (#252, CLM-0130): read the ledger
+  // ONCE per run (bounded, recency-ordered) and bind the selector when opted in.
+  const selectAdapter = buildAdapterSelector({
+    enabled: kern.config.adapterFitness.enabled,
+    epsilon: kern.config.adapterFitness.epsilon,
+    ledger: kern.observer.identityFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
+    discovered,
+    store: kern.store,
+    rng: kern.rng,
+    now: () => kern.store.clock().getTime(),
+  });
   return {
-    discovered: loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString()),
+    discovered,
     onModelCall: (identity, success, cost) =>
       kern.observer.ingestModelFitness(identity, success, cost),
+    ...(selectAdapter === undefined ? {} : { selectAdapter }),
   };
 }
 

@@ -1,0 +1,37 @@
+id: CLM-0130
+statement: >-
+  Under an explicit gates-adjacent adapterFitness.enabled opt-in (default off,
+  epsilon default 0.1), node-bind's per-tier adapter binding selects among a
+  tier's candidate adapters by live ModelIdentity fitness: overlay.adapters[tier]
+  accepts a single name (unchanged) or a non-empty candidate list, and with >=2
+  candidates the higher-fitness candidate is chosen via the CLM-0128
+  liveFitnessPriors scoring with an exploration floor (epsilon=0 is pure exploit;
+  a lower-fitness candidate stays selectable so none is starved). Each candidate's
+  served identity is predicted by the same deterministic resolveServed+
+  servedIdentity the seam uses (predicted == served); the choice, candidates,
+  predicted identities, scores, sources, and the rng draw are audited
+  (reproducible). With the flag off or a single adapter the first candidate is
+  bound, byte-identical to the prior behavior. Unlike the selection-inert Router
+  priors path (CLM-0128), this changes a real production decision whenever a tier
+  lists competing adapters. A contiguous-seed simulation proves a regressing
+  favorite adapter is abandoned within a bounded horizon and neither is starved.
+evidence:
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::picks the higher-fitness candidate, and flips when fitness flips'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::all-neutral (no live data) → the first candidate, deterministic'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::epsilon=0 NEVER explores (pure exploit), even on a zero rng draw'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::explores on a low draw and records the rng draw (reproducibility)'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::returns undefined when disabled (byte-identical legacy path)'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::when enabled, picks a candidate and audits the decision with the rng draw'
+  - 'test:packages/cli/src/loop/adapter-fitness.sim.test.ts::abandons a regressed favorite adapter for EVERY seed and lets the better one take over'
+  - 'test:packages/cli/src/loop/adapter-fitness.sim.test.ts::never starves an adapter — the underdog is explored despite low early fitness'
+  - 'test:packages/cli/src/overlay.test.ts::accepts a list of candidate adapters per tier (#252)'
+  - 'test:packages/cli/src/overlay.test.ts::rejects an empty adapter-candidate list (#252)'
+  - 'test:packages/cli/src/overlay.test.ts::validates EVERY candidate in a tier list, not just the first (#252)'
+  - 'test:packages/cli/src/overlay.test.ts::adapterFitness defaults to off with epsilon 0.1, and parses an opt-in (#252, CLM-0130)'
+  - 'test:packages/cli/src/overlay-schemas.test.ts::normalizes a single string to a one-element list'
+  - 'test:packages/cli/src/overlay-schemas.test.ts::returns [] for an unset tier or an undefined adapters block'
+  - 'code:packages/cli/src/loop/adapter-fitness.ts#chooseAdapter@doc:/CLM-0130/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
