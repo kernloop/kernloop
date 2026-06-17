@@ -1,0 +1,45 @@
+id: CLM-0128
+statement: >-
+  Under an explicit router.liveFitness opt-in (default off, separate from
+  seedPriors), the Router's fitnessPriors are computed at the CLI composition
+  root from the Observer's live ModelIdentity-fitness ledger over the seeded
+  baseline and keyed on name@version to match the Router's own lookup: the exact
+  (provider,family,generation,tier) score strictly overrides the class aggregate
+  once it crosses a min-sample threshold; otherwise a recency-decayed,
+  provider-scoped (provider,family,tier) aggregate bootstraps a new generation so
+  learning TRANSFERS across a model-version bump; the live score overrides the
+  seeded baseline only when its class has sufficient data; a malformed ledger row
+  is dropped and a null/unknown identity degrades to the baseline; live scores
+  are clamped to a bounded window, and together with the kernel exploration floor
+  a regressing favorite is abandoned within a bounded horizon while no class is
+  starved (shown by a contiguous-seed simulation, not a cherry-picked set); the
+  ledger read is bounded (recency-ordered, fail-closed on an invalid bound) so a
+  growing ledger cannot OOM the hot path; each candidate's source
+  (live-exact/live-class-fallback/seeded-file/
+  neutral) and score are audited. The kernel Router is unchanged, so with one manifest per
+  capability this is selection-inert in production and changes the selected
+  manifest only when candidates compete.
+evidence:
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::uses the exact (provider,family,generation,tier) score once it crosses minSampleExact'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::takes the exact row at EXACTLY minSampleExact (inclusive boundary)'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::STRICTLY overrides: a sufficient exact row wins over a divergent class aggregate'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::bootstraps a brand-new generation from the (provider,family,tier) aggregate of older generations'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::NEVER mixes providers — a same-family class on another provider does not transfer'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::decays an old class aggregate below the usable threshold so a stale class degrades to neutral'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::keeps the seeded score when live data is insufficient'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::OVERRIDES the seeded score when the live class has sufficient data'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::a class whose ONLY row is malformed degrades to neutral, not a partial score'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::clamps live scores into the bounded-delta window (condition 4)'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::selects the manifest whose model CLASS has higher live fitness, and flips when fitness flips'
+  - 'test:packages/cli/src/tools/live-fitness.sim.test.ts::abandons a regressed favorite for EVERY seed in the range and lets the better class take over'
+  - 'test:packages/cli/src/tools/live-fitness.sim.test.ts::never starves the abandoned class — the exploration floor still reaches it in the tail'
+  - 'test:packages/cli/src/tools/live-fitness-wiring.test.ts::keys the live override on name@version and audits live-exact provenance'
+  - 'test:packages/cli/src/tools/live-fitness-wiring.test.ts::with liveFitness OFF, emits no live-fitness event and returns the (empty) seeded fragment'
+  - 'test:packages/cli/src/tools/live-fitness-wiring.test.ts::degrades a candidate with NO model requirement to a neutral decision'
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::a positive limit returns only the N most-recently-used classes; omitted returns all'
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::FAILS CLOSED on a provided invalid limit — throws, never silently unbounded'
+  - 'code:packages/cli/src/tools/live-fitness.ts#liveFitnessPriors@doc:/CLM-0128/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

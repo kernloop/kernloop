@@ -112,27 +112,27 @@ const GatesSchema = z.strictObject({
 });
 
 /**
- * Router seeding (spec §7, CLM-0126). `seedPriors` is an EXPLICIT opt-in
- * (default false, rule 6): committing `priors.yaml` reviews the DATA, flipping
- * it true ratifies its INFLUENCE on routing (loader: priors-seed.ts). */
-const RouterSchema = z.strictObject({ seedPriors: z.boolean().default(false) });
+ * Router priors (spec §7), both opt-in (default false, rule 6): `seedPriors`
+ * biases from the reviewed `priors.yaml` (CLM-0126); `liveFitness` feeds the
+ * live identity-fitness series with cross-version transfer (CLM-0128, #229
+ * item 2) — separate so a self-reinforcing feed is never default-on. */
+const RouterSchema = z.strictObject({
+  seedPriors: z.boolean().default(false),
+  liveFitness: z.boolean().default(false),
+});
 
 /**
  * One node override (spec §6: "Overlays may override nodes (swap a gate,
  * add a specialist) — never duplicate the graph"). P2 scopes this narrowly:
  *
- * - `gate` — swap which registered gate a gate node runs (e.g. point the
- *   loop's quality node at a repo-specific gate name).
- * - `specialists` — workforce template names added to the fan-out node's
- *   children.
+ * - `gate` — swap which registered gate a gate node runs.
+ * - `specialists` — workforce template names added to the fan-out node's children.
  * - `tier` / `effort` — override the model REQUIREMENT a model-calling node
- *   derives from its template/manifest (spec §8.4). A node may raise or lower
- *   either axis without forking the template; the loop resolves the overridden
- *   requirement through the kernel translation seam exactly as a declared one.
- *
- * Deliberately absent: `skip` (a node you can turn off is a fail-closed
- * path), edge rewiring, and node duplication — the graph itself is not
- * overlay data. An empty override is rejected: it hides intent.
+ *   derives from its template/manifest (spec §8.4); the loop resolves it through
+ *   the kernel translation seam exactly as a declared one.
+ * Deliberately absent: `skip` (a node you can turn off is a fail-closed path),
+ * edge rewiring, and node duplication — the graph is not overlay data. An empty
+ * override is rejected: it hides intent.
  */
 export const NodeOverrideSchema = z
   .strictObject({

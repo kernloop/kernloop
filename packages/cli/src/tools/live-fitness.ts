@@ -1,0 +1,270 @@
+/**
+ * Live ModelIdentity-fitness priors for the Router (#229 item 2, #251).
+ * Consensus-ratified 6/7 (Option A): feed the Observer's LIVE identity-fitness
+ * series (provider/family/generation/tier — #66, CLM-0125) into the kernel
+ * Router's existing `fitnessPriors` seam (#179, CLM-0126) at the CLI composition
+ * root, so learning TRANSFERS across a model-version bump instead of resetting.
+ * The kernel Router is UNCHANGED — this module only computes the `subject→score`
+ * map it already consumes.
+ *
+ * HONESTY (a binding vote condition, stated here not buried): each faculty
+ * registers exactly one manifest and capabilities are distinct, so the Router
+ * has ONE candidate per capability in the current production config — fitness
+ * priors (seeded OR live) are SELECTION-INERT in prod, changing the selected
+ * manifest ONLY when ≥2 manifests compete for one capability (the multi-candidate
+ * flip test proves this). The real prod multi-candidate model decision lives in
+ * node-bind's per-tier adapter selection, deferred to its own ratified increment
+ * (#252). A candidate that declares no `model` requirement (so no identity is
+ * predictable) degrades to the seeded/neutral baseline, never inventing a class.
+ *
+ * The six binding conditions realized here:
+ *  1. opt-in only — the caller gates on `router.liveFitness` (overlay.ts);
+ *  2. seeded file is the BASELINE — live only OVERRIDES a subject when its class
+ *     has sufficient data; otherwise the seeded (or neutral) score stands;
+ *  3. the generation-agnostic (provider,family,tier) aggregate is BOOTSTRAP-ONLY
+ *     and recency-decayed — the exact (provider,family,generation,tier) score
+ *     STRICTLY overrides it once that generation crosses `minSampleExact`;
+ *  4. bounded reinforcement — scores are clamped to [scoreFloor, scoreCeil] and
+ *     the kernel exploration floor (CLM-0028) keeps every class selectable
+ *     (proven by the simulation test);
+ *  5. provenance — every candidate carries its source (`live-exact` /
+ *     `live-class-fallback` / `seeded-file` / `neutral`) + score for the audit;
+ *  6. security — the ledger read is schema-validated and a malformed row is
+ *     dropped (degrade to neutral), never trusted.
+ */
+import { z } from 'zod';
+import { NEUTRAL_FITNESS_PRIOR } from '@kernloop/kernel';
+import type { ModelIdentity } from '@kernloop/contracts';
+import { laplaceScore } from './priors-seed.js';
+
+/** Which source governed a candidate's final prior — the audited provenance (rule 7). */
+export type LiveFitnessSource = 'live-exact' | 'live-class-fallback' | 'seeded-file' | 'neutral';
+
+/** Tunable thresholds for the live feed; defaults below are the shipped policy. */
+export interface LiveFitnessConfig {
+  /** Invocations the EXACT (provider,family,generation,tier) row needs to strictly override the class aggregate. */
+  readonly minSampleExact: number;
+  /** Decayed effective invocations the (provider,family,tier) aggregate needs to be usable as a bootstrap. */
+  readonly minSampleClass: number;
+  /** Recency half-life (ms) applied to each row's weight in the class aggregate. */
+  readonly halfLifeMs: number;
+  /** Lower clamp on any live score — keeps a losing class selectable above the exploration floor. */
+  readonly scoreFloor: number;
+  /** Upper clamp on any live score — bounds how far a winning class can dominate. */
+  readonly scoreCeil: number;
+}
+
+/** The shipped live-fitness policy (condition 3/4): bootstrap-only aggregate, bounded deltas. */
+export const DEFAULT_LIVE_FITNESS_CONFIG: LiveFitnessConfig = {
+  minSampleExact: 5,
+  minSampleClass: 8,
+  halfLifeMs: 30 * 24 * 60 * 60 * 1000, // 30 days
+  scoreFloor: 0.05,
+  scoreCeil: 0.95,
+};
+
+/** A routing candidate paired with the identity it would be served by (null = unpredictable). */
+export interface CandidateIdentity {
+  /** The manifest name — the Router's `fitnessPriors` lookup key. */
+  readonly subject: string;
+  /** The predicted served identity, or null when the candidate declares no model requirement. */
+  readonly identity: ModelIdentity | null;
+}
+
+/** The identity facts recorded per candidate (no cost — provenance only). */
+export interface DecisionIdentity {
+  readonly provider: string;
+  readonly family: string;
+  readonly generation: string;
+  readonly tier: string;
+}
+
+/** One candidate's resolved prior + provenance — reproducible and auditable (condition 5). */
+export interface LiveFitnessDecision {
+  readonly subject: string;
+  readonly source: LiveFitnessSource;
+  /** The score placed in the prior map for this subject. */
+  readonly score: number;
+  /** The class the score was read from, or null when none applied. */
+  readonly identity: DecisionIdentity | null;
+  /** Raw invocations on the exact (provider,family,generation,tier) row (0 when absent). */
+  readonly exactSamples: number;
+  /** Decayed effective invocations on the (provider,family,tier) aggregate (0 when unused). */
+  readonly classSamples: number;
+}
+
+/** The merged prior map handed to the Router + the per-candidate provenance. */
+export interface LiveFitnessResult {
+  /** Seeded baseline with live overrides applied — the Router's `fitnessPriors`. */
+  readonly map: Map<string, number>;
+  readonly decisions: LiveFitnessDecision[];
+}
+
+/**
+ * The TOLERANT schema for one identity-fitness row read back from the Observer
+ * (condition 6). A row that fails this — corrupted generation, NaN rate,
+ * non-positive invocations — is DROPPED, so a malformed ledger degrades that
+ * class to neutral rather than poisoning routing.
+ */
+const LedgerRecordSchema = z.object({
+  key: z.object({
+    provider: z.string().min(1),
+    family: z.string().min(1),
+    generation: z.string().min(1),
+    tier: z.string().min(1),
+  }),
+  invocations: z.number().int().positive(),
+  successRate: z.number().min(0).max(1),
+  lastUsedAt: z.number().int().nonnegative(),
+});
+
+/** A validated, flattened identity-fitness row. */
+interface SafeRecord extends DecisionIdentity {
+  readonly invocations: number;
+  readonly successRate: number;
+  readonly lastUsedAt: number;
+}
+
+/** Class key: generation-agnostic, provider-scoped via a NUL join (a separator absent from any catalog provider/family/tier, so distinct classes never collide) — no cross-provider arithmetic. */
+function classKey(id: DecisionIdentity): string {
+  return [id.provider, id.family, id.tier].join('\u0000');
+}
+
+/** Validate + flatten the ledger, grouping safe rows by their generation-agnostic class. */
+function groupByClass(ledger: readonly unknown[]): Map<string, SafeRecord[]> {
+  const byClass = new Map<string, SafeRecord[]>();
+  for (const raw of ledger) {
+    const parsed = LedgerRecordSchema.safeParse(raw);
+    if (!parsed.success) continue; // malformed → dropped (condition 6)
+    const { key, invocations, successRate, lastUsedAt } = parsed.data;
+    const rec: SafeRecord = { ...key, invocations, successRate, lastUsedAt };
+    const k = classKey(rec);
+    const bucket = byClass.get(k);
+    if (bucket === undefined) byClass.set(k, [rec]);
+    else bucket.push(rec);
+  }
+  return byClass;
+}
+
+/** Exponential recency weight in (0,1]: 1 at/after `now`, halving every `halfLifeMs` of age. */
+function recencyWeight(now: number, lastUsedAt: number, halfLifeMs: number): number {
+  if (lastUsedAt >= now) return 1;
+  return Math.pow(2, -(now - lastUsedAt) / halfLifeMs);
+}
+
+/** Clamp a live score into the configured bounded-delta window (condition 4). */
+function clampScore(score: number, config: LiveFitnessConfig): number {
+  return Math.min(Math.max(score, config.scoreFloor), config.scoreCeil);
+}
+
+/** Recency-decayed (provider,family,tier) aggregate across all generations (bootstrap-only). */
+function aggregateClass(
+  rows: readonly SafeRecord[],
+  now: number,
+  halfLifeMs: number,
+): { invocations: number; successRate: number } {
+  let invocations = 0;
+  let successes = 0;
+  for (const r of rows) {
+    const w = recencyWeight(now, r.lastUsedAt, halfLifeMs);
+    invocations += w * r.invocations;
+    successes += w * r.successRate * r.invocations;
+  }
+  return { invocations, successRate: invocations > 0 ? successes / invocations : 0 };
+}
+
+/** The seeded-or-neutral baseline decision for a candidate live data didn't override. */
+function baselineDecision(
+  subject: string,
+  baseline: Map<string, number>,
+  idFacts: DecisionIdentity | null,
+  exactSamples: number,
+  classSamples: number,
+): LiveFitnessDecision {
+  const seeded = baseline.get(subject);
+  return {
+    subject,
+    source: seeded === undefined ? 'neutral' : 'seeded-file',
+    score: seeded ?? NEUTRAL_FITNESS_PRIOR,
+    identity: idFacts,
+    exactSamples,
+    classSamples,
+  };
+}
+
+/** Project a (nullable) identity to the bare facts recorded in a decision. */
+function factsOf(id: ModelIdentity | null): DecisionIdentity | null {
+  return id === null
+    ? null
+    : { provider: id.provider, family: id.family, generation: id.generation, tier: id.tier };
+}
+
+/** Decide one candidate's prior + provenance under the seeded baseline + live ledger. */
+function decideFor(
+  candidate: CandidateIdentity,
+  byClass: Map<string, SafeRecord[]>,
+  baseline: Map<string, number>,
+  now: number,
+  config: LiveFitnessConfig,
+): LiveFitnessDecision {
+  const id = candidate.identity;
+  const idFacts = factsOf(id);
+  const fallback = (exactSamples: number, classSamples: number): LiveFitnessDecision =>
+    baselineDecision(candidate.subject, baseline, idFacts, exactSamples, classSamples);
+  // No predictable class (no model requirement, or an unknown identity) → baseline.
+  if (id === null || id.family === 'unknown' || id.provider === 'unknown') return fallback(0, 0);
+  const rows = byClass.get(classKey(id)) ?? [];
+  const exact = rows.find((r) => r.generation === id.generation);
+  // Condition 3: exact generation STRICTLY overrides once it crosses minSampleExact.
+  if (exact !== undefined && exact.invocations >= config.minSampleExact) {
+    return {
+      subject: candidate.subject,
+      source: 'live-exact',
+      score: clampScore(laplaceScore(exact.successRate, exact.invocations), config),
+      identity: idFacts,
+      exactSamples: exact.invocations,
+      classSamples: 0,
+    };
+  }
+  // Condition 3: bootstrap-only generation-agnostic aggregate (recency-decayed).
+  const agg = aggregateClass(rows, now, config.halfLifeMs);
+  if (agg.invocations >= config.minSampleClass) {
+    return {
+      subject: candidate.subject,
+      source: 'live-class-fallback',
+      score: clampScore(laplaceScore(agg.successRate, Math.round(agg.invocations)), config),
+      identity: idFacts,
+      exactSamples: exact?.invocations ?? 0,
+      classSamples: agg.invocations,
+    };
+  }
+  return fallback(exact?.invocations ?? 0, agg.invocations);
+}
+
+/**
+ * Compute the Router's `fitnessPriors` from the seeded `baseline` plus the LIVE
+ * identity-fitness `ledger` (CLM-0128, #229 item 2). Pure and deterministic over its
+ * inputs (`now` is injected): the seeded score for each subject stands unless
+ * that subject's predicted class has sufficient live data, in which case the
+ * live score OVERRIDES it (condition 2). Returns the merged map + per-candidate
+ * provenance for the audit event.
+ */
+export function liveFitnessPriors(
+  candidates: readonly CandidateIdentity[],
+  ledger: readonly unknown[],
+  baseline: Map<string, number>,
+  now: number,
+  config: LiveFitnessConfig = DEFAULT_LIVE_FITNESS_CONFIG,
+): LiveFitnessResult {
+  const byClass = groupByClass(ledger);
+  const map = new Map(baseline);
+  const decisions: LiveFitnessDecision[] = [];
+  for (const candidate of candidates) {
+    const decision = decideFor(candidate, byClass, baseline, now, config);
+    decisions.push(decision);
+    if (decision.source === 'live-exact' || decision.source === 'live-class-fallback') {
+      map.set(candidate.subject, decision.score);
+    }
+  }
+  return { map, decisions };
+}
