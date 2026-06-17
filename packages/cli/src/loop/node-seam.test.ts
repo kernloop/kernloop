@@ -226,3 +226,44 @@ describe('buildNodeSeam — rides the served model + effort into the call', () =
     expect(seen[0]).toBeUndefined();
   });
 });
+
+describe('buildNodeSeam — per-model-call fitness hook (#66, CLM-0125)', () => {
+  it('fires onModelCall with the served identity + true + metered cost on success', async () => {
+    const calls: Array<{ family: string; success: boolean; cost: Cost }> = [];
+    const base: LoopInvoke = () => Promise.resolve({ output: 'ok', cost: COST });
+    const seam = buildNodeSeam(
+      resolveServed(req(), 'claude'), // large → opus → claude-opus identity
+      base,
+      { tokens: 0, usd: 0 },
+      undefined,
+      { onModelCall: (id, success, cost) => calls.push({ family: id.family, success, cost }) },
+    );
+    const result = await seam.invoke('hi');
+    expect(result.output).toBe('ok'); // result returned unchanged
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ family: 'claude-opus', success: true, cost: COST });
+  });
+
+  it('fires onModelCall with false + ZERO cost on a throw, then rethrows unchanged', async () => {
+    const calls: Array<{ success: boolean; cost: Cost }> = [];
+    const boom = new Error('adapter exploded');
+    const base: LoopInvoke = () => Promise.reject(boom);
+    const seam = buildNodeSeam(
+      resolveServed(req(), 'claude'),
+      base,
+      { tokens: 0, usd: 0 },
+      undefined,
+      {
+        onModelCall: (_id, success, cost) => calls.push({ success, cost }),
+      },
+    );
+    await expect(seam.invoke('hi')).rejects.toBe(boom); // rethrown unchanged
+    expect(calls).toEqual([{ success: false, cost: { tokens: 0, usd: 0, wallClockMs: 0 } }]);
+  });
+
+  it('omitting the hook is a no-op (the injected/test path leaves it undefined)', async () => {
+    const base: LoopInvoke = () => Promise.resolve({ output: 'ok', cost: COST });
+    const seam = buildNodeSeam(resolveServed(req(), 'claude'), base, { tokens: 0, usd: 0 });
+    await expect(seam.invoke('hi')).resolves.toMatchObject({ output: 'ok' });
+  });
+});

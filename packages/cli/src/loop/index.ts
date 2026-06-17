@@ -24,6 +24,7 @@ import {
 } from '@kernloop/contracts';
 import { appendEvent, droppedEnvKeys, type AdapterName } from '@kernloop/kernel';
 import type { QualityCheck } from '@kernloop/faculty-gates';
+import { loadDiscoveredCache } from '@kernloop/faculty-models';
 import {
   JsonlCheckpointStore,
   type RunResult,
@@ -214,6 +215,23 @@ function downgradeAudit(kern: Kernloop, runId: string): OnDowngrade {
 }
 
 /**
+ * The per-MODEL-CALL identity-fitness wiring threaded into the default seams
+ * (#66, CLM-0125): each node's served {@link ModelIdentity} — normalized against
+ * the SAME discovered cache provenance uses — feeds the Observer's ADDITIVE
+ * identity-fitness series via `onModelCall`, re-keying fitness on the model
+ * CLASS so a version bump does not reset learning. The subject-keyed ledger (and
+ * the priors/router that read it) are untouched. The injected-invoke path
+ * (tests / MCP sampling) omits it.
+ */
+function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] {
+  return {
+    discovered: loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString()),
+    onModelCall: (identity, success, cost) =>
+      kern.observer.ingestModelFitness(identity, success, cost),
+  };
+}
+
+/**
  * Audit the env scoping once per real run (rule 7): a spawned model CLI gets
  * the benign base allowlist ∪ `adapterEnvAllow`, NOT the host env — record how
  * many host vars were withheld so the redaction is never silent (#227,
@@ -301,7 +319,7 @@ export async function executeCanonicalLoop(
   const onDowngrade = downgradeAudit(kern, runId);
   const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
-      ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade)
+      ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade, modelFitness(kern))
       : injectedSeamFor(adapter, kern.config, base, totals, budget, onDowngrade);
   // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.

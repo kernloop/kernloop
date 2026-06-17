@@ -11,7 +11,7 @@
  * self-filed issue's task-shaped payload re-enters through the ordinary
  * `run` entry point, never a privileged path.
  */
-import type { Outcome, Verdict } from '@kernloop/contracts';
+import type { Cost, ModelIdentity, Outcome, Verdict } from '@kernloop/contracts';
 import { DEFAULT_LOG_RETENTION_MS, openStore, pruneLogs } from './store.js';
 import {
   driftSignals,
@@ -22,6 +22,13 @@ import {
   type DriftSignal,
   type FitnessRecord,
 } from './ledger.js';
+import {
+  fitnessForIdentity,
+  identityFitnessLedger,
+  ingestModelFitness,
+  type IdentityFitnessRecord,
+  type IdentityKey,
+} from './identity-ledger.js';
 import {
   costPerGovernedDecision,
   ingestVerdict,
@@ -43,10 +50,16 @@ import {
 import { exportPriors, type PriorsExport } from './priors.js';
 import { lifecycleProposals, type LifecycleOptions, type LifecycleProposal } from './lifecycle.js';
 
-export { InvalidOutcomeError, InvalidVerdictError, InvalidIssueProposalError } from './errors.js';
+export {
+  InvalidOutcomeError,
+  InvalidVerdictError,
+  InvalidModelFitnessError,
+  InvalidIssueProposalError,
+} from './errors.js';
 export { SCHEMA_DDL } from './store.js';
 export { DEFAULT_DRIFT_WINDOW_N, DEFAULT_DRIFT_MIN_DROP } from './ledger.js';
 export type { DriftOptions, DriftSignal, FitnessCost, FitnessRecord } from './ledger.js';
+export type { IdentityFitnessCost, IdentityFitnessRecord, IdentityKey } from './identity-ledger.js';
 export { DEFAULT_PRECISION_WINDOW_N } from './voters.js';
 export type { GateDecisionCost, RunningPrecision, VoterSeriesEntry } from './voters.js';
 export { issueBody } from './issues.js';
@@ -86,6 +99,18 @@ export interface Observer {
   fitness(subject: string): FitnessRecord | undefined;
   /** Ledger read — every fitness row, most recently used first. */
   fitnessLedger(): FitnessRecord[];
+  /**
+   * Identity-series write (#66, CLM-0125) — record one per-MODEL-CALL fitness
+   * event for a served {@link ModelIdentity}: `success` = the call returned,
+   * `cost` is its metered Cost (zero on failure). UPSERTs the ADDITIVE row keyed
+   * on `(provider, family, generation, tier)`, leaving the subject-keyed ledger
+   * untouched. zod-validated at the boundary.
+   */
+  ingestModelFitness(identity: ModelIdentity, success: boolean, cost: Cost): IdentityFitnessRecord;
+  /** Identity-series read — one model class's fitness, or undefined if never served. */
+  fitnessForIdentity(key: IdentityKey): IdentityFitnessRecord | undefined;
+  /** Identity-series read — every identity-fitness row, most recently used first. */
+  identityFitnessLedger(): IdentityFitnessRecord[];
   /** Series write — zod-validated Verdict; one row per VoterRecord (CLM-0055). */
   ingestVerdict(verdict: Verdict): number;
   /** Series read — one voter's votes, oldest first. */
@@ -139,6 +164,10 @@ export function createObserver(dbPath: string, options: CreateObserverOptions = 
       ingestOutcome(db, clock(), outcome, attribution.subject),
     fitness: (subject) => fitness(db, subject),
     fitnessLedger: () => fitnessLedger(db),
+    ingestModelFitness: (identity, success, cost) =>
+      ingestModelFitness(db, clock(), identity, success, cost),
+    fitnessForIdentity: (key) => fitnessForIdentity(db, key),
+    identityFitnessLedger: () => identityFitnessLedger(db),
     ingestVerdict: (verdict) => ingestVerdict(db, clock(), verdict),
     voterSeries: (voter) => voterSeries(db, voter),
     recordVoterOutcome: (voter, taskId, correct) =>

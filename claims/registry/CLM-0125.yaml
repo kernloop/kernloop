@@ -1,0 +1,19 @@
+id: CLM-0125
+statement: >-
+  The Observer keeps an ADDITIVE per-model-call fitness series keyed on the
+  normalized ModelIdentity tuple (provider, family, generation, tier),
+  bucketing an `unknown` identity separately and never inventing a class, wired
+  from each loop node's served identity via the seam's `onModelCall` hook, while
+  the subject-keyed ledger (and the priors/router that read it) are unchanged.
+evidence:
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::two distinct served aliases that normalize to the SAME tuple accumulate ONE row'
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::a generation bump is recorded as two DISTINCT rows, each keeping its own series'
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::an `unknown` identity never merges into a named class row'
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::leaves the subject-keyed observer_fitness UNTOUCHED (writes only the identity table)'
+  - 'test:packages/cli/src/loop/api-loop.test.ts::threads the per-model-call fitness hook (#66, CLM-0125) to the bound seam, fired with the served identity + cost'
+  - 'test:packages/cli/src/loop/api-loop.test.ts::fires the fitness hook with failure + ZERO cost when the endpoint call throws (key unset)'
+  - 'code:packages/faculty-observer/src/identity-ledger.ts#ingestModelFitness'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

@@ -18,7 +18,7 @@ import {
   type AdapterCommandEffort,
   type AdapterName,
 } from '@kernloop/kernel';
-import type { Effort, ModelIdentity, ModelRequirement, ModelTier } from '@kernloop/contracts';
+import type { Cost, Effort, ModelIdentity, ModelRequirement, ModelTier } from '@kernloop/contracts';
 import {
   catalog,
   emptyDiscoveredCache,
@@ -110,22 +110,55 @@ export interface NodeSeam {
 }
 
 /**
+ * The per-MODEL-CALL fitness hook (#66, CLM-0125): each model invoke at a loop
+ * node fires this once for its served {@link ModelIdentity} — `success` = the
+ * call returned output, `false` = it threw — with the call's metered `cost`
+ * (zero on failure). The composition root wires it to
+ * `Observer.ingestModelFitness`, re-keying fitness on the model class so a
+ * version bump does not reset learning. Optional: the injected-invoke test path
+ * leaves it undefined.
+ */
+export type OnModelCall = (identity: ModelIdentity, success: boolean, cost: Cost) => void;
+
+/** Per-call hooks {@link buildNodeSeam} threads beyond the served binding (#66). */
+export interface NodeSeamHooks {
+  /**
+   * The discovered cache the seam normalizes the served alias against, so the
+   * identity it reports to {@link onModelCall} matches provenance (the synced
+   * cache wins over a bare rule parse). Defaults to the empty cache.
+   */
+  readonly discovered?: DiscoveredCache;
+  /** Per-MODEL-CALL fitness hook (#66, CLM-0125); see {@link OnModelCall}. */
+  readonly onModelCall?: OnModelCall;
+}
+
+/**
  * Bind a {@link ServedModel} onto `base` as a metered {@link NodeSeam}: every
  * call carries the served model alias (when the harness binds one, not the
  * default `''`) and the resolved effort arg (when the adapter supports it), and
  * its spend accumulates into `totals`. A caller-supplied `model`/`effort` in
  * the per-call options still wins (tests script raw invokes); the binding only
  * fills what the call left unset.
+ *
+ * `hooks.onModelCall` (#66) fires once per model call for the node's served
+ * {@link ModelIdentity} — `true` + the call's metered cost on success, `false`
+ * + zero cost on throw (then the error rethrows unchanged) — so the Observer
+ * re-keys fitness on the model class. The identity is computed once from
+ * `served` against `hooks.discovered`, matching the provenance ref.
  */
 export function buildNodeSeam(
   served: ServedModel,
   base: LoopInvoke,
   totals: RunTotals,
   timeoutMs?: number,
+  hooks: NodeSeamHooks = {},
 ): NodeSeam {
   // Attribute this node's spend to the adapter that serves it (#44).
   const metered = meteredInvoke(base, totals, served.adapter);
-  const invoke: LoopInvoke = (prompt, options = {}) => {
+  // The served identity is fixed for this seam — compute it once, the same way
+  // provenance does (the discovered cache wins over a bare rule parse) (#66).
+  const identity = servedIdentity(served, hooks.discovered);
+  const invoke: LoopInvoke = async (prompt, options = {}) => {
     const model = options.model ?? (served.model === '' ? undefined : served.model);
     const effort = options.effort ?? served.effortArg;
     // The per-node model-call budget (#127); a caller-supplied timeout wins.
@@ -133,13 +166,22 @@ export function buildNodeSeam(
     // The REQUESTED tier rides through so a host that picks the model itself
     // (MCP sampling, #140) can route high/med/low; CLI/api adapters ignore it.
     const tier = options.tier ?? served.requestedTier;
-    return metered(prompt, {
-      ...options,
-      ...(model === undefined ? {} : { model }),
-      ...(effort === undefined ? {} : { effort }),
-      ...(timeout === undefined ? {} : { timeoutMs: timeout }),
-      tier,
-    });
+    try {
+      const result = await metered(prompt, {
+        ...options,
+        ...(model === undefined ? {} : { model }),
+        ...(effort === undefined ? {} : { effort }),
+        ...(timeout === undefined ? {} : { timeoutMs: timeout }),
+        tier,
+      });
+      // Per-model-call fitness (#66): success = the call returned output.
+      hooks.onModelCall?.(identity, true, result.cost);
+      return result;
+    } catch (err) {
+      // Failure = the call threw; zero cost, then rethrow unchanged (#66).
+      hooks.onModelCall?.(identity, false, { tokens: 0, usd: 0, wallClockMs: 0 });
+      throw err;
+    }
   };
   return { invoke, served };
 }

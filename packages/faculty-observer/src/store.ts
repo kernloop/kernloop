@@ -28,6 +28,13 @@ import Database from 'better-sqlite3';
  *   sliding-window precision series (spec §3.2) reads these.
  * - `observer_issues` — self-issue proposals and their filing state
  *   (`proposed` → `filed`), always at `suggest` tier.
+ * - `observer_fitness_identity` — the ADDITIVE per-model-call fitness series
+ *   keyed on the normalized ModelIdentity tuple `(provider, family, generation,
+ *   tier)` (#66), so learning survives a model-version bump (it re-keys on the
+ *   model CLASS, not a manifest subject). An `unknown` identity buckets in its
+ *   own row, never merging into a named class. This table is SEPARATE from and
+ *   ADDITIVE to `observer_fitness`: the subject-keyed ledger (and the
+ *   priors/router that read it) is untouched.
  */
 export const SCHEMA_DDL = `
 CREATE TABLE IF NOT EXISTS observer_fitness (
@@ -38,6 +45,19 @@ CREATE TABLE IF NOT EXISTS observer_fitness (
   usd REAL NOT NULL,
   wallClockMs REAL NOT NULL,
   lastUsedAt INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS observer_fitness_identity (
+  provider TEXT NOT NULL,
+  family TEXT NOT NULL,
+  generation TEXT NOT NULL,
+  tier TEXT NOT NULL,
+  invocations INTEGER NOT NULL,
+  successes INTEGER NOT NULL,
+  tokens INTEGER NOT NULL,
+  usd REAL NOT NULL,
+  wallClockMs REAL NOT NULL,
+  lastUsedAt INTEGER NOT NULL,
+  PRIMARY KEY (provider, family, generation, tier)
 );
 CREATE TABLE IF NOT EXISTS observer_outcome_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
