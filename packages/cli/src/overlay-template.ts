@@ -31,6 +31,7 @@ export function overlayTemplate(defaults: Overlay): string {
     `    panel: ${String(defaults.gates.vote.panel)} # 3 default; 7 at plan ratification (spec §8.6)`,
     '#  quality:',
     '#    timeoutMsPerCheck: 120000',
+    '# router: { seedPriors: false }  # opt-in: true seeds routing from the reviewed priors.yaml (spec §7, CLM-0126)',
     '# adapters:  # per-tier model adapters (spec §8.4) — which adapter serves each model tier',
     '#   frontier: claude  # any of: claude codex gemini opencode ollama, OR a registered endpoint id below',
     '#   large: claude     # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',

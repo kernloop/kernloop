@@ -112,6 +112,12 @@ const GatesSchema = z.strictObject({
 });
 
 /**
+ * Router seeding (spec §7, CLM-0126). `seedPriors` is an EXPLICIT opt-in
+ * (default false, rule 6): committing `priors.yaml` reviews the DATA, flipping
+ * it true ratifies its INFLUENCE on routing (loader: priors-seed.ts). */
+const RouterSchema = z.strictObject({ seedPriors: z.boolean().default(false) });
+
+/**
  * One node override (spec §6: "Overlays may override nodes (swap a gate,
  * add a specialist) — never duplicate the graph"). P2 scopes this narrowly:
  *
@@ -215,6 +221,7 @@ export const OverlaySchema = z
      */
     downgrade: z.strictObject({ atSpendFraction: z.number().gt(0).lte(1) }).optional(),
     gates: GatesSchema.prefault({}),
+    router: RouterSchema.prefault({}), // seed routing from the reviewed priors.yaml [CLM-0126]
     nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
     adapters: AdaptersSchema.optional(),
     /**

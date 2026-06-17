@@ -2057,3 +2057,24 @@ The Observer keeps an ADDITIVE per-model-call fitness series keyed on the normal
 - [`packages/cli/src/loop/api-loop.test.ts`](../packages/cli/src/loop/api-loop.test.ts)
 - [`packages/faculty-observer/src/identity-ledger.ts#ingestModelFitness`](../packages/faculty-observer/src/identity-ledger.ts)
 - CI `test`
+
+## CLM-0126
+
+**Status:** verified — **source:** [`CLM-0126.yaml`](../claims/registry/CLM-0126.yaml)
+
+The Router is seeded from the reviewed .kernloop/priors.yaml at the run composition root under an explicit router.seedPriors opt-in, with Laplace-smoothed scores so a thin sample cannot dominate, the priors BIASING not eliminating candidates (the exploration floor and neutral fallback stay intact), degrading to neutral routing on a missing or malformed file, and appending one audit event recording the per-subject discounted scores plus the file sha256 for reproducibility.
+
+**Enforced by:**
+
+- [`packages/cli/src/tools/priors-seed.test.ts`](../packages/cli/src/tools/priors-seed.test.ts)
+- [`packages/cli/src/tools/priors-seed.test.ts`](../packages/cli/src/tools/priors-seed.test.ts)
+- [`packages/cli/src/tools/priors-seed.test.ts`](../packages/cli/src/tools/priors-seed.test.ts)
+- [`packages/cli/src/tools/priors-seed.test.ts`](../packages/cli/src/tools/priors-seed.test.ts)
+- [`packages/cli/src/tools/priors-seed.test.ts`](../packages/cli/src/tools/priors-seed.test.ts)
+- [`packages/cli/src/tools/priors-seed-influence.test.ts`](../packages/cli/src/tools/priors-seed-influence.test.ts)
+- [`packages/cli/src/tools/priors-seed-influence.test.ts`](../packages/cli/src/tools/priors-seed-influence.test.ts)
+- [`packages/cli/src/tools/priors-seed-influence.test.ts`](../packages/cli/src/tools/priors-seed-influence.test.ts)
+- [`packages/cli/src/tools/priors-seed-influence.test.ts`](../packages/cli/src/tools/priors-seed-influence.test.ts)
+- [`packages/cli/src/tools/priors-seed-influence.test.ts`](../packages/cli/src/tools/priors-seed-influence.test.ts)
+- [`packages/cli/src/tools/priors-seed.ts#loadSeedPriors`](../packages/cli/src/tools/priors-seed.ts)
+- CI `test`
