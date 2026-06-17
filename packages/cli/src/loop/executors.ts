@@ -318,6 +318,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
         ...(ctx.child === undefined ? {} : { definitionOfDone: ctx.child.definitionOfDone }),
         ...(b.checks === undefined ? {} : { checks: b.checks }),
         envAllow: b.kern.config.gates.quality.envAllow, // least-privilege check env (#235)
+        sandbox: b.kern.config.gates.quality.sandbox, // Docker isolation policy (#236)
         ...(b.kern.config.gates.quality.timeoutMsPerCheck === undefined
           ? {}
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),

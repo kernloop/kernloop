@@ -41,7 +41,18 @@ export {
   type QualityCheck,
   type SubprocessCheck,
 } from './checks.js';
-export { runQualityGate, type RunQualityGateOptions } from './run.js';
+export {
+  runQualityGate,
+  type RunQualityGateOptions,
+  type GateSandboxOptions,
+  type SandboxTier,
+} from './run.js';
+export {
+  RATIFIED_GATE_PROFILE,
+  RATIFIED_GATE_PROFILE_HASH,
+  GATE_IMAGE,
+  gateProfileHash,
+} from './sandbox/profile.js';
 export { parseEslintOutput, parseTscOutput, parseVitestOutput, outputTail } from './parsers.js';
 export { qualityGateManifest } from './manifest.js';
 export {

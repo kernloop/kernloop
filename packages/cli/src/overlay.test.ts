@@ -93,7 +93,8 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
     expect(overlay.gates).toEqual({
       vote: { strategy: 'simple_majority', panel: 3 },
-      quality: { envAllow: [] },
+      // sandbox: gate-check Docker isolation is opt-in, fail-closed once enabled [CLM-0129]
+      quality: { envAllow: [], sandbox: { enabled: false, enforce: true } },
     });
     // both router priors are explicit opt-in [CLM-0126, CLM-0128]
     expect(overlay.router).toEqual({ seedPriors: false, liveFitness: false });
