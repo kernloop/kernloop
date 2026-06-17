@@ -4,8 +4,9 @@ statement: >-
   quality gate runs each subprocess check inside the kernel Docker sandbox: the
   workspace is copied into an ephemeral scratch — excluding .git and
   credential-bearing files and never dereferencing escaping symlinks — together
-  with its node_modules, and the check runs under a DIGEST-PINNED, hash-gated,
-  non-root, --network none, memory/cpu/pids-capped profile via runInSandbox;
+  with its node_modules, and the check runs under a DIGEST-PINNED,
+  content-hash-pinned (ratified profile only; no overlay override), non-root,
+  --network none, memory/cpu/pids-capped profile via runInSandbox;
   pnpm/yarn script commands are translated to npm run so they execute offline
   against the copied node_modules. A FUNCTIONAL Docker probe selects the tier;
   with the sandbox enabled and Docker unavailable the enforce path FAILS CLOSED

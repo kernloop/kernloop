@@ -48,7 +48,6 @@ export {
   servedRef,
   identityRef,
   servedIdentity,
-  adapterForTier,
   type ServedModel,
   type NodeSeam,
 } from './node-seam.js';

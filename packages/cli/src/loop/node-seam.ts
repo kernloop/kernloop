@@ -36,9 +36,6 @@ import { meteredInvoke, type LoopInvoke, type RunTotals } from './invoke.js';
  */
 const NO_DISCOVERED: DiscoveredCache = emptyDiscoveredCache('n/a');
 
-/** The per-tier adapter map an overlay declares (tier → adapter name). */
-export type TierAdapters = Partial<Record<ModelTier, AdapterName | undefined>>;
-
 /** What actually served a node's requirement — the honest provenance record. */
 export interface ServedModel {
   /** The adapter that served the call: a CLI adapter name OR a registered api endpoint id. */
@@ -90,15 +87,6 @@ export function resolveServed(req: ModelRequirement, adapter: AdapterName): Serv
     effortClamped: effort.clamped,
     effortArg,
   };
-}
-
-/** Pick the adapter that serves a tier: the overlay's per-tier choice, else the run adapter. */
-export function adapterForTier(
-  tier: ModelTier,
-  tierAdapters: TierAdapters | undefined,
-  runAdapter: AdapterName,
-): AdapterName {
-  return tierAdapters?.[tier] ?? runAdapter;
 }
 
 /** A node's bound, metered invoke plus the served-model provenance it carries. */
