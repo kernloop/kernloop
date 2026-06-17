@@ -78,6 +78,9 @@ export interface Kernloop {
   readonly registry: ManifestRegistry;
   readonly ladder: Ladder;
   readonly router: Router;
+  /** The run's rng (injectable; defaults to Math.random) — the exploration floor
+   * for the router AND node-bind's live-fitness adapter selection (#252). */
+  readonly rng: () => number;
   readonly memory: Memory;
   /** The observer faculty over the same overlay database file (spec §3.3,
    * §5.5) — table-prefix ownership keeps it out of memory's tables. */
@@ -145,11 +148,8 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
   const bus = new EventBus(store);
   const registry = new ManifestRegistry(store);
   const ladder = new Ladder(store);
-  const router = new Router(
-    options.rng === undefined
-      ? { registry, ladder, store }
-      : { registry, ladder, store, rng: options.rng },
-  );
+  const rng = options.rng ?? Math.random;
+  const router = new Router({ registry, ladder, store, rng });
   const memory = createMemory(paths.memory, msClockOption(clock));
   // Observer shares the overlay DB file; `observer_*` table prefix is the
   // ownership boundary (proven safe in faculty-observer's store tests).
@@ -169,6 +169,7 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
     registry,
     ladder,
     router,
+    rng,
     memory,
     observer,
     jobs,

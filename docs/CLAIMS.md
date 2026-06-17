@@ -2149,3 +2149,28 @@ Under an explicit gates.quality.sandbox.enabled opt-in (default off), the qualit
 - [`packages/faculty-gates/src/sandbox/run-check.docker.test.ts`](../packages/faculty-gates/src/sandbox/run-check.docker.test.ts)
 - [`packages/faculty-gates/src/run.ts#runQualityGate`](../packages/faculty-gates/src/run.ts)
 - CI `test`
+
+## CLM-0130
+
+**Status:** verified — **source:** [`CLM-0130.yaml`](../claims/registry/CLM-0130.yaml)
+
+Under an explicit gates-adjacent adapterFitness.enabled opt-in (default off, epsilon default 0.1), node-bind's per-tier adapter binding selects among a tier's candidate adapters by live ModelIdentity fitness: overlay.adapters[tier] accepts a single name (unchanged) or a non-empty candidate list, and with >=2 candidates the higher-fitness candidate is chosen via the CLM-0128 liveFitnessPriors scoring over a NEUTRAL (live-only) baseline with an exploration floor (epsilon=0 is pure exploit; a lower-fitness candidate stays selectable so a better-but-untried one is not starved). A CLI candidate's served identity is predicted by the same deterministic resolveServed+servedIdentity the seam uses (predicted == served for CLI adapters); an endpoint candidate scores neutral — its identity is resolved on the api path, not predicted here, so endpoint-fitness selection is deferred. The choice, candidates, predicted identities, scores, sources, and the rng draw are audited (reproducible). With the flag off or a single adapter the first candidate is bound, byte-identical to the prior behavior. Unlike the selection-inert Router priors path (CLM-0128), this changes a real production decision whenever a tier lists competing CLI adapters. A contiguous-seed simulation proves a regressing favorite is abandoned within a bounded horizon AND that the exploration floor discovers a better-but-untried adapter (so neither is starved).
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.sim.test.ts`](../packages/cli/src/loop/adapter-fitness.sim.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.sim.test.ts`](../packages/cli/src/loop/adapter-fitness.sim.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/cli/src/overlay-schemas.test.ts`](../packages/cli/src/overlay-schemas.test.ts)
+- [`packages/cli/src/overlay-schemas.test.ts`](../packages/cli/src/overlay-schemas.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.ts#chooseAdapter`](../packages/cli/src/loop/adapter-fitness.ts)
+- CI `test`

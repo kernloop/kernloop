@@ -76,12 +76,14 @@ export function overlayPaths(overlayDir: string): OverlayPaths {
 // re-exported (with source, so the API resolver chases them) so existing
 // `from '../overlay.js'` imports are unchanged.
 import {
+  AdapterFitnessSchema,
   AdaptersSchema,
   BudgetsSchema,
   GatesSchema,
   NodeOverrideSchema,
   RouterSchema,
   isCliAdapter,
+  tierCandidates,
 } from './overlay-schemas.js';
 export {
   NodeOverrideSchema,
@@ -137,6 +139,7 @@ export const OverlaySchema = z
     downgrade: z.strictObject({ atSpendFraction: z.number().gt(0).lte(1) }).optional(),
     gates: GatesSchema.prefault({}),
     router: RouterSchema.prefault({}), // seed routing from the reviewed priors.yaml [CLM-0126]
+    adapterFitness: AdapterFitnessSchema.prefault({}), // live identity-fitness adapter pick [CLM-0130]
     nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
     adapters: AdaptersSchema.optional(),
     /**
@@ -164,32 +167,34 @@ export const OverlaySchema = z
     tracker: TrackerSchema.optional(),
   })
   .superRefine((overlay, ctx) => {
-    // Every per-tier adapter must be a built-in CLI name OR a registered endpoint id.
+    // Every per-tier adapter CANDIDATE must be a built-in CLI name OR a
+    // registered endpoint id (a tier may now list multiple candidates, #252).
     for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
-      const name = overlay.adapters?.[tier];
-      if (name === undefined || isCliAdapter(name)) continue;
-      const endpoint = overlay.endpoints[name];
-      if (endpoint === undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['adapters', tier],
-          message:
-            `adapters.${tier} "${name}" is neither a built-in adapter ` +
-            `(${ADAPTER_NAMES.join(', ')}) nor a registered endpoint id — register it under endpoints`,
-        });
-        continue;
-      }
-      // Fail FAST, not mid-loop: an endpoint pointed at a tier it serves no model
-      // for resolves to the empty model id at call time — fatal for an api endpoint
-      // (no harness default), so reject it at config time, naming tier + endpoint.
-      if (resolveTierModel(tier, endpoint.models).model === '') {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['adapters', tier],
-          message:
-            `adapters.${tier} "${name}" serves no model for the ${tier} tier (or one below) — ` +
-            `add a models entry for ${tier} (or a lower tier) under endpoints.${name}`,
-        });
+      for (const name of tierCandidates(overlay.adapters, tier)) {
+        if (isCliAdapter(name)) continue;
+        const endpoint = overlay.endpoints[name];
+        if (endpoint === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['adapters', tier],
+            message:
+              `adapters.${tier} "${name}" is neither a built-in adapter ` +
+              `(${ADAPTER_NAMES.join(', ')}) nor a registered endpoint id — register it under endpoints`,
+          });
+          continue;
+        }
+        // Fail FAST, not mid-loop: an endpoint pointed at a tier it serves no model
+        // for resolves to the empty model id at call time — fatal for an api endpoint
+        // (no harness default), so reject it at config time, naming tier + endpoint.
+        if (resolveTierModel(tier, endpoint.models).model === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['adapters', tier],
+            message:
+              `adapters.${tier} "${name}" serves no model for the ${tier} tier (or one below) — ` +
+              `add a models entry for ${tier} (or a lower tier) under endpoints.${name}`,
+          });
+        }
       }
     }
   });

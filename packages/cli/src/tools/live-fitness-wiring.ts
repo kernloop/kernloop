@@ -7,6 +7,7 @@
 import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import type { ModelIdentity, ModelRequirement } from '@kernloop/contracts';
 import type { Kernloop } from '../kernel.js';
+import { tierCandidates } from '../overlay-schemas.js';
 import { resolveServed, servedIdentity } from '../loop/node-seam.js';
 import { seededPriorsFor } from './priors-seed.js';
 import {
@@ -20,7 +21,7 @@ import {
  * classes. Far above any realistic distinct-model-class count, so it bounds a
  * pathological/poisoned ledger without affecting real routing.
  */
-const LIVE_FITNESS_LEDGER_LIMIT = 2000;
+export const LIVE_FITNESS_LEDGER_LIMIT = 2000;
 
 /**
  * Predict the {@link ModelIdentity} a candidate's `model` requirement would be
@@ -35,7 +36,7 @@ function predictIdentity(
   kern: Kernloop,
   runAdapter: AdapterName,
 ): ModelIdentity | null {
-  const name = kern.config.adapters?.[req.tier] ?? runAdapter;
+  const name = tierCandidates(kern.config.adapters, req.tier)[0] ?? runAdapter;
   if (kern.config.endpoints[name] !== undefined) return null;
   try {
     return servedIdentity(resolveServed(req, name as AdapterName));

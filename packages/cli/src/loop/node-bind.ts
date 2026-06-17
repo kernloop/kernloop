@@ -36,6 +36,7 @@ import {
 import { buildApiNodeSeam, resolveServedApi } from './api-seam.js';
 import { apiDefinitionFor } from '../endpoints.js';
 import { requirementForNode, type Overlay } from '../overlay.js';
+import { tierCandidates } from '../overlay-schemas.js';
 import { applyDowngrade, type BudgetDowngrade, type OnDowngrade } from './downgrade.js';
 
 /** The node's requirement from its single source + overlay override (pre-downgrade). */
@@ -82,17 +83,23 @@ function seamFactory(
 }
 
 /**
- * Resolve which adapter (CLI name or registered endpoint id) serves a tier: the
- * overlay's per-tier choice, else the run adapter. A string so an endpoint id is
- * carried as faithfully as a CLI name; the caller branches on whether it is a
- * registered endpoint.
+ * Resolve which adapter (CLI name or registered endpoint id) serves a tier. A
+ * tier may list >=2 CANDIDATES (#252): with a `selectAdapter` (adapterFitness
+ * opt-in) the higher-fitness candidate is chosen; otherwise the first candidate,
+ * else the run adapter — byte-identical to the single-adapter form. A string so
+ * an endpoint id is carried as faithfully as a CLI name; the caller branches.
  */
 function resolveTierAdapterName(
-  tier: ModelRequirement['tier'],
+  req: ModelRequirement,
   overlay: Overlay,
   runAdapter: AdapterName,
+  selectAdapter?: ModelFitnessWiring['selectAdapter'],
 ): string {
-  return overlay.adapters?.[tier] ?? runAdapter;
+  const pool = tierCandidates(overlay.adapters, req.tier);
+  const candidates = pool.length > 0 ? pool : [runAdapter];
+  return selectAdapter !== undefined && candidates.length > 1
+    ? selectAdapter(req.tier, req, candidates)
+    : (candidates[0] ?? runAdapter);
 }
 
 /**
@@ -105,6 +112,12 @@ function resolveTierAdapterName(
 export interface ModelFitnessWiring {
   readonly discovered?: DiscoveredCache;
   readonly onModelCall?: OnModelCall;
+  /**
+   * Live identity-fitness adapter selector (#252, CLM-0130): given a tier's >=2
+   * candidate adapters, returns the one to bind (highest measured fitness, with
+   * an exploration floor). Absent ⇒ the first candidate is bound deterministically.
+   */
+  readonly selectAdapter?: (tier: string, req: ModelRequirement, candidates: string[]) => string;
 }
 
 /**
@@ -128,7 +141,7 @@ export function buildInvokeForNode(
     ...(fitness.onModelCall === undefined ? {} : { onModelCall: fitness.onModelCall }),
   };
   const build = (req: ModelRequirement, node: TieredNode): NodeSeam => {
-    const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
+    const name = resolveTierAdapterName(req, overlay, runAdapter, fitness.selectAdapter);
     const endpoint = overlay.endpoints[name];
     const timeoutMs = invokeTimeoutForNode(node, timeoutBase);
     return endpoint === undefined
@@ -171,7 +184,7 @@ export function injectedSeamFor(
 ): (node: TieredNode) => NodeSeam {
   const timeoutBase = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
   const build = (req: ModelRequirement, node: TieredNode): NodeSeam => {
-    const name = resolveTierAdapterName(req.tier, overlay, runAdapter);
+    const name = resolveTierAdapterName(req, overlay, runAdapter);
     const endpoint = overlay.endpoints[name];
     const served =
       endpoint === undefined

@@ -18,6 +18,7 @@ import {
 } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { type Overlay } from '../overlay.js';
+import { tierCandidates } from '../overlay-schemas.js';
 import { buildLoopExecutors, type LoopRefs } from './executors.js';
 import { ensureAdapterAvailable } from './invoke.js';
 import { type TieredNode } from './node-model.js';
@@ -32,15 +33,13 @@ import type { LoopRequest } from './index.js';
 export function ensureRunAdaptersAvailable(runAdapter: AdapterName, overlay: Overlay): void {
   ensureAdapterAvailable(runAdapter);
   for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
-    const tierAdapter = overlay.adapters?.[tier];
-    // A registered endpoint id is an api adapter — no CLI to probe on PATH; its
-    // key is validated fail-closed at call time (ApiKeyMissingError), not here.
-    if (
-      tierAdapter !== undefined &&
-      tierAdapter !== runAdapter &&
-      overlay.endpoints[tierAdapter] === undefined
-    ) {
-      ensureAdapterAvailable(tierAdapter as AdapterName);
+    // A tier may list multiple candidate adapters (#252) — probe each CLI one.
+    for (const tierAdapter of tierCandidates(overlay.adapters, tier)) {
+      // A registered endpoint id is an api adapter — no CLI to probe on PATH; its
+      // key is validated fail-closed at call time (ApiKeyMissingError), not here.
+      if (tierAdapter !== runAdapter && overlay.endpoints[tierAdapter] === undefined) {
+        ensureAdapterAvailable(tierAdapter as AdapterName);
+      }
     }
   }
 }

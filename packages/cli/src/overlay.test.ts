@@ -137,6 +137,32 @@ describe('loadOverlay defaults and precedence', () => {
     });
   });
 
+  it('accepts a list of candidate adapters per tier (#252)', () => {
+    expect(loadFrom('id: x\nadapters:\n  large:\n    - claude\n    - opencode\n').adapters).toEqual(
+      {
+        large: ['claude', 'opencode'],
+      },
+    );
+  });
+
+  it('rejects an empty adapter-candidate list (#252)', () => {
+    expect(() => loadFrom('id: x\nadapters:\n  large: []\n')).toThrow(OverlayError);
+  });
+
+  it('validates EVERY candidate in a tier list, not just the first (#252)', () => {
+    // claude is valid, gpt5 is not a built-in/endpoint → reject.
+    expect(() => loadFrom('id: x\nadapters:\n  large:\n    - claude\n    - gpt5\n')).toThrow(
+      OverlayError,
+    );
+  });
+
+  it('adapterFitness defaults to off with epsilon 0.1, and parses an opt-in (#252, CLM-0130)', () => {
+    expect(loadFrom('id: x\n').adapterFitness).toEqual({ enabled: false, epsilon: 0.1 });
+    expect(
+      loadFrom('id: x\nadapterFitness:\n  enabled: true\n  epsilon: 0\n').adapterFitness,
+    ).toEqual({ enabled: true, epsilon: 0 });
+  });
+
   it('loads gates.quality.envAllow names for least-privilege check env [CLM-0124]', () => {
     expect(
       loadFrom('id: x\ngates:\n  quality:\n    envAllow: [NODE_OPTIONS, FOO_TOKEN]\n').gates.quality
