@@ -12,7 +12,9 @@ statement: >-
   time, so predicted == served for BOTH transports: a CLI candidate via
   resolveServed, a registered ENDPOINT candidate via the api path (resolveServedApi
   over its apiDefinitionFor), both normalized through servedIdentity (#260) — a name
-  that resolves to neither scores neutral. The choice, candidates, predicted
+  that resolves to neither scores neutral. That predicted==served invariant is
+  guarded STRUCTURALLY by a single shared resolveServedFor helper both the selector
+  and node-bind call, not two hand-kept copies (#271). The choice, candidates, predicted
   identities, scores, sources, and the rng draw are audited (reproducible). With
   the flag off or a single adapter the first candidate is bound, byte-identical to
   the prior behavior. Unlike the selection-inert Router priors path (CLM-0128),
@@ -28,6 +30,11 @@ evidence:
   - 'test:packages/cli/src/loop/adapter-fitness.test.ts::returns undefined when disabled (byte-identical legacy path)'
   - 'test:packages/cli/src/loop/adapter-fitness.test.ts::when enabled, picks a candidate and audits the decision with the rng draw'
   - 'test:packages/cli/src/loop/adapter-fitness.test.ts::consults an ENDPOINT candidate fitness (predicted, not neutral) and can pick it over a CLI (#260)'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::an UNKNOWN adapter name (neither CLI nor endpoint) scores neutral with a null identity (#271)'
+  - 'test:packages/cli/src/loop/resolve-served.test.ts::a CLI name resolves identically to a bare resolveServed (no endpoint branch)'
+  - 'test:packages/cli/src/loop/resolve-served.test.ts::a registered endpoint resolves identically to the api path'
+  - 'test:packages/cli/src/loop/resolve-served.test.ts::an unknown CLI adapter name throws (the selector catches → neutral)'
+  - 'code:packages/cli/src/loop/resolve-served.ts#resolveServedFor@doc:/CLM-0130/'
   - 'test:packages/cli/src/loop/adapter-fitness.sim.test.ts::abandons a regressed favorite adapter for EVERY seed and lets the better one take over'
   - 'test:packages/cli/src/loop/adapter-fitness.sim.test.ts::the exploration floor DISCOVERS a better-but-untried adapter (no-starvation; a broken floor fails this)'
   - 'test:packages/cli/src/overlay.test.ts::accepts a list of candidate adapters per tier (#252)'
