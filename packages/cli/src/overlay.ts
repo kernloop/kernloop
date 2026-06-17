@@ -93,16 +93,15 @@ const VoteGateSchema = z.strictObject({
 /** Quality-gate knobs; the per-check timeout has no honest overlay default — the gate owns it. */
 const QualityGateSchema = z.strictObject({
   timeoutMsPerCheck: z.number().int().positive().optional(),
-  /**
-   * Extra env-var NAMES a spawned quality-gate check may receive beyond the
-   * kernel's benign base allowlist (#235, CLM-0124). A check runs model-GENERATED
-   * code (`pnpm test` executes model-written test files), so it is spawned with a
-   * least-privilege env — `SAFE_ENV_KEYS` ∪ these names, never the host env — so
-   * provider keys / `GH_TOKEN` / cloud creds are withheld from it. Add a toolchain
-   * var here only if the runner genuinely needs it AND it is not a secret. Names
-   * only.
-   */
+  /** Non-secret env-var NAMES a check may receive beyond the kernel base allowlist
+   * (#235, CLM-0124): check env is `SAFE_ENV_KEYS` ∪ these, never the host env. */
   envAllow: z.array(z.string().min(1)).default([]),
+  /** Docker sandbox for gate checks (#236, CLM-0129): `enabled` runs each subprocess
+   * check in the kernel `--network none` sandbox over a workspace COPY (default OFF
+   * = legacy env-scoped spawn); `enforce` (default true) fails closed without Docker. */
+  sandbox: z
+    .strictObject({ enabled: z.boolean().default(false), enforce: z.boolean().default(true) })
+    .prefault({}),
 });
 
 /** Gate thresholds, keyed by gate. Review-gate knobs are P3 — absent. */

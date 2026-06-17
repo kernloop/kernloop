@@ -21,6 +21,24 @@ import {
   type SubprocessCheck,
 } from './checks.js';
 import { outputTail } from './parsers.js';
+import { dockerUsable, runCheckInSandbox, type SandboxExecution } from './sandbox/run-check.js';
+
+/**
+ * Docker isolation policy for the gate (#236). `enabled` opts the gate into
+ * running each subprocess check inside the kernel `--network none` sandbox over
+ * a workspace COPY. `enforce` (default true once enabled) makes the autonomous
+ * path FAIL CLOSED when Docker is unavailable — degrading to the env-scoped host
+ * spawn is then an explicit operator opt-out (`enforce: false`). `dockerBin` is
+ * injectable so the absent/refusal path is hermetically testable.
+ */
+export interface GateSandboxOptions {
+  readonly enabled: boolean;
+  readonly enforce: boolean;
+  readonly dockerBin?: string;
+}
+
+/** The isolation tier a gate run ACHIEVED — surfaced in the Verdict (tier-reported == tier-applied). */
+export type SandboxTier = 'docker-network-none' | 'env-scoped' | 'refused';
 
 /** Options for {@link runQualityGate}. */
 export interface RunQualityGateOptions {
@@ -42,6 +60,8 @@ export interface RunQualityGateOptions {
    * `gates.quality.envAllow`. Default `[]`.
    */
   readonly envAllow?: readonly string[];
+  /** Docker sandbox policy (#236); absent ⇒ the legacy env-scoped host spawn. */
+  readonly sandbox?: GateSandboxOptions;
 }
 
 /** Captured result of one spawned check command. */
@@ -174,25 +194,62 @@ async function runInProcessCheck(
   }
 }
 
-/** Findings for one check, dispatching on subprocess vs in-process. */
+/**
+ * Findings for one check, dispatching on subprocess vs in-process. In-process
+ * checks (our own scanners, not generated code) always run in-process. A
+ * subprocess check runs in the Docker sandbox when `sandboxRun` is provided
+ * (docker tier), else via the env-scoped host spawn.
+ */
 async function findingsFor(
   check: QualityCheck,
   cwd: string,
   timeoutMs: number,
   envAllow: readonly string[],
+  sandboxRun: ((check: SubprocessCheck) => Promise<SandboxExecution>) | undefined,
 ): Promise<Finding[]> {
   if (isInProcessCheck(check)) {
     return runInProcessCheck(check, cwd, timeoutMs);
   }
-  const exec = await executeCheck(check, cwd, timeoutMs, envAllow);
+  const exec =
+    sandboxRun !== undefined
+      ? await sandboxRun(check)
+      : await executeCheck(check, cwd, timeoutMs, envAllow);
   return findingsForCheck(check, exec, timeoutMs);
+}
+
+/** Resolve the isolation tier once per gate run via a functional Docker probe (#236). */
+async function resolveSandboxTier(sandbox: GateSandboxOptions | undefined): Promise<SandboxTier> {
+  if (sandbox === undefined || !sandbox.enabled) return 'env-scoped';
+  if (await dockerUsable(sandbox.dockerBin)) return 'docker-network-none';
+  return sandbox.enforce ? 'refused' : 'env-scoped';
+}
+
+/** The Verdict Finding that surfaces the achieved isolation tier (rule 7 + condition 3). */
+function sandboxTierFinding(
+  sandbox: GateSandboxOptions | undefined,
+  tier: SandboxTier,
+): Finding | undefined {
+  if (sandbox === undefined || !sandbox.enabled) return undefined;
+  if (tier === 'docker-network-none') {
+    return {
+      severity: 'info',
+      message: 'sandbox: docker --network none over a workspace copy, caps applied (#236)',
+    };
+  }
+  return {
+    severity: 'warn',
+    message:
+      'sandbox: REDUCED — Docker unavailable, ran env-scoped only; network egress NOT isolated (#236)',
+  };
 }
 
 /**
  * Run the quality gate over a workspace and emit one Verdict (CLM-0031).
  * Checks run sequentially; the verdict is `pass` iff no finding reaches
  * `error`/`blocker` severity. The Verdict is `VerdictSchema`-validated
- * before return — an invalid verdict throws rather than escaping.
+ * before return — an invalid verdict throws rather than escaping. With
+ * `options.sandbox.enabled` each subprocess check runs Docker-isolated over a
+ * workspace copy, fail-closed on the enforce path (#236, CLM-0129).
  */
 export async function runQualityGate(options: RunQualityGateOptions): Promise<Verdict> {
   const checks = options.checks ?? defaultQualityChecks();
@@ -200,8 +257,29 @@ export async function runQualityGate(options: RunQualityGateOptions): Promise<Ve
   const envAllow = options.envAllow ?? [];
   const started = Date.now();
   const findings: Finding[] = [];
-  for (const check of checks) {
-    findings.push(...(await findingsFor(check, options.workspaceDir, timeoutMs, envAllow)));
+  const sandbox = options.sandbox;
+  const tier = await resolveSandboxTier(sandbox);
+  if (tier === 'refused') {
+    // Fail closed (#236): the enforce path will not run generated checks
+    // unsandboxed. No check executes; this blocking finding fails the gate.
+    findings.push({
+      severity: 'error',
+      message:
+        'sandbox(enforce): Docker unavailable — refused to run generated checks unsandboxed (#236)',
+    });
+  } else {
+    const sandboxRun =
+      tier === 'docker-network-none'
+        ? (check: SubprocessCheck): Promise<SandboxExecution> =>
+            runCheckInSandbox(check, options.workspaceDir, sandbox?.dockerBin)
+        : undefined;
+    for (const check of checks) {
+      findings.push(
+        ...(await findingsFor(check, options.workspaceDir, timeoutMs, envAllow, sandboxRun)),
+      );
+    }
+    const tierFinding = sandboxTierFinding(sandbox, tier);
+    if (tierFinding !== undefined) findings.push(tierFinding);
   }
   const blocking = findings.some((f) => f.severity === 'error' || f.severity === 'blocker');
   return VerdictSchema.parse({

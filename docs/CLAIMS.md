@@ -2122,3 +2122,30 @@ Under an explicit router.liveFitness opt-in (default off, separate from seedPrio
 - [`packages/faculty-observer/src/identity-ledger.test.ts`](../packages/faculty-observer/src/identity-ledger.test.ts)
 - [`packages/cli/src/tools/live-fitness.ts#liveFitnessPriors`](../packages/cli/src/tools/live-fitness.ts)
 - CI `test`
+
+## CLM-0129
+
+**Status:** verified — **source:** [`CLM-0129.yaml`](../claims/registry/CLM-0129.yaml)
+
+Under an explicit gates.quality.sandbox.enabled opt-in (default off), the quality gate runs each subprocess check inside the kernel Docker sandbox: the workspace is copied into an ephemeral scratch — excluding .git and credential-bearing files and never dereferencing escaping symlinks — together with its node_modules, and the check runs under a DIGEST-PINNED, hash-gated, non-root, --network none, memory/cpu/pids-capped profile via runInSandbox; pnpm/yarn script commands are translated to npm run so they execute offline against the copied node_modules. A FUNCTIONAL Docker probe selects the tier; with the sandbox enabled and Docker unavailable the enforce path FAILS CLOSED (refuses to run generated checks unsandboxed) while an explicit opt-out degrades to the env-scoped host spawn, and the achieved isolation tier is surfaced in the Verdict (tier-reported == tier-applied). Disabled, the gate is byte-identical to the env-scoped host spawn. Real-docker tests prove network egress is blocked, host filesystem outside the scratch is unreadable, a fork-bomb is capped, and a glibc native dependency still loads.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/sandbox/profile.test.ts`](../packages/faculty-gates/src/sandbox/profile.test.ts)
+- [`packages/faculty-gates/src/sandbox/profile.test.ts`](../packages/faculty-gates/src/sandbox/profile.test.ts)
+- [`packages/faculty-gates/src/sandbox/profile.test.ts`](../packages/faculty-gates/src/sandbox/profile.test.ts)
+- [`packages/faculty-gates/src/sandbox/copy.test.ts`](../packages/faculty-gates/src/sandbox/copy.test.ts)
+- [`packages/faculty-gates/src/sandbox/copy.test.ts`](../packages/faculty-gates/src/sandbox/copy.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.test.ts`](../packages/faculty-gates/src/sandbox/run-check.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.test.ts`](../packages/faculty-gates/src/sandbox/run-check.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.test.ts`](../packages/faculty-gates/src/sandbox/run-check.test.ts)
+- [`packages/faculty-gates/src/sandbox/gate-tier.test.ts`](../packages/faculty-gates/src/sandbox/gate-tier.test.ts)
+- [`packages/faculty-gates/src/sandbox/gate-tier.test.ts`](../packages/faculty-gates/src/sandbox/gate-tier.test.ts)
+- [`packages/faculty-gates/src/sandbox/gate-tier.test.ts`](../packages/faculty-gates/src/sandbox/gate-tier.test.ts)
+- [`packages/faculty-gates/src/sandbox/gate-tier.test.ts`](../packages/faculty-gates/src/sandbox/gate-tier.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.docker.test.ts`](../packages/faculty-gates/src/sandbox/run-check.docker.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.docker.test.ts`](../packages/faculty-gates/src/sandbox/run-check.docker.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.docker.test.ts`](../packages/faculty-gates/src/sandbox/run-check.docker.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.docker.test.ts`](../packages/faculty-gates/src/sandbox/run-check.docker.test.ts)
+- [`packages/faculty-gates/src/run.ts#runQualityGate`](../packages/faculty-gates/src/run.ts)
+- CI `test`

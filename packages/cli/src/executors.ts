@@ -25,6 +25,7 @@ import {
   checksFromDefinitionOfDone,
   defaultQualityChecks,
   runQualityGate,
+  type GateSandboxOptions,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
 import type {
@@ -104,6 +105,8 @@ export interface QualityGateRequest {
    * check's child env is `SAFE_ENV_KEYS` ∪ these, never the host env.
    */
   readonly envAllow?: readonly string[];
+  /** Docker sandbox policy for the gate (#236) — the overlay's gates.quality.sandbox. */
+  readonly sandbox?: GateSandboxOptions;
 }
 
 /**
@@ -165,6 +168,7 @@ export async function executeQualityGate(
     ...(request.timeoutMsPerCheck === undefined
       ? {}
       : { timeoutMsPerCheck: request.timeoutMsPerCheck }),
+    ...(request.sandbox === undefined ? {} : { sandbox: request.sandbox }),
   });
   await publishVerdict(kern, verdict);
   return verdict;
@@ -184,6 +188,7 @@ function gateQualityExecutor(kern: Kernloop): CapabilityExecutor {
       workspaceDir,
       definitionOfDone: task.definitionOfDone, // run the task's own acceptance criteria (#226)
       envAllow: kern.config.gates.quality.envAllow, // least-privilege check env (#235)
+      sandbox: kern.config.gates.quality.sandbox, // Docker isolation policy (#236)
       ...(checks === undefined ? {} : { checks }),
     });
     const passed = verdict.result === 'pass';

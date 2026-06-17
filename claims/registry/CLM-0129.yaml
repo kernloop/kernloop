@@ -1,0 +1,39 @@
+id: CLM-0129
+statement: >-
+  Under an explicit gates.quality.sandbox.enabled opt-in (default off), the
+  quality gate runs each subprocess check inside the kernel Docker sandbox: the
+  workspace is copied into an ephemeral scratch — excluding .git and
+  credential-bearing files and never dereferencing escaping symlinks — together
+  with its node_modules, and the check runs under a DIGEST-PINNED, hash-gated,
+  non-root, --network none, memory/cpu/pids-capped profile via runInSandbox;
+  pnpm/yarn script commands are translated to npm run so they execute offline
+  against the copied node_modules. A FUNCTIONAL Docker probe selects the tier;
+  with the sandbox enabled and Docker unavailable the enforce path FAILS CLOSED
+  (refuses to run generated checks unsandboxed) while an explicit opt-out
+  degrades to the env-scoped host spawn, and the achieved isolation tier is
+  surfaced in the Verdict (tier-reported == tier-applied). Disabled, the gate is
+  byte-identical to the env-scoped host spawn. Real-docker tests prove network
+  egress is blocked, host filesystem outside the scratch is unreadable, a
+  fork-bomb is capped, and a glibc native dependency still loads.
+evidence:
+  - 'test:packages/faculty-gates/src/sandbox/profile.test.ts::is network:none, non-root, and capped'
+  - 'test:packages/faculty-gates/src/sandbox/profile.test.ts::pins the image by digest (not a mutable tag)'
+  - 'test:packages/faculty-gates/src/sandbox/profile.test.ts::hash is stable and content-bound (a changed field changes the hash)'
+  - 'test:packages/faculty-gates/src/sandbox/copy.test.ts::copies source but NOT secrets, node_modules, or .git'
+  - 'test:packages/faculty-gates/src/sandbox/copy.test.ts::does NOT dereference a symlink that escapes the workspace (no host-content leak)'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.test.ts::translates pnpm/yarn <script> → npm run <script>'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.test.ts::returns false when the docker binary is absent (no silent fallback to usable)'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.test.ts::maps a missing/unavailable docker to a spawnError, never a silent pass'
+  - 'test:packages/faculty-gates/src/sandbox/gate-tier.test.ts::enforce + Docker unavailable → REFUSES (fail-closed), runs no check'
+  - 'test:packages/faculty-gates/src/sandbox/gate-tier.test.ts::enabled + Docker unavailable + enforce:false → DEGRADES, surfaces reduced tier'
+  - 'test:packages/faculty-gates/src/sandbox/gate-tier.test.ts::enabled + Docker usable → runs in the sandbox, surfaces the docker tier'
+  - 'test:packages/faculty-gates/src/sandbox/gate-tier.test.ts::sandbox disabled → no tier finding (byte-identical legacy behavior)'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::BLOCKS network egress (--network none)'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::cannot read host FS outside the copied workspace'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::caps a fork-bomb without taking down the host (pids-limit)'
+  - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::runs a legitimate check and loads a glibc native dep (better-sqlite3)'
+  - 'code:packages/faculty-gates/src/run.ts#runQualityGate@doc:/CLM-0129/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
