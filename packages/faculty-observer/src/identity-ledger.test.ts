@@ -172,13 +172,20 @@ describe('identityFitnessLedger — bounded, recency-ordered read (#253)', () =>
     for (const gen of ['1', '2', '3', '4', '5']) {
       observer.ingestModelFitness(identity({ generation: gen }), true, COST);
     }
-    expect(observer.identityFitnessLedger()).toHaveLength(5); // full series
+    expect(observer.identityFitnessLedger()).toHaveLength(5); // omitted → full series
     const top2 = observer.identityFitnessLedger(2);
     expect(top2).toHaveLength(2);
     // Most-recently-used first → generations 5 then 4 (the last two written).
     expect(top2.map((r) => r.key.generation)).toEqual(['5', '4']);
-    // A non-positive / non-integer limit is ignored (full series, never a throw).
-    expect(observer.identityFitnessLedger(0)).toHaveLength(5);
+    observer.close();
+  });
+
+  it('FAILS CLOSED on a provided invalid limit — throws, never silently unbounded', () => {
+    const observer = observerWithTicker();
+    observer.ingestModelFitness(identity(), true, COST);
+    expect(() => observer.identityFitnessLedger(0)).toThrow(RangeError);
+    expect(() => observer.identityFitnessLedger(-5)).toThrow(RangeError);
+    expect(() => observer.identityFitnessLedger(1.5)).toThrow(RangeError);
     observer.close();
   });
 });

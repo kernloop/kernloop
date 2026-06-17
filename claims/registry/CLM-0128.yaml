@@ -13,8 +13,9 @@ statement: >-
   are clamped to a bounded window, and together with the kernel exploration floor
   a regressing favorite is abandoned within a bounded horizon while no class is
   starved (shown by a contiguous-seed simulation, not a cherry-picked set); the
-  ledger read is bounded (recency-ordered) so a growing ledger cannot OOM the
-  hot path; each candidate's source (live-exact/live-class-fallback/seeded-file/
+  ledger read is bounded (recency-ordered, fail-closed on an invalid bound) so a
+  growing ledger cannot OOM the hot path; each candidate's source
+  (live-exact/live-class-fallback/seeded-file/
   neutral) and score are audited. The kernel Router is unchanged, so with one manifest per
   capability this is selection-inert in production and changes the selected
   manifest only when candidates compete.
@@ -36,6 +37,7 @@ evidence:
   - 'test:packages/cli/src/tools/live-fitness-wiring.test.ts::with liveFitness OFF, emits no live-fitness event and returns the (empty) seeded fragment'
   - 'test:packages/cli/src/tools/live-fitness-wiring.test.ts::degrades a candidate with NO model requirement to a neutral decision'
   - 'test:packages/faculty-observer/src/identity-ledger.test.ts::a positive limit returns only the N most-recently-used classes; omitted returns all'
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::FAILS CLOSED on a provided invalid limit — throws, never silently unbounded'
   - 'code:packages/cli/src/tools/live-fitness.ts#liveFitnessPriors@doc:/CLM-0128/'
   - 'ci:test'
 status: verified
