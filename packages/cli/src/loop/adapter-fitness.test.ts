@@ -133,6 +133,7 @@ describe('buildAdapterSelector — opt-in gate + audited provenance (#252, condi
       epsilon: 0.1,
       ledger: [],
       discovered: emptyDiscoveredCache('n/a'),
+      endpoints: {},
       store,
       rng: () => 0.99,
       now: () => NOW,
@@ -148,6 +149,7 @@ describe('buildAdapterSelector — opt-in gate + audited provenance (#252, condi
       epsilon: 0, // pure exploit → deterministic
       ledger: [],
       discovered: emptyDiscoveredCache('n/a'),
+      endpoints: {},
       store,
       rng: () => 0.99,
       now: () => NOW,
@@ -166,5 +168,54 @@ describe('buildAdapterSelector — opt-in gate + audited provenance (#252, condi
     expect(payload.chosen).toBe(chosen);
     expect(typeof payload.rngDraw).toBe('number');
     expect(payload.decisions).toHaveLength(2);
+  });
+
+  it('consults an ENDPOINT candidate fitness (predicted, not neutral) and can pick it over a CLI (#260)', () => {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-adsel-'));
+    store = createAuditStore(join(dir, 'audit.jsonl'));
+    // The endpoint serves a clean rule-parseable id → identity acme/frodo/2/small;
+    // a high-fitness ledger row for THAT identity must lift it over a neutral CLI.
+    const endpoints = {
+      'my-endpoint': {
+        baseUrl: 'https://api.example.com/v1',
+        apiKeyEnv: 'EXAMPLE_API_KEY',
+        models: { large: 'acme/frodo-2' },
+      },
+    } as unknown as Parameters<typeof buildAdapterSelector>[0]['endpoints'];
+    const ledger: IdentityFitnessRecord[] = [
+      {
+        key: { provider: 'acme', family: 'frodo', generation: '2', tier: 'small' },
+        invocations: 30,
+        successRate: 0.97,
+        cost: { tokens: 0, usd: 0, wallClockMs: 0 },
+        lastUsedAt: NOW,
+      },
+    ];
+    const sel = buildAdapterSelector({
+      enabled: true,
+      epsilon: 0, // pure exploit → deterministic
+      ledger,
+      discovered: emptyDiscoveredCache('n/a'),
+      endpoints,
+      store,
+      rng: () => 0.99,
+      now: () => NOW,
+    });
+    // 'claude' has NO ledger row → neutral; the endpoint scores ABOVE neutral, so
+    // it wins despite being SECOND (the neutral tie-break would have kept 'claude').
+    const chosen = sel?.('large', { tier: 'large', effort: 'medium', capabilities: [] }, [
+      'claude',
+      'my-endpoint',
+    ]);
+    expect(chosen).toBe('my-endpoint');
+    const events = readEnvelopes(join(dir, 'audit.jsonl')).filter(
+      (e) => e.type === 'cli.node-bind.adapter-fitness',
+    );
+    const decisions = (
+      events[0]?.payload as { decisions: { subject: string; identity: unknown }[] }
+    ).decisions;
+    const endpointDecision = decisions.find((d) => d.subject === 'my-endpoint');
+    // The endpoint's identity was PREDICTED (non-null), not scored neutral-blind.
+    expect(endpointDecision?.identity).not.toBeNull();
   });
 });

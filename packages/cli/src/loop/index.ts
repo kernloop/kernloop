@@ -233,6 +233,7 @@ function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] 
     epsilon: kern.config.adapterFitness.epsilon,
     ledger: kern.observer.identityFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
     discovered,
+    endpoints: kern.config.endpoints,
     store: kern.store,
     rng: kern.rng,
     now: () => kern.store.clock().getTime(),

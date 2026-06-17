@@ -7,11 +7,12 @@ statement: >-
   candidates the higher-fitness candidate is chosen via the CLM-0128
   liveFitnessPriors scoring over a NEUTRAL (live-only) baseline with an
   exploration floor (epsilon=0 is pure exploit; a lower-fitness candidate stays
-  selectable so a better-but-untried one is not starved). A CLI candidate's served
-  identity is predicted by the same deterministic resolveServed+servedIdentity the
-  seam uses (predicted == served for CLI adapters); an endpoint candidate scores
-  neutral — its identity is resolved on the api path, not predicted here, so
-  endpoint-fitness selection is deferred. The choice, candidates, predicted
+  selectable so a better-but-untried one is not starved). Each candidate's served
+  identity is predicted by the SAME deterministic resolution node-bind uses at call
+  time, so predicted == served for BOTH transports: a CLI candidate via
+  resolveServed, a registered ENDPOINT candidate via the api path (resolveServedApi
+  over its apiDefinitionFor), both normalized through servedIdentity (#260) — a name
+  that resolves to neither scores neutral. The choice, candidates, predicted
   identities, scores, sources, and the rng draw are audited (reproducible). With
   the flag off or a single adapter the first candidate is bound, byte-identical to
   the prior behavior. Unlike the selection-inert Router priors path (CLM-0128),
@@ -26,6 +27,7 @@ evidence:
   - 'test:packages/cli/src/loop/adapter-fitness.test.ts::explores on a low draw and records the rng draw (reproducibility)'
   - 'test:packages/cli/src/loop/adapter-fitness.test.ts::returns undefined when disabled (byte-identical legacy path)'
   - 'test:packages/cli/src/loop/adapter-fitness.test.ts::when enabled, picks a candidate and audits the decision with the rng draw'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::consults an ENDPOINT candidate fitness (predicted, not neutral) and can pick it over a CLI (#260)'
   - 'test:packages/cli/src/loop/adapter-fitness.sim.test.ts::abandons a regressed favorite adapter for EVERY seed and lets the better one take over'
   - 'test:packages/cli/src/loop/adapter-fitness.sim.test.ts::the exploration floor DISCOVERS a better-but-untried adapter (no-starvation; a broken floor fails this)'
   - 'test:packages/cli/src/overlay.test.ts::accepts a list of candidate adapters per tier (#252)'
