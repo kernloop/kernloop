@@ -47,7 +47,7 @@ export function deriveStats() {
       'packages/faculty-workforce/src/templates.ts',
       'SHIPPED_TEMPLATE_NAMES',
     ),
-    languages: countDir('packages/faculty-gates/grammars', (f) => f.endsWith('.wasm')),
+    languages: countDir('packages/docscan/grammars', (f) => f.endsWith('.wasm')),
     gatedPackages: GATED_PACKAGES.length, // scripts/docs-coverage.mjs (a plain .mjs const)
     claims: countDir('claims/registry', (f) => /^CLM-\d+\.yaml$/.test(f)),
   };
@@ -76,6 +76,7 @@ export const WORDS = {
   ten: 10,
   eleven: 11,
   twelve: 12,
+  thirteen: 13,
 };
 export const toInt = (tok) => (/^\d+$/.test(tok) ? Number(tok) : WORDS[tok.toLowerCase()]);
 

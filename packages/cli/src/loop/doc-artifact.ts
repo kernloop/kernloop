@@ -11,7 +11,7 @@
  * A deliverable with no exported TS/JS symbols writes NOTHING (no empty file).
  */
 import path from 'node:path';
-import { mineExportedSymbols, type ExportedSymbol, type MinedFile } from '@kernloop/faculty-gates';
+import { mineExportedSymbols, type ExportedSymbol, type MinedFile } from '@kernloop/docscan';
 import { SymlinkWriteError, writeFileNoFollow } from './safe-write.js';
 
 /** The generated artifact's filename — unambiguous so it never clobbers a

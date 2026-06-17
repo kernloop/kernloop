@@ -10,6 +10,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const BUDGETS = [
   { pattern: /^contracts$/, budget: 800 },
   { pattern: /^kernel$/, budget: 5000 },
+  // docscan: the tree-sitter doc-scanner lib (extracted from faculty-gates, #255).
+  { pattern: /^docscan$/, budget: 2500 },
   { pattern: /^faculty-/, budget: 4000 },
   // Spec §2 gives workflows no explicit budget; held to the faculty ceiling
   // so no package in the tree grows unbounded.

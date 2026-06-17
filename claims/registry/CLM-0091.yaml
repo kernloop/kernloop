@@ -8,8 +8,8 @@ statement: >-
   local name while surfacing the alias (#214), surfaces a BARE local re-export (`export { foo }` with
   no `from`, #213), and EXPANDS relative `export *` into its named symbols (breaking any cycle,
   memoizing each file). Only an EXTERNAL `export *` stays opaque — gated in its owning package — and
-  is surfaced as a count, never hidden. So twelve packages are gated
-  (contracts, kernel, cli, workflows, faculty-compiler, faculty-gates, faculty-memory,
+  is surfaced as a count, never hidden. So thirteen packages are gated
+  (contracts, kernel, cli, docscan, workflows, faculty-compiler, faculty-gates, faculty-memory,
   faculty-observer, faculty-scrum, faculty-toolsmith, faculty-workforce, tracker) — the nested-barrel
   and `export *` packages (cli/workflows/kernel) included, no longer under-reported. A gap exits 1
   with a per-package report and the gate runs in CI. The exclusion is by KIND, recorded permanently
