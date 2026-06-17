@@ -22,12 +22,7 @@
  * `downgrade` (#194), where node-bind re-resolves each call, so the selector (and
  * its rng draw + audit) then fire per model call.
  */
-import {
-  appendEvent,
-  NEUTRAL_FITNESS_PRIOR,
-  type AdapterName,
-  type AuditStore,
-} from '@kernloop/kernel';
+import { appendEvent, NEUTRAL_FITNESS_PRIOR, type AuditStore } from '@kernloop/kernel';
 import type { ModelIdentity, ModelRequirement } from '@kernloop/contracts';
 import type { DiscoveredCache } from '@kernloop/faculty-models';
 import type { IdentityFitnessRecord } from '@kernloop/faculty-observer';
@@ -36,9 +31,9 @@ import {
   type CandidateIdentity,
   type LiveFitnessDecision,
 } from '../tools/live-fitness.js';
-import { resolveServed, servedIdentity } from './node-seam.js';
-import { resolveServedApi } from './api-seam.js';
-import { apiDefinitionFor, type Endpoints } from '../endpoints.js';
+import { servedIdentity } from './node-seam.js';
+import { resolveServedFor } from './resolve-served.js';
+import type { Endpoints } from '../endpoints.js';
 
 /** One adapter-selection outcome — chosen adapter + reproducible provenance. */
 export interface AdapterChoice {
@@ -101,10 +96,10 @@ export interface AdapterSelectorDeps {
 }
 
 /**
- * Predict a candidate's served identity by the SAME resolution node-bind uses at
- * call time, so predicted==served (#260): a registered endpoint id resolves on the
- * api path, every other name on the CLI path. A name that resolves to neither (an
- * unknown adapter) → null (neutral). Pure over its inputs.
+ * Predict a candidate's served identity via {@link resolveServedFor} — the SAME
+ * resolution node-bind uses at call time, so predicted==served (#260, #271). A
+ * name that resolves to neither a CLI adapter nor an endpoint → null (neutral).
+ * Pure over its inputs.
  */
 function predictIdentity(
   req: ModelRequirement,
@@ -113,12 +108,7 @@ function predictIdentity(
   discovered: DiscoveredCache,
 ): ModelIdentity | null {
   try {
-    const endpoint = endpoints[name];
-    const served =
-      endpoint === undefined
-        ? resolveServed(req, name as AdapterName)
-        : resolveServedApi(req, apiDefinitionFor(name, endpoint));
-    return servedIdentity(served, discovered);
+    return servedIdentity(resolveServedFor(req, name, endpoints), discovered);
   } catch {
     return null; // an unknown adapter / unresolvable endpoint → neutral
   }

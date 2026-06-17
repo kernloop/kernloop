@@ -13,6 +13,7 @@ import type { ModelIdentity, ModelTier } from '@kernloop/contracts';
 import type { IdentityFitnessRecord } from '@kernloop/faculty-observer';
 import { emptyDiscoveredCache } from '@kernloop/faculty-models';
 import { createAuditStore, type AuditStore } from '@kernloop/kernel';
+import { EndpointsSchema } from '../endpoints.js';
 import type { CandidateIdentity } from '../tools/live-fitness.js';
 import { readEnvelopes } from '../tools/audit.js';
 import { buildAdapterSelector, chooseAdapter } from './adapter-fitness.js';
@@ -175,13 +176,13 @@ describe('buildAdapterSelector — opt-in gate + audited provenance (#252, condi
     store = createAuditStore(join(dir, 'audit.jsonl'));
     // The endpoint serves a clean rule-parseable id → identity acme/frodo/2/small;
     // a high-fitness ledger row for THAT identity must lift it over a neutral CLI.
-    const endpoints = {
+    const endpoints = EndpointsSchema.parse({
       'my-endpoint': {
         baseUrl: 'https://api.example.com/v1',
         apiKeyEnv: 'EXAMPLE_API_KEY',
         models: { large: 'acme/frodo-2' },
       },
-    } as unknown as Parameters<typeof buildAdapterSelector>[0]['endpoints'];
+    });
     const ledger: IdentityFitnessRecord[] = [
       {
         key: { provider: 'acme', family: 'frodo', generation: '2', tier: 'small' },
@@ -217,5 +218,33 @@ describe('buildAdapterSelector — opt-in gate + audited provenance (#252, condi
     const endpointDecision = decisions.find((d) => d.subject === 'my-endpoint');
     // The endpoint's identity was PREDICTED (non-null), not scored neutral-blind.
     expect(endpointDecision?.identity).not.toBeNull();
+  });
+
+  it('an UNKNOWN adapter name (neither CLI nor endpoint) scores neutral with a null identity (#271)', () => {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-adsel-'));
+    store = createAuditStore(join(dir, 'audit.jsonl'));
+    const sel = buildAdapterSelector({
+      enabled: true,
+      epsilon: 0,
+      ledger: [],
+      discovered: emptyDiscoveredCache('n/a'),
+      endpoints: {},
+      store,
+      rng: () => 0.99,
+      now: () => NOW,
+    });
+    // 'no-such-adapter' resolves to neither → predictIdentity catches and returns
+    // null; selection still succeeds (neutral), proving the catch is honest.
+    const chosen = sel?.('large', { tier: 'large', effort: 'medium', capabilities: [] }, [
+      'claude',
+      'no-such-adapter',
+    ]);
+    expect(chosen).toBe('claude'); // neutral tie-break → first candidate
+    const decisions = (
+      readEnvelopes(join(dir, 'audit.jsonl')).filter(
+        (e) => e.type === 'cli.node-bind.adapter-fitness',
+      )[0]?.payload as { decisions: { subject: string; identity: unknown }[] }
+    ).decisions;
+    expect(decisions.find((d) => d.subject === 'no-such-adapter')?.identity).toBeNull();
   });
 });
