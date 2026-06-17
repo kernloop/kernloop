@@ -1,0 +1,25 @@
+id: CLM-0126
+statement: >-
+  The Router is seeded from the reviewed .kernloop/priors.yaml at the run
+  composition root under an explicit router.seedPriors opt-in, with
+  Laplace-smoothed scores so a thin sample cannot dominate, the priors BIASING
+  not eliminating candidates (the exploration floor and neutral fallback stay
+  intact), degrading to neutral routing on a missing or malformed file, and
+  appending one audit event recording the per-subject discounted scores plus the
+  file sha256 for reproducibility.
+evidence:
+  - 'test:packages/cli/src/tools/priors-seed.test.ts::a thin 1-invocation/100% sample does NOT outrank a deep 50-invocation/90% one'
+  - 'test:packages/cli/src/tools/priors-seed.test.ts::a valid file → a correct Laplace-smoothed Map plus populated sha256 and ageMs'
+  - 'test:packages/cli/src/tools/priors-seed.test.ts::an ABSENT file → null (byte-identical neutral behavior), no warning'
+  - 'test:packages/cli/src/tools/priors-seed.test.ts::a MALFORMED file (bad YAML) → null + a warning, never a throw'
+  - 'test:packages/cli/src/tools/priors-seed.test.ts::an OLDER file MISSING invocations → degrades that subject to 0 (treats as low-confidence), no crash'
+  - 'test:packages/cli/src/tools/priors-seed-influence.test.ts::RANKING FLIP: with seedPriors:true and a priors.yaml favoring B, route() selects B'
+  - 'test:packages/cli/src/tools/priors-seed-influence.test.ts::RANKING FLIP baseline: with the file ABSENT, the deterministic tiebreak selects A'
+  - 'test:packages/cli/src/tools/priors-seed-influence.test.ts::KEY ALIGNMENT: a seeded prior for `zzz-cap@1.0.0` applies to the matching manifest'
+  - 'test:packages/cli/src/tools/priors-seed-influence.test.ts::BIAS NOT ELIMINATE: an UNSEEN subject (absent from priors.yaml) is still selectable'
+  - 'test:packages/cli/src/tools/priors-seed-influence.test.ts::OPT-OUT: seedPriors:false with a present file → no audit event, routing identical to no-file'
+  - 'code:packages/cli/src/tools/priors-seed.ts#loadSeedPriors@doc:/CLM-0126/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
