@@ -16,6 +16,13 @@ import {
 } from './live-fitness.js';
 
 /**
+ * Cap on the identity-fitness rows read per route (#253): the N most-recently-used
+ * classes. Far above any realistic distinct-model-class count, so it bounds a
+ * pathological/poisoned ledger without affecting real routing.
+ */
+const LIVE_FITNESS_LEDGER_LIMIT = 2000;
+
+/**
  * Predict the {@link ModelIdentity} a candidate's `model` requirement would be
  * served by, WITHOUT running it: mirror node-bind's per-tier adapter pick
  * (`overlay.adapters[tier] ?? runAdapter`), resolve the served model through the
@@ -100,7 +107,10 @@ export function routePriors(
   }));
   const { map, decisions } = liveFitnessPriors(
     candidates,
-    kern.observer.identityFitnessLedger(),
+    // Bounded, recency-ordered read (#253): cap the hot-path materialization so a
+    // growing identity ledger can't OOM the router; the freshest classes are kept
+    // and recency decay already discounts the dropped stale tail.
+    kern.observer.identityFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
     baseline,
     Date.now(),
   );

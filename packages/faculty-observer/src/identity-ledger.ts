@@ -138,13 +138,24 @@ export function fitnessForIdentity(
   return row === undefined ? undefined : toRecord(row);
 }
 
-/** The whole identity-fitness series, most recently used first (#66). */
-export function identityFitnessLedger(db: Database.Database): IdentityFitnessRecord[] {
-  const rows = db
-    .prepare(
-      `SELECT * FROM observer_fitness_identity
-       ORDER BY lastUsedAt DESC, provider ASC, family ASC, generation ASC, tier ASC`,
-    )
-    .all() as IdentityFitnessRow[];
+/**
+ * The identity-fitness series, most recently used first (#66). With `limit`
+ * (a positive integer), returns only the `limit` MOST-RECENTLY-USED classes —
+ * a bounded, recency-ordered read so a hot-path caller (e.g. the router's
+ * live-fitness prior, CLM-0128) cannot materialize an unboundedly large table
+ * (#253). Recency-decayed scoring already discounts stale classes, so dropping
+ * the long tail is sound. Omit `limit` for the full series.
+ */
+export function identityFitnessLedger(
+  db: Database.Database,
+  limit?: number,
+): IdentityFitnessRecord[] {
+  const order = `ORDER BY lastUsedAt DESC, provider ASC, family ASC, generation ASC, tier ASC`;
+  const bounded = limit !== undefined && Number.isInteger(limit) && limit > 0;
+  const rows = (
+    bounded
+      ? db.prepare(`SELECT * FROM observer_fitness_identity ${order} LIMIT ?`).all(limit)
+      : db.prepare(`SELECT * FROM observer_fitness_identity ${order}`).all()
+  ) as IdentityFitnessRow[];
   return rows.map(toRecord);
 }
