@@ -214,6 +214,69 @@ describe('liveFitnessPriors — degradation & security (conditions 5/6)', () => 
   });
 });
 
+describe('liveFitnessPriors — exact-override boundary & strictness (condition 3)', () => {
+  const min = DEFAULT_LIVE_FITNESS_CONFIG.minSampleExact;
+
+  it('takes the exact row at EXACTLY minSampleExact (inclusive boundary)', () => {
+    const ledger = [row('anthropic', 'claude-opus', '4.9', 'large', min, 0.8)];
+    const { decisions } = liveFitnessPriors(
+      [{ subject: 'coder', identity: opus49 }],
+      ledger,
+      new Map(),
+      NOW,
+    );
+    expect(decisions[0]?.source).toBe('live-exact');
+  });
+
+  it('STRICTLY overrides: a sufficient exact row wins over a divergent class aggregate', () => {
+    // The exact 4.9 row (poor) must win over the strong 4.8-dominated class
+    // aggregate — proving the override is observable, not just "uses the row".
+    const ledger = [
+      row('anthropic', 'claude-opus', '4.9', 'large', min, 0.1),
+      row('anthropic', 'claude-opus', '4.8', 'large', 100, 0.99),
+    ];
+    const { map, decisions } = liveFitnessPriors(
+      [{ subject: 'coder', identity: opus49 }],
+      ledger,
+      new Map(),
+      NOW,
+    );
+    expect(decisions[0]?.source).toBe('live-exact');
+    expect(map.get('coder')).toBeCloseTo(laplaceScore(0.1, min), 10); // the POOR exact value, not the strong class
+    expect(map.get('coder')).toBeLessThan(0.5);
+  });
+});
+
+describe('liveFitnessPriors — malformed-only class degrades to neutral (condition 6)', () => {
+  it('a class whose ONLY row is malformed degrades to neutral, not a partial score', () => {
+    const ledger = [{ key: { provider: 'anthropic', family: 'claude-opus' }, invocations: -3 }];
+    const { decisions } = liveFitnessPriors(
+      [{ subject: 'coder', identity: opus49 }],
+      ledger,
+      new Map(),
+      NOW,
+    );
+    expect(decisions[0]?.source).toBe('neutral');
+  });
+});
+
+describe('liveFitnessPriors — config is honored (not dead flexibility)', () => {
+  it('a custom minSampleExact changes whether the exact row governs', () => {
+    const ledger = [row('anthropic', 'claude-opus', '4.9', 'large', 3, 0.9)];
+    const cand = [{ subject: 'coder', identity: opus49 }];
+    // Default minSampleExact (5): 3 calls is below → not live-exact.
+    expect(liveFitnessPriors(cand, ledger, new Map(), NOW).decisions[0]?.source).not.toBe(
+      'live-exact',
+    );
+    // Lower the threshold to 3 → the same row now governs.
+    const tuned = liveFitnessPriors(cand, ledger, new Map(), NOW, {
+      ...DEFAULT_LIVE_FITNESS_CONFIG,
+      minSampleExact: 3,
+    });
+    expect(tuned.decisions[0]?.source).toBe('live-exact');
+  });
+});
+
 // ─── The load-bearing non-inertness proof: the prior CHANGES Router selection ───
 
 let dir: string;

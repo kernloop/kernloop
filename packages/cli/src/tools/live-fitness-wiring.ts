@@ -9,7 +9,11 @@ import type { ModelIdentity, ModelRequirement } from '@kernloop/contracts';
 import type { Kernloop } from '../kernel.js';
 import { resolveServed, servedIdentity } from '../loop/node-seam.js';
 import { seededPriorsFor } from './priors-seed.js';
-import { liveFitnessPriors, type CandidateIdentity } from './live-fitness.js';
+import {
+  liveFitnessPriors,
+  type CandidateIdentity,
+  type LiveFitnessDecision,
+} from './live-fitness.js';
 
 /**
  * Predict the {@link ModelIdentity} a candidate's `model` requirement would be
@@ -41,30 +45,13 @@ function predictIdentity(
  * served identity, reads the Observer's identity-fitness ledger, merges per the
  * bootstrap/override policy, and audits the per-candidate provenance (rule 7).
  */
-export function routePriors(
+/** Append the per-candidate provenance event (rule 7) — facts only, JSON-plain. */
+function auditDecisions(
   kern: Kernloop,
-  capability: string,
-  runAdapter: AdapterName,
   taskId: string,
-): { fitnessPriors?: Map<string, number> } {
-  const seeded = seededPriorsFor(
-    kern.config.router.seedPriors,
-    kern.paths.priors,
-    kern.store,
-    taskId,
-  );
-  if (!kern.config.router.liveFitness) return seeded;
-  const baseline = seeded.fitnessPriors ?? new Map<string, number>();
-  const candidates: CandidateIdentity[] = kern.registry.findByCapability(capability).map((m) => ({
-    subject: m.name,
-    identity: m.model ? predictIdentity(m.model, kern, runAdapter) : null,
-  }));
-  const { map, decisions } = liveFitnessPriors(
-    candidates,
-    kern.observer.identityFitnessLedger(),
-    baseline,
-    Date.now(),
-  );
+  capability: string,
+  decisions: readonly LiveFitnessDecision[],
+): void {
   appendEvent(kern.store, {
     type: 'cli.router.live-fitness',
     payload: {
@@ -88,5 +75,35 @@ export function routePriors(
       })),
     },
   });
+}
+
+export function routePriors(
+  kern: Kernloop,
+  capability: string,
+  runAdapter: AdapterName,
+  taskId: string,
+): { fitnessPriors?: Map<string, number> } {
+  const seeded = seededPriorsFor(
+    kern.config.router.seedPriors,
+    kern.paths.priors,
+    kern.store,
+    taskId,
+  );
+  if (!kern.config.router.liveFitness) return seeded;
+  const baseline = seeded.fitnessPriors ?? new Map<string, number>();
+  // Key on `name@version` — the SAME key the seeded baseline (priors.yaml) and
+  // the Router's priorFor lookup use FIRST (router.ts). Keying on bare `name`
+  // would strand the override behind the surviving `name@version` baseline entry.
+  const candidates: CandidateIdentity[] = kern.registry.findByCapability(capability).map((m) => ({
+    subject: `${m.name}@${m.version}`,
+    identity: m.model ? predictIdentity(m.model, kern, runAdapter) : null,
+  }));
+  const { map, decisions } = liveFitnessPriors(
+    candidates,
+    kern.observer.identityFitnessLedger(),
+    baseline,
+    Date.now(),
+  );
+  auditDecisions(kern, taskId, capability, decisions);
   return { fitnessPriors: map };
 }
