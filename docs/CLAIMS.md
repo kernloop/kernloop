@@ -2078,3 +2078,18 @@ The Router is seeded from the reviewed .kernloop/priors.yaml at the run composit
 - [`packages/cli/src/tools/priors-seed-influence.test.ts`](../packages/cli/src/tools/priors-seed-influence.test.ts)
 - [`packages/cli/src/tools/priors-seed.ts#loadSeedPriors`](../packages/cli/src/tools/priors-seed.ts)
 - CI `test`
+
+## CLM-0127
+
+**Status:** verified — **source:** [`CLM-0127.yaml`](../claims/registry/CLM-0127.yaml)
+
+The audit chain stays gap-free and verifiable under CONCURRENT multi-process appends to one overlay, because appendEvent serializes via a better-sqlite3 BEGIN IMMEDIATE lock and sources seq/prevHash from a sidecar tip reconciled against the JSONL record-of-truth, the log remaining append-only JSONL with verifyChain unchanged.
+
+**Enforced by:**
+
+- [`packages/kernel/src/audit/concurrent.test.ts`](../packages/kernel/src/audit/concurrent.test.ts)
+- [`packages/kernel/src/audit/chain.test.ts`](../packages/kernel/src/audit/chain.test.ts)
+- [`packages/kernel/src/audit/chain.test.ts`](../packages/kernel/src/audit/chain.test.ts)
+- [`packages/kernel/src/audit/chain.test.ts`](../packages/kernel/src/audit/chain.test.ts)
+- [`packages/kernel/src/audit/store.ts#appendEvent`](../packages/kernel/src/audit/store.ts)
+- CI `test`

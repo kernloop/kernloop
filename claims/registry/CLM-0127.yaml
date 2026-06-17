@@ -1,0 +1,17 @@
+id: CLM-0127
+statement: >-
+  The audit chain stays gap-free and verifiable under CONCURRENT multi-process
+  appends to one overlay, because appendEvent serializes via a better-sqlite3
+  BEGIN IMMEDIATE lock and sources seq/prevHash from a sidecar tip reconciled
+  against the JSONL record-of-truth, the log remaining append-only JSONL with
+  verifyChain unchanged.
+evidence:
+  - 'test:packages/kernel/src/audit/concurrent.test.ts::N real OS processes appending to one overlay produce a gap-free, strictly-monotonic, verifiable chain'
+  - 'test:packages/kernel/src/audit/chain.test.ts::appends N events and verifyChain reports ok with length N'
+  - 'test:packages/kernel/src/audit/chain.test.ts::assigns monotonic 1-based seqs and links prevHash to the prior hash'
+  - 'test:packages/kernel/src/audit/chain.test.ts::detects a forged rehash: payload edited, hash recomputed, downstream linkage breaks'
+  - 'code:packages/kernel/src/audit/store.ts#appendEvent@doc:/Cross-process-safe/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

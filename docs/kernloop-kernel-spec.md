@@ -93,8 +93,13 @@ requires human ratification regardless of fitness score.
 
 Local-first per machine: SQLite for memory/outcomes/fitness — **one DB per
 overlay** — append-only JSONL for the audit chain, filesystem for skills and
-workshop tools. No daemon; the MCP server is the only resident process, per
-session. (A per-machine *global* cross-overlay DB — memory/fitness that
+workshop tools. The audit log stays append-only JSONL (the human-readable
+record of truth) but is **multi-writer-safe across processes** via a small
+SQLite sidecar beside it that serializes appends with a `BEGIN IMMEDIATE` lock
+and holds the authoritative chain tip (CLM-0127, #244): the MCP `serve` and a
+concurrent CLI verb on one overlay can both append without colliding seqs.
+No daemon; the MCP server is the only *resident* process, but the audit chain
+no longer assumes it is the only writer. (A per-machine *global* cross-overlay DB — memory/fitness that
 compounds across repos — is a deferred extension that returns through a claim
 when a real cross-overlay use case exists, not before; ratified 2026-06-11.
 As realized, every fact lives in its overlay's DB and is repo-local by
