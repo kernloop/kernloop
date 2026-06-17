@@ -1,7 +1,7 @@
 /**
  * The post-loop DOC ARTIFACT step (#107, CLM-0105). After the canonical loop
  * completes, this mines the doc-comments the deliverable's own code carries —
- * via the faculty-gates `mineExportedSymbols` scanner (the SAME AST machinery
+ * via the `@kernloop/docscan` `mineExportedSymbols` scanner (the SAME AST machinery
  * the #65 doc-comment gate uses) — and writes a DERIVED `API.generated.md` into
  * the workspace. It is deterministic and model-free (mirrors the repo's own
  * docs-as-derived-artifacts pattern, #51, applied to the loop OUTPUT): the
