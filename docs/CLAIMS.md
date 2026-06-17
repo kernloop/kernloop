@@ -2093,3 +2093,25 @@ The audit chain stays gap-free and verifiable under CONCURRENT multi-process app
 - [`packages/kernel/src/audit/chain.test.ts`](../packages/kernel/src/audit/chain.test.ts)
 - [`packages/kernel/src/audit/store.ts#appendEvent`](../packages/kernel/src/audit/store.ts)
 - CI `test`
+
+## CLM-0128
+
+**Status:** verified — **source:** [`CLM-0128.yaml`](../claims/registry/CLM-0128.yaml)
+
+Under an explicit router.liveFitness opt-in (default off, separate from seedPriors), the Router's fitnessPriors are computed at the CLI composition root from the Observer's live ModelIdentity-fitness ledger over the seeded baseline: the exact (provider,family,generation,tier) score strictly overrides the class aggregate once it crosses a min-sample threshold; otherwise a recency-decayed, provider-scoped (provider,family,tier) aggregate bootstraps a new generation so learning TRANSFERS across a model-version bump; the live score overrides the seeded baseline only when its class has sufficient data; a malformed ledger row is dropped and a null/unknown identity degrades to the baseline; live scores are clamped to a bounded window so reinforcement cannot lock in a regressed model (the kernel exploration floor keeps every class selectable); each candidate's source (live-exact/live-class-fallback/ seeded-file/neutral) and score are audited. The kernel Router is unchanged, so with one manifest per capability this is selection-inert in production and changes the selected manifest only when candidates compete.
+
+**Enforced by:**
+
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.test.ts`](../packages/cli/src/tools/live-fitness.test.ts)
+- [`packages/cli/src/tools/live-fitness.sim.test.ts`](../packages/cli/src/tools/live-fitness.sim.test.ts)
+- [`packages/cli/src/tools/live-fitness.sim.test.ts`](../packages/cli/src/tools/live-fitness.sim.test.ts)
+- [`packages/cli/src/tools/live-fitness.ts#liveFitnessPriors`](../packages/cli/src/tools/live-fitness.ts)
+- CI `test`

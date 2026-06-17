@@ -95,7 +95,8 @@ describe('loadOverlay defaults and precedence', () => {
       vote: { strategy: 'simple_majority', panel: 3 },
       quality: { envAllow: [] },
     });
-    expect(overlay.router).toEqual({ seedPriors: false }); // seeding is explicit opt-in [CLM-0126]
+    // both router priors are explicit opt-in [CLM-0126, CLM-0128]
+    expect(overlay.router).toEqual({ seedPriors: false, liveFitness: false });
     expect(overlay.nodeOverrides).toEqual({});
     expect(overlay.adapters).toBeUndefined(); // per-tier adapters are opt-in [CLM-0078]
   });

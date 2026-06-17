@@ -1,0 +1,34 @@
+id: CLM-0128
+statement: >-
+  Under an explicit router.liveFitness opt-in (default off, separate from
+  seedPriors), the Router's fitnessPriors are computed at the CLI composition
+  root from the Observer's live ModelIdentity-fitness ledger over the seeded
+  baseline: the exact (provider,family,generation,tier) score strictly overrides
+  the class aggregate once it crosses a min-sample threshold; otherwise a
+  recency-decayed, provider-scoped (provider,family,tier) aggregate bootstraps a
+  new generation so learning TRANSFERS across a model-version bump; the live
+  score overrides the seeded baseline only when its class has sufficient data; a
+  malformed ledger row is dropped and a null/unknown identity degrades to the
+  baseline; live scores are clamped to a bounded window so reinforcement cannot
+  lock in a regressed model (the kernel exploration floor keeps every class
+  selectable); each candidate's source (live-exact/live-class-fallback/
+  seeded-file/neutral) and score are audited. The kernel Router is unchanged, so
+  with one manifest per capability this is selection-inert in production and
+  changes the selected manifest only when candidates compete.
+evidence:
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::uses the exact (provider,family,generation,tier) score once it crosses minSampleExact'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::bootstraps a brand-new generation from the (provider,family,tier) aggregate of older generations'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::NEVER mixes providers — a same-family class on another provider does not transfer'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::decays an old class aggregate below the usable threshold so a stale class degrades to neutral'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::keeps the seeded score when live data is insufficient'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::OVERRIDES the seeded score when the live class has sufficient data'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::drops a malformed ledger row (schema-invalid) and still uses the valid rows'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::clamps live scores into the bounded-delta window (condition 4)'
+  - 'test:packages/cli/src/tools/live-fitness.test.ts::selects the manifest whose model CLASS has higher live fitness, and flips when fitness flips'
+  - 'test:packages/cli/src/tools/live-fitness.sim.test.ts::abandons a regressed favorite within a bounded tail and lets the better class take over'
+  - 'test:packages/cli/src/tools/live-fitness.sim.test.ts::never starves a class — the underdog is explored despite low early fitness (floor invariant)'
+  - 'code:packages/cli/src/tools/live-fitness.ts#liveFitnessPriors@doc:/CLM-0128/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

@@ -31,7 +31,7 @@ import {
   type LoopInvoke,
 } from '../loop/index.js';
 import { runUnderJob } from './run-jobs.js';
-import { seededPriorsFor } from './priors-seed.js';
+import { routePriors } from './live-fitness-wiring.js';
 
 /**
  * Input to the `run` tool — a goal plus optional TaskContract overrides.
@@ -301,7 +301,7 @@ export async function runTool(
       capability: parsed.capability,
       requiredTier: requiredTierFor(kern, parsed.capability),
       execute: parsed.execute,
-      ...seededPriorsFor(kern.config.router.seedPriors, kern.paths.priors, kern.store, task.id),
+      ...routePriors(kern, parsed.capability, parsed.adapter, task.id),
     });
   } catch (error) {
     if (error instanceof RouterError) {
