@@ -95,7 +95,7 @@ describe('modelsSyncTool — discovers, normalizes, persists, audits', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { ollamaHost: origin });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, ollamaHost: origin });
       expect(result.syncedAt).toBe(CLOCK.toISOString());
       const api = result.sources.find((s) => s.source === 'internal');
       expect(api).toMatchObject({ ok: true, discovered: 2, catalogued: 1 }); // opus is vendored
@@ -116,7 +116,7 @@ describe('modelsSyncTool — discovers, normalizes, persists, audits', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      await modelsSyncTool(kern, { ollamaHost: origin });
+      await modelsSyncTool(kern, { skipCliLive: true, ollamaHost: origin });
       const events = readEnvelopes(kern.paths.audit).filter((e) => e.type === 'cli.models.sync');
       expect(events).toHaveLength(1);
       const blob = JSON.stringify(events[0]);
@@ -131,7 +131,7 @@ describe('modelsSyncTool — discovers, normalizes, persists, audits', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { ollamaHost: origin });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, ollamaHost: origin });
       const blob = JSON.stringify(result) + readFileSync(result.cache, 'utf8');
       expect(blob).not.toContain(FAKE_KEY);
     } finally {
@@ -153,7 +153,7 @@ describe('modelsSyncTool — honesty (per-source failure isolation, replace-on-r
     };
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { ollamaHost: origin });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, ollamaHost: origin });
       const api = result.sources.find((s) => s.source === 'internal');
       expect(api?.ok).toBe(false);
       expect(api?.error).toContain('AdapterExecutionError');
@@ -169,7 +169,7 @@ describe('modelsSyncTool — honesty (per-source failure isolation, replace-on-r
     delete process.env[KEY_ENV];
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { skipOllama: true });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true });
       const api = result.sources.find((s) => s.source === 'internal');
       expect(api?.ok).toBe(false);
       expect(api?.error).toContain('ApiKeyMissingError');
@@ -182,13 +182,13 @@ describe('modelsSyncTool — honesty (per-source failure isolation, replace-on-r
     const kern = kernWithEndpoint();
     try {
       handler = listingHandler(); // first sync: opus + acme/llama-3
-      await modelsSyncTool(kern, { skipOllama: true, skipCliAdapters: true });
+      await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true, skipCliAdapters: true });
       // second sync: the endpoint now serves only acme/llama-3
       handler = (req, res) => {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ object: 'list', data: [{ id: 'acme/llama-3' }] }));
       };
-      await modelsSyncTool(kern, { skipOllama: true, skipCliAdapters: true });
+      await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true, skipCliAdapters: true });
       const list = modelsListTool(kern);
       const discoveredIds = list.models.filter((m) => m.origin === 'discovered').map((m) => m.id);
       expect(discoveredIds).toEqual(['acme/llama-3']); // opus is gone (honesty)
@@ -203,7 +203,7 @@ describe('modelsSyncTool — agent-CLI tier-binding sources (#131)', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { skipOllama: true });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true });
       const claude = result.sources.find((s) => s.source === 'cli:claude');
       expect(claude).toMatchObject({ kind: 'cli', ok: true, error: null });
       // claude is harness-routed (frontier/large/medium/small → fable/opus/sonnet/haiku).
@@ -222,7 +222,7 @@ describe('modelsSyncTool — agent-CLI tier-binding sources (#131)', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { skipOllama: true });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true });
       const gemini = result.sources.find((s) => s.source === 'cli:gemini');
       // four tiers, but two share `gemini-3.1-pro` → fewer than four distinct ids.
       expect(gemini?.discovered).toBeGreaterThan(0);
@@ -236,7 +236,7 @@ describe('modelsSyncTool — agent-CLI tier-binding sources (#131)', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { skipOllama: true });
+      const result = await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true });
       expect(result.sources.find((s) => s.source === 'cli:codex')).toMatchObject({
         ok: true,
         discovered: 0,
@@ -250,8 +250,80 @@ describe('modelsSyncTool — agent-CLI tier-binding sources (#131)', () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      const result = await modelsSyncTool(kern, { skipOllama: true, skipCliAdapters: true });
+      const result = await modelsSyncTool(kern, {
+        skipCliLive: true,
+        skipOllama: true,
+        skipCliAdapters: true,
+      });
       expect(result.sources.some((s) => s.kind === 'cli')).toBe(false);
+    } finally {
+      kern.close();
+    }
+  });
+});
+
+describe('modelsSyncTool — live agent-CLI model-list probe (#131, CLM-0131)', () => {
+  const okResult = (stdout: string): Promise<import('@kernloop/kernel').SubprocessResult> =>
+    Promise.resolve({
+      stdout,
+      stderr: '',
+      exitCode: 0,
+      signal: null,
+      durationMs: 5,
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+  it('records a cli-live:<adapter> source from the probed model list', async () => {
+    const kern = kernWithEndpoint();
+    try {
+      const result = await modelsSyncTool(kern, {
+        skipOllama: true,
+        skipCliAdapters: true,
+        cliRun: () => okResult('opencode/big-pickle\nopencode/mimo-v2.5-free\n'),
+      });
+      const live = result.sources.find((s) => s.kind === 'cli-live');
+      expect(live?.source).toBe('cli-live:opencode');
+      expect(live?.ok).toBe(true);
+      expect(live?.discovered).toBe(2);
+    } finally {
+      kern.close();
+    }
+  });
+
+  it('an absent/failed CLI is an honest per-source failure, not a fabricated list', async () => {
+    const kern = kernWithEndpoint();
+    try {
+      const result = await modelsSyncTool(kern, {
+        skipOllama: true,
+        skipCliAdapters: true,
+        cliRun: () => Promise.reject(new Error('spawn opencode ENOENT')),
+      });
+      const live = result.sources.find((s) => s.kind === 'cli-live');
+      expect(live?.ok).toBe(false);
+      expect(live?.discovered).toBe(0);
+      expect(live?.error).toMatch(/AdapterExecutionError|ENOENT/);
+    } finally {
+      kern.close();
+    }
+  });
+
+  it('skipCliLive omits the live probe entirely (no cli-live source, no spawn)', async () => {
+    const kern = kernWithEndpoint();
+    let spawned = false;
+    try {
+      const result = await modelsSyncTool(kern, {
+        skipOllama: true,
+        skipCliAdapters: true,
+        skipCliLive: true,
+        cliRun: () => {
+          spawned = true;
+          return okResult('opencode/x\n');
+        },
+      });
+      expect(result.sources.some((s) => s.kind === 'cli-live')).toBe(false);
+      expect(spawned).toBe(false);
     } finally {
       kern.close();
     }
@@ -263,7 +335,7 @@ describe('modelsListTool — merged vendored + discovered catalog with freshness
     handler = listingHandler();
     const kern = kernWithEndpoint();
     try {
-      await modelsSyncTool(kern, { ollamaHost: origin });
+      await modelsSyncTool(kern, { skipCliLive: true, ollamaHost: origin });
       const list = modelsListTool(kern);
       expect(list.vendoredSnapshot).not.toBe('');
       expect(list.discoveredSnapshot).toBe(CLOCK.toISOString()); // freshness stated honestly

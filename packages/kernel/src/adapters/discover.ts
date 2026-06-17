@@ -28,6 +28,7 @@
  *
  * @module kernel/adapters/discover
  */
+import { tmpdir } from 'node:os';
 import { z } from 'zod';
 import type { ApiAdapterDefinition } from './api-config.js';
 import { MODELS_PATH, OLLAMA_TAGS_PATH, assertSafeBaseUrl } from './api-url.js';
@@ -38,6 +39,8 @@ import {
   AdapterTimeoutError,
   ApiKeyMissingError,
 } from './errors.js';
+import { scopedChildEnv } from './env.js';
+import { runSubprocess, type SubprocessResult, type SubprocessSpec } from './subprocess.js';
 
 /** Wall-clock budget for a single discovery request (ms) — discovery is a read. */
 export const DISCOVERY_TIMEOUT_MS = 20_000;
@@ -195,4 +198,85 @@ export async function discoverOllamaModels(host: string = DEFAULT_OLLAMA_HOST): 
   return parseListing(adapter, body, '', OllamaTagsSchema, (p) =>
     (p.models ?? []).map((m) => m.name),
   );
+}
+
+/**
+ * Agent-CLI adapters that expose an ENUMERABLE model list, and the fixed argv to
+ * list them (#131). A harness-routed CLI (claude/codex/gemini) routes by alias
+ * and exposes NO list — absent here, it degrades to its declared tier-bindings
+ * (the `cli:<name>` source, #171). Only `opencode` enumerates today (~338).
+ */
+const CLI_LIST_COMMANDS: Readonly<Record<string, readonly string[]>> = { opencode: ['models'] };
+
+/** The agent-CLI adapters with an enumerable model list — what `models sync` live-probes (#131). */
+export const CLI_DISCOVERY_ADAPTERS: readonly string[] = Object.freeze(
+  Object.keys(CLI_LIST_COMMANDS),
+);
+
+/** Wall-clock budget for a CLI model-list probe (a local read; never the launch dir). */
+export const CLI_DISCOVERY_TIMEOUT_MS = 30_000;
+/** Capture cap for the list — a model list is tiny; this bounds a runaway CLI. */
+const CLI_LIST_CAPTURE_BYTES = 1024 * 1024;
+/** Hard cap on returned model ids — bounds a pathological list (#131 security). */
+const MAX_CLI_MODELS = 5_000;
+
+/**
+ * Discover the models an agent-CLI adapter enumerates by spawning its fixed
+ * list command (e.g. `opencode models`) under a bounded {@link runSubprocess}
+ * (#131). The command + args are STATIC (no shell, no interpolation), stdout is
+ * capture-capped + timeout-bounded, and the output is parsed as DATA ONLY — one
+ * model id per line, trimmed, length-bounded, de-duplicated, count-capped; a
+ * model id is never executed (one that fails identity normalization just resolves
+ * to `unknown`). An adapter with no list command returns `[]` (honest — its
+ * declared bindings cover it, #171); an absent/failed/timed-out CLI is a typed
+ * error ({@link AdapterExecutionError}/{@link AdapterTimeoutError}), never a guess
+ * (#131, CLM-0131).
+ *
+ * SECRET HYGIENE (#131 security round): the spawned CLI is a third-party agentic
+ * binary, so its child env is SCOPED via {@link scopedChildEnv} to the benign
+ * operational allowlist ∪ `envAllow` — it is NEVER handed the host `process.env`
+ * (other providers' keys, `GH_TOKEN`, cloud creds), exactly as the model-CALL
+ * path scopes it. A login-authed CLI works on the base allowlist (HOME/XDG); a
+ * key-authed one names its var in the overlay's `adapterEnvAllow`, threaded here
+ * as `envAllow`. `run` is injectable for tests.
+ */
+export async function discoverCliModels(
+  adapter: string,
+  run: (spec: SubprocessSpec) => Promise<SubprocessResult> = runSubprocess,
+  envAllow: readonly string[] = [],
+): Promise<string[]> {
+  const args = CLI_LIST_COMMANDS[adapter];
+  if (args === undefined) return [];
+  let result: SubprocessResult;
+  try {
+    result = await run({
+      command: adapter,
+      args,
+      // Neutral cwd: an agentic CLI must NOT inherit the launch dir (#146 / the
+      // runSubprocess cwd warning) — the list command needs no project context.
+      cwd: tmpdir(),
+      // Least-privilege child env — never the host secrets (#131 security round).
+      env: scopedChildEnv(process.env, envAllow),
+      timeoutMs: CLI_DISCOVERY_TIMEOUT_MS,
+      maxCaptureBytes: CLI_LIST_CAPTURE_BYTES,
+    });
+  } catch (error) {
+    // Spawn failure (ENOENT/EACCES) — the CLI is not installed/runnable.
+    throw new AdapterExecutionError(
+      adapter,
+      null,
+      null,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  if (result.timedOut)
+    throw new AdapterTimeoutError(adapter, CLI_DISCOVERY_TIMEOUT_MS, result.durationMs);
+  if (result.exitCode !== 0) {
+    throw new AdapterExecutionError(adapter, result.exitCode, result.signal, result.stderr);
+  }
+  const ids = result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && line.length <= 256);
+  return [...new Set(ids)].slice(0, MAX_CLI_MODELS);
 }

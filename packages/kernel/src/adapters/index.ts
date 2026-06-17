@@ -59,6 +59,9 @@ export {
 export {
   discoverApiModels,
   discoverOllamaModels,
+  discoverCliModels,
+  CLI_DISCOVERY_ADAPTERS,
+  CLI_DISCOVERY_TIMEOUT_MS,
   DISCOVERY_TIMEOUT_MS,
   DEFAULT_OLLAMA_HOST,
 } from './discover.js';
