@@ -1,0 +1,28 @@
+id: CLM-0141
+statement: >-
+  The loop SURFACES the tools the system forged for itself (EPIC #47·P3 #228
+  constituent 3 — the 2nd of the three learning-loop breaks). `gatherWorkshopIndex`
+  reads the overlay's workshop tools and surfaces only the advisory-or-above, LIVE
+  ones as a lowest-priority `workshopIndex` brief section of capability HINTS —
+  each "<name> (<tier>): a forged tool — run via `kernloop workshop run <name>`"
+  with `workshop:<name>` provenance. A born/decayed `suggest` tool is UNPROVEN and
+  excluded; a `removal_proposed` tool is excluded — the RECORDED post-sweep
+  lifecycle tier is authoritative (CLM-0054), so decay is respected without this
+  read applying a clock. DETERMINISTIC: same overlay ⇒ the same name-sorted hints
+  (CLM-0029). HONESTY BOUNDARY: this surfaces AWARENESS — the loop learns the tool
+  exists and its documented CLI run target — it is a HINT, NEVER a 12th MCP tool
+  (spec §3.4), and gives the loop NO callable path (the loop runs the kernel
+  eleven, not `workshop run`; awareness ≠ closure, and suggest→advisory promotion
+  remains manual by design). It claims the WIRING (advisory+ live tools surface
+  deterministically, below-advisory/removal_proposed excluded, the registry gains
+  no tool), NOT that surfacing improves outcomes.
+evidence:
+  - 'test:packages/cli/src/gather.test.ts::surfaces ADVISORY and ENFORCE live tools as hints (name + description + tier), name-sorted'
+  - 'test:packages/cli/src/gather.test.ts::NEVER surfaces a born/decayed suggest tool (advisory+ only — unproven excluded)'
+  - 'test:packages/cli/src/gather.test.ts::excludes a removal_proposed (decayed-out) tool even at advisory tier (respect decay)'
+  - 'test:packages/cli/src/gather.test.ts::surfaces an advisory workshop tool into the brief as a run-hint, never an MCP tool (#228 P3·3)'
+  - 'code:packages/cli/src/gather.ts#gatherWorkshopIndex@doc:/CLM-0141/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

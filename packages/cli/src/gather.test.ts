@@ -2,13 +2,19 @@
  * Tests for brief-source gathering and the `brief` tool: real claims files,
  * real git probes, real memory reads — and a Brief published on the bus.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BriefSchema } from '@kernloop/contracts';
 import { createKernloop, type Kernloop } from './kernel.js';
-import { gatherClaims, gatherRepoProbes, gatherSkillBodies, gatherSkillsIndex } from './gather.js';
+import {
+  gatherClaims,
+  gatherRepoProbes,
+  gatherSkillBodies,
+  gatherSkillsIndex,
+  gatherWorkshopIndex,
+} from './gather.js';
 import { briefTool } from './tools/brief.js';
 import { readEnvelopes } from './tools/audit.js';
 
@@ -164,6 +170,67 @@ describe('gatherSkillBodies (#228 P3·1, CLM-0139)', () => {
   });
 });
 
+/** Install a workshop tool fixture (manifest + a lifecycle entry) under `overlay`. */
+function withWorkshopTool(
+  overlay: string,
+  name: string,
+  tier: 'suggest' | 'advisory' | 'enforce',
+  status: 'live' | 'removal_proposed',
+  description: string,
+): void {
+  const dir = path.join(overlay, 'workshop', name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    path.join(dir, 'manifest.json'),
+    JSON.stringify({
+      name: `workshop/${name}`,
+      version: '0.1.0',
+      kind: 'workshopTool',
+      capabilities: [{ name: `workshop.${name}`, description }],
+      tier,
+      claims: [],
+      maturity: 'experimental',
+    }),
+  );
+  const lcPath = path.join(overlay, 'workshop', 'lifecycle.json');
+  const lc = existsSync(lcPath)
+    ? (JSON.parse(readFileSync(lcPath, 'utf8')) as { tools: Record<string, unknown>; history: [] })
+    : { tools: {}, history: [] };
+  lc.tools[name] = { name, tier, cleanRuns: 3, lastUsedAt: 1, born: 1, status };
+  writeFileSync(lcPath, JSON.stringify(lc));
+}
+
+describe('gatherWorkshopIndex (#228 P3·3, CLM-0141)', () => {
+  it('surfaces ADVISORY and ENFORCE live tools as hints (name + description + tier), name-sorted', () => {
+    const overlay = repoDir();
+    withWorkshopTool(overlay, 'zzz-advisory', 'advisory', 'live', 'last by name');
+    withWorkshopTool(overlay, 'aaa-advisory', 'advisory', 'live', 'count LOC');
+    withWorkshopTool(overlay, 'enforced', 'enforce', 'live', 'an enforced tool');
+    const index = gatherWorkshopIndex(overlay);
+    expect(index).toEqual([
+      { name: 'aaa-advisory', description: 'count LOC', tier: 'advisory' },
+      { name: 'enforced', description: 'an enforced tool', tier: 'enforce' },
+      { name: 'zzz-advisory', description: 'last by name', tier: 'advisory' },
+    ]);
+  });
+
+  it('NEVER surfaces a born/decayed suggest tool (advisory+ only — unproven excluded)', () => {
+    const overlay = repoDir();
+    withWorkshopTool(overlay, 'born', 'suggest', 'live', 'just forged');
+    expect(gatherWorkshopIndex(overlay)).toEqual([]);
+  });
+
+  it('excludes a removal_proposed (decayed-out) tool even at advisory tier (respect decay)', () => {
+    const overlay = repoDir();
+    withWorkshopTool(overlay, 'going-away', 'advisory', 'removal_proposed', 'on the way out');
+    expect(gatherWorkshopIndex(overlay)).toEqual([]);
+  });
+
+  it('is empty for an overlay with no workshop tools', () => {
+    expect(gatherWorkshopIndex(repoDir())).toEqual([]);
+  });
+});
+
 describe('briefTool', () => {
   it('compiles a zod-valid Brief from real gathered sources without executing, and publishes it', async () => {
     const repo = repoDir();
@@ -209,6 +276,27 @@ describe('briefTool', () => {
     expect(section?.provenance.some((p) => p.ref === 'skill:greet-guide:body')).toBe(true);
     // The cheap index still lists it too (the body is the addition, not a replacement).
     expect(brief.sections.find((s) => s.name === 'skillsIndex')?.content).toContain('greet-guide');
+    kern.close();
+  });
+
+  it('surfaces an advisory workshop tool into the brief as a run-hint, never an MCP tool (#228 P3·3)', async () => {
+    const repo = repoDir();
+    withWorkshopTool(
+      path.join(repo, '.kernloop'),
+      'loc-probe',
+      'advisory',
+      'live',
+      'count non-blank LOC',
+    );
+    const kern = freshKernloop(repo);
+    const mcpToolCount = kern.registry.list().length; // the kernel eleven, unchanged below
+    const brief = await briefTool(kern, { goal: 'measure the codebase', id: 'task-workshop' });
+    const section = brief.sections.find((s) => s.name === 'workshopIndex');
+    expect(section, 'an advisory workshop tool must surface a workshopIndex hint').toBeDefined();
+    expect(section?.content).toContain('kernloop workshop run loc-probe'); // the documented CLI target
+    expect(section?.provenance.some((p) => p.ref === 'workshop:loc-probe')).toBe(true);
+    // Surfacing is a HINT only: the registry (router candidates) gained no tool.
+    expect(kern.registry.list()).toHaveLength(mcpToolCount);
     kern.close();
   });
 });

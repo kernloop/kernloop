@@ -2351,3 +2351,18 @@ The canonical loop ATTRIBUTES its outcome to the skills it reused (EPIC #47·P3 
 - [`packages/cli/src/loop/skill-attribution.test.ts`](../packages/cli/src/loop/skill-attribution.test.ts)
 - [`packages/cli/src/loop/skill-attribution.ts#attributeSkillFitness`](../packages/cli/src/loop/skill-attribution.ts)
 - CI `test`
+
+## CLM-0141
+
+**Status:** verified — **source:** [`CLM-0141.yaml`](../claims/registry/CLM-0141.yaml)
+
+The loop SURFACES the tools the system forged for itself (EPIC #47·P3 #228 constituent 3 — the 2nd of the three learning-loop breaks). `gatherWorkshopIndex` reads the overlay's workshop tools and surfaces only the advisory-or-above, LIVE ones as a lowest-priority `workshopIndex` brief section of capability HINTS — each "<name> (<tier>): a forged tool — run via `kernloop workshop run <name>`" with `workshop:<name>` provenance. A born/decayed `suggest` tool is UNPROVEN and excluded; a `removal_proposed` tool is excluded — the RECORDED post-sweep lifecycle tier is authoritative (CLM-0054), so decay is respected without this read applying a clock. DETERMINISTIC: same overlay ⇒ the same name-sorted hints (CLM-0029). HONESTY BOUNDARY: this surfaces AWARENESS — the loop learns the tool exists and its documented CLI run target — it is a HINT, NEVER a 12th MCP tool (spec §3.4), and gives the loop NO callable path (the loop runs the kernel eleven, not `workshop run`; awareness ≠ closure, and suggest→advisory promotion remains manual by design). It claims the WIRING (advisory+ live tools surface deterministically, below-advisory/removal_proposed excluded, the registry gains no tool), NOT that surfacing improves outcomes.
+
+**Enforced by:**
+
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.ts#gatherWorkshopIndex`](../packages/cli/src/gather.ts)
+- CI `test`
