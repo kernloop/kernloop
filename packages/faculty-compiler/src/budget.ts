@@ -9,7 +9,7 @@
  *
  * Drop-ordering guarantee: when the TOTAL budget runs out, admission stops,
  * so fully-dropped-for-total-budget sections always form a suffix of the
- * priority order (6 before 5 before 4 …). A section excluded by its own
+ * priority order (8 before 7 before 6 …). A section excluded by its own
  * per-section cap does NOT starve lower-priority sections — that exclusion
  * is the caller's explicit choice, not budget exhaustion.
  */

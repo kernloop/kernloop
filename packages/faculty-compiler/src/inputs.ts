@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { TaskContractSchema } from '@kernloop/contracts';
 
 /**
- * The six brief sections in priority order — index order IS assembly order,
+ * The eight brief sections in priority order — index order IS assembly order,
  * and priority 1 (`task`) is dropped last under budget pressure (spec §5.1).
  */
 export const SECTION_NAMES = [

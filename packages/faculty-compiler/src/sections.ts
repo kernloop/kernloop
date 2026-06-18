@@ -76,7 +76,7 @@ function discoveryDrafts(sources: BriefSources): SectionDraft[] {
 }
 
 /**
- * Build all non-empty section drafts in priority order (1 → 7). Input order
+ * Build all non-empty section drafts in priority order (1 → 8). Input order
  * within each group is preserved — semantic facts arrive pre-ranked by the
  * memory faculty and are never re-ranked here. Pure data transformation:
  * output depends only on arguments (CLM-0029).
