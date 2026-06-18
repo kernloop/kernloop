@@ -57,6 +57,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The eval harness imports the workspace packages in-process, so their dist
+      # must exist (the `@kernloop/*` exports resolve to built output).
+      - run: pnpm build
       # Golden quality eval-set (#226 item 4): drives the REAL canonical loop with
       # a scripted (model-free) invoke + a real tsc gate — makes VETTED measurable.
       - run: pnpm evals

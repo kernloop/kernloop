@@ -82,8 +82,19 @@ async function vetted(scratch: string, fx: EvalFixture): Promise<boolean> {
   try {
     const result = await runTool(
       kern,
-      { goal: fx.goal, capability: 'workflow.canonical', workspaceDir: repo, id: `eval-${fx.name}` },
-      { checks: [typecheck], invoke: scriptedInvoke({ vote: () => 'approve', files: [{ path: 'src/greet.ts', content: fx.deliverable }] }) },
+      {
+        goal: fx.goal,
+        capability: 'workflow.canonical',
+        workspaceDir: repo,
+        id: `eval-${fx.name}`,
+      },
+      {
+        checks: [typecheck],
+        invoke: scriptedInvoke({
+          vote: () => 'approve',
+          files: [{ path: 'src/greet.ts', content: fx.deliverable }],
+        }),
+      },
     );
     return result.kind === 'outcome' && result.outcome.status === 'success';
   } finally {
