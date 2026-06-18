@@ -20,6 +20,7 @@ import {
   auditTool,
   briefTool,
   distillTool,
+  listDistillCandidates,
   forgeTool,
   gateTool,
   manifestTool,
@@ -320,7 +321,12 @@ const HANDLERS: Record<string, Handler> = {
   priors: (args, io) => priorsCommand(args, io, commandHelpers),
   models: (args, io) => modelsCommand(args, io, commandHelpers),
   distill: (args, io) => {
-    const v = flags(args, { trace: S, adapter: S });
+    const v = flags(args, { trace: S, adapter: S, list: B });
+    // `distill --list`: the distill-candidate NOMINATION surface (#228 P3·4) — print
+    // the loop-flagged distill-worthy traces and exit, distilling nothing.
+    if (v.list === true) {
+      return withKernloop(io, v.dir, (kern) => Promise.resolve(listDistillCandidates(kern)));
+    }
     const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
     return withKernloop(io, v.dir, (kern) =>
       distillTool(kern, {
