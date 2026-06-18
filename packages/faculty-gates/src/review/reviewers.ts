@@ -183,7 +183,7 @@ export const REVIEW_PANEL_DEFAULT: readonly ReviewerTemplate[] = [
   REVIEWER_MAINTAINABILITY,
 ];
 
-/** Full 5-reviewer panel — v1's `PR_REVIEW_ROLES` composition. */
+/** Full 6-reviewer panel — v1's five `PR_REVIEW_ROLES` + the kernloop groundedness lens (#226 item 3). */
 export const REVIEW_PANEL_FULL: readonly ReviewerTemplate[] = [
   REVIEWER_CORRECTNESS,
   REVIEWER_SECURITY,
