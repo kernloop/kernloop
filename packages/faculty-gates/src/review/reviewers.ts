@@ -135,10 +135,47 @@ ${REVIEW_FOOTER}`,
 };
 
 /**
- * Default 3-reviewer panel: correctness + security + maintainability.
- * v1 always convened all five roles; kernloop defaults to three (the vote
- * gate's default-3 pattern, spec §5.3) and exposes the full v1 panel
- * below. Delta recorded in PORT-NOTES.md.
+ * Groundedness reviewer (#226 item 3, EPIC #47 P1, CLM-0135) — the ONLY lens that judges
+ * GOAL-FIDELITY rather than code defects: does the diff actually ACHIEVE the
+ * stated goal + its acceptance criteria (supplied in the reviewer Context), or
+ * does it implement the WRONG thing while compiling and passing the mechanical
+ * gates? It does NOT use the defect-hunting footer (it hunts goal-mismatch, not
+ * null derefs). It is ADVISORY like the rest of the panel — a goal-mismatch
+ * `reject` surfaces as a non-blocking needs-review signal (CLM-0133), never
+ * auto-fails. A model judging goal-fidelity is self-grading-prone, so its real
+ * precision is measured by a separate live eval, never trusted blind (#287).
+ */
+export const REVIEWER_GROUNDEDNESS: ReviewerTemplate = {
+  name: 'groundedness',
+  lens: 'goal-fidelity',
+  rolePrompt: `You are a groundedness reviewer. Judge ONE thing: does this diff actually
+ACHIEVE the GOAL and the acceptance criteria stated in the Context section — NOT
+whether the code is well-written. A diff can compile, pass every test, and be
+fully documented yet implement the WRONG feature; that is exactly what you catch.
+
+For EACH acceptance criterion in the Context:
+- Decide whether the diff SATISFIES it, and CITE the specific diff lines that do
+  (or name their absence). A judgment with no cited criterion is not a finding.
+- File an \`error\` finding naming the criterion the diff FAILS to satisfy, or if
+  the diff implements something OTHER than the goal asks (a wrong feature).
+
+If the Context carries NO goal or acceptance criteria, you cannot judge
+goal-fidelity — abstain (an empty findings list with a summary saying so). If,
+after checking the diff against every criterion, it genuinely achieves the goal,
+approve and state which criteria it satisfies.
+
+Severity: error = fails a stated criterion or implements the wrong feature;
+warn = partially satisfies a criterion; info = an observation. Do NOT file
+correctness/style findings — other reviewers own those.`,
+};
+
+/**
+ * Default 3-lens defect panel: correctness + security + maintainability. The
+ * GROUNDEDNESS lens (#226 item 3) is NOT here — it can only judge against a goal,
+ * so the composition root adds it ONLY when a goal/context is supplied (a no-goal
+ * review, e.g. the standalone gate tool over an inline diff, would otherwise spend
+ * a model call on a reviewer that can only abstain — #226 item-3 security round).
+ * Delta recorded in PORT-NOTES.md.
  */
 export const REVIEW_PANEL_DEFAULT: readonly ReviewerTemplate[] = [
   REVIEWER_CORRECTNESS,
@@ -153,4 +190,5 @@ export const REVIEW_PANEL_FULL: readonly ReviewerTemplate[] = [
   REVIEWER_MAINTAINABILITY,
   REVIEWER_CONTRARIAN,
   REVIEWER_SCOPE_STEWARD,
+  REVIEWER_GROUNDEDNESS,
 ];

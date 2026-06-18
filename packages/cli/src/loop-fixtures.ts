@@ -78,14 +78,40 @@ export function kernloopFor(repo: string): Kernloop {
  * the prompts the REAL executors assemble. `vote` is consulted once per voter;
  * `files` is what the coder "writes".
  */
+/** A scripted reviewer report: a goal-mismatch reject (#226 item 3 wiring) or a clean approve. */
+function reviewOutput(groundednessReject: boolean): string {
+  return groundednessReject
+    ? JSON.stringify({
+        findings: [
+          {
+            severity: 'error',
+            message: 'the diff implements the wrong feature — it fails the stated goal/criterion',
+          },
+        ],
+        summary: 'goal mismatch: the diff does not satisfy the stated goal',
+      })
+    : JSON.stringify({ findings: [], summary: 'no blocking issues found' });
+}
+
 export function scriptedInvoke(script: {
   vote: () => 'approve' | 'reject';
   files: Array<{ path: string; content: string }>;
+  /**
+   * When true, the GROUNDEDNESS reviewer (#226 item 3) returns the goal-mismatch
+   * REJECT a correct reviewer WOULD return for a wrong-feature diff. This is the
+   * EXPECTED verdict scripted for a hermetic WIRING test (does a groundedness
+   * reject flow to a needs-review signal?) — it does NOT exercise a real model's
+   * judgment (that is the live eval). Default false → the groundedness reviewer
+   * approves like the others.
+   */
+  groundednessReject?: boolean;
 }): LoopInvoke {
   return (prompt) => {
     let output: string;
     if (prompt.includes('Diff under review')) {
-      output = JSON.stringify({ findings: [], summary: 'no blocking issues found' });
+      output = reviewOutput(
+        script.groundednessReject === true && prompt.includes('groundedness reviewer'),
+      );
     } else if (prompt.includes('Investigate the prior art')) {
       output = 'Research: greet() is a small typed function; no prior-art conflicts.';
     } else if (prompt.includes('Proposal under vote')) {

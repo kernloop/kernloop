@@ -24,11 +24,16 @@ import { resolveServed } from './node-seam.js';
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-loop-gates-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
-function kernloopFor(name: string): Kernloop {
+function kernloopFor(name: string, overlayYaml?: string): Kernloop {
   const repo = path.join(scratch, name);
   mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
+  if (overlayYaml !== undefined)
+    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), overlayYaml);
   return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
 }
+
+/** Overlay opting IN to the goal-fidelity (groundedness) review — default off (#226 item 3). */
+const GROUNDEDNESS_ON = 'id: unit\ngates:\n  review:\n    groundedness: true\n';
 
 const task = TaskContractSchema.parse({
   id: 'task-unit',
@@ -54,16 +59,20 @@ const scripted: LoopInvoke = (prompt) => {
   return Promise.resolve({ output, cost: COST });
 };
 
-function bindingsFor(kern: Kernloop, refs: LoopRefs = {}): LoopBindings {
+function bindingsFor(
+  kern: Kernloop,
+  refs: LoopRefs = {},
+  invoke: LoopInvoke = scripted,
+): LoopBindings {
   const workspaceDir = path.join(scratch, 'unit-ws');
   mkdirSync(workspaceDir, { recursive: true });
   writeFileSync(path.join(workspaceDir, '.keep'), '');
   return {
     kern,
     workspaceDir,
-    invoke: scripted,
+    invoke,
     invokeFor: () => ({
-      invoke: scripted,
+      invoke,
       served: resolveServed({ tier: 'medium', effort: 'medium', capabilities: [] }, 'claude'),
     }),
     adapter: 'claude',
@@ -98,6 +107,38 @@ function auditedGates(kern: Kernloop): string[] {
 }
 
 describe('review executor — advisory review gate in the loop [CLM-0064]', () => {
+  it('threads the child GOAL + acceptance criteria into the review context (#226 item 3)', async () => {
+    const kern = kernloopFor('review-grounded', GROUNDEDNESS_ON); // opt in to the goal-fidelity lens
+    const child = TaskContractSchema.parse({
+      ...task,
+      goal: 'add a greet feature returning hello',
+      definitionOfDone: [{ name: 'acc', command: 'node verify.mjs' }],
+    });
+    const refs: LoopRefs = {
+      writtenByChild: { [child.id]: [{ path: 'src/x.ts', content: 'export const x = 1;\n' }] },
+    };
+    const prompts: string[] = [];
+    const capture: LoopInvoke = (prompt) => {
+      prompts.push(prompt);
+      return Promise.resolve({
+        output: JSON.stringify({ findings: [], summary: 'clean' }),
+        cost: COST,
+      });
+    };
+    const executors = buildLoopExecutors(bindingsFor(kern, refs, capture));
+    await executors['review']?.(undefined, { ...reviewCtx(), child });
+    // EVERY reviewer prompt carries the goal so a goal-fidelity judgment is possible…
+    expect(prompts.length).toBeGreaterThan(0);
+    for (const p of prompts) expect(p).toContain('add a greet feature returning hello');
+    // …and the groundedness reviewer specifically sees the acceptance criteria it must cite.
+    const grounded = prompts.find((p) => p.includes('groundedness reviewer'));
+    expect(grounded).toBeDefined();
+    expect(grounded).toContain('## Goal');
+    expect(grounded).toContain('## Acceptance criteria');
+    expect(grounded).toContain('acc: node verify.mjs');
+    kern.close();
+  });
+
   it('reviews the child diff, returns an advisory Verdict, and audits it', async () => {
     const kern = kernloopFor('review-ok');
     const refs: LoopRefs = {
