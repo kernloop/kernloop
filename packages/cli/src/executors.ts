@@ -59,6 +59,8 @@ export interface ExecutionContext {
   readonly resumeRunId?: string;
   /** Force unlimited budget mode for the canonical loop [CLM-0077]. */
   readonly unlimited?: boolean;
+  /** Cooperative-abort signal for the canonical loop (#304, CLM-0143). */
+  readonly signal?: AbortSignal;
 }
 
 /** What one executed capability reports back to the run tool. */
@@ -282,7 +284,10 @@ function loopExecutionResult(report: LoopReport): ExecutionResult {
     report.status === 'completed'
       ? (report.outcome?.status ?? 'failure')
       : report.status === 'escalated'
-        ? 'partial'
+        ? // A cooperative abort (#304) is an honest CANCEL, not a vote/budget escalate.
+          report.haltReason === 'aborted'
+          ? 'cancelled'
+          : 'partial'
         : 'failure';
   // Always-on reporting [CLM-0077]: the metered cost rides in BOTH modes; an
   // unlimited run is recorded honestly so no report implies a cap was honored.
@@ -306,7 +311,10 @@ function loopExecutionResult(report: LoopReport): ExecutionResult {
     signals,
     cost: report.cost,
     data: report,
-    ...(report.status === 'escalated'
+    // A vote/budget escalate surfaces as an escalation (needs-human, resume to edit);
+    // a cooperative ABORT (#304) is a recorded CANCEL, not an escalation — the run is
+    // resumable via its runId but nothing needs editing.
+    ...(report.status === 'escalated' && report.haltReason !== 'aborted'
       ? { escalation: { runId: report.runId, findings: report.findings ?? [] } }
       : {}),
   };
@@ -314,7 +322,16 @@ function loopExecutionResult(report: LoopReport): ExecutionResult {
 
 /** Executor for `workflow.canonical` — the full loop over a workspace [CLM-0046]. */
 function workflowCanonicalExecutor(kern: Kernloop): CapabilityExecutor {
-  return async ({ task, workspaceDir, checks, adapter, invoke, resumeRunId, unlimited }) => {
+  return async ({
+    task,
+    workspaceDir,
+    checks,
+    adapter,
+    invoke,
+    resumeRunId,
+    unlimited,
+    signal,
+  }) => {
     if (workspaceDir === undefined) {
       throw new ExecutionError(
         'workspace_required',
@@ -329,6 +346,7 @@ function workflowCanonicalExecutor(kern: Kernloop): CapabilityExecutor {
       ...(resumeRunId === undefined ? {} : { resumeRunId }),
       ...(checks === undefined ? {} : { checks }),
       ...(unlimited === undefined ? {} : { unlimited }),
+      ...(signal === undefined ? {} : { signal }),
     });
     return loopExecutionResult(report);
   };

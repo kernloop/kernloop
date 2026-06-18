@@ -173,6 +173,8 @@ interface ExecutorOptions {
   resumeRunId?: string;
   /** Force unlimited budget mode for the canonical loop [CLM-0077]. */
   unlimited?: boolean;
+  /** Cooperative-abort signal for the canonical loop (#304, CLM-0143). */
+  signal?: AbortSignal;
 }
 
 /** Close out one executed capability: publish + persist + audit the Outcome. */
@@ -278,6 +280,8 @@ async function resolveTask(
 export interface RunToolOptions {
   checks?: readonly QualityCheck[];
   invoke?: LoopInvoke;
+  /** Cooperative-abort signal for a canonical-loop run (#304, CLM-0143). */
+  signal?: AbortSignal;
   /** Job id generator, injected so async/cross-session tests are deterministic. */
   newJobId?: () => string;
   /** Receives an async run's background settle promise so a one-shot host (the
@@ -360,6 +364,7 @@ function dispatchSelected(
     adapter: parsed.adapter,
     ...(parsed.resume === undefined ? {} : { resumeRunId: parsed.resume }),
     ...(parsed.unlimited ? { unlimited: true } : {}),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
   };
   return runUnderJob(
     kern,

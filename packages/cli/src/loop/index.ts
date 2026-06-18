@@ -7,10 +7,11 @@
  * the schemas match by design [CLM-0045]).
  *
  * Statuses are surfaced honestly: `completed` carries retrospect's Outcome;
- * `escalated` means the K vote-iterate bound was exhausted — the run HALTED
- * with its findings and `kernloop run --resume <runId>` continues from plan
- * after the human edits; `failed` carries the typed engine error and the
- * last checkpoint stays resumable.
+ * `escalated` means the run HALTED resumably — the K vote-iterate bound was
+ * exhausted, the budget hit, or a cooperative abort fired (#304, `haltReason`
+ * distinguishes them) — and `kernloop run --resume <runId>` continues from the
+ * last checkpoint; `failed` carries the typed engine error and the last
+ * checkpoint stays resumable.
  */
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -88,12 +89,26 @@ export interface LoopRequest {
    * metered and reported, and the run is recorded honestly as unlimited.
    */
   readonly unlimited?: boolean;
+  /**
+   * Cooperative-abort signal (#304, CLM-0143). When it fires, the engine halts
+   * at the NEXT node boundary (CLM-0044) and the run is reported as a clean,
+   * resumable cancel (status `escalated`, `haltReason: 'aborted'`) carrying the
+   * spend-so-far — NOT a dirty failure. Absent ⇒ the run is byte-identical.
+   */
+  readonly signal?: AbortSignal;
 }
 
 /** The loop RunResult mapped for the run tool, plus the metered model spend. */
 export interface LoopReport {
   readonly runId: string;
   readonly status: 'completed' | 'escalated' | 'failed';
+  /**
+   * Why an `escalated` run halted: `'vote'`/`'budget'` (the engine's halts) or
+   * `'aborted'` (cooperative abort, #304). cli-owned (not a frozen field); it
+   * lets the run-tool map an abort to the `cancelled` Outcome status, distinct
+   * from a vote/budget escalate (which maps to `partial`).
+   */
+  readonly haltReason?: string;
   readonly nodeTrace: readonly TraceEntry[];
   /**
    * Total model spend metered through the invoke seams [CLM-0077]. ALWAYS
@@ -157,10 +172,12 @@ function report(
   totals: RunTotals,
   unlimited: boolean,
   docArtifact: DocArtifactResult | undefined,
+  haltReason?: string,
 ): LoopReport {
   return {
     runId: result.runId,
     status: result.status,
+    ...(haltReason === undefined ? {} : { haltReason }),
     nodeTrace: result.nodeTrace,
     // Always-on reporting [CLM-0077]: metered spend rides in both modes, with the
     // per-adapter breakdown whenever any model call was metered (one bucket for a
@@ -348,10 +365,34 @@ export async function executeCanonicalLoop(
     mode,
     totals,
   });
-  const result =
+  const signalOpt = request.signal === undefined ? {} : { signal: request.signal };
+  const raw =
     request.resumeRunId === undefined
-      ? await engine.run(request.task, { runId })
-      : await engine.resume(runId);
+      ? await engine.run(request.task, { runId, ...signalOpt })
+      : await engine.resume(runId, signalOpt);
+  const { result, aborted } = cleanHalt(raw);
   const docArtifact = documentDeliverable(kern, runId, result.status, request.workspaceDir);
-  return report(result, totals, mode === 'unlimited', docArtifact);
+  return report(result, totals, mode === 'unlimited', docArtifact, aborted ? 'aborted' : undefined);
+}
+
+/**
+ * Cooperative abort (#304): the engine returns a `failed` result whose error is
+ * `aborted` when the signal fired at a node boundary. Remap it to a CLEAN,
+ * resumable halt — status `escalated` (the checkpoint is intact), the dirty
+ * `error` dropped — so the run is reported as a cancel carrying the spend-so-far,
+ * not a failure. Any other result passes through unchanged.
+ */
+function cleanHalt(raw: RunResult): { result: RunResult; aborted: boolean } {
+  if (!(raw.status === 'failed' && raw.error?.code === 'aborted'))
+    return { result: raw, aborted: false };
+  return {
+    aborted: true,
+    result: {
+      runId: raw.runId,
+      status: 'escalated',
+      nodeTrace: raw.nodeTrace,
+      ...(raw.findings === undefined ? {} : { findings: raw.findings }),
+      ...(raw.childSpend === undefined ? {} : { childSpend: raw.childSpend }),
+    },
+  };
 }

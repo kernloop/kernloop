@@ -2380,3 +2380,16 @@ The loop SURFACES the tools the system forged for itself (EPIC #47·P3 #228 cons
 - [`packages/cli/src/distill.test.ts`](../packages/cli/src/distill.test.ts)
 - [`packages/cli/src/tools/distill.ts#listDistillCandidates`](../packages/cli/src/tools/distill.ts)
 - CI `test`
+
+## CLM-0143
+
+**Status:** verified — **source:** [`CLM-0143.yaml`](../claims/registry/CLM-0143.yaml)
+
+The canonical loop supports COOPERATIVE mid-run abort (EPIC #47·P5 #304). When an AbortSignal threaded into the run fires, the engine halts at the NEXT node boundary (CLM-0044) and the run is reported as a CLEAN, resumable CANCEL — the run-tool Outcome status is `cancelled` (the previously-unused frozen enum value, no contract change), the LoopReport status is `escalated` with `haltReason: 'aborted'`, and the in-memory spend meter is FLUSHED into the Outcome cost rather than lost to a dirty failure. The flushed cost RECONCILES exactly with the sum of the per-node `loop.spend` audit deltas (CLM-0137) — the two meters never diverge — the audit chain still verifies, and the checkpoint is resumable. A vote/budget escalate (no `haltReason`) is UNAFFECTED — it still surfaces as a needs-human escalation mapping to `partial`, never captured by the abort branch; and a run with no signal is byte-identical to before. HONESTY BOUNDARY: this claims abort via an INJECTED signal (the real invocable seam threaded through runTool → executeCanonicalLoop → engine.run) — NOT operator Ctrl-C, whose SIGINT process-handler trigger is a tracked fast-follow (#317). Abort takes effect only at a node BOUNDARY: a runaway INSIDE a single long node halts only when it returns (inherited CLM-0044 limitation, not immediate kill).
+
+**Enforced by:**
+
+- [`packages/cli/src/loop-abort.test.ts`](../packages/cli/src/loop-abort.test.ts)
+- [`packages/cli/src/loop-abort.test.ts`](../packages/cli/src/loop-abort.test.ts)
+- [`packages/cli/src/loop-abort.test.ts`](../packages/cli/src/loop-abort.test.ts)
+- CI `test`
