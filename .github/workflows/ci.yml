@@ -46,6 +46,24 @@ jobs:
       # against a hermetic gh stub (no network, no real GitHub).
       - run: pnpm e2e
 
+  evals:
+    name: evals
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The eval harness imports the workspace packages in-process, so their dist
+      # must exist (the `@kernloop/*` exports resolve to built output).
+      - run: pnpm build
+      # Golden quality eval-set (#226 item 4): drives the REAL canonical loop with
+      # a scripted (model-free) invoke + a real tsc gate — makes VETTED measurable.
+      - run: pnpm evals
+
   claims_check:
     name: 'claims:check'
     runs-on: ubuntu-latest
