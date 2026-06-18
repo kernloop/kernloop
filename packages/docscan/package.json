@@ -24,7 +24,7 @@
   "dependencies": {
     "@kernloop/contracts": "workspace:*",
     "typescript": "^6.0.3",
-    "web-tree-sitter": "^0.24.7"
+    "web-tree-sitter": "^0.26.9"
   },
   "devDependencies": {
     "@types/node": "^25.9.2"
