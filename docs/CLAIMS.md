@@ -2366,3 +2366,17 @@ The loop SURFACES the tools the system forged for itself (EPIC #47·P3 #228 cons
 - [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
 - [`packages/cli/src/gather.ts#gatherWorkshopIndex`](../packages/cli/src/gather.ts)
 - CI `test`
+
+## CLM-0142
+
+**Status:** verified — **source:** [`CLM-0142.yaml`](../claims/registry/CLM-0142.yaml)
+
+`Outcome.distillCandidates` has an OPERATIONAL consumer (EPIC #47·P3 #228 constituent 4 — the last, closing the learning-loop epic). The loop writes `distillCandidates = [traceRef]` on a successful run; previously its only reader was a memo printed INSIDE the distill prompt (shown after a trace was already chosen). `listDistillCandidates` now surfaces the loop-FLAGGED distill-worthy traces — every recent episodic trace whose `distillCandidates` is non-empty — newest-first and bounded, exposed as `kernloop distill --list`. It is the pre-selection NOMINATION surface a human reviews BEFORE running `distill --trace <taskId>`; skills still go live only via the human-PR ratification path (CLM-0050), and the candidate heuristic stays MECHANICAL (a successful loop trace — recency-ranked, not fitness-scored; a smarter ranker is deferred #313). HONESTY BOUNDARY: this claims the WIRING — the field now drives a queryable nomination list a human acts on — NOT that the heuristic is sophisticated. It is reads-only: `--list` distills nothing, writes no skill, and makes no model call; it is not a frozen-Outcome change (it reads the existing field).
+
+**Enforced by:**
+
+- [`packages/cli/src/distill.test.ts`](../packages/cli/src/distill.test.ts)
+- [`packages/cli/src/distill.test.ts`](../packages/cli/src/distill.test.ts)
+- [`packages/cli/src/distill.test.ts`](../packages/cli/src/distill.test.ts)
+- [`packages/cli/src/tools/distill.ts#listDistillCandidates`](../packages/cli/src/tools/distill.ts)
+- CI `test`

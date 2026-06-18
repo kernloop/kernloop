@@ -35,3 +35,37 @@ export async function distillTool(
     ...(options.invoke === undefined ? {} : { invoke: options.invoke }),
   });
 }
+
+/** A distill NOMINATION — a trace the loop mechanically flagged distill-worthy. */
+export interface DistillNomination {
+  readonly taskId: string;
+  readonly traceRef: string;
+  readonly summary: string;
+  readonly createdAt: number;
+}
+
+/** Bounded read so the nomination surface can't grow into a wall of text (#228 P3·4 vote). */
+const DISTILL_CANDIDATE_LIMIT = 50;
+
+/**
+ * The distill-candidate NOMINATION list (#228 P3·4, CLM-0142): the recent
+ * episodic traces the loop FLAGGED distill-worthy (`Outcome.distillCandidates`,
+ * a mechanical "successful loop run" heuristic), newest-first and bounded. This
+ * is `distillCandidates`' first OPERATIONAL consumer — it drives a list a human
+ * reviews BEFORE choosing what to distill (the old prompt memo only showed it
+ * AFTER a trace was already picked). A human then runs `distill --trace
+ * <taskId>`; skills go live only via the human-PR ratification path (CLM-0050).
+ * Reads-only — no model call, no auto-distill. The recency-only ranking is
+ * deliberately mechanical; a smarter ranker is deferred (#313).
+ */
+export function listDistillCandidates(kern: Kernloop): DistillNomination[] {
+  return kern.memory
+    .listSummaries({ limit: DISTILL_CANDIDATE_LIMIT })
+    .filter((s) => s.distillCandidates.length > 0)
+    .map((s) => ({
+      taskId: s.taskId,
+      traceRef: s.traceRef,
+      summary: s.summary,
+      createdAt: s.createdAt,
+    }));
+}

@@ -19,6 +19,7 @@ export const USAGE = [
   '  recall    --query Q [--limit N]',
   '  remember  --fact F --provenance P [--confidence C]',
   '  distill   --trace <taskId|runId> [--adapter A]   propose a skill from a trace (suggest tier)',
+  '  distill   --list                                 list distill-worthy traces (nomination surface)',
   '  forge     --spec-file <tool-spec.json> [--adapter A]   birth a workshop/* tool in the sandbox',
   '  workshop  run <name> (--input <file> | --input-json <json>)  invoke a born tool in the sandbox',
   '            sweep                                       decay unused tools toward removal',

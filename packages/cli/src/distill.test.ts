@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
-import { TaskContractSchema, type Cost } from '@kernloop/contracts';
+import { OutcomeSchema, TaskContractSchema, type Cost } from '@kernloop/contracts';
 import * as memoryExports from '@kernloop/faculty-memory';
 import { JsonlCheckpointStore } from '@kernloop/workflows';
 import { createKernloop, type Kernloop } from './kernel.js';
@@ -25,6 +25,7 @@ import {
 import * as cliExports from './index.js';
 import { LoopParseError, checkpointFile, type LoopInvoke } from './loop/index.js';
 import { readEnvelopes } from './tools/audit.js';
+import { listDistillCandidates } from './tools/distill.js';
 import { runTool } from './tools/run.js';
 
 const dirs: string[] = [];
@@ -280,9 +281,56 @@ describe('ratification path — the live library has no runtime write path [CLM-
       'distillFromTrace',
       'distillTool',
       'gatherSkillsIndex',
+      'listDistillCandidates', // read-only nomination surface (#228 P3·4), never a writer
       'proposedSkillsRoot',
       'resolveProposalDir',
     ]);
     expect(Object.keys(memoryExports).filter((name) => /skill|procedural/i.test(name))).toEqual([]);
+  });
+});
+
+describe('listDistillCandidates — the distill nomination surface [CLM-0142]', () => {
+  const mk = (taskId: string, status: 'success' | 'failure', candidates: string[]) =>
+    OutcomeSchema.parse({
+      taskId,
+      status,
+      signals: [],
+      cost: ZERO_COST,
+      traceRef: `audit:x#${taskId}`,
+      distillCandidates: candidates,
+    });
+
+  it('lists loop-FLAGGED candidates newest-first, excluding failures and unflagged runs', () => {
+    const kern = freshKernloop(repoDir());
+    // Insertion order = time order (older first); listSummaries is newest-first.
+    kern.memory.recordOutcome(mk('older-ok', 'success', ['audit:x#older-ok']), 'an older success');
+    kern.memory.recordOutcome(mk('failed', 'failure', []), 'a failure — never a candidate');
+    kern.memory.recordOutcome(mk('newer-ok', 'success', ['audit:x#newer-ok']), 'a newer success');
+
+    const list = listDistillCandidates(kern);
+    expect(list.map((n) => n.taskId)).toEqual(['newer-ok', 'older-ok']); // newest-first, failure dropped
+    expect(list[0]).toMatchObject({
+      taskId: 'newer-ok',
+      traceRef: 'audit:x#newer-ok',
+      summary: 'a newer success',
+    });
+    kern.close();
+  });
+
+  it('is empty when no run was flagged distill-worthy', () => {
+    const kern = freshKernloop(repoDir());
+    kern.memory.recordOutcome(mk('t', 'failure', []), 'nothing to distill');
+    expect(listDistillCandidates(kern)).toEqual([]);
+    kern.close();
+  });
+
+  it('reads only — no distill, no skills/proposed write, no model call', () => {
+    const repo = repoDir();
+    const kern = freshKernloop(repo);
+    kern.memory.recordOutcome(mk('ok', 'success', ['audit:x#ok']), 'a success');
+    expect(listDistillCandidates(kern)).toHaveLength(1);
+    // The nomination surface proposes nothing — the human-PR path is untouched.
+    expect(existsSync(proposedSkillsRoot(repo))).toBe(false);
+    kern.close();
   });
 });
