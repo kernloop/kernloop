@@ -13,7 +13,7 @@
  * bound by the composition root — the faculty stays model-free.
  *
  * P3 surface: the review gate — adversarial diff review by a reviewer
- * panel (3 lenses default, 5 in full), findings merged/deduplicated with
+ * panel (3 lenses default, 6 in full), findings merged/deduplicated with
  * per-reviewer attribution, per-voter records for the fitness ledger's
  * precision series, plus the ported v1 n=10 labeled eval set and the
  * calibration that measures a reviewer against it (CLM-0047, CLM-0048).

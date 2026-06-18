@@ -82,7 +82,8 @@ criterion). Reimplemented against kernloop contracts; no v1 code imported.
   is a fidelity loss on #2238 only (less surface for false positives).
 - **Default panel 3, not 5.** v1 always convened all 5 roles; kernloop
   defaults to correctness + security + maintainability (the vote gate's
-  default-3 pattern, spec §5.3) and exports `REVIEW_PANEL_FULL` (all 5).
+  default-3 pattern, spec §5.3) and exports `REVIEW_PANEL_FULL` (the five v1
+  roles + the kernloop groundedness lens, #226 item 3 — six total).
 - **Severity mapping**: v1 critical/high/medium/low → kernloop
   blocker/error/warn/info (the contract Finding enum).
 - **Location tolerance**: v1 matched file basename + line ±5; kernloop

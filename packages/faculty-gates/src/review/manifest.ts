@@ -27,7 +27,7 @@ export const reviewGateManifest: Manifest = ManifestSchema.parse({
     {
       name: 'gate.review',
       description:
-        'Adversarial diff review by a reviewer panel (3 lenses by default, 5 in full); findings merged, deduplicated, and attributed per reviewer; emits a Verdict with per-voter records for precision tracking',
+        'Adversarial diff review by a reviewer panel (3 lenses by default, 6 in full); findings merged, deduplicated, and attributed per reviewer; emits a Verdict with per-voter records for precision tracking',
     },
   ],
   contracts: {
