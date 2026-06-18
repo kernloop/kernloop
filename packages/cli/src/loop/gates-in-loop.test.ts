@@ -24,11 +24,16 @@ import { resolveServed } from './node-seam.js';
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-loop-gates-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
-function kernloopFor(name: string): Kernloop {
+function kernloopFor(name: string, overlayYaml?: string): Kernloop {
   const repo = path.join(scratch, name);
   mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
+  if (overlayYaml !== undefined)
+    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), overlayYaml);
   return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
 }
+
+/** Overlay opting IN to the goal-fidelity (groundedness) review — default off (#226 item 3). */
+const GROUNDEDNESS_ON = 'id: unit\ngates:\n  review:\n    groundedness: true\n';
 
 const task = TaskContractSchema.parse({
   id: 'task-unit',
@@ -103,7 +108,7 @@ function auditedGates(kern: Kernloop): string[] {
 
 describe('review executor — advisory review gate in the loop [CLM-0064]', () => {
   it('threads the child GOAL + acceptance criteria into the review context (#226 item 3)', async () => {
-    const kern = kernloopFor('review-grounded');
+    const kern = kernloopFor('review-grounded', GROUNDEDNESS_ON); // opt in to the goal-fidelity lens
     const child = TaskContractSchema.parse({
       ...task,
       goal: 'add a greet feature returning hello',
@@ -147,7 +152,6 @@ describe('review executor — advisory review gate in the loop [CLM-0064]', () =
       'correctness',
       'security',
       'maintainability',
-      'groundedness',
     ]);
     expect(auditedGates(kern)).toContain('review');
     kern.close();

@@ -232,9 +232,11 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
       await publishVerdict(b.kern, verdict);
       return verdict;
     }
-    const context = reviewContext(ctx.child);
-    // The groundedness lens (#226 item 3) judges goal-fidelity — convene it ONLY
-    // when a goal/context exists, else it would only abstain (security round).
+    // Goal-fidelity review (#226 item 3) is an OPT-IN, UNPROVEN model-judge: under
+    // `gates.review.groundedness` (default off) thread the goal + criteria into the
+    // context and convene the groundedness lens; off ⇒ byte-identical to before (no
+    // goal, defect lenses only). Convened only when a goal/context actually exists.
+    const context = b.kern.config.gates.review.groundedness ? reviewContext(ctx.child) : undefined;
     const panel =
       context === undefined
         ? REVIEW_PANEL_DEFAULT

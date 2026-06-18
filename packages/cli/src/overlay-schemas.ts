@@ -49,10 +49,21 @@ export const QualityGateSchema = z.strictObject({
   diffCoverage: z.boolean().default(false),
 });
 
-/** Gate thresholds, keyed by gate. Review-gate knobs are P3 — absent. */
+/** The review gate's knobs (#226 item 3). */
+export const ReviewGateSchema = z.strictObject({
+  /** Convene the advisory GROUNDEDNESS reviewer (#226 item 3, CLM-0135): threads the
+   * task goal + acceptance criteria into the review and judges goal-fidelity, surfacing
+   * a goal-mismatch as a needs-review signal. Default OFF — an UNPROVEN model-judge (a
+   * model call per goal-directed run); promote to default-on on live-eval precision
+   * evidence (#287). Off ⇒ byte-identical to before (no goal threaded, defect lenses only). */
+  groundedness: z.boolean().default(false),
+});
+
+/** Gate thresholds, keyed by gate. */
 export const GatesSchema = z.strictObject({
   vote: VoteGateSchema.prefault({}),
   quality: QualityGateSchema.prefault({}),
+  review: ReviewGateSchema.prefault({}),
 });
 
 /**

@@ -93,9 +93,9 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
     expect(overlay.gates).toEqual({
       vote: { strategy: 'simple_majority', panel: 3 },
-      // sandbox: gate-check Docker isolation is opt-in, fail-closed once enabled [CLM-0129]
-      // diffCoverage: anti-rubber-stamp coverage check is opt-in (default off) [CLM-0134]
+      // sandbox/diffCoverage/groundedness are all opt-in, default off [CLM-0129/0134/0135]
       quality: { envAllow: [], sandbox: { enabled: false, enforce: true }, diffCoverage: false },
+      review: { groundedness: false },
     });
     // both router priors are explicit opt-in [CLM-0126, CLM-0128]
     expect(overlay.router).toEqual({ seedPriors: false, liveFitness: false });
@@ -175,6 +175,13 @@ describe('loadOverlay defaults and precedence', () => {
     expect(loadFrom('id: x\n').gates.quality.diffCoverage).toBe(false);
     expect(
       loadFrom('id: x\ngates:\n  quality:\n    diffCoverage: true\n').gates.quality.diffCoverage,
+    ).toBe(true);
+  });
+
+  it('gates.review.groundedness is opt-in: default off, parses an explicit true [CLM-0135]', () => {
+    expect(loadFrom('id: x\n').gates.review.groundedness).toBe(false);
+    expect(
+      loadFrom('id: x\ngates:\n  review:\n    groundedness: true\n').gates.review.groundedness,
     ).toBe(true);
   });
 
