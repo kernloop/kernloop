@@ -72,11 +72,11 @@ describe('scanWrittenCoverage — branches (#226 item 2)', () => {
     expect(scanWrittenCoverage([fn('src/new.ts')], ws)).toEqual([]);
   });
 
-  it('degrades to ONE info finding when no coverage report exists', () => {
+  it('FAILS CLOSED with an error when opted-in but no coverage report exists (#283 review)', () => {
     const ws = workspaceWithCoverage(null);
     const out = scanWrittenCoverage([fn('src/new.ts')], ws);
     expect(out).toHaveLength(1);
-    expect(out[0]?.severity).toBe('info');
+    expect(out[0]?.severity).toBe('error'); // a graceful pass would let the reporter be disabled to bypass
     expect(out[0]?.message).toContain('no coverage report');
   });
 

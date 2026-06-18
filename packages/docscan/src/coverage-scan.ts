@@ -9,7 +9,9 @@
  *    it) → `error` (the untested-module rubber-stamp the gate exists to stop);
  *  - present with uncovered executable statements → `warn` (advisory — a one-line
  *    edit to a well-tested big file must not error);
- *  - no report at all → ONE `info` (degrade honestly, never a silent pass).
+ *  - no report at all → ONE `error`, FAILING CLOSED: the scanner runs only under the
+ *    explicit opt-in, so a missing report means enforcement cannot verify — a
+ *    graceful pass would let an agent disable the reporter to bypass the gate.
  *
  * The MUST-FIX from the security/architecture review: a `.d.ts`, a test file, or a
  * pure type/re-export module is LEGITIMATELY absent from coverage — erroring on it
@@ -112,8 +114,8 @@ function uncoveredStatements(entry: { s?: Record<string, number> }): number {
 /**
  * Findings for the executable source files a child wrote vs the workspace coverage
  * report (#226 item 2, CLM-0134): an untested written module → `error`, uncovered
- * statements in a covered file → `warn`, no report → one `info`. Reads only
- * `writtenFiles` + `coverage/coverage-final.json`; model-free, no git, never throws.
+ * statements in a covered file → `warn`, no report → one fail-CLOSED `error`. Reads
+ * only `writtenFiles` + `coverage/coverage-final.json`; model-free, no git, never throws.
  */
 export function scanWrittenCoverage(
   writtenFiles: readonly WrittenFile[],
@@ -125,10 +127,14 @@ export function scanWrittenCoverage(
   if (coverable.length === 0) return [];
   const report = loadCoverage(workspaceDir);
   if (report === null) {
+    // FAIL CLOSED: this scanner runs only under the explicit opt-in, so a missing
+    // report is not an honest "skip" — it means enforcement cannot verify, and a
+    // graceful pass here would let an agent DISABLE the coverage reporter to bypass
+    // the gate (the #283 review's fail-open). Demand the report (#226 item 2).
     return [
       {
-        severity: 'info',
-        message: `no coverage report at ${COVERAGE_REL} — diff-coverage skipped (the test runner emitted none)`,
+        severity: 'error',
+        message: `diff-coverage is enabled but no coverage report was found at ${COVERAGE_REL} — the test runner must emit coverage (e.g. vitest --coverage) for this check to verify; failing closed`,
         path: COVERAGE_REL,
       },
     ];

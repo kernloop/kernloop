@@ -7,8 +7,9 @@ statement: >-
   child's written files (`b.refs.writtenByChild`) and the workspace's Istanbul/v8
   `coverage/coverage-final.json` — no git, no snapshot: an EXECUTABLE written source
   file ABSENT from the report (no test even loads it) is an `error`, uncovered
-  statements in a covered file are a `warn`, and a missing report degrades to one
-  `info` (never a silent pass). A `.d.ts`, a test file, or a pure type/re-export
+  statements in a covered file are a `warn`, and a missing report FAILS CLOSED with
+  an `error` (the scanner runs only under the explicit opt-in, so a graceful pass
+  would let an agent disable the reporter to bypass the gate). A `.d.ts`, a test file, or a pure type/re-export
   module is LEGITIMATELY absent from coverage, so a written file is judged only when
   its extension is executable source AND a TS-AST check (`hasExecutableCode`)
   confirms it carries runtime-coverable code — never a false error on a type-only
@@ -21,7 +22,7 @@ evidence:
   - 'test:packages/docscan/src/coverage-scan.test.ts::errors on an executable written module ABSENT from the coverage report'
   - 'test:packages/docscan/src/coverage-scan.test.ts::warns on uncovered statements in a written file that IS in the report'
   - 'test:packages/docscan/src/coverage-scan.test.ts::emits NOTHING for a fully-covered written file'
-  - 'test:packages/docscan/src/coverage-scan.test.ts::degrades to ONE info finding when no coverage report exists'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::FAILS CLOSED with an error when opted-in but no coverage report exists (#283 review)'
   - 'test:packages/docscan/src/coverage-scan.test.ts::NEVER errors on a .d.ts, a test file, or a pure type module (the review must-fix)'
   - 'test:packages/docscan/src/coverage-scan.test.ts::matches a coverage key by path SUFFIX (sandbox-relocated absolute paths)'
   - 'test:packages/docscan/src/coverage-scan.test.ts::is true for a function / value, false for a pure type / interface / re-export'
