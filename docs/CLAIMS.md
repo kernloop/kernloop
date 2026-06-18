@@ -2260,3 +2260,17 @@ The quality gate flags generated code a child WROTE that the test suite never ex
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - [`packages/docscan/src/coverage-scan.ts#scanWrittenCoverage`](../packages/docscan/src/coverage-scan.ts)
 - CI `test`
+
+## CLM-0135
+
+**Status:** verified — **source:** [`CLM-0135.yaml`](../claims/registry/CLM-0135.yaml)
+
+The review gate can judge GOAL-FIDELITY, not only code defects (#226 item 3, EPIC #47·P1): the canonical loop threads the child's task GOAL + its definitionOfDone acceptance criteria into the review CONTEXT shared with every reviewer, and — ONLY when a goal/context exists — convenes a GROUNDEDNESS reviewer lens whose rubric judges whether the diff achieves the goal and cites which acceptance criteria it satisfies/violates (a no-goal review, e.g. the standalone gate tool, does not convene it — it could only abstain). It is ADVISORY: a goal-mismatch reject surfaces as a non-blocking needs-review Outcome signal (CLM-0133), never auto-failing the run. A model judging goal-fidelity is self-grading-prone, so this claims ONLY the WIRING — the goal is threaded, the groundedness lens is convened, and a reject is surfaced — NOT that the reviewer RELIABLY detects goal-mismatch; the real precision is measured by a separate live eval and never trusted blind (#287). The hermetic golden eval (#286) asserts the wiring (a groundedness reject flows to a needs-review signal), not the model's judgment.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/faculty-gates/src/review/reviewers.ts#REVIEWER_GROUNDEDNESS`](../packages/faculty-gates/src/review/reviewers.ts)
+- CI `test`

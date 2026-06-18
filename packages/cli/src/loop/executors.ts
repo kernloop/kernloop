@@ -25,6 +25,7 @@ import {
   PANEL_DEFAULT,
   PANEL_RATIFICATION,
   REVIEW_PANEL_DEFAULT,
+  REVIEWER_GROUNDEDNESS,
   runReviewGate,
   runVoteGate,
   type QualityCheck,
@@ -197,6 +198,24 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
  * diff stash is empty (a resume that landed after implement), the gate
  * abstains honestly rather than reviewing nothing.
  */
+/**
+ * The review CONTEXT shared with every reviewer (#226 item 3): the child's GOAL
+ * and its acceptance criteria, so the groundedness reviewer can judge whether the
+ * diff actually achieves them. Undefined when there is no child task (the
+ * groundedness lens is then not convened). NOTE: this string is sent to the model
+ * provider in the review prompt — never inline a secret in a definitionOfDone
+ * `command` (it would be transmitted here, as it already is to the gate subprocess).
+ */
+function reviewContext(child: TaskContract | undefined): string | undefined {
+  if (child === undefined) return undefined;
+  const criteria = child.definitionOfDone.map((c) => `- ${c.name}: ${c.command}`).join('\n');
+  return [
+    '## Goal',
+    child.goal,
+    ...(criteria === '' ? [] : ['## Acceptance criteria', criteria]),
+  ].join('\n');
+}
+
 function reviewExecutor(b: LoopBindings): NodeExecutor {
   return async (_input, ctx) => {
     const childId = ctx.child?.id ?? ctx.taskId;
@@ -213,10 +232,18 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
       await publishVerdict(b.kern, verdict);
       return verdict;
     }
+    const context = reviewContext(ctx.child);
+    // The groundedness lens (#226 item 3) judges goal-fidelity — convene it ONLY
+    // when a goal/context exists, else it would only abstain (security round).
+    const panel =
+      context === undefined
+        ? REVIEW_PANEL_DEFAULT
+        : [...REVIEW_PANEL_DEFAULT, REVIEWER_GROUNDEDNESS];
     const verdict = await runReviewGate({
       taskId: childId,
       diff: writtenDiff(files),
-      panel: REVIEW_PANEL_DEFAULT,
+      panel,
+      ...(context === undefined ? {} : { context }),
       invokeReviewer: reviewerInvoker({
         overlayDir: b.kern.paths.dir,
         runId: ctx.runId,

@@ -33,7 +33,7 @@ function baseOptions(invokeReviewer: InvokeReviewer) {
 }
 
 describe('runReviewGate — panel', () => {
-  it('convenes the default 3-lens panel when no panel is given', async () => {
+  it('convenes the default 3-lens defect panel when none is given', async () => {
     const invoked: string[] = [];
     const verdict = await runReviewGate({
       ...baseOptions((reviewer) => {
@@ -45,7 +45,7 @@ describe('runReviewGate — panel', () => {
     expect(verdict.voters).toHaveLength(3);
   });
 
-  it('convenes the full 5-reviewer v1 panel when given', async () => {
+  it('convenes the full 6-reviewer v1 panel when given', async () => {
     const verdict = await runReviewGate({
       ...baseOptions(scriptedReviewer({})),
       panel: REVIEW_PANEL_FULL,
