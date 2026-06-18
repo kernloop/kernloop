@@ -17,7 +17,7 @@ import {
 } from './invoke.js';
 import { briefText } from './seams.js';
 import { coderPrompt, decomposePrompt } from './prompts.js';
-import { childSignal, sumChildCosts } from './aggregate.js';
+import { childSignal, reviewConcernSignals, sumChildCosts } from './aggregate.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
 import { sinkFor, writeWorkspaceFiles, type LoopBindings } from './executors.js';
 
@@ -110,12 +110,15 @@ export function integrateExecutor(): NodeExecutor {
   return (input, ctx) => {
     const results = input as readonly ChildResult[];
     const signals = results.map((result) => childSignal(result));
+    // Status is decided by the BLOCKING child signals ONLY. Advisory review rejects
+    // are then appended as non-blocking `needs-review` signals (#226 item 5) — they
+    // flag residual doubt at the terminal WITHOUT flipping an otherwise-`success` run.
     const succeeded = signals.length > 0 && signals.every((signal) => signal.passed);
     return Promise.resolve(
       OutcomeSchema.parse({
         taskId: ctx.taskId,
         status: succeeded ? 'success' : 'failure',
-        signals,
+        signals: [...signals, ...reviewConcernSignals(results)],
         cost: sumChildCosts(results),
         traceRef: `loop:${ctx.runId}`,
         distillCandidates: [],

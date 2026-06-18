@@ -125,7 +125,7 @@ describe('review executor — advisory review gate in the loop [CLM-0064]', () =
     kern.close();
   });
 
-  it('is advisory: a rejecting review does NOT block the child or the run', async () => {
+  it('is advisory but SURFACED: a rejecting review adds a needs-review signal without failing the run (#226 item 5)', async () => {
     const kern = kernloopFor('review-advisory');
     const executors = buildLoopExecutors(bindingsFor(kern));
     const childId = 'task-unit.1';
@@ -154,11 +154,55 @@ describe('review executor — advisory review gate in the loop [CLM-0064]', () =
     ];
     const outcome = (await executors['integrate']?.(results, reviewCtx())) as {
       status: string;
-      signals: Array<{ passed: boolean; detail: string }>;
+      signals: Array<{ name: string; passed: boolean; detail: string }>;
     };
+    // The run still SUCCEEDS (review is advisory, never auto-fails) …
     expect(outcome.status).toBe('success');
     expect(outcome.signals[0]?.passed).toBe(true);
     expect(outcome.signals[0]?.detail).toContain('review reject (advisory)');
+    // … but the reject is now SURFACED as a non-blocking needs-review signal (#226 item 5),
+    // carrying the child id and the concrete review finding — visible at the terminal.
+    const needsReview = outcome.signals.find((s) => s.name === 'needs-review');
+    expect(needsReview).toBeDefined();
+    expect(needsReview?.passed).toBe(false);
+    expect(needsReview?.detail).toContain(childId);
+    expect(needsReview?.detail).toContain('nit');
+    kern.close();
+  });
+
+  it('emits NO needs-review signal when the review approves (#226 item 5)', async () => {
+    const kern = kernloopFor('review-clean');
+    const executors = buildLoopExecutors(bindingsFor(kern));
+    const childId = 'task-unit.1';
+    const cleanVerdict = (gate: string, result: Verdict['result']): Verdict => ({
+      taskId: childId,
+      gate,
+      result,
+      confidence: 1,
+      findings: [],
+      cost: { tokens: 0, usd: 0 },
+    });
+    const results: ChildResult[] = [
+      {
+        child: { ...task, id: childId },
+        output: OutcomeSchema.parse({
+          taskId: childId,
+          status: 'success',
+          signals: [],
+          cost: { tokens: 0, usd: 0 },
+          traceRef: 'x',
+          distillCandidates: [],
+        }),
+        verdict: cleanVerdict('quality', 'pass'),
+        reviewVerdict: cleanVerdict('review', 'approve'),
+      },
+    ];
+    const outcome = (await executors['integrate']?.(results, reviewCtx())) as {
+      status: string;
+      signals: Array<{ name: string }>;
+    };
+    expect(outcome.status).toBe('success');
+    expect(outcome.signals.some((s) => s.name === 'needs-review')).toBe(false);
     kern.close();
   });
 });
