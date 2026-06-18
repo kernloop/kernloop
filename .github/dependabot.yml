@@ -4,6 +4,12 @@ updates:
     directory: '/'
     schedule:
       interval: weekly
+    ignore:
+      # web-tree-sitter is PINNED at 0.24.x: 0.25+ rejects the vendored grammar
+      # ABI (the docscan grammars fail to load). Do not propose 0.25+ until the
+      # grammars are re-vendored (#247 closed for this reason).
+      - dependency-name: web-tree-sitter
+        versions: ['>=0.25.0']
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
