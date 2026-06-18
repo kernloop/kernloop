@@ -2319,3 +2319,19 @@ kernloop estimates a run's model-CALL-COUNT before it runs (EPIC #47·P5 #303): 
 - [`packages/cli/src/doctor.test.ts`](../packages/cli/src/doctor.test.ts)
 - [`packages/cli/src/cost-estimate.ts#estimateLoopCalls`](../packages/cli/src/cost-estimate.ts)
 - CI `test`
+
+## CLM-0139
+
+**Status:** verified — **source:** [`CLM-0139.yaml`](../claims/registry/CLM-0139.yaml)
+
+A ratified skill's PROCEDURE reaches a later brief (EPIC #47·P3 #228 constituent 1 — the first slice that closes the learning loop). `gatherSkillBodies` loads the full body of every LIVE `skills/<name>/SKILL.md` whose name + one-liner shares a non-stop-word token with the task goal, ranked by lexical overlap count with a code-unit name tie-break, capped at the top 3; the compiler injects them as a lowest-priority, per-section-token-capped `skillBodies` brief section carrying `skill:<name>:body` provenance, so under budget pressure the heavy bodies drop FIRST (the cheap one-liner index survives as a fallback). `skills/proposed/**` is NEVER a body (CLM-0050 — already-ratified content only). It is DETERMINISTIC (no model call, no clock — CLM-0029) and reuses the item-granular budget drop (CLM-0030). HONESTY BOUNDARY: the relevance gate is LEXICAL, not semantic — this claims the WIRING (a live body is loaded, relevance-filtered, deterministically ranked, proposed-excluded, budget-bounded, and reaches the brief), NOT that it finds the "right" skills nor that injection IMPROVES outcomes (efficacy is the separate artifact-level fitness attribution, #228 constituent 2, never asserted here).
+
+**Enforced by:**
+
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
+- [`packages/cli/src/gather.ts#gatherSkillBodies`](../packages/cli/src/gather.ts)
+- CI `test`
