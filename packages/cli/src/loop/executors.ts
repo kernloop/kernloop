@@ -36,6 +36,7 @@ import type { NodeExecutor } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { assembleBrief } from '../gather.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
+import { attributeSkillFitness } from './skill-attribution.js';
 import { LoopParseError, type ViolationSink } from './invoke.js';
 import { ballotInvoker, reviewerInvoker } from './seams.js';
 import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
@@ -288,6 +289,8 @@ function retrospectExecutor(b: LoopBindings): NodeExecutor {
         provenance: 'loop:retrospect',
       });
     }
+    // Attribute the outcome to the skills whose body reached the brief (#228 P3·2).
+    attributeSkillFitness(b, ctx.runId, final);
     return Promise.resolve(final);
   };
 }

@@ -2335,3 +2335,19 @@ A ratified skill's PROCEDURE reaches a later brief (EPIC #47·P3 #228 constituen
 - [`packages/cli/src/gather.test.ts`](../packages/cli/src/gather.test.ts)
 - [`packages/cli/src/gather.ts#gatherSkillBodies`](../packages/cli/src/gather.ts)
 - CI `test`
+
+## CLM-0140
+
+**Status:** verified — **source:** [`CLM-0140.yaml`](../claims/registry/CLM-0140.yaml)
+
+The canonical loop ATTRIBUTES its outcome to the skills it reused (EPIC #47·P3 #228 constituent 2 — the MEASURE half of the learning loop #309 wired). On retrospect the loop reads the skills whose BODY survived the token budget into the brief (the `skillBodies` section's `skill:<name>:body` provenance) and, for each, records the run's Outcome against a `skill:<name>` subject in the observer fitness ledger, appending one `loop.skill.attributed` audit event. A body the budget DROPPED (never presented to the model) is NOT attributed; a `proposed/` skill is never injected so never attributed (CLM-0050); attribution fires EXACTLY ONCE per run (idempotent across a resume that re-runs retrospect). It is records-ONLY and safe for the no-auto-promote ladder: `ingestOutcome` only UPSERTs aggregate stats, a `skill:<name>` subject feeds only the SUGGEST-tier lifecycle (human-ratified) and is INERT for routing (it is never a registered manifest, so never a routing candidate). HONESTY BOUNDARY: this is a CORRELATIONAL signal — "a run whose brief carried skill X had outcome O" — NOT a causal claim; when several skills survive, the single whole-loop Outcome is credited to EACH (a co-occurrence confound), so a per-skill rate is "rate of runs that carried the skill", read by a human, never auto-acted. This claims the ATTRIBUTION WIRING, not that the signal proves a skill's value.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/skill-attribution.test.ts`](../packages/cli/src/loop/skill-attribution.test.ts)
+- [`packages/cli/src/loop/skill-attribution.test.ts`](../packages/cli/src/loop/skill-attribution.test.ts)
+- [`packages/cli/src/loop/skill-attribution.test.ts`](../packages/cli/src/loop/skill-attribution.test.ts)
+- [`packages/cli/src/loop/skill-attribution.test.ts`](../packages/cli/src/loop/skill-attribution.test.ts)
+- [`packages/cli/src/loop/skill-attribution.test.ts`](../packages/cli/src/loop/skill-attribution.test.ts)
+- [`packages/cli/src/loop/skill-attribution.ts#attributeSkillFitness`](../packages/cli/src/loop/skill-attribution.ts)
+- CI `test`
