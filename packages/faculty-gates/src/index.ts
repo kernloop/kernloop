@@ -34,6 +34,7 @@ export {
   checksFromDefinitionOfDone,
   defaultQualityChecks,
   docCommentCheck,
+  securityCheck,
   isInProcessCheck,
   type InProcessCheck,
   type QualityCheck,

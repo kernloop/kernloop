@@ -25,6 +25,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import type { Finding } from '@kernloop/contracts';
 import { scanTreeSitterFiles, TREE_SITTER_EXTS } from './treesitter-scan.js';
+import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, walkFiles } from './fs-walk.js';
 
 /** File extensions this scanner parses with the TS compiler API (covered). */
 const COVERED_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
@@ -43,56 +44,6 @@ const UNCOVERED_LANGS: Record<string, string> = {
   '.exs': 'Elixir',
   '.hs': 'Haskell',
 };
-
-/** Directories never walked: build output, deps, VCS, coverage artifacts
- * (incl. other-language build dirs, so their compiled sources never inflate
- * the degradation counts). */
-const SKIP_DIRS = new Set([
-  'node_modules',
-  'dist',
-  'build',
-  '.git',
-  'coverage',
-  '.turbo',
-  'target',
-  'vendor',
-  'out',
-  '.next',
-]);
-
-/** Largest single file the scanner will parse; a larger one is recorded and
- * skipped, never read — `ts.createSourceFile` cost is superlinear, and this
- * runs IN-PROCESS on model-generated content, so an unbounded parse could
- * block or OOM the whole loop (the runner's timeout cannot interrupt
- * synchronous work). */
-const MAX_FILE_BYTES = 1_000_000;
-/** Total bytes the scan will parse before truncating (recorded, not silent),
- * bounding the many-files case the per-file cap alone would not. */
-const MAX_TOTAL_BYTES = 32_000_000;
-
-/** Recursively collect file paths under `dir`, skipping {@link SKIP_DIRS}.
- * Uses `Dirent.isDirectory`/`isFile`, which report the lstat type and do NOT
- * follow symlinks — so a symlink (to `/etc`, a loop, anywhere) is neither
- * recursed into nor read. Do not switch to `statSync` here: that follows
- * symlinks and would reintroduce a filesystem-escape on untrusted workspaces. */
-function walkFiles(dir: string): string[] {
-  const out: string[] = [];
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return out;
-  }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) out.push(...walkFiles(full));
-    } else if (entry.isFile()) {
-      out.push(full);
-    }
-  }
-  return out;
-}
 
 /** One exported, named top-level declaration with its doc-comment presence. */
 export interface ExportedSymbol {
