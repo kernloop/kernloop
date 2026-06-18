@@ -2240,3 +2240,23 @@ The canonical loop SURFACES an advisory review gate's correctness REJECT as a no
 - [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
 - [`packages/cli/src/loop/aggregate.ts#reviewConcernSignals`](../packages/cli/src/loop/aggregate.ts)
 - CI `test`
+
+## CLM-0134
+
+**Status:** verified — **source:** [`CLM-0134.yaml`](../claims/registry/CLM-0134.yaml)
+
+The quality gate flags generated code a child WROTE that the test suite never exercises (#226 item 2, EPIC #47·P1) — the rubber-stamp that AGGREGATE per-package coverage thresholds miss when a child adds untested code to a large package. A MODEL-FREE in-process `diff-coverage` check (ratified Option A) reads ONLY the child's written files (`b.refs.writtenByChild`) and the workspace's Istanbul/v8 `coverage/coverage-final.json` — no git, no snapshot: an EXECUTABLE written source file ABSENT from the report (no test even loads it) is an `error`, uncovered statements in a covered file are a `warn`, and a missing report FAILS CLOSED with an `error` (the scanner runs only under the explicit opt-in, so a graceful pass would let an agent disable the reporter to bypass the gate). A `.d.ts`, a test file, or a pure type/re-export module is LEGITIMATELY absent from coverage, so a written file is judged only when its extension is executable source AND a TS-AST check (`hasExecutableCode`) confirms it carries runtime-coverable code — never a false error on a type-only module. Coverage keys match by absolute path OR path suffix (so a sandbox-relocated report still resolves). It is wired into the loop quality node under an explicit opt-in `gates.quality.diffCoverage` (default OFF — a new gate behavior that changes loop outcomes, promoted to default-on on evidence); the stricter new-file-only / git-diff-changed-line granularity is deferred (#282).
+
+**Enforced by:**
+
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/docscan/src/coverage-scan.test.ts`](../packages/docscan/src/coverage-scan.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/docscan/src/coverage-scan.ts#scanWrittenCoverage`](../packages/docscan/src/coverage-scan.ts)
+- CI `test`

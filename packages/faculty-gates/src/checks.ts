@@ -13,7 +13,12 @@
  * advisory tier — no external binary, so it never degrades to no-signal.
  */
 import type { Check, Finding } from '@kernloop/contracts';
-import { scanDocComments, scanSecuritySmells } from '@kernloop/docscan';
+import {
+  scanDocComments,
+  scanSecuritySmells,
+  scanWrittenCoverage,
+  type WrittenFile,
+} from '@kernloop/docscan';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
 
 /**
@@ -81,6 +86,22 @@ export function docCommentCheck(): InProcessCheck {
  */
 export function securityCheck(): InProcessCheck {
   return { name: 'security', run: scanSecuritySmells };
+}
+
+/**
+ * The in-process DIFF-COVERAGE check (#226 item 2, EPIC #47 P1): flags executable
+ * source files THIS child wrote that the test suite never exercises — an untested
+ * written module (absent from `coverage/coverage-final.json`) is an `error` (the
+ * rubber-stamp aggregate thresholds miss), uncovered statements in a covered file
+ * are a `warn`, and a missing report degrades to one `info`. Model-free; closes
+ * over the child's written files. Must run AFTER the `test` check that emits the
+ * report, so the runner's array order places it after the base set.
+ */
+export function diffCoverageCheck(writtenFiles: readonly WrittenFile[]): InProcessCheck {
+  return {
+    name: 'diff-coverage',
+    run: (workspaceDir) => scanWrittenCoverage(writtenFiles, workspaceDir),
+  };
 }
 
 /** Per-check execution timeout (ms) when the caller does not override it. */

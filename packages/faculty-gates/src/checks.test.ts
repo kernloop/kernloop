@@ -1,12 +1,46 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_TIMEOUT_MS,
   checksFromDefinitionOfDone,
   defaultQualityChecks,
+  diffCoverageCheck,
   docCommentCheck,
   isInProcessCheck,
 } from './checks.js';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
+
+describe('diffCoverageCheck (#226 item 2)', () => {
+  let dir: string;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('is an in-process `diff-coverage` check that flags an untested written module', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-dcc-'));
+    mkdirSync(join(dir, 'coverage'), { recursive: true });
+    const other = resolve(dir, 'src/other.ts');
+    writeFileSync(
+      join(dir, 'coverage', 'coverage-final.json'),
+      JSON.stringify({ [other]: { path: other, s: { '0': 1 } } }),
+    );
+    const check = diffCoverageCheck([
+      { path: 'src/new.ts', content: 'export function f() { return 1; }' },
+    ]);
+    expect(check.name).toBe('diff-coverage');
+    expect(isInProcessCheck(check)).toBe(true);
+    const findings = await check.run(dir);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.message).toContain('untested module');
+  });
+
+  it('adds NO check content for no written files (empty findings, byte-safe)', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-dcc-'));
+    expect(await diffCoverageCheck([]).run(dir)).toEqual([]);
+  });
+});
 
 describe('checksFromDefinitionOfDone (#226)', () => {
   it('maps each DoD Check to a no-shell subprocess check, tokenized on whitespace', () => {
