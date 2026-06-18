@@ -2408,3 +2408,26 @@ Ctrl-C cooperatively aborts a run (EPIC #47·P5 #317 — the operator-facing TRI
 - [`packages/cli/src/sigint-abort.test.ts`](../packages/cli/src/sigint-abort.test.ts)
 - [`packages/cli/src/sigint-abort.ts#withSigintAbort`](../packages/cli/src/sigint-abort.ts)
 - CI `test`
+
+## CLM-0146
+
+**Status:** verified — **source:** [`CLM-0146.yaml`](../claims/registry/CLM-0146.yaml)
+
+The audit chain can be HMAC-KEYED so a JSONL-rewriting attacker cannot forge it (#280 part 1). An envelope's `keyEpoch` is ABSENT on legacy/unkeyed lines (plain SHA-256, byte-identical to pre-keying chains) and PRESENT (≥1) on keyed lines, whose `hash` is HMAC-SHA256 over the SAME canonical form — with `keyEpoch` itself covered — under a key held in a keyring OUTSIDE the overlay (default `~/.config/kernloop/audit.key`, 0600). The keyring records each chain's keyed cutover (`firstKeyedSeq`); because the attacker cannot write that off-overlay file, `verifyChain` enforces a NO-DOWNGRADE FLOOR: a from-genesis rewrite that re-stamps every record as epoch-0 and recomputes the plain-SHA chain FAILS (`downgrade_detected`), epochs are non-decreasing (`epoch_regression`), and a keyed line whose key is unavailable is a typed failure (`missing_key`), NEVER a silent fallback to unkeyed verification. The keyring is minted only when ABSENT and never re-keyed in place, and perms looser than 0600 are refused. The shipped CLI keys every real run via `createProductionKernloop`. HONESTY BOUNDARY: this is on-host tamper-EVIDENCE, not tamper-PROOF — HMAC is symmetric, so an attacker who can READ the key file forges, and one who can DELETE the keyring downgrades the whole chain to legacy verification; both are out of the threat model and a remote/separate-custody verifier plus the re-key command are deferred (#323).
+
+**Enforced by:**
+
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
+- [`packages/kernel/src/audit/keyring.ts#ensureChainKeyed`](../packages/kernel/src/audit/keyring.ts)
+- [`packages/kernel/src/audit/verify.ts#verifyChain`](../packages/kernel/src/audit/verify.ts)
+- [`packages/kernel/src/audit/canonical.ts#hmacSha256Canonical`](../packages/kernel/src/audit/canonical.ts)
+- CI `test`
