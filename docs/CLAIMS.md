@@ -2227,3 +2227,16 @@ The quality gate ships a built-in MODEL-FREE security check over generated deliv
 - [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
 - [`packages/docscan/src/security-scan.ts#scanSecuritySmells`](../packages/docscan/src/security-scan.ts)
 - CI `test`
+
+## CLM-0133
+
+**Status:** verified — **source:** [`CLM-0133.yaml`](../claims/registry/CLM-0133.yaml)
+
+The canonical loop SURFACES an advisory review gate's correctness REJECT as a non-blocking `needs-review` Outcome signal (#226 item 5, EPIC #47·P1): the review gate is advisory and its Verdict was published to the audit chain but otherwise invisible to the operator, so a child whose review rejected appeared in a plain `success` Outcome with no residual-doubt flag. The integrate node now appends a `needs-review` Signal (passed:false, naming the child id and the concrete review finding) for each rejecting child — computed from `ChildResult.reviewVerdict` — so it rides the run's Outcome (JSON on stdout, spec §3.4) and is recorded to memory. Status is decided by the BLOCKING child signals ALONE, so the advisory reject is SURFACED, NEVER auto-failing an otherwise-passing run; an approving or abstaining review adds no signal.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
+- [`packages/cli/src/loop/aggregate.ts#reviewConcernSignals`](../packages/cli/src/loop/aggregate.ts)
+- CI `test`

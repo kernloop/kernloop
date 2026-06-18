@@ -35,6 +35,37 @@ export function childSignal(result: ChildResult): Signal {
   };
 }
 
+/** A short, bounded reason a review rejected — its concrete correctness findings, else a generic note. */
+function summarizeConcern(verdict: NonNullable<ChildResult['reviewVerdict']>): string {
+  const msgs = verdict.findings
+    .filter((f) => f.severity === 'error' || f.severity === 'blocker')
+    .map((f) => f.message);
+  const text =
+    msgs.length > 0 ? msgs.join('; ') : 'review rejected on correctness (no specific finding)';
+  return text.length > 300 ? `${text.slice(0, 297)}...` : text;
+}
+
+/**
+ * Non-blocking `needs-review` signals (#226 item 5, CLM-0133): the ADVISORY review
+ * gate's verdict is published to audit but otherwise invisible to the human. A
+ * correctness REJECT becomes a `needs-review` Outcome signal (passed:false) so the
+ * terminal (JSON on stdout, spec §3.4) sees residual doubt even on an otherwise-
+ * `success` run — surfaced, NEVER auto-failing (the caller appends these AFTER
+ * computing status from the blocking child signals).
+ */
+export function reviewConcernSignals(results: readonly ChildResult[]): Signal[] {
+  const signals: Signal[] = [];
+  for (const result of results) {
+    if (result.reviewVerdict?.result !== 'reject') continue;
+    signals.push({
+      name: 'needs-review',
+      passed: false,
+      detail: `${result.child.id}: review flagged correctness — ${summarizeConcern(result.reviewVerdict)}`,
+    });
+  }
+  return signals;
+}
+
 /** Sum the real child costs (implement outcomes + quality verdicts). */
 export function sumChildCosts(results: readonly ChildResult[]): Cost {
   const sum = { tokens: 0, usd: 0, wallClockMs: 0 };

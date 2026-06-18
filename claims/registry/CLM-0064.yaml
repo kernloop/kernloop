@@ -7,7 +7,7 @@ evidence:
   - 'test:packages/workflows/src/graph.test.ts::declares the spec §6 shape: the chain, the vote branch, and the child sub-chain'
   - 'test:packages/cli/src/loop/gates-in-loop.test.ts::reviews the child diff, returns an advisory Verdict, and audits it'
   - 'test:packages/cli/src/loop/gates-in-loop.test.ts::abstains honestly when no diff was stashed (a resume that landed after implement)'
-  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::is advisory: a rejecting review does NOT block the child or the run'
+  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::is advisory but SURFACED: a rejecting review adds a needs-review signal without failing the run (#226 item 5)'
   - 'test:packages/cli/src/loop.test.ts::runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory'
   - 'ci:test'
 status: verified
