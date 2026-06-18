@@ -30,6 +30,31 @@ export class AdapterUnavailableError extends Error {
   }
 }
 
+/**
+ * An AGENTIC adapter (one that executes generated code + reads/writes its cwd)
+ * was pointed at a NON-throwaway git working tree (#280 part 2 / #138, CLM-0145).
+ * Refused before launch: generated code in your real repo could poison
+ * `.git/hooks`, rewrite `.git/config`, or read tracked secrets. The boundary is
+ * GIT-TREE containment, not general secret protection.
+ */
+export class AgenticRepositoryWorkspaceError extends Error {
+  override readonly name = 'AgenticRepositoryWorkspaceError';
+  /** Agentic adapter that was refused (claude, codex, …). */
+  readonly adapter: string;
+  /** The realpath'd workspace that resolved inside a real git tree. */
+  readonly workspace: string;
+
+  constructor(adapter: string, workspace: string) {
+    super(
+      `refusing to run agentic adapter "${adapter}" in the git working tree at "${workspace}" — ` +
+        `generated code there could corrupt .git/hooks or read tracked secrets. Run in a ` +
+        `throwaway workspace (copy the repo under a temp dir) or wrap it in --sandbox docker (#236).`,
+    );
+    this.adapter = adapter;
+    this.workspace = workspace;
+  }
+}
+
 /** The invocation itself was malformed (e.g. ollama without a model). */
 export class AdapterRequestError extends Error {
   override readonly name = 'AdapterRequestError';

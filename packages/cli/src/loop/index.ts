@@ -24,6 +24,7 @@ import {
   type TaskContract,
 } from '@kernloop/contracts';
 import { appendEvent, droppedEnvKeys, type AdapterName } from '@kernloop/kernel';
+import { cleanHalt, guardWorkspaceContainment, report } from './finalize.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
 import {
@@ -166,37 +167,16 @@ function primeRefs(refs: LoopRefs, state: RunState): void {
   if (plan.success) refs.planBrief = plan.data;
 }
 
-/** Map the engine's RunResult into the report the run tool returns. */
-function report(
-  result: RunResult,
-  totals: RunTotals,
-  unlimited: boolean,
-  docArtifact: DocArtifactResult | undefined,
-  haltReason?: string,
-): LoopReport {
-  return {
-    runId: result.runId,
-    status: result.status,
-    ...(haltReason === undefined ? {} : { haltReason }),
-    nodeTrace: result.nodeTrace,
-    // Always-on reporting [CLM-0077]: metered spend rides in both modes, with the
-    // per-adapter breakdown whenever any model call was metered (one bucket for a
-    // single-adapter run, several for a tiered one) (#44).
-    cost: {
-      tokens: totals.tokens,
-      usd: totals.usd,
-      ...(totals.byAdapter === undefined ? {} : { byAdapter: totals.byAdapter }),
-    },
-    unlimited,
-    // Per-child spend attribution (#56): the meter sliced by the fan-out boundary.
-    ...(result.childSpend === undefined ? {} : { childSpend: result.childSpend }),
-    ...(result.outcome === undefined ? {} : { outcome: result.outcome }),
-    ...(result.findings === undefined ? {} : { findings: result.findings }),
-    ...(result.error === undefined
-      ? {}
-      : { error: { code: result.error.code, message: result.error.message } }),
-    ...(docArtifact === undefined ? {} : { docArtifact }),
-  };
+/** Load the latest checkpoint for a resumed run and prime the cross-node refs. */
+async function primeFromCheckpoint(
+  kern: Kernloop,
+  checkpoints: JsonlCheckpointStore,
+  runId: string,
+  refs: LoopRefs,
+): Promise<void> {
+  const latest = await checkpoints.latest(runId);
+  if (latest === undefined) throw new LoopResumeError(runId, checkpointFile(kern.paths.dir, runId));
+  primeRefs(refs, latest.state);
 }
 
 /**
@@ -330,16 +310,11 @@ export async function executeCanonicalLoop(
 ): Promise<LoopReport> {
   const adapter = request.adapter ?? 'claude';
   const runId = request.resumeRunId ?? request.runId ?? randomUUID();
+  guardWorkspaceContainment(kern, adapter, request, runId);
   const base = resolveBaseInvoke(kern, request, adapter, runId);
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};
-  if (request.resumeRunId !== undefined) {
-    const latest = await checkpoints.latest(runId);
-    if (latest === undefined) {
-      throw new LoopResumeError(runId, checkpointFile(kern.paths.dir, runId));
-    }
-    primeRefs(refs, latest.state);
-  }
+  if (request.resumeRunId !== undefined) await primeFromCheckpoint(kern, checkpoints, runId, refs);
   const totals: RunTotals = { tokens: 0, usd: 0 };
   // Per-node seams, all metered. With a real run, each node derives its
   // requirement and binds the adapter+model that serves it [CLM-0078]. An
@@ -373,26 +348,4 @@ export async function executeCanonicalLoop(
   const { result, aborted } = cleanHalt(raw);
   const docArtifact = documentDeliverable(kern, runId, result.status, request.workspaceDir);
   return report(result, totals, mode === 'unlimited', docArtifact, aborted ? 'aborted' : undefined);
-}
-
-/**
- * Cooperative abort (#304): the engine returns a `failed` result whose error is
- * `aborted` when the signal fired at a node boundary. Remap it to a CLEAN,
- * resumable halt — status `escalated` (the checkpoint is intact), the dirty
- * `error` dropped — so the run is reported as a cancel carrying the spend-so-far,
- * not a failure. Any other result passes through unchanged.
- */
-function cleanHalt(raw: RunResult): { result: RunResult; aborted: boolean } {
-  if (!(raw.status === 'failed' && raw.error?.code === 'aborted'))
-    return { result: raw, aborted: false };
-  return {
-    aborted: true,
-    result: {
-      runId: raw.runId,
-      status: 'escalated',
-      nodeTrace: raw.nodeTrace,
-      ...(raw.findings === undefined ? {} : { findings: raw.findings }),
-      ...(raw.childSpend === undefined ? {} : { childSpend: raw.childSpend }),
-    },
-  };
 }

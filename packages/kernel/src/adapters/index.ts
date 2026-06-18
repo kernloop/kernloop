@@ -80,4 +80,11 @@ export {
   AdapterOutputError,
   ApiKeyMissingError,
   ApiEndpointError,
+  AgenticRepositoryWorkspaceError,
 } from './errors.js';
+export {
+  checkAgenticContainment,
+  isNonThrowawayGitTree,
+  AGENTIC_ADAPTERS,
+  NON_AGENTIC_ADAPTERS,
+} from './containment.js';
