@@ -21,12 +21,17 @@ export const SECTION_NAMES = [
   'episodicSummaries',
   'repoProbes',
   'skillsIndex',
+  'skillBodies',
 ] as const;
 
-/** One of the six compiler section names. */
+/** One of the seven compiler section names. */
 export type SectionName = (typeof SECTION_NAMES)[number];
 
-/** Drop priority per section: 1 is dropped last, 6 is dropped first. */
+/**
+ * Drop priority per section: 1 is dropped last, 7 is dropped first. `skillBodies`
+ * sits BELOW `skillsIndex` (#228 P3·1): the heavy injected procedure bodies drop
+ * FIRST under budget pressure, leaving the cheap one-liner index as a fallback.
+ */
 export const SECTION_PRIORITY: Record<SectionName, number> = {
   task: 1,
   claims: 2,
@@ -34,6 +39,7 @@ export const SECTION_PRIORITY: Record<SectionName, number> = {
   episodicSummaries: 4,
   repoProbes: 5,
   skillsIndex: 6,
+  skillBodies: 7,
 };
 
 /** An overlay claims-registry entry, as gathered by the caller. */
@@ -84,13 +90,26 @@ export const SkillIndexEntrySchema = z.strictObject({
 });
 export type SkillIndexEntry = z.infer<typeof SkillIndexEntrySchema>;
 
-/** The five caller-gathered source groups; the sixth section (`task`) renders from the TaskContract. */
+/**
+ * A skill BODY to inject (#228 P3·1): the full procedure of a LIVE/ratified skill
+ * the caller selected as relevant to the task goal. Pre-ranked by the caller (the
+ * compiler preserves order, never re-ranks — CLM-0029); the body loads on demand
+ * only when it earns brief space. `proposed/**` skills are NEVER bodies (CLM-0050).
+ */
+export const SkillBodyEntrySchema = z.strictObject({
+  name: z.string().min(1),
+  body: z.string().min(1),
+});
+export type SkillBodyEntry = z.infer<typeof SkillBodyEntrySchema>;
+
+/** The caller-gathered source groups; the `task` section renders from the TaskContract. */
 export const BriefSourcesSchema = z.strictObject({
   claims: z.array(ClaimEntrySchema).optional(),
   semanticFacts: z.array(SemanticFactSchema).optional(),
   episodicSummaries: z.array(EpisodicSummarySchema).optional(),
   repoProbes: z.array(RepoProbeSchema).optional(),
   skillsIndex: z.array(SkillIndexEntrySchema).optional(),
+  skillBodies: z.array(SkillBodyEntrySchema).optional(),
 });
 export type BriefSources = z.infer<typeof BriefSourcesSchema>;
 

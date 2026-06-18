@@ -8,7 +8,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BriefSchema } from '@kernloop/contracts';
 import { createKernloop, type Kernloop } from './kernel.js';
-import { gatherClaims, gatherRepoProbes, gatherSkillsIndex } from './gather.js';
+import { gatherClaims, gatherRepoProbes, gatherSkillBodies, gatherSkillsIndex } from './gather.js';
 import { briefTool } from './tools/brief.js';
 import { readEnvelopes } from './tools/audit.js';
 
@@ -101,6 +101,69 @@ describe('gatherSkillsIndex', () => {
   });
 });
 
+describe('gatherSkillBodies (#228 P3·1, CLM-0139)', () => {
+  /** Write a live (or proposed/) skill with a one-liner + a body, return repo. */
+  function withSkill(
+    repo: string,
+    name: string,
+    oneLiner: string,
+    body: string,
+    proposed = false,
+  ): void {
+    const base = proposed
+      ? path.join(repo, 'skills', 'proposed', name)
+      : path.join(repo, 'skills', name);
+    mkdirSync(base, { recursive: true });
+    writeFileSync(path.join(base, 'SKILL.md'), `# ${name}\n\n${oneLiner}\n\n${body}\n`);
+  }
+
+  it('injects the BODY of a live skill whose name/one-liner overlaps the goal', () => {
+    const repo = repoDir();
+    withSkill(repo, 'release-flow', 'cut a release safely', 'Step 1: tag\nStep 2: publish');
+    const bodies = gatherSkillBodies(repo, 'help me cut a release');
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.name).toBe('release-flow');
+    expect(bodies[0]?.body).toContain('Step 1: tag'); // the FULL procedure, not the one-liner
+  });
+
+  it('NEVER injects a skills/proposed body — only ratified content (CLM-0050)', () => {
+    const repo = repoDir();
+    withSkill(repo, 'pending-release', 'cut a release safely', 'Step: do it', true);
+    expect(gatherSkillBodies(repo, 'cut a release')).toEqual([]);
+  });
+
+  it('excludes a skill with no real token overlap (lexical relevance gate)', () => {
+    const repo = repoDir();
+    withSkill(repo, 'release-flow', 'cut a release safely', 'body');
+    // "add a feature" is all stop-words → no signal token → no match.
+    expect(gatherSkillBodies(repo, 'add a feature')).toEqual([]);
+    // A goal sharing no meaningful token with the skill is also excluded.
+    expect(gatherSkillBodies(repo, 'refactor the parser internals')).toEqual([]);
+  });
+
+  it('ranks by overlap count, tie-breaks by name (deterministic), caps at 3', () => {
+    const repo = repoDir();
+    withSkill(repo, 'release-deploy', 'release and deploy the service', 'b'); // release+deploy+service = 3
+    withSkill(repo, 'deploy-only', 'deploy the service', 'b'); // deploy+service = 2
+    withSkill(repo, 'aaa-release', 'release', 'b'); // release = 1 (wins the name tie-break)
+    withSkill(repo, 'release-notes', 'release notes only', 'b'); // release = 1 (dropped by the cap of 3)
+    const bodies = gatherSkillBodies(repo, 'release and deploy the service now');
+    // score desc, then name asc; the cap drops the 4th (release-notes, the score-1 loser by name).
+    expect(bodies.map((b) => b.name)).toEqual(['release-deploy', 'deploy-only', 'aaa-release']);
+    // Deterministic: a second call on the same repo+goal yields the identical order.
+    expect(
+      gatherSkillBodies(repo, 'release and deploy the service now').map((b) => b.name),
+    ).toEqual(bodies.map((b) => b.name));
+  });
+
+  it('is empty when there is no skills/ dir or the goal has no signal tokens', () => {
+    expect(gatherSkillBodies(repoDir(), 'cut a release')).toEqual([]); // no skills dir
+    const repo = repoDir();
+    withSkill(repo, 'release-flow', 'cut a release safely', 'body');
+    expect(gatherSkillBodies(repo, 'the a an to of')).toEqual([]); // all stop-words
+  });
+});
+
 describe('briefTool', () => {
   it('compiles a zod-valid Brief from real gathered sources without executing, and publishes it', async () => {
     const repo = repoDir();
@@ -127,6 +190,25 @@ describe('briefTool', () => {
     expect((published?.payload as { messageId: string }).messageId).toBe('task-brief-1');
     // dry-run: nothing executed, nothing recorded to episodic memory
     expect(kern.memory.getTraceSummary('task-brief-1')).toBeUndefined();
+    kern.close();
+  });
+
+  it('injects a relevant live skill BODY into the compiled brief, end to end (#228 P3·1)', async () => {
+    const repo = repoDir();
+    mkdirSync(path.join(repo, 'skills', 'greet-guide'), { recursive: true });
+    writeFileSync(
+      path.join(repo, 'skills', 'greet-guide', 'SKILL.md'),
+      '# greet-guide\n\nhow to write a greet feature\n\nStep 1: export greet(name)\nStep 2: return a hello string\n',
+    );
+    const kern = freshKernloop(repo);
+    const brief = await briefTool(kern, { goal: 'add a greet feature', id: 'task-skillbody' });
+    const section = brief.sections.find((s) => s.name === 'skillBodies');
+    expect(section, 'a relevant live skill must contribute a skillBodies section').toBeDefined();
+    // The FULL procedure reached the brief — not merely the one-liner the index carries.
+    expect(section?.content).toContain('Step 1: export greet(name)');
+    expect(section?.provenance.some((p) => p.ref === 'skill:greet-guide:body')).toBe(true);
+    // The cheap index still lists it too (the body is the addition, not a replacement).
+    expect(brief.sections.find((s) => s.name === 'skillsIndex')?.content).toContain('greet-guide');
     kern.close();
   });
 });

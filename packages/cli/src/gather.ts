@@ -103,6 +103,90 @@ export function gatherSkillsIndex(repoRoot: string): NonNullable<BriefSources['s
   return index;
 }
 
+/**
+ * Common words carrying no relevance signal — dropped before scoring so a goal
+ * like "add a greet feature" doesn't match every skill on "add"/"feature" (#228
+ * P3·1 vote: avoid spurious lexical matches). Deliberately small + deterministic.
+ */
+const RELEVANCE_STOPWORDS: ReadonlySet<string> = new Set([
+  'a',
+  'an',
+  'the',
+  'add',
+  'fix',
+  'update',
+  'make',
+  'create',
+  'implement',
+  'feature',
+  'to',
+  'of',
+  'and',
+  'or',
+  'for',
+  'in',
+  'on',
+  'with',
+  'that',
+  'this',
+  'it',
+  'is',
+  'as',
+  'use',
+  'using',
+  'via',
+  'new',
+  'change',
+  'support',
+  'so',
+  'into',
+  'from',
+  'when',
+]);
+
+/** Case-folded alphanumeric tokens of `text`, minus stop-words and 1-char tokens. */
+function relevanceTokens(text: string): Set<string> {
+  const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return new Set(tokens.filter((t) => t.length > 1 && !RELEVANCE_STOPWORDS.has(t)));
+}
+
+/** Max skill bodies injected per brief — a small documented cap (#228 P3·1): offer
+ * the most relevant procedures, not the whole library. */
+const MAX_SKILL_BODIES = 3;
+
+/**
+ * Skill BODIES relevant to `goal` (#228 P3·1, CLM-0139): every LIVE
+ * `skills/<name>/SKILL.md` (`proposed/` EXCLUDED — CLM-0050) whose name +
+ * one-liner shares ≥1 non-stop-word token with the goal, ranked by overlap COUNT
+ * descending with a code-unit (locale-INDEPENDENT) name tie-break, top
+ * {@link MAX_SKILL_BODIES}. DETERMINISTIC: same repo + goal ⇒ same ordered bodies
+ * (CLM-0029). The gate is LEXICAL, not semantic — a cheap honest filter that keeps
+ * the brief token budget honest, never a claim of perfect matching. The compiler
+ * injects these as a lowest-priority, budget-capped section.
+ */
+export function gatherSkillBodies(
+  repoRoot: string,
+  goal: string,
+): NonNullable<BriefSources['skillBodies']> {
+  const dir = path.join(repoRoot, 'skills');
+  if (!existsSync(dir)) return [];
+  const goalTokens = relevanceTokens(goal);
+  if (goalTokens.size === 0) return [];
+  const scored: { name: string; body: string; score: number }[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === 'proposed') continue; // unratified [CLM-0050]
+    const skillFile = path.join(dir, entry.name, 'SKILL.md');
+    if (!existsSync(skillFile)) continue;
+    const body = readFileSync(skillFile, 'utf8');
+    const skillTokens = relevanceTokens(`${entry.name} ${firstBodyLine(body) ?? ''}`);
+    let score = 0;
+    for (const t of goalTokens) if (skillTokens.has(t)) score += 1;
+    if (score > 0) scored.push({ name: entry.name, body: body.trim(), score });
+  }
+  scored.sort((a, b) => b.score - a.score || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  return scored.slice(0, MAX_SKILL_BODIES).map((s) => ({ name: s.name, body: s.body }));
+}
+
 /** Gather every compiler source group for one task (spec §5.1 order). */
 export async function gatherSources(kern: Kernloop, task: TaskContract): Promise<BriefSources> {
   const facts = kern.memory.recallFacts(task.goal);
@@ -122,8 +206,17 @@ export async function gatherSources(kern: Kernloop, task: TaskContract): Promise
     })),
     repoProbes: await gatherRepoProbes(kern.paths.repoRoot),
     skillsIndex: gatherSkillsIndex(kern.paths.repoRoot),
+    skillBodies: gatherSkillBodies(kern.paths.repoRoot, task.goal),
   };
 }
+
+/**
+ * Fraction of the brief token budget that injected skill bodies may occupy (#228
+ * P3·1). Bodies are valuable but SECONDARY: capping them ≤40% guarantees they can
+ * never crowd out task/claims/facts even on a sparse brief, on top of being the
+ * lowest-priority section (dropped first). A documented knob, not a magic number.
+ */
+const SKILL_BODIES_BUDGET_FRACTION = 0.4;
 
 /**
  * Gather sources, compile the Brief under the overlay's token budget, and
@@ -136,7 +229,13 @@ export async function assembleBrief(kern: Kernloop, task: TaskContract): Promise
   const brief = compileBrief({
     task,
     sources,
-    budget: { totalTokens: kern.config.briefTokens },
+    budget: {
+      totalTokens: kern.config.briefTokens,
+      // Cap injected skill bodies so they never dominate the brief (#228 P3·1).
+      perSection: {
+        skillBodies: Math.floor(kern.config.briefTokens * SKILL_BODIES_BUDGET_FRACTION),
+      },
+    },
   });
   await kern.bus.publish('Brief', brief);
   return brief;

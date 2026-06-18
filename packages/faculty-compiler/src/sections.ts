@@ -37,7 +37,33 @@ function factText(fact: string, confidence: number | undefined): string {
 }
 
 /**
- * Build all non-empty section drafts in priority order (1 → 6). Input order
+ * The two skill sections (#228 P3·1): the cheap one-liner INDEX, then the heavy
+ * injected BODIES below it (priority 7) so bodies drop first under budget
+ * pressure. Both preserve caller order (pre-ranked; never re-ranked — CLM-0029).
+ */
+function skillDrafts(sources: BriefSources): SectionDraft[] {
+  return [
+    {
+      name: 'skillsIndex',
+      priority: SECTION_PRIORITY.skillsIndex,
+      items: (sources.skillsIndex ?? []).map((s) => ({
+        text: `${s.name}: ${s.oneLiner}`,
+        source: { ref: `skill:${s.name}` },
+      })),
+    },
+    {
+      name: 'skillBodies',
+      priority: SECTION_PRIORITY.skillBodies,
+      items: (sources.skillBodies ?? []).map((s) => ({
+        text: `## skill: ${s.name}\n${s.body}`,
+        source: { ref: `skill:${s.name}:body` },
+      })),
+    },
+  ];
+}
+
+/**
+ * Build all non-empty section drafts in priority order (1 → 7). Input order
  * within each group is preserved — semantic facts arrive pre-ranked by the
  * memory faculty and are never re-ranked here. Pure data transformation:
  * output depends only on arguments (CLM-0029).
@@ -77,14 +103,7 @@ export function buildDrafts(task: TaskContract, sources: BriefSources): SectionD
         source: { ref: `probe:${p.source}` },
       })),
     },
-    {
-      name: 'skillsIndex',
-      priority: SECTION_PRIORITY.skillsIndex,
-      items: (sources.skillsIndex ?? []).map((s) => ({
-        text: `${s.name}: ${s.oneLiner}`,
-        source: { ref: `skill:${s.name}` },
-      })),
-    },
+    ...skillDrafts(sources),
   ];
   return drafts.filter((d) => d.items.length > 0);
 }
