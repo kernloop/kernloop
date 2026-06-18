@@ -11,7 +11,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts'],
+      // *.evals.ts are the golden eval-set (#226 item 4) — run by `pnpm evals`, not
+      // `pnpm test`, so they carry no unit coverage and must not tank the threshold.
+      exclude: ['src/**/*.test.ts', 'src/**/*.evals.ts'],
       thresholds: {
         lines: 80,
         functions: 80,
