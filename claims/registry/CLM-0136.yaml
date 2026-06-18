@@ -1,0 +1,28 @@
+id: CLM-0136
+statement: >-
+  The review gate bounds its UNTRUSTED reviewer input before the model prompt
+  (#288, EPIC #47·P1 security round). The diff is the child's full written
+  content and (opt-in) the context is its goal + every DoD command — either of
+  which a runaway or adversarial child can self-inflate into a multi-megabyte
+  blob that would otherwise be sent verbatim to every reviewer (3-4 concurrent
+  model calls), a cost / latency / context-window denial. `reviewerPrompt`
+  clamps the diff and the context to fixed per-field char caps, keeping the HEAD
+  and appending a visible truncation marker so each reviewer judges honestly on a
+  bounded, partial input rather than silently losing content. To close the
+  review-EVASION risk (a child padding benign content to push a payload past the
+  cut), when — and only when — the gate ACTUALLY truncated it also emits a
+  TRUSTED, gate-authored notice (keyed on the gate's own knowledge, never on
+  child-controlled text, so a forged marker can only make review stricter) that
+  the reviewer is seeing only the HEAD and must not clean-approve a partial diff.
+  This claims the BOUND and the anti-evasion notice and their wiring into the
+  assembled prompt, exercised through the real reviewer seam — not that any
+  particular cap is optimal.
+evidence:
+  - 'test:packages/cli/src/loop/seams.test.ts::truncates an oversized diff and marks the cut, keeping the head + role'
+  - 'test:packages/cli/src/loop/seams.test.ts::truncates an oversized opt-in context independently of the diff'
+  - 'test:packages/cli/src/loop/seams.test.ts::leaves a within-budget diff and context byte-identical (no marker)'
+  - 'test:packages/cli/src/loop/seams.test.ts::keys the gate notice on REAL truncation, not a marker the child forged'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
