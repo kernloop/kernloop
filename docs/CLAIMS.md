@@ -2393,3 +2393,18 @@ The canonical loop supports COOPERATIVE mid-run abort (EPIC #47·P5 #304). When 
 - [`packages/cli/src/loop-abort.test.ts`](../packages/cli/src/loop-abort.test.ts)
 - [`packages/cli/src/loop-abort.test.ts`](../packages/cli/src/loop-abort.test.ts)
 - CI `test`
+
+## CLM-0144
+
+**Status:** verified — **source:** [`CLM-0144.yaml`](../claims/registry/CLM-0144.yaml)
+
+Ctrl-C cooperatively aborts a run (EPIC #47·P5 #317 — the operator-facing TRIGGER that completes #304). The `run` command wraps its loop run in `withSigintAbort`: the FIRST SIGINT fires the AbortSignal #318 threads into the run, so the loop halts cleanly at the next node boundary as a resumable cancel (the abort EFFECT is CLM-0143's, not re-claimed here). The handler is removed in a `finally` once the run settles — on the success, no-signal, AND throw paths — so it never leaks across runs or tests. Because registering a SIGINT handler suppresses Node's default Ctrl-C kill, a SECOND SIGINT escalates to a hard exit (the operator's force-quit escape hatch); and abort is idempotent (a repeated first Ctrl-C cannot double-fire). HONESTY BOUNDARY: this claims the WIRING (a SIGINT installs a handler that fires the already-tested signal, the second escalates, the handler is cleaned up) — proven HERMETICALLY with an injected process (no real OS signals in CI). Abort still lands only at a node BOUNDARY (inherited CLM-0044 limitation), not instantly.
+
+**Enforced by:**
+
+- [`packages/cli/src/sigint-abort.test.ts`](../packages/cli/src/sigint-abort.test.ts)
+- [`packages/cli/src/sigint-abort.test.ts`](../packages/cli/src/sigint-abort.test.ts)
+- [`packages/cli/src/sigint-abort.test.ts`](../packages/cli/src/sigint-abort.test.ts)
+- [`packages/cli/src/sigint-abort.test.ts`](../packages/cli/src/sigint-abort.test.ts)
+- [`packages/cli/src/sigint-abort.ts#withSigintAbort`](../packages/cli/src/sigint-abort.ts)
+- CI `test`

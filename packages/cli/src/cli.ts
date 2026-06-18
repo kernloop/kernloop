@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
-import { parseBudget } from './cli-flags.js';
+import { runCommand } from './run-command.js';
 import { doctor } from './doctor.js';
 import { createKernloop, type Kernloop } from './kernel.js';
 import { serveStdio } from './mcp.js';
@@ -27,7 +27,6 @@ import {
   observeTool,
   recallTool,
   rememberTool,
-  runTool,
   statusTool,
 } from './tools/index.js';
 import { metricsCommand } from './metrics-commands.js';
@@ -38,7 +37,6 @@ import { workshopCommand } from './workshop-commands.js';
 import { modelsCommand } from './models-commands.js';
 import { trackerCommand } from './tracker-commands.js';
 import { observerCommand } from './observer-commands.js';
-import { closeIssueAfterRun } from './run-close.js';
 import { programCommand } from './program-commands.js';
 import { USAGE } from './usage.js';
 
@@ -181,55 +179,7 @@ const HANDLERS: Record<string, Handler> = {
     return 0; // the stdio transport holds the process open
   },
   /* v8 ignore stop */
-  run: (args, io) => {
-    const v = flags(args, {
-      goal: S,
-      capability: S,
-      workspace: S,
-      id: S,
-      adapter: S,
-      resume: S,
-      budget: S,
-      'closes-issue': S,
-      plan: B,
-      async: B,
-      unlimited: B,
-    });
-    const [workspace, id, resume] = [str(v.workspace), str(v.id), str(v.resume)];
-    // `--resume` replaces `--goal` (the checkpointed task is the truth).
-    const goal = resume === undefined ? required(v.goal, '--goal') : str(v.goal);
-    const adapter = str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
-    const budget = parseBudget(str(v.budget));
-    return withKernloop(io, v.dir, async (kern) => {
-      // The CLI is one-shot: an async run returns the job id immediately but
-      // must settle its job before the process exits, so we drain the background
-      // settle promise before tear-down (true backgrounding is the MCP server's job).
-      let background: Promise<void> | undefined;
-      const result = await runTool(
-        kern,
-        {
-          ...(goal === undefined ? {} : { goal }),
-          capability: required(v.capability, '--capability'),
-          ...(workspace === undefined ? {} : { workspaceDir: path.resolve(io.cwd, workspace) }),
-          ...(v.plan === true ? { execute: false } : {}),
-          ...(v.async === true ? { async: true } : {}),
-          ...(v.unlimited === true ? { unlimited: true } : {}),
-          ...(id === undefined ? {} : { id }),
-          ...(adapter === undefined ? {} : { adapter }),
-          ...(budget === undefined ? {} : { budget }),
-          ...(resume === undefined ? {} : { resume }),
-        },
-        { onBackground: (settled) => (background = settled) },
-      );
-      if (background !== undefined) await background;
-      // --closes-issue N (#211): on a SUCCESS Outcome, close issue N through the
-      // gated tracker (enforce-tier). A non-success run skips it; never auto-merge.
-      const closesIssue = str(v['closes-issue']);
-      if (closesIssue === undefined) return result;
-      const succeeded = result.kind === 'outcome' && result.outcome?.status === 'success';
-      return { ...result, issueClose: await closeIssueAfterRun(kern, closesIssue, succeeded) };
-    });
-  },
+  run: (args, io) => runCommand(args, io, commandHelpers),
   status: (args, io) => {
     const v = flags(args, { 'task-id': S, job: S });
     const job = str(v.job);
