@@ -13,6 +13,12 @@ import YAML from 'yaml';
 import { createAuditStore, verifyChain } from '@kernloop/kernel';
 import { createMemory } from '@kernloop/faculty-memory';
 import { OverlaySchema, overlayPaths, type OverlayPaths } from './overlay.js';
+import {
+  DEFAULT_ASSUMED_CHILDREN,
+  estimateLoopCalls,
+  formatEstimate,
+  type LoopShape,
+} from './cost-estimate.js';
 
 /** One doctor check result. */
 export interface DoctorCheck {
@@ -86,6 +92,27 @@ function checkBudgets(raw: unknown): DoctorCheck {
 }
 
 /**
+ * Pre-flight model-CALL-COUNT estimate (#303, CLM-0138) — INFORMATIONAL (always
+ * ok). Reads K/Kc/panel/groundedness from the raw document (defaults applied),
+ * so an operator sees the call-count band a run will incur BEFORE committing.
+ * Honest: a $ figure is never invented (per-call cost is metered at runtime).
+ */
+function checkEstimate(raw: unknown): DoctorCheck {
+  const posInt = (v: unknown, dflt: number): number =>
+    typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : dflt;
+  const groundedness = at(raw, 'gates', 'review', 'groundedness') === true;
+  const shape: LoopShape = {
+    K: posInt(at(raw, 'K'), 3),
+    Kc: posInt(at(raw, 'Kc'), 3),
+    votePanel: at(raw, 'gates', 'vote', 'panel') === 7 ? 7 : 3,
+    reviewPanel: groundedness ? 4 : 3,
+    reviewDrivesIteration: false, // not overlay-exposed today (EngineConfig default)
+  };
+  const estimate = estimateLoopCalls(shape, { childCount: DEFAULT_ASSUMED_CHILDREN });
+  return { name: 'loop call estimate', ok: true, detail: formatEstimate(estimate) };
+}
+
+/**
  * The config check family: overlay.yaml existence, YAML parse, schema
  * validation, then the targeted K/panel/budget checks against the raw
  * document. Missing or unparseable files end the family early — there is
@@ -111,7 +138,7 @@ function configChecks(paths: OverlayPaths): DoctorCheck[] {
   const schemaCheck: DoctorCheck = parsed.success
     ? { name: 'overlay.yaml', ok: true, detail: `overlay id "${parsed.data.id}"` }
     : { name: 'overlay.yaml', ok: false, detail: `invalid: ${z.prettifyError(parsed.error)}` };
-  return [schemaCheck, checkK(raw), checkVotePanel(raw), checkBudgets(raw)];
+  return [schemaCheck, checkK(raw), checkVotePanel(raw), checkBudgets(raw), checkEstimate(raw)];
 }
 
 /** Verify the audit chain; an absent file is a valid chain of length 0. */

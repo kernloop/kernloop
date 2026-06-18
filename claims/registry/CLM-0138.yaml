@@ -1,0 +1,25 @@
+id: CLM-0138
+statement: >-
+  kernloop estimates a run's model-CALL-COUNT before it runs (EPIC #47·P5 #303):
+  a PURE function over the frozen CANONICAL_LOOP shape × the overlay K/Kc/panel
+  config returns a [min,max] band — min the first-pass happy path, max assuming
+  every gate iterates to its cap (plan ×(K+1), implement ×(Kc+1)) and the
+  CLM-0107 parse-retry fires — broken down per node (quality contributes ZERO,
+  being mechanical). `kernloop doctor` surfaces it with its assumptions stated,
+  including that the child count is an explicit assumed input (decompose decides
+  it at runtime). It is HONEST about what it cannot know: it NEVER fabricates a
+  dollar figure (per-call cost is metered at runtime, not declared) — a $
+  projection is only the caller's own explicit rate × this count. The arithmetic
+  is BOUND TO ACTUAL loop behavior: a real hermetic canonical-loop run counts its
+  model calls and they equal the estimate's min (the happy path) and never exceed
+  its max — proving the estimate tracks the loop, not only itself.
+evidence:
+  - 'test:packages/cli/src/cost-estimate.test.ts::default shape, 1 child: min is the happy path, max assumes full iteration + retry'
+  - 'test:packages/cli/src/cost-estimate.test.ts::a real happy-path canonical-loop run makes exactly total.min model calls, ≤ total.max'
+  - 'test:packages/cli/src/cost-estimate.test.ts::NEVER invents a dollar figure — the band is calls only, with an explicit-rate note'
+  - 'test:packages/cli/src/doctor.test.ts::passes all eight checks on a freshly initialized and used overlay'
+  - 'code:packages/cli/src/cost-estimate.ts#estimateLoopCalls@doc:/CLM-0138/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

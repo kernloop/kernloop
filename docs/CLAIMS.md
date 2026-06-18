@@ -2304,3 +2304,18 @@ The canonical loop emits IN-FLIGHT spend: every node executor is wrapped so it a
 - [`packages/cli/src/tools/watch.test.ts`](../packages/cli/src/tools/watch.test.ts)
 - [`packages/cli/src/loop/executors-nodes.ts#withSpendAudit`](../packages/cli/src/loop/executors-nodes.ts)
 - CI `test`
+
+## CLM-0138
+
+**Status:** verified — **source:** [`CLM-0138.yaml`](../claims/registry/CLM-0138.yaml)
+
+kernloop estimates a run's model-CALL-COUNT before it runs (EPIC #47·P5 #303): a PURE function over the frozen CANONICAL_LOOP shape × the overlay K/Kc/panel config returns a [min,max] band — min the first-pass happy path, max assuming every gate iterates to its cap (plan ×(K+1), implement ×(Kc+1)) and the CLM-0107 parse-retry fires — broken down per node (quality contributes ZERO, being mechanical). `kernloop doctor` surfaces it with its assumptions stated, including that the child count is an explicit assumed input (decompose decides it at runtime). It is HONEST about what it cannot know: it NEVER fabricates a dollar figure (per-call cost is metered at runtime, not declared) — a $ projection is only the caller's own explicit rate × this count. The arithmetic is BOUND TO ACTUAL loop behavior: a real hermetic canonical-loop run counts its model calls and they equal the estimate's min (the happy path) and never exceed its max — proving the estimate tracks the loop, not only itself.
+
+**Enforced by:**
+
+- [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
+- [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
+- [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
+- [`packages/cli/src/doctor.test.ts`](../packages/cli/src/doctor.test.ts)
+- [`packages/cli/src/cost-estimate.ts#estimateLoopCalls`](../packages/cli/src/cost-estimate.ts)
+- CI `test`

@@ -43,7 +43,7 @@ describe('doctor', () => {
     expect(result.checks[0]?.detail).toContain('kernloop init');
   });
 
-  it('passes all seven checks on a freshly initialized and used overlay', () => {
+  it('passes all eight checks on a freshly initialized and used overlay', () => {
     const repo = repoDir();
     initOverlay(repo);
     const kern = createKernloop({ overlayDir: path.join(repo, '.kernloop') });
@@ -56,10 +56,17 @@ describe('doctor', () => {
       'K bound',
       'vote panel',
       'budgets',
+      'loop call estimate',
       'audit chain',
       'memory.sqlite',
     ]);
     expect(result.checks.every((c) => c.ok)).toBe(true);
+    // The pre-flight estimate is informational (#303): a call-count band + its
+    // stated assumptions, and NEVER a fabricated dollar figure.
+    const estimate = check(result, 'loop call estimate');
+    expect(estimate.detail).toContain('model calls');
+    expect(estimate.detail).toContain('decompose decides this at runtime');
+    expect(estimate.detail).toMatch(/no \$ shown/);
   });
 
   it('fails the overlay.yaml check when the file is missing from an existing overlay dir', () => {
