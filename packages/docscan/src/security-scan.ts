@@ -21,6 +21,15 @@
  * tree or OOM the loop. Findings are advisory (the faculty-gates manifest tier);
  * promotion to enforce is a separate evidence-gated ratification.
  *
+ * KNOWN EVASIONS (stated honestly — this is an advisory smell detector, not a
+ * proof of safety): the code rules match a BARE `eval`/`Function`/`exec`
+ * identifier or member name, so indirection (`globalThis['ev'+'al'](x)`, an
+ * aliased `const e = eval; e(x)`) and any call nested deeper than
+ * {@link MAX_AST_DEPTH} are NOT flagged; the secret scan reports the FIRST match
+ * of each known format per file (a second key of the same format is not
+ * separately surfaced). A determined author can slip past it — that is acceptable
+ * only because it is advisory and makes no completeness claim.
+ *
  * @module docscan/security-scan
  */
 import fs from 'node:fs';
@@ -113,8 +122,12 @@ function nodeFinding(node: ts.Node, loc: string, importsChildProcess: boolean): 
     ts.isIdentifier(node.expression) &&
     node.expression.text === 'Function'
   ) {
-    const body = node.arguments?.[node.arguments.length - 1];
-    if (node.arguments !== undefined && !isLiteralString(body))
+    // The body is the LAST argument; a zero-arg `new Function()` is inert, not a smell.
+    if (
+      node.arguments !== undefined &&
+      node.arguments.length > 0 &&
+      !isLiteralString(node.arguments[node.arguments.length - 1])
+    )
       return codeFinding(
         'error',
         'dynamic code execution: new Function() with a non-literal body',

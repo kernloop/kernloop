@@ -41,6 +41,8 @@ describe('scanSecuritySmells — dynamic code execution (#277)', () => {
     expect(bad.some((f) => f.message.includes('new Function()'))).toBe(true);
     const good = scan({ 'b.ts': "export const add = new Function('a', 'b', 'return a + b');" });
     expect(good).toEqual([]);
+    const empty = scan({ 'c.ts': 'export const noop = new Function();' });
+    expect(empty).toEqual([]); // zero-arg Function is inert, not a smell (#277 review)
   });
 });
 

@@ -11,10 +11,16 @@ statement: >-
   child_process — the argv-array `spawn`/`execFile` are safe and NEVER flagged), and
   known-FORMAT hardcoded secrets (AWS/GitHub/Google/Slack keys, PEM private keys),
   each as an advisory `error` Finding. It reads source as DATA (AST + regex, never
-  executed), never throws on unparseable input, and reuses the shared
-  no-symlink-follow walk + byte budgets so an untrusted workspace cannot escape the
-  tree or OOM the loop. The broader external-tool (semgrep/secret-scan) tier is
-  deferred (#276) until the binaries can be bundled into the gate sandbox.
+  executed), never throws on unparseable OR deeply-nested input (a depth-bounded
+  AST visit + a defensive catch, so a crafted file cannot overflow the in-process
+  gate), and reuses the shared no-symlink-follow walk + byte budgets so an untrusted
+  workspace cannot escape the tree or OOM the loop. It is HONEST about its evasions:
+  the code rules match a BARE eval/Function/exec name, so indirection
+  (globalThis['ev'+'al'], an aliased eval) and any call nested past the depth cap
+  are NOT flagged, and the secret scan reports the first match of each format per
+  file — acceptable because it is advisory and claims no completeness. The broader
+  external-tool (semgrep/secret-scan) tier is deferred (#276) until the binaries can
+  be bundled into the gate sandbox.
 evidence:
   - 'test:packages/docscan/src/security-scan.test.ts::flags eval() with a non-literal argument, but NOT eval of a string literal'
   - 'test:packages/docscan/src/security-scan.test.ts::flags new Function() with a non-literal body, but NOT an all-literal Function'
