@@ -26,6 +26,7 @@ import {
   ManifestRegistry,
   Router,
   createAuditStore,
+  defaultAuditKeyringPath,
   type AuditStore,
 } from '@kernloop/kernel';
 import { createMemory, memoryManifest, type Memory } from '@kernloop/faculty-memory';
@@ -108,6 +109,13 @@ export interface CreateKernloopOptions {
   clock?: () => Date;
   /** Injectable rng for the router's exploration floor (tests). */
   rng?: () => number;
+  /**
+   * HMAC keyring path for the audit chain (#280 [CLM-0146]). Omitted ⇒ an
+   * unkeyed/legacy chain (hermetic — the default for tests). The shipped CLI
+   * uses {@link createProductionKernloop}, which supplies the off-overlay
+   * default keyring so real runs are keyed.
+   */
+  keyringPath?: string;
 }
 
 /** Seed the ladder with a manifest's declared tier (see module docs). */
@@ -144,7 +152,10 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
   mkdirSync(paths.dir, { recursive: true }); // SQLite needs the directory to exist
   const config = loadOverlay(paths.dir);
   const clock = options.clock;
-  const store = createAuditStore(paths.audit, clock === undefined ? undefined : { clock });
+  const store = createAuditStore(paths.audit, {
+    ...(clock === undefined ? {} : { clock }),
+    ...(options.keyringPath === undefined ? {} : { keyringPath: options.keyringPath }),
+  });
   const bus = new EventBus(store);
   const registry = new ManifestRegistry(store);
   const ladder = new Ladder(store);
@@ -184,4 +195,20 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
   };
   // The executor map closes over the assembled system; build it last.
   return { ...kernloop, executors: buildExecutors(kernloop) };
+}
+
+/**
+ * Assemble a kernel for the SHIPPED CLI: identical to {@link createKernloop}
+ * but with the audit chain KEYED (#280 [CLM-0146]) at the off-overlay default
+ * keyring ({@link defaultAuditKeyringPath}) unless the caller overrides it. The
+ * binary's entry points use this so every real run's audit log is HMAC-keyed
+ * and tamper-evident; tests use {@link createKernloop} (unkeyed, hermetic) so
+ * they never touch the operator's keyring. This is the single source of truth
+ * for the production keyring location — every real entry point routes here.
+ */
+export function createProductionKernloop(options: CreateKernloopOptions): Kernloop {
+  return createKernloop({
+    ...options,
+    keyringPath: options.keyringPath ?? defaultAuditKeyringPath(),
+  });
 }

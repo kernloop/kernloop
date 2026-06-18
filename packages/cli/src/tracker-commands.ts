@@ -24,7 +24,7 @@ import {
   type TrackerResult,
 } from '@kernloop/tracker';
 import type { CliIo } from './cli.js';
-import { createKernloop } from './kernel.js';
+import { createProductionKernloop } from './kernel.js';
 import type { Kernloop } from './kernel.js';
 import type { CommandHelpers } from './portability-commands.js';
 
@@ -192,7 +192,7 @@ export async function trackerCommand(
   const labels = collectFlag(flagArgs, op === 'create' ? 'label' : 'add');
   const v = h.mixedFlags(flagArgs, ['title', 'body-file', 'reason'], ['execute']);
   if (maybeRef !== undefined) v._ref = maybeRef;
-  const kern = createKernloop({
+  const kern = createProductionKernloop({
     overlayDir: path.join(path.resolve(io.cwd, h.str(v.dir) ?? '.'), '.kernloop'),
   });
   try {

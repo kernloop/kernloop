@@ -23,7 +23,7 @@ import { appendEvent, ADAPTER_NAMES, type AdapterName } from '@kernloop/kernel';
 import { issueBody, type IssueProposal } from '@kernloop/faculty-observer';
 import { githubProvider, type TrackerExec, type TrackerMode } from '@kernloop/tracker';
 import type { CliIo } from './cli.js';
-import { createKernloop, type Kernloop } from './kernel.js';
+import { createProductionKernloop, type Kernloop } from './kernel.js';
 import type { CommandHelpers } from './portability-commands.js';
 import { resolveMode } from './tracker-commands.js';
 import { distillTool } from './tools/distill.js';
@@ -299,7 +299,7 @@ export async function observerCommand(
   const positional = op === 'propose' || op === 'file' ? rest[0] : undefined;
   const flagArgs = positional === undefined ? rest : rest.slice(1);
   const v = h.mixedFlags(flagArgs, ['subject', 'adapter'], ['execute']);
-  const kern = createKernloop({
+  const kern = createProductionKernloop({
     overlayDir: path.join(path.resolve(io.cwd, h.str(v.dir) ?? '.'), '.kernloop'),
   });
   try {

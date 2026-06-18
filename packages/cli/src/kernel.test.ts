@@ -2,9 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { verifyChain } from '@kernloop/kernel';
+import { defaultAuditKeyringPath, verifyChain } from '@kernloop/kernel';
 import {
   createKernloop,
+  createProductionKernloop,
   P1_FACULTY_MANIFESTS,
   P2_MANIFESTS,
   P3_MANIFESTS,
@@ -121,5 +122,30 @@ describe('createKernloop', () => {
     expect(envelopes.length).toBeGreaterThan(0);
     expect(envelopes.every((e) => e.ts === frozen.toISOString())).toBe(true);
     kern.close();
+  });
+});
+
+describe('createProductionKernloop (#280 [CLM-0146])', () => {
+  it('keys the audit chain end-to-end: registration events carry keyEpoch and verify under the keyring', () => {
+    const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-prodkern-'));
+    dirs.push(repo);
+    const kern = createProductionKernloop({
+      overlayDir: path.join(repo, '.kernloop'),
+      rng: () => 0.99,
+      keyringPath: path.join(repo, 'audit.key'), // explicit temp keyring (hermetic)
+    });
+    // Faculty registration already appended audit events through the real root.
+    const envelopes = readEnvelopes(kern.paths.audit);
+    expect(envelopes.length).toBeGreaterThan(0);
+    expect(envelopes.every((e) => e.keyEpoch === 1)).toBe(true);
+    // The keyed chain verifies only WITH the keyring (proves it is HMAC-keyed).
+    expect(verifyChain(kern.store).ok).toBe(true);
+    kern.close();
+  });
+
+  it('defaults the keyring off the overlay so an overlay-JSONL attacker cannot reach it', () => {
+    expect(defaultAuditKeyringPath({ XDG_CONFIG_HOME: '/tmp/cfg' })).toBe(
+      '/tmp/cfg/kernloop/audit.key',
+    );
   });
 });

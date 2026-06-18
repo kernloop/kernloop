@@ -32,6 +32,7 @@ import {
   buildEnvelope,
   type AuditEnvelope,
 } from './envelope.js';
+import { ensureChainKeyed, getEpochKey } from './keyring.js';
 
 /** Thrown on append-path failures (unreadable tip, invalid input). */
 export class AuditStoreError extends Error {
@@ -59,6 +60,16 @@ export interface AuditStore {
   /** Injectable clock (tests pass a fixed clock for determinism). */
   readonly clock: () => Date;
   /**
+   * Path to the HMAC keyring (#280 [CLM-0146]); when set, appends are KEYED
+   * (HMAC-SHA256) and `verifyChain` enforces the keyed-segment floor. Omitted
+   * ⇒ a legacy/unkeyed chain (plain SHA-256), byte-identical to pre-keying.
+   * The keyring lives OUTSIDE the overlay, so an overlay-JSONL attacker cannot
+   * forge the cutover boundary that defeats a downgrade.
+   */
+  readonly keyringPath?: string;
+  /** Sink for the one-time keyring-generation / chain-keying warnings. */
+  readonly warn: (msg: string) => void;
+  /**
    * Lazily-opened SQLite sidecar that serializes cross-process appends and
    * holds the authoritative chain tip; null until the first append in THIS
    * process opens it (#244). The sidecar — not any in-memory counter — is the
@@ -73,9 +84,23 @@ export interface AuditStore {
  *
  * @param filePath - path to the `.jsonl` log file
  * @param options.clock - clock used for envelope `ts` (default: system time)
+ * @param options.keyringPath - HMAC keyring path; set ⇒ keyed chain (#280)
+ * @param options.warn - sink for the one-time keyring-generation notice;
+ *   default is a NO-OP so the audit layer never writes to a process stream
+ *   (mixing a human notice with machine stdout/stderr would corrupt the CLI's
+ *   clean-JSON contract). `kernloop doctor` surfaces keyring status instead.
  */
-export function createAuditStore(filePath: string, options?: { clock?: () => Date }): AuditStore {
-  return { filePath, clock: options?.clock ?? (() => new Date()), sidecar: null };
+export function createAuditStore(
+  filePath: string,
+  options?: { clock?: () => Date; keyringPath?: string; warn?: (msg: string) => void },
+): AuditStore {
+  return {
+    filePath,
+    clock: options?.clock ?? (() => new Date()),
+    ...(options?.keyringPath === undefined ? {} : { keyringPath: options.keyringPath }),
+    warn: options?.warn ?? ((): void => {}),
+    sidecar: null,
+  };
 }
 
 /** Filesystem path of the SQLite tip sidecar beside a JSONL log. */
@@ -171,6 +196,32 @@ function reconciledTip(db: Database.Database, filePath: string): ChainTip {
 }
 
 /**
+ * Build the next envelope for `tip`, keyed under the store's keyring when one
+ * is configured. Runs inside the append's write lock: for a keyed store it
+ * ensures this chain is registered in the keyring (generating the keyring on a
+ * fresh install, recording this chain's cutover seq the first time) and HMACs
+ * under the current epoch's key; for an unkeyed store it builds a legacy
+ * plain-SHA envelope, byte-identical to a pre-keying chain.
+ */
+function buildNextEnvelope(
+  store: AuditStore,
+  tip: ChainTip,
+  event: { type: string; payload: JsonValue },
+): AuditEnvelope {
+  const base = {
+    seq: tip.lastSeq + 1,
+    ts: store.clock().toISOString(),
+    type: event.type,
+    payload: event.payload,
+    prevHash: tip.lastHash,
+  };
+  if (store.keyringPath === undefined) return buildEnvelope(base);
+  const keyring = ensureChainKeyed(store.keyringPath, store.filePath, base.seq, store.warn);
+  const key = getEpochKey(keyring, keyring.currentEpoch);
+  return buildEnvelope({ ...base, keyEpoch: keyring.currentEpoch, key });
+}
+
+/**
  * Append one event to the chain (spec §3.1) — Cross-process-safe (CLM-0127,
  * #244). The seq/prevHash source and the JSONL append run inside a
  * `BEGIN IMMEDIATE` critical section on the SQLite sidecar, so concurrent
@@ -198,13 +249,7 @@ export function appendEvent(
   db.exec('BEGIN IMMEDIATE');
   try {
     const tip = reconciledTip(db, store.filePath);
-    const envelope = buildEnvelope({
-      seq: tip.lastSeq + 1,
-      ts: store.clock().toISOString(),
-      type: event.type,
-      payload: event.payload,
-      prevHash: tip.lastHash,
-    });
+    const envelope = buildNextEnvelope(store, tip, event);
     const line = JSON.stringify(envelope) + '\n';
     appendFileSync(store.filePath, line, 'utf8');
     db.prepare('UPDATE audit_tip SET lastSeq = ?, lastHash = ?, byteLen = ? WHERE id = 1').run(

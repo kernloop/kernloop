@@ -20,6 +20,25 @@
  *                            the envelope content (any in-place field edit)
  *  - `length_mismatch`       chain is internally consistent but its length
  *                            differs from `expectedLength`
+ *  - `epoch_regression`      a line's keyEpoch is below the prior line's —
+ *                            keyEpoch is non-decreasing along the chain
+ *  - `downgrade_detected`    a line at/after the keyring's per-chain cutover
+ *                            (firstKeyedSeq) is UNKEYED (epoch 0) — the
+ *                            wholesale-downgrade-to-plain-SHA forgery (#280)
+ *  - `missing_key`           a keyed line's epoch key is absent from the
+ *                            keyring — a typed failure, NEVER a silent
+ *                            fallback to unkeyed verification
+ *
+ * KEYED CHAINS (#280 [CLM-0146]): when the store has a `keyringPath`, the
+ * keyring (which lives OFF the overlay, so an overlay-JSONL attacker cannot
+ * write it) supplies each epoch's HMAC key and the per-chain cutover seq. The
+ * cutover is the unforgeable anchor: an attacker who re-stamps every record to
+ * epoch 0 and recomputes the plain-SHA chain is caught by `downgrade_detected`
+ * because the keyring still asserts "keyed from seq N". This is on-host
+ * tamper-EVIDENCE, not tamper-PROOF: an attacker who can READ the key file
+ * forges, and one who can DELETE the keyring downgrades the whole chain to
+ * legacy verification (keyring absent ⇒ unkeyed) — both are out of the threat
+ * model and documented in ./keyring.ts.
  *
  * TRUNCATION CAVEAT (documented limitation): a hash chain cannot detect pure
  * suffix truncation by itself — chopping the last K lines leaves a shorter
@@ -37,6 +56,7 @@ import {
   type AuditEnvelope,
 } from './envelope.js';
 import { readChainLines, type AuditStore } from './store.js';
+import { chainBoundary, getEpochKey, loadKeyring, type AuditKeyring } from './keyring.js';
 
 /** Why verification failed; see module docs for the tamper class each names. */
 export type VerifyFailureReason =
@@ -45,7 +65,10 @@ export type VerifyFailureReason =
   | 'seq_mismatch'
   | 'prev_hash_mismatch'
   | 'hash_mismatch'
-  | 'length_mismatch';
+  | 'length_mismatch'
+  | 'epoch_regression'
+  | 'downgrade_detected'
+  | 'missing_key';
 
 /**
  * Discriminated verification result. On failure, `seq` is the 1-based chain
@@ -63,11 +86,8 @@ function fail(reason: VerifyFailureReason, seq: number, detail: string): VerifyF
   return { ok: false, reason, seq, detail };
 }
 
-/**
- * Verify one line at 1-based position `seq` against the expected prevHash.
- * Returns the parsed envelope when the line passes, or the failure signal.
- */
-function verifyLine(
+/** Parse + schema + seq + prevHash structural checks; the parsed envelope or a failure. */
+function parseEnvelopeLine(
   line: string,
   seq: number,
   expectedPrevHash: string,
@@ -95,15 +115,100 @@ function verifyLine(
       `seq ${seq} prevHash ${env.prevHash} does not match prior hash ${expectedPrevHash}`,
     );
   }
-  if (computeEnvelopeHash(env) !== env.hash) {
-    return fail('hash_mismatch', seq, `seq ${seq} stored hash does not match recomputed content`);
-  }
   return env;
 }
 
 /**
+ * Enforce the keyed-segment invariants against the keyring (#280): keyEpoch is
+ * non-decreasing, and no line at/after this chain's cutover may be unkeyed
+ * (the wholesale-downgrade defense). Returns a failure or null (passes).
+ */
+function checkEpoch(
+  env: AuditEnvelope,
+  seq: number,
+  prevEpoch: number,
+  keyring: AuditKeyring | null,
+  chainId: string,
+): VerifyFailure | null {
+  const epoch = env.keyEpoch ?? 0;
+  if (epoch < prevEpoch) {
+    return fail(
+      'epoch_regression',
+      seq,
+      `seq ${seq} keyEpoch ${epoch} is below the prior epoch ${prevEpoch} (epochs are non-decreasing)`,
+    );
+  }
+  if (keyring === null || epoch !== 0) return null;
+  const cutover = chainBoundary(keyring, chainId);
+  if (cutover !== undefined && seq >= cutover) {
+    return fail(
+      'downgrade_detected',
+      seq,
+      `seq ${seq} is unkeyed but the keyring keys this chain from seq ${cutover} (downgrade)`,
+    );
+  }
+  return null;
+}
+
+/**
+ * The HMAC key for a keyed line, or a failure. A keyed line with no keyring or
+ * no matching key is `missing_key` — NEVER a silent fallback to unkeyed verify.
+ * A legacy line (epoch absent) resolves to undefined (plain SHA-256).
+ */
+function resolveEpochKey(
+  env: AuditEnvelope,
+  seq: number,
+  keyring: AuditKeyring | null,
+): Buffer | undefined | VerifyFailure {
+  if (env.keyEpoch === undefined) return undefined;
+  if (keyring === null) {
+    return fail(
+      'missing_key',
+      seq,
+      `seq ${seq} is keyed (epoch ${env.keyEpoch}) but no keyring is available — cannot verify`,
+    );
+  }
+  try {
+    return getEpochKey(keyring, env.keyEpoch);
+  } catch {
+    return fail(
+      'missing_key',
+      seq,
+      `seq ${seq} keyEpoch ${env.keyEpoch} has no key in the keyring`,
+    );
+  }
+}
+
+/**
+ * Verify one line at 1-based `seq`: structure, then the keyed-segment
+ * invariants and the (keyed or legacy) content hash. Returns the parsed
+ * envelope when the line passes, or the first failure signal.
+ */
+function verifyLine(
+  line: string,
+  seq: number,
+  expectedPrevHash: string,
+  prevEpoch: number,
+  keyring: AuditKeyring | null,
+  chainId: string,
+): AuditEnvelope | VerifyFailure {
+  const parsed = parseEnvelopeLine(line, seq, expectedPrevHash);
+  if ('ok' in parsed) return parsed;
+  const epochFail = checkEpoch(parsed, seq, prevEpoch, keyring, chainId);
+  if (epochFail !== null) return epochFail;
+  const key = resolveEpochKey(parsed, seq, keyring);
+  if (key !== undefined && !Buffer.isBuffer(key)) return key;
+  if (computeEnvelopeHash(parsed, key) !== parsed.hash) {
+    return fail('hash_mismatch', seq, `seq ${seq} stored hash does not match recomputed content`);
+  }
+  return parsed;
+}
+
+/**
  * Verify the whole chain in a store's JSONL file. An absent or empty file is
- * a valid chain of length 0.
+ * a valid chain of length 0. When the store is keyed (#280 [CLM-0146]) the
+ * keyring supplies each epoch's HMAC key and the per-chain cutover, and the
+ * no-downgrade floor rejects a wholesale rewrite to plain SHA-256.
  *
  * @param store - handle from `createAuditStore`
  * @param options.expectedLength - external length witness; when provided,
@@ -115,12 +220,15 @@ export function verifyChain(
   store: AuditStore,
   options?: { expectedLength?: number },
 ): VerifyResult {
+  const keyring = store.keyringPath === undefined ? null : loadKeyring(store.keyringPath);
   const lines = readChainLines(store.filePath);
   let prevHash = GENESIS_PREV_HASH;
+  let prevEpoch = 0;
   for (let i = 0; i < lines.length; i++) {
-    const result = verifyLine(lines[i] ?? '', i + 1, prevHash);
+    const result = verifyLine(lines[i] ?? '', i + 1, prevHash, prevEpoch, keyring, store.filePath);
     if ('ok' in result) return result;
     prevHash = result.hash;
+    prevEpoch = result.keyEpoch ?? 0;
   }
   const expected = options?.expectedLength;
   if (expected !== undefined && lines.length !== expected) {

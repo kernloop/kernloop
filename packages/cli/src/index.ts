@@ -8,7 +8,13 @@
  * register under the `workshop/*` manifest namespace and never extend the
  * tool surface.
  */
-export { createKernloop, P1_FACULTY_MANIFESTS, P2_MANIFESTS, P3_MANIFESTS } from './kernel.js';
+export {
+  createKernloop,
+  createProductionKernloop,
+  P1_FACULTY_MANIFESTS,
+  P2_MANIFESTS,
+  P3_MANIFESTS,
+} from './kernel.js';
 export type { Kernloop, CreateKernloopOptions } from './kernel.js';
 export {
   SKILL_NAME_MAX,
