@@ -61,8 +61,14 @@ describe('loadOverlay rejection matrix', () => {
     ['empty gate name in an override', 'id: x\nnodeOverrides:\n  review: { gate: "" }\n'],
     ['unknown adapter name in a tier', 'id: x\nadapters:\n  medium: gpt5\n'],
     ['unknown tier key inside adapters', 'id: x\nadapters:\n  cheap: claude\n'],
-    ['unknown model tier in a node override', 'id: x\nnodeOverrides:\n  research: { tier: huge }\n'],
-    ['unknown effort in a node override', 'id: x\nnodeOverrides:\n  research: { effort: max-plus }\n'],
+    [
+      'unknown model tier in a node override',
+      'id: x\nnodeOverrides:\n  research: { tier: huge }\n',
+    ],
+    [
+      'unknown effort in a node override',
+      'id: x\nnodeOverrides:\n  research: { effort: max-plus }\n',
+    ],
   ])('rejects %s with a typed OverlayError carrying the zod issues', (_name, yaml) => {
     let caught: unknown;
     try {
