@@ -4,16 +4,16 @@
  * output into Findings; the runner in `run.ts` supplies the mechanics.
  *
  * Default set: typecheck, lint, test (subprocess), plus the in-process
- * doc-comment check (#65, CLM-0104). Coverage has no separate check —
- * per-package vitest coverage thresholds fail the test runner's exit code,
- * so a coverage breach surfaces through the `test` check (CLM-0031).
- * Security: no default security check ships in P1 — there is no real,
- * local, model-free security tool wired in this repo yet, and a stub is
- * constitutionally forbidden (spec §1 rule 1); one returns via a claim when
- * a real tool exists.
+ * doc-comment check (#65, CLM-0104) and the in-process SECURITY smell check
+ * (#277). Coverage has no separate check — per-package vitest coverage
+ * thresholds fail the test runner's exit code, so a coverage breach surfaces
+ * through the `test` check (CLM-0031). The security check is the model-free,
+ * always-on output-AppSec signal (#227 item 3): a curated high-confidence
+ * ruleset (dynamic code exec, shell injection, known-format secrets) at
+ * advisory tier — no external binary, so it never degrades to no-signal.
  */
 import type { Check, Finding } from '@kernloop/contracts';
-import { scanDocComments } from '@kernloop/docscan';
+import { scanDocComments, scanSecuritySmells } from '@kernloop/docscan';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
 
 /**
@@ -71,6 +71,18 @@ export function docCommentCheck(): InProcessCheck {
   return { name: 'doc-comments', run: scanDocComments };
 }
 
+/**
+ * The in-process SECURITY smell check (#277, #227 item 3): a model-free,
+ * always-on, curated high-confidence scan of generated source for dynamic code
+ * execution (`eval`/`new Function` with a non-literal arg), shell-command
+ * injection (`exec`/`execSync` with a non-literal command), and known-format
+ * hardcoded secrets — emitting advisory `error` Findings. It is a smell detector,
+ * NOT exhaustive SAST; the broader external-tool tier is deferred (#276).
+ */
+export function securityCheck(): InProcessCheck {
+  return { name: 'security', run: scanSecuritySmells };
+}
+
 /** Per-check execution timeout (ms) when the caller does not override it. */
 export const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -87,6 +99,7 @@ export function defaultQualityChecks(): QualityCheck[] {
     { name: 'lint', command: 'pnpm', args: ['lint'], parse: parseEslintOutput },
     { name: 'test', command: 'pnpm', args: ['test'], parse: parseVitestOutput },
     docCommentCheck(),
+    securityCheck(),
   ];
 }
 

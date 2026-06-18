@@ -43,9 +43,20 @@ describe('checksFromDefinitionOfDone (#226)', () => {
 });
 
 describe('defaultQualityChecks', () => {
-  it('default checks cover typecheck, lint, test, and the doc-comment scan', () => {
+  it('default checks cover typecheck, lint, test, the doc-comment scan, and the security scan', () => {
     const checks = defaultQualityChecks();
-    expect(checks.map((c) => c.name)).toEqual(['typecheck', 'lint', 'test', 'doc-comments']);
+    expect(checks.map((c) => c.name)).toEqual([
+      'typecheck',
+      'lint',
+      'test',
+      'doc-comments',
+      'security',
+    ]);
+  });
+
+  it('the security check is in-process and emits no findings for clean source (#277)', () => {
+    const security = defaultQualityChecks().find((c) => c.name === 'security');
+    expect(security !== undefined && isInProcessCheck(security)).toBe(true);
   });
 
   it('the three tool checks are subprocess `pnpm` runs; doc-comments is in-process', () => {
