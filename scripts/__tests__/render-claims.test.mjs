@@ -78,7 +78,7 @@ describe('claim-links block + dangling check (#219)', () => {
     expect(danglingClaimIds(['CLM-0001', 'CLM-0404'], dir)).toEqual(['CLM-0404']);
   });
 
-  test('main writes the link block, is --check green, and FAILS on a dangling tag', () => {
+  test('main writes the link block, is --check green, and FAILS on a dangling tag', async () => {
     const root = fixture({
       'CLM-0001': "id: CLM-0001\nstatus: verified\nevidence:\n  - 'test:a.test.ts::x'\n",
     });
@@ -87,7 +87,7 @@ describe('claim-links block + dangling check (#219)', () => {
       '# x\n\nProse cites [CLM-0001].\n\n' +
         '<!-- claim-links:begin -->\n<!-- claim-links:end -->\n',
     );
-    expect(main(root, false)).toBe(0); // writes both blocks + the catalog
+    expect(await main(root, false)).toBe(0); // writes both blocks + the catalog
     expect(fs.readFileSync(path.join(root, 'README.md'), 'utf8')).toContain(
       '[CLM-0001]: docs/CLAIMS.md#clm-0001',
     );
@@ -95,8 +95,28 @@ describe('claim-links block + dangling check (#219)', () => {
     const catalog = fs.readFileSync(path.join(root, 'docs', 'CLAIMS.md'), 'utf8');
     expect(catalog).toContain('## CLM-0001');
     expect(catalog).toContain('../claims/registry/CLM-0001.yaml');
-    expect(main(root, true)).toBe(0); // current
+    expect(await main(root, true)).toBe(0); // current AND prettier-clean (#269)
     fs.appendFileSync(path.join(root, 'README.md'), '\nAlso [CLM-0404].\n'); // a tag with no file
-    expect(main(root, true)).toBe(1); // dangling → fail
+    expect(await main(root, true)).toBe(1); // dangling → fail
+  });
+
+  test('main re-renders an un-prettier README to a prettier-clean form (#269)', async () => {
+    const root = fixture({
+      'CLM-0001': "id: CLM-0001\nstatus: verified\nevidence:\n  - 'test:a.test.ts::x'\n",
+    });
+    // A repo prettier config in the fixture root → formatMarkdown resolves it
+    // (covers the config-found branch), matching how the real repo formats.
+    fs.writeFileSync(path.join(root, '.prettierrc.json'), JSON.stringify({ printWidth: 100 }));
+    // A README whose links block is current but whose markdown is NOT prettier-clean
+    // (extra blank lines) — the old block-only check passed it; #269 must catch+fix it.
+    fs.writeFileSync(
+      path.join(root, 'README.md'),
+      '# x\n\n\n\nProse cites [CLM-0001].\n\n' +
+        '<!-- claim-links:begin -->\n[CLM-0001]: docs/CLAIMS.md#clm-0001\n<!-- claim-links:end -->\n',
+    );
+    expect(await main(root, true)).toBe(1); // not prettier-clean → stale
+    expect(await main(root, false)).toBe(0); // render rewrites it clean
+    expect(await main(root, true)).toBe(0); // now current AND clean — no format:write needed
+    expect(fs.readFileSync(path.join(root, 'README.md'), 'utf8')).not.toContain('\n\n\n');
   });
 });

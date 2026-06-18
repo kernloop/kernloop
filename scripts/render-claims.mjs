@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import prettier from 'prettier';
 
 /**
  * Generates the README's claim-machinery outputs from the claims registry, all
@@ -14,9 +15,22 @@ import { parse as parseYaml } from 'yaml';
  *    evidence + a link back to the YAML source).
  * It also fails if the README cites a `[CLM-NNNN]` that has no registry file (a
  * dangling tag is a doc that lies).
+ *
+ * The rewritten README is run through prettier (the repo's own resolved config,
+ * by filepath) BEFORE it is written or compared (#269), so `claims:render` output
+ * is byte-identical to what `prettier --write` would produce — the render→
+ * format:write two-step is gone, and `claims:render --check` can never disagree
+ * with `prettier --check`. (docs/CLAIMS.md is prettier-ignored, so it is compared
+ * exactly, not formatted.)
  */
 const LINKS_BEGIN = '<!-- claim-links:begin -->';
 const LINKS_END = '<!-- claim-links:end -->';
+
+/** Format generated markdown with the repo's own prettier config (matched by filepath). */
+async function formatMarkdown(content, filepath) {
+  const config = (await prettier.resolveConfig(filepath)) ?? {};
+  return prettier.format(content, { ...config, filepath });
+}
 
 /**
  * Render one evidence ref as a markdown fragment (file links, gate names).
@@ -120,7 +134,7 @@ export function danglingClaimIds(ids, registryDir) {
   return ids.filter((id) => !fs.existsSync(path.join(registryDir, `${id}.yaml`)));
 }
 
-export function main(repoRoot, check) {
+export async function main(repoRoot, check) {
   const registryDir = path.join(repoRoot, 'claims', 'registry');
   const allClaims = loadAllClaims(registryDir);
   const readmePath = path.join(repoRoot, 'README.md');
@@ -139,32 +153,43 @@ export function main(repoRoot, check) {
   if (readme.includes(LINKS_BEGIN)) {
     next = splice(next, LINKS_BEGIN, LINKS_END, renderClaimLinks(refs));
   }
-  // The DERIVED catalog the README tags link into (every claim, any status).
+  // Prettier-clean the render output (#269) so it is byte-identical to what
+  // `prettier --write` would produce — no follow-up format:write needed.
+  const formattedReadme = await formatMarkdown(next, readmePath);
   const catalogPath = path.join(repoRoot, 'docs', 'CLAIMS.md');
-  const catalog = renderCatalog(allClaims);
+  return emit(check, {
+    readme,
+    readmePath,
+    formattedReadme,
+    catalogPath,
+    catalog: renderCatalog(allClaims),
+    summary: `${allClaims.length} claims, ${refs.length} linked`,
+  });
+}
+
+/**
+ * Drift-check (or write) the rendered README + catalog. Check is a full-file
+ * compare against the prettier-formatted render output, so it is stale iff the
+ * links changed OR the README on disk is not prettier-clean (#269) — `pnpm
+ * claims:render` fixes either. The catalog (prettier-ignored) is compared exactly.
+ */
+function emit(check, { readme, readmePath, formattedReadme, catalogPath, catalog, summary }) {
   if (check) {
     const catalogStale =
       !fs.existsSync(catalogPath) || fs.readFileSync(catalogPath, 'utf8') !== catalog;
-    const stale =
-      blockBody(readme, LINKS_BEGIN, LINKS_END).trim() !==
-      blockBody(next, LINKS_BEGIN, LINKS_END).trim();
-    if (stale || catalogStale) {
+    if (readme !== formattedReadme || catalogStale) {
       console.error(
         'render-claims ✗ README claim links or docs/CLAIMS.md stale — `pnpm claims:render`',
       );
       return 1;
     }
-    console.log(
-      `render-claims ✓ claim links + catalog current (${allClaims.length} claims, ${refs.length} linked)`,
-    );
+    console.log(`render-claims ✓ claim links + catalog current (${summary})`);
     return 0;
   }
   fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
   fs.writeFileSync(catalogPath, catalog);
-  fs.writeFileSync(readmePath, next);
-  console.log(
-    `render-claims ✓ wrote claim links + catalog (${allClaims.length} claims, ${refs.length} linked)`,
-  );
+  fs.writeFileSync(readmePath, formattedReadme);
+  console.log(`render-claims ✓ wrote claim links + catalog (${summary})`);
   return 0;
 }
 
@@ -173,6 +198,6 @@ const invokedDirectly =
   process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (invokedDirectly) {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  process.exit(main(repoRoot, process.argv.includes('--check')));
+  process.exit(await main(repoRoot, process.argv.includes('--check')));
 }
 /* v8 ignore stop */
