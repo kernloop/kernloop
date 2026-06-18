@@ -42,6 +42,11 @@ export const QualityGateSchema = z.strictObject({
   sandbox: z
     .strictObject({ enabled: z.boolean().default(false), enforce: z.boolean().default(true) })
     .prefault({}),
+  /** Diff-coverage anti-rubber-stamp (#226 item 2, CLM-0134): when true, the loop's
+   * quality gate flags executable source a child WROTE that the test suite never
+   * exercises (untested module = error, uncovered lines = warn). Default OFF — a
+   * new gate behavior that changes loop outcomes; promote to default-on on evidence. */
+  diffCoverage: z.boolean().default(false),
 });
 
 /** Gate thresholds, keyed by gate. Review-gate knobs are P3 — absent. */

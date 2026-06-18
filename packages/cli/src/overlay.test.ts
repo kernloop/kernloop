@@ -94,7 +94,8 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.gates).toEqual({
       vote: { strategy: 'simple_majority', panel: 3 },
       // sandbox: gate-check Docker isolation is opt-in, fail-closed once enabled [CLM-0129]
-      quality: { envAllow: [], sandbox: { enabled: false, enforce: true } },
+      // diffCoverage: anti-rubber-stamp coverage check is opt-in (default off) [CLM-0134]
+      quality: { envAllow: [], sandbox: { enabled: false, enforce: true }, diffCoverage: false },
     });
     // both router priors are explicit opt-in [CLM-0126, CLM-0128]
     expect(overlay.router).toEqual({ seedPriors: false, liveFitness: false });
@@ -168,6 +169,13 @@ describe('loadOverlay defaults and precedence', () => {
       loadFrom('id: x\ngates:\n  quality:\n    envAllow: [NODE_OPTIONS, FOO_TOKEN]\n').gates.quality
         .envAllow,
     ).toEqual(['NODE_OPTIONS', 'FOO_TOKEN']);
+  });
+
+  it('gates.quality.diffCoverage is opt-in: default off, parses an explicit true [CLM-0134]', () => {
+    expect(loadFrom('id: x\n').gates.quality.diffCoverage).toBe(false);
+    expect(
+      loadFrom('id: x\ngates:\n  quality:\n    diffCoverage: true\n').gates.quality.diffCoverage,
+    ).toBe(true);
   });
 
   it('defaults adapterEnvAllow to an empty list and accepts named extras [CLM-0122]', () => {

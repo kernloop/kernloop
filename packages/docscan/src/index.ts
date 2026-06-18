@@ -20,3 +20,4 @@ export {
   type MinedResult,
 } from './doc-scan.js';
 export { scanSecuritySmells } from './security-scan.js';
+export { scanWrittenCoverage, hasExecutableCode, type WrittenFile } from './coverage-scan.js';

@@ -1,0 +1,34 @@
+id: CLM-0134
+statement: >-
+  The quality gate flags generated code a child WROTE that the test suite never
+  exercises (#226 item 2, EPIC #47·P1) — the rubber-stamp that AGGREGATE per-package
+  coverage thresholds miss when a child adds untested code to a large package. A
+  MODEL-FREE in-process `diff-coverage` check (ratified Option A) reads ONLY the
+  child's written files (`b.refs.writtenByChild`) and the workspace's Istanbul/v8
+  `coverage/coverage-final.json` — no git, no snapshot: an EXECUTABLE written source
+  file ABSENT from the report (no test even loads it) is an `error`, uncovered
+  statements in a covered file are a `warn`, and a missing report degrades to one
+  `info` (never a silent pass). A `.d.ts`, a test file, or a pure type/re-export
+  module is LEGITIMATELY absent from coverage, so a written file is judged only when
+  its extension is executable source AND a TS-AST check (`hasExecutableCode`)
+  confirms it carries runtime-coverable code — never a false error on a type-only
+  module. Coverage keys match by absolute path OR path suffix (so a sandbox-relocated
+  report still resolves). It is wired into the loop quality node under an explicit
+  opt-in `gates.quality.diffCoverage` (default OFF — a new gate behavior that changes
+  loop outcomes, promoted to default-on on evidence); the stricter new-file-only /
+  git-diff-changed-line granularity is deferred (#282).
+evidence:
+  - 'test:packages/docscan/src/coverage-scan.test.ts::errors on an executable written module ABSENT from the coverage report'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::warns on uncovered statements in a written file that IS in the report'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::emits NOTHING for a fully-covered written file'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::degrades to ONE info finding when no coverage report exists'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::NEVER errors on a .d.ts, a test file, or a pure type module (the review must-fix)'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::matches a coverage key by path SUFFIX (sandbox-relocated absolute paths)'
+  - 'test:packages/docscan/src/coverage-scan.test.ts::is true for a function / value, false for a pure type / interface / re-export'
+  - 'test:packages/faculty-gates/src/checks.test.ts::is an in-process `diff-coverage` check that flags an untested written module'
+  - 'test:packages/cli/src/overlay.test.ts::gates.quality.diffCoverage is opt-in: default off, parses an explicit true [CLM-0134]'
+  - 'code:packages/docscan/src/coverage-scan.ts#scanWrittenCoverage@doc:/CLM-0134/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

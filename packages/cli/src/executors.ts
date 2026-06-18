@@ -24,10 +24,12 @@
 import {
   checksFromDefinitionOfDone,
   defaultQualityChecks,
+  diffCoverageCheck,
   runQualityGate,
   type GateSandboxOptions,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
+import type { WrittenFile } from '@kernloop/docscan';
 import type {
   Check,
   Cost,
@@ -107,6 +109,12 @@ export interface QualityGateRequest {
   readonly envAllow?: readonly string[];
   /** Docker sandbox policy for the gate (#236) — the overlay's gates.quality.sandbox. */
   readonly sandbox?: GateSandboxOptions;
+  /**
+   * The files THIS child wrote (the implement emission), so the diff-coverage
+   * check (#226 item 2) can flag an untested written module. Empty/absent → the
+   * check is not added (byte-identical to before); a non-loop gate omits it.
+   */
+  readonly writtenFiles?: readonly WrittenFile[];
 }
 
 /**
@@ -162,6 +170,11 @@ export async function executeQualityGate(
     // criteria (#226) — a child must pass its definition-of-done, not just `pnpm test`.
     checks: [
       ...(request.checks ?? defaultQualityChecks()),
+      // Diff-coverage runs AFTER the base set so the `test` check has emitted the
+      // coverage report (#226 item 2); only when the child's written files are known.
+      ...(request.writtenFiles !== undefined && request.writtenFiles.length > 0
+        ? [diffCoverageCheck(request.writtenFiles)]
+        : []),
       ...checksFromDefinitionOfDone(request.definitionOfDone ?? []),
     ],
     envAllow,
