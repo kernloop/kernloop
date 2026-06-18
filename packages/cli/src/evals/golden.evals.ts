@@ -7,8 +7,8 @@
  * deliverable. Each fixture is a goal + a scripted deliverable + the kind of
  * variant it is:
  *  - GOOD variants MUST be vetted clean (recall=1, zero false rejects, no flag);
- *  - MECHANICALLY-WRONG variants (a real gate catches them — here a tsc failure)
- *    MUST be rejected;
+ *  - MECHANICALLY-WRONG variants (a real gate catches them) MUST be rejected, via
+ *    DISTINCT paths (#285): a tsc compile failure AND a security-smell `error`;
  *  - GOAL-FIDELITY-WRONG variants (compile + pass the mechanical gates but
  *    implement the WRONG thing) are now SURFACED as a non-blocking needs-review
  *    signal (advisory — status stays success) by the #226-item-3 groundedness
@@ -24,7 +24,10 @@
  *
  * @module cli/evals/golden
  */
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { securityCheck } from '@kernloop/faculty-gates';
 import { runTool } from '../tools/run.js';
 import type { LoopReport } from '../loop/index.js';
 import {
@@ -36,6 +39,15 @@ import {
   scriptedInvoke,
   typecheck,
 } from '../loop-fixtures.js';
+
+/**
+ * A greet impl that COMPILES and passes tsc but executes its argument as code
+ * (`eval` on a non-literal) — a security smell the model-free security check
+ * (CLM-0132) flags as an `error`. A DISTINCT mechanically-wrong rejection PATH
+ * from the tsc failure (greet-broken), per the #285 corpus-growth design note.
+ */
+const INSECURE_GREET_TS =
+  'export function greet(name: string): string {\n  return eval(name) as string;\n}\n';
 
 /** A greet impl that COMPILES and passes tsc but returns the WRONG word — goal-fidelity-wrong. */
 const WRONG_GREET_TS =
@@ -63,6 +75,12 @@ const FIXTURES: readonly EvalFixture[] = [
     kind: 'mechanically-wrong',
   },
   {
+    name: 'greet-insecure',
+    goal: 'add a greet feature that returns a hello greeting',
+    deliverable: INSECURE_GREET_TS, // COMPILES but eval(name) → the SECURITY gate rejects it (#285)
+    kind: 'mechanically-wrong',
+  },
+  {
     name: 'greet-wrong-word',
     goal: 'add a greet feature that returns a hello greeting',
     deliverable: WRONG_GREET_TS, // compiles + passes tsc, but says "goodbye" — wrong feature
@@ -80,6 +98,11 @@ const FIXTURES: readonly EvalFixture[] = [
  * does NOT prove the real model produces that verdict; that is the separate live
  * eval (#287). Pinned: if this rises above 0, a goal-fidelity-wrong variant slipped
  * the wiring and the fixture must be fixed (do NOT raise the baseline to silence it).
+ *
+ * CORPUS GROWTH (#285): the mechanically-wrong class now exercises TWO distinct
+ * rejection paths — a tsc compile failure (greet-broken) and a security-smell
+ * `error` from the model-free security check (greet-insecure, which COMPILES) —
+ * so the benchmark proves the loop rejects via more than one real gate, not one.
  */
 const BASELINE_UNDETECTED_GOAL_FIDELITY = 0;
 
@@ -106,7 +129,9 @@ async function runFixture(scratch: string, fx: EvalFixture): Promise<EvalResult>
         id: `eval-${fx.name}`,
       },
       {
-        checks: [typecheck],
+        // typecheck (tsc) + the model-free security scan, so the corpus exercises
+        // TWO distinct mechanical rejection paths (a compile error vs an eval smell).
+        checks: [typecheck, securityCheck()],
         invoke: scriptedInvoke({
           vote: () => 'approve',
           files: [{ path: 'src/greet.ts', content: fx.deliverable }],
@@ -167,5 +192,24 @@ describe('golden quality eval-set — VETTED is measurable (#226 item 4)', () =>
       undetected,
       `goal-fidelity-wrong variants the wiring fails to surface — if this rises, fix the fixture/wiring, do NOT raise the baseline`,
     ).toBe(BASELINE_UNDETECTED_GOAL_FIDELITY);
+  });
+
+  it('greet-insecure is a DISTINCT path: rejected by the security check, NOT tsc (#285)', async () => {
+    // The fixture is rejected in the loop above (mechanically-wrong ⇒ not vetted).
+    // Here we prove the REASON is the security gate, not a compile error: the
+    // deliverable is valid TypeScript (tsc would pass it), yet the model-free
+    // security check flags its eval() as an `error` — so the two mechanically-wrong
+    // fixtures (greet-broken / greet-insecure) exercise genuinely different paths.
+    const probe = fixtureRepo(scratch, 'eval-security-probe');
+    const greetPath = path.join(probe, 'src', 'greet.ts');
+
+    writeFileSync(greetPath, INSECURE_GREET_TS);
+    const flagged = await securityCheck().run(probe);
+    expect(flagged.some((f) => f.severity === 'error')).toBe(true);
+
+    // And the check is not trigger-happy: the GOOD deliverable is security-clean,
+    // so greet-insecure's rejection is the smell, not a false positive on greet.
+    writeFileSync(greetPath, GREET_TS);
+    expect(await securityCheck().run(probe)).toHaveLength(0);
   });
 });

@@ -41,8 +41,9 @@ export default tseslint.config(
   },
   {
     // Test suites: describe/it callbacks are functions; the 50-line function
-    // budget targets production code. The 400-line file cap still applies.
-    files: ['**/*.test.ts', '**/*.test.mjs', '**/__tests__/**'],
+    // budget targets production code. `*.evals.ts` are vitest suites too (the
+    // golden eval-set, #226/#285). The 400-line file cap still applies.
+    files: ['**/*.test.ts', '**/*.test.mjs', '**/*.evals.ts', '**/__tests__/**'],
     rules: {
       'max-lines-per-function': 'off',
     },
