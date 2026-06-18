@@ -2288,3 +2288,19 @@ The review gate bounds its UNTRUSTED reviewer input before the model prompt (#28
 - [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
 - [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
 - CI `test`
+
+## CLM-0137
+
+**Status:** verified — **source:** [`CLM-0137.yaml`](../claims/registry/CLM-0137.yaml)
+
+The canonical loop emits IN-FLIGHT spend: every node executor is wrapped so it appends a `loop.spend` audit event WHENEVER that node actually spent (delta > 0), carrying the per-node token/usd delta AND the cumulative run total (EPIC #47·P5 #230). An operator tailing the audit log (or `watch`, which now renders the event) sees cost accumulate as the run progresses instead of only in the final report. The event is appended in a `finally`, so a node that spends then THROWS still records spend-to-failure before the error propagates. A zero-spend node appends NOTHING — the design vote's load-bearing condition: the financial audit chain is not polluted with heartbeat noise. It is observe-tier telemetry (it records, it never acts) and reuses the existing free-form kernel audit append, so no contract or kernel change was needed.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/tools/watch.test.ts`](../packages/cli/src/tools/watch.test.ts)
+- [`packages/cli/src/loop/executors-nodes.ts#withSpendAudit`](../packages/cli/src/loop/executors-nodes.ts)
+- CI `test`

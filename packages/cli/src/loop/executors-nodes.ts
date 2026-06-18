@@ -6,6 +6,7 @@
  * are imported from their home in executors.ts so there is one definition.
  */
 import { OutcomeSchema, TaskContractSchema, type Cost } from '@kernloop/contracts';
+import { appendEvent } from '@kernloop/kernel';
 import { decomposePlan, type SubtaskSpec } from '@kernloop/faculty-workforce';
 import type { ChildResult, NodeExecutor } from '@kernloop/workflows';
 import {
@@ -124,5 +125,44 @@ export function integrateExecutor(): NodeExecutor {
         distillCandidates: [],
       }),
     );
+  };
+}
+
+/**
+ * Wrap a node executor so it appends ONE `loop.spend` audit event whenever the
+ * node ACTUALLY spent (delta > 0) — the in-flight cost/progress signal `watch`
+ * renders (#230·P5, CLM-0137). The event carries the per-node DELTA and the
+ * CUMULATIVE run total; it is appended in a `finally`, so a node that spends
+ * then THROWS still records spend-to-failure before the error propagates. A
+ * zero-spend node appends NOTHING — the #230 vote's load-bearing condition: the
+ * financial audit chain is not polluted with heartbeat noise (watch already
+ * renders per-node progress from the other loop.* events). Observe-tier: it
+ * records, it never acts. Spend is read as a snapshot delta (after − before),
+ * correct for the loop's sequential node execution.
+ */
+export function withSpendAudit(b: LoopBindings, exec: NodeExecutor): NodeExecutor {
+  return async (input, ctx) => {
+    const beforeTokens = b.totals.tokens;
+    const beforeUsd = b.totals.usd;
+    try {
+      return await exec(input, ctx);
+    } finally {
+      const nodeTokens = b.totals.tokens - beforeTokens;
+      const nodeUsd = b.totals.usd - beforeUsd;
+      if (nodeTokens > 0 || nodeUsd > 0) {
+        appendEvent(b.kern.store, {
+          type: 'loop.spend',
+          payload: {
+            runId: ctx.runId,
+            node: ctx.node,
+            ...(ctx.child === undefined ? {} : { childId: ctx.child.id }),
+            nodeTokens,
+            nodeUsd,
+            cumulativeTokens: b.totals.tokens,
+            cumulativeUsd: b.totals.usd,
+          },
+        });
+      }
+    }
   };
 }

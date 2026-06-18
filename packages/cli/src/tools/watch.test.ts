@@ -97,6 +97,19 @@ describe('isTerminal + renderEvent', () => {
     );
     // The HH:MM:SS prefix is sliced from the ISO timestamp.
     expect(renderEvent(ev(4, 'loop.document', {}))).toMatch(/^08:34:25 #4 /);
+    // In-flight spend (#230): per-node delta + cumulative, with the child tag.
+    const spend = renderEvent(
+      ev(9, 'loop.spend', {
+        node: 'quality',
+        childId: 'T.1',
+        nodeTokens: 1245,
+        nodeUsd: 0.0142,
+        cumulativeTokens: 5000,
+        cumulativeUsd: 0.21,
+      }),
+    );
+    expect(spend).toContain('spend: quality [T.1] +$0.0142 (1245 tok)');
+    expect(spend).toContain('→ $0.2100 cumulative');
   });
 });
 

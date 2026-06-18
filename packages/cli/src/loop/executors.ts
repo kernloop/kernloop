@@ -41,7 +41,12 @@ import { ballotInvoker, reviewerInvoker } from './seams.js';
 import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
-import { decomposeExecutor, implementExecutor, integrateExecutor } from './executors-nodes.js';
+import {
+  decomposeExecutor,
+  implementExecutor,
+  integrateExecutor,
+  withSpendAudit,
+} from './executors-nodes.js';
 
 /** Cross-node values the composition root carries between executors —
  * primed from the latest checkpoint on resume so no node re-executes. */
@@ -78,6 +83,12 @@ export interface LoopBindings {
   readonly refs: LoopRefs;
   /** Discovered model cache [CLM-0087] — `identityRef` consults it so a synced model normalizes by table. */
   readonly discovered: DiscoveredCache;
+  /**
+   * The run's live metered-spend accumulator (the same object `meteredInvoke`
+   * mutates). `withSpendAudit` snapshots it around each node to emit a
+   * `loop.spend` audit event when that node spent (#230, CLM-0137).
+   */
+  readonly totals: { tokens: number; usd: number };
 }
 
 /**
@@ -321,9 +332,12 @@ function researchExecutor(b: LoopBindings): NodeExecutor {
  * The complete executor set for the CANONICAL_LOOP — every executable node
  * resolves (the engine refuses to start otherwise: wiring-complete or
  * absent). `fanout` is structural; the engine runs the child chain itself.
+ *
+ * Every node is wrapped in {@link withSpendAudit} so a spending node emits an
+ * in-flight `loop.spend` audit event (#230, CLM-0137) — uniform, one wrap point.
  */
 export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor> {
-  return {
+  const executors: Record<string, NodeExecutor> = {
     frame: (input) => {
       const task = TaskContractSchema.parse(input);
       const framed = TaskContractSchema.parse({
@@ -361,4 +375,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
     integrate: integrateExecutor(),
     retrospect: retrospectExecutor(b),
   };
+  return Object.fromEntries(
+    Object.entries(executors).map(([node, exec]) => [node, withSpendAudit(b, exec)]),
+  );
 }

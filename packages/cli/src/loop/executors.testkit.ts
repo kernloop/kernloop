@@ -131,6 +131,9 @@ export function boundHelpers(scratch: string): {
       adapter: 'claude',
       refs,
       discovered: emptyDiscoveredCache('test'),
+      // A static accumulator (the injected invoke is not wired to it), so unit
+      // executors emit no loop.spend events — a real run threads the live totals.
+      totals: { tokens: 0, usd: 0 },
     };
   };
   return { kernloopFor, bindingsFor };
