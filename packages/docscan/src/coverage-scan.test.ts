@@ -1,7 +1,7 @@
 /**
  * Diff-coverage anti-rubber-stamp scanner (#226 item 2, CLM-0134). Per-branch
  * fixtures: an untested written module → error, uncovered statements → warn, a
- * fully-covered file → nothing, no report → one info. PLUS the review must-fix —
+ * fully-covered file → nothing, no report → fail-closed error. PLUS the review must-fix —
  * a `.d.ts`, a test file, and a pure type/re-export module are NEVER errored
  * (legitimately absent from coverage), gated by hasExecutableCode.
  */
