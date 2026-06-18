@@ -25,6 +25,7 @@ const SIGNIFICANT: ReadonlySet<string> = new Set([
   'cli.gate.verdict',
   'loop.child.iterate',
   'loop.document',
+  'loop.spend',
   'loop.unlimited',
   'cli.job.created',
   'cli.job.finished',
@@ -116,6 +117,10 @@ function describe(event: WatchEvent): string {
       return `↻ re-iterate child ${field(p, 'childId')} #${String(num(p, 'iteration'))}${typeof p.gate === 'string' ? ` after ${p.gate} gate` : ''}`;
     case 'loop.document':
       return `documented deliverable`;
+    case 'loop.spend': {
+      const child = field(p, 'childId', '');
+      return `spend: ${field(p, 'node')}${child ? ` [${child}]` : ''} +$${num(p, 'nodeUsd').toFixed(4)} (${String(num(p, 'nodeTokens'))} tok) → $${num(p, 'cumulativeUsd').toFixed(4)} cumulative`;
+    }
     case 'loop.unlimited':
       return `unlimited budget (no enforcement)`;
     case 'cli.job.created':

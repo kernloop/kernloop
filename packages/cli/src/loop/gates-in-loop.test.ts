@@ -78,6 +78,7 @@ function bindingsFor(
     adapter: 'claude',
     refs,
     discovered: emptyDiscoveredCache('test'),
+    totals: { tokens: 0, usd: 0 },
   };
 }
 

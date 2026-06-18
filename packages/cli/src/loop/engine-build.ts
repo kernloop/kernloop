@@ -109,6 +109,8 @@ export function buildLoopEngine(
       invokeFor: seams.invokeFor,
       adapter: seams.adapter,
       refs: seams.refs,
+      // The live spend accumulator → withSpendAudit emits loop.spend per node (#230).
+      totals: seams.totals,
       // The discovered cache is loaded ONCE per run; a synced served model then
       // normalizes by table in provenance (loadDiscoveredCache degrades a
       // missing/corrupt cache to empty, so an unsynced run is unaffected).
