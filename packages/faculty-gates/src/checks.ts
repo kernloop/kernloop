@@ -93,9 +93,10 @@ export function securityCheck(): InProcessCheck {
  * source files THIS child wrote that the test suite never exercises — an untested
  * written module (absent from `coverage/coverage-final.json`) is an `error` (the
  * rubber-stamp aggregate thresholds miss), uncovered statements in a covered file
- * are a `warn`, and a missing report degrades to one `info`. Model-free; closes
- * over the child's written files. Must run AFTER the `test` check that emits the
- * report, so the runner's array order places it after the base set.
+ * are a `warn`, and a missing report FAILS CLOSED with one `error` (the check runs
+ * only under the explicit opt-in, so a graceful pass would let an agent disable the
+ * reporter to bypass the gate). Model-free; closes over the child's written files.
+ * Must run AFTER the `test` check that emits the report — the runner's array order.
  */
 export function diffCoverageCheck(writtenFiles: readonly WrittenFile[]): InProcessCheck {
   return {
