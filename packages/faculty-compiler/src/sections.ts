@@ -37,11 +37,12 @@ function factText(fact: string, confidence: number | undefined): string {
 }
 
 /**
- * The two skill sections (#228 P3·1): the cheap one-liner INDEX, then the heavy
- * injected BODIES below it (priority 7) so bodies drop first under budget
- * pressure. Both preserve caller order (pre-ranked; never re-ranked — CLM-0029).
+ * The learning-loop discovery sections (priorities 6–8, dropped before the rest):
+ * the cheap skill one-liner INDEX, then the heavy injected skill BODIES (#228
+ * P3·1), then the forged-tool capability HINTS (#228 P3·3) at the very bottom.
+ * All preserve caller order (pre-ranked; never re-ranked — CLM-0029).
  */
-function skillDrafts(sources: BriefSources): SectionDraft[] {
+function discoveryDrafts(sources: BriefSources): SectionDraft[] {
   return [
     {
       name: 'skillsIndex',
@@ -57,6 +58,18 @@ function skillDrafts(sources: BriefSources): SectionDraft[] {
       items: (sources.skillBodies ?? []).map((s) => ({
         text: `## skill: ${s.name}\n${s.body}`,
         source: { ref: `skill:${s.name}:body` },
+      })),
+    },
+    {
+      // Forged-tool capability HINTS (#228 P3·3): awareness of an advisory+ tool
+      // and its documented CLI run target — NOT a callable tool. Lowest priority.
+      name: 'workshopIndex',
+      priority: SECTION_PRIORITY.workshopIndex,
+      items: (sources.workshopIndex ?? []).map((w) => ({
+        text: `${w.name} (${w.tier}): a forged tool — run via \`kernloop workshop run ${w.name}\`${
+          w.description === '' ? '' : ` — ${w.description}`
+        }`,
+        source: { ref: `workshop:${w.name}` },
       })),
     },
   ];
@@ -103,7 +116,7 @@ export function buildDrafts(task: TaskContract, sources: BriefSources): SectionD
         source: { ref: `probe:${p.source}` },
       })),
     },
-    ...skillDrafts(sources),
+    ...discoveryDrafts(sources),
   ];
   return drafts.filter((d) => d.items.length > 0);
 }

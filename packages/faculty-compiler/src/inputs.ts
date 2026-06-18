@@ -22,15 +22,17 @@ export const SECTION_NAMES = [
   'repoProbes',
   'skillsIndex',
   'skillBodies',
+  'workshopIndex',
 ] as const;
 
-/** One of the seven compiler section names. */
+/** One of the eight compiler section names. */
 export type SectionName = (typeof SECTION_NAMES)[number];
 
 /**
- * Drop priority per section: 1 is dropped last, 7 is dropped first. `skillBodies`
+ * Drop priority per section: 1 is dropped last, 8 is dropped first. `skillBodies`
  * sits BELOW `skillsIndex` (#228 P3·1): the heavy injected procedure bodies drop
- * FIRST under budget pressure, leaving the cheap one-liner index as a fallback.
+ * FIRST, leaving the cheap one-liner index as a fallback. `workshopIndex` (#228
+ * P3·3) is the LOWEST — a cheap forged-tool capability HINT, dropped first of all.
  */
 export const SECTION_PRIORITY: Record<SectionName, number> = {
   task: 1,
@@ -40,6 +42,7 @@ export const SECTION_PRIORITY: Record<SectionName, number> = {
   repoProbes: 5,
   skillsIndex: 6,
   skillBodies: 7,
+  workshopIndex: 8,
 };
 
 /** An overlay claims-registry entry, as gathered by the caller. */
@@ -102,6 +105,19 @@ export const SkillBodyEntrySchema = z.strictObject({
 });
 export type SkillBodyEntry = z.infer<typeof SkillBodyEntrySchema>;
 
+/**
+ * A forged WORKSHOP-tool capability HINT (#228 P3·3): an advisory-or-above tool
+ * the system built for itself, surfaced so the loop is AWARE it exists and knows
+ * its documented `kernloop workshop run <name>` target. It is a HINT, never a
+ * callable MCP tool; the caller filters to advisory+/live (CLM-0054).
+ */
+export const WorkshopIndexEntrySchema = z.strictObject({
+  name: z.string().min(1),
+  description: z.string(),
+  tier: z.enum(['advisory', 'enforce']),
+});
+export type WorkshopIndexEntry = z.infer<typeof WorkshopIndexEntrySchema>;
+
 /** The caller-gathered source groups; the `task` section renders from the TaskContract. */
 export const BriefSourcesSchema = z.strictObject({
   claims: z.array(ClaimEntrySchema).optional(),
@@ -110,6 +126,7 @@ export const BriefSourcesSchema = z.strictObject({
   repoProbes: z.array(RepoProbeSchema).optional(),
   skillsIndex: z.array(SkillIndexEntrySchema).optional(),
   skillBodies: z.array(SkillBodyEntrySchema).optional(),
+  workshopIndex: z.array(WorkshopIndexEntrySchema).optional(),
 });
 export type BriefSources = z.infer<typeof BriefSourcesSchema>;
 

@@ -38,6 +38,7 @@ function fullSources(): BriefSources {
       { name: 'triage', oneLiner: 'order the backlog' },
     ],
     skillBodies: [{ name: 'release', body: 'step 1: tag\nstep 2: publish' }],
+    workshopIndex: [{ name: 'loc-probe', description: 'count non-blank LOC', tier: 'advisory' }],
   };
 }
 
@@ -63,7 +64,7 @@ describe('priority-ordered budget drop', () => {
     });
     const fullNames = full.sections.map((s) => s.name);
     expect(fullNames).toEqual([...SECTION_NAMES]);
-    for (let keep = 6; keep >= 1; keep -= 1) {
+    for (let keep = 7; keep >= 1; keep -= 1) {
       const totalTokens = full.sections.slice(0, keep).reduce((acc, s) => acc + s.tokens, 0);
       const brief = compileBrief({
         task: makeTask(),
@@ -168,6 +169,7 @@ describe('per-section caps', () => {
       'repoProbes',
       'skillsIndex',
       'skillBodies',
+      'workshopIndex',
     ]);
   });
 

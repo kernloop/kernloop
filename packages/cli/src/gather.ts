@@ -11,6 +11,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { runSubprocess } from '@kernloop/kernel';
+import { listTools, loadLifecycle } from '@kernloop/faculty-toolsmith';
 import { compileBrief, type BriefSources } from '@kernloop/faculty-compiler';
 import type { Brief, TaskContract } from '@kernloop/contracts';
 import type { Kernloop } from './kernel.js';
@@ -187,6 +188,35 @@ export function gatherSkillBodies(
   return scored.slice(0, MAX_SKILL_BODIES).map((s) => ({ name: s.name, body: s.body }));
 }
 
+/**
+ * Forged WORKSHOP-tool capability HINTS (#228 P3·3, CLM-0141): every advisory-or-
+ * above, LIVE workshop tool (`<overlay>/workshop/<name>/`), surfaced so the loop
+ * is AWARE the system forged it and knows its `kernloop workshop run <name>`
+ * target. A born/decayed `suggest` tool is UNPROVEN and excluded; a
+ * `removal_proposed` tool is excluded — the RECORDED post-sweep lifecycle tier is
+ * authoritative (CLM-0054), so decay is respected without this read applying a
+ * clock. DETERMINISTIC: same overlay ⇒ same name-sorted hints. It is a HINT, never
+ * a 12th MCP tool — surfacing awareness, not a callable path.
+ */
+export function gatherWorkshopIndex(
+  overlayDir: string,
+): NonNullable<BriefSources['workshopIndex']> {
+  const lifecycle = loadLifecycle(overlayDir);
+  const entries: NonNullable<BriefSources['workshopIndex']> = [];
+  for (const info of listTools(overlayDir)) {
+    const life = lifecycle.tools[info.name];
+    const tier = life?.tier ?? info.manifest.tier;
+    const status = life?.status ?? 'live';
+    if ((tier !== 'advisory' && tier !== 'enforce') || status === 'removal_proposed') continue;
+    entries.push({
+      name: info.name,
+      description: info.manifest.capabilities[0]?.description ?? '',
+      tier,
+    });
+  }
+  return entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
 /** Gather every compiler source group for one task (spec §5.1 order). */
 export async function gatherSources(kern: Kernloop, task: TaskContract): Promise<BriefSources> {
   const facts = kern.memory.recallFacts(task.goal);
@@ -207,6 +237,7 @@ export async function gatherSources(kern: Kernloop, task: TaskContract): Promise
     repoProbes: await gatherRepoProbes(kern.paths.repoRoot),
     skillsIndex: gatherSkillsIndex(kern.paths.repoRoot),
     skillBodies: gatherSkillBodies(kern.paths.repoRoot, task.goal),
+    workshopIndex: gatherWorkshopIndex(kern.paths.dir),
   };
 }
 
