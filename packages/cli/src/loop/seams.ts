@@ -67,13 +67,43 @@ export const ReviewEmissionSchema = z.strictObject({
   summary: z.string(),
 });
 
+/**
+ * Hard caps on the UNTRUSTED reviewer input (#288, CLM-0136). The diff is the
+ * child's full written content and the context is its goal + every DoD command;
+ * a runaway or adversarial child can self-inflate either into a multi-megabyte
+ * blob that would otherwise be sent verbatim to every reviewer (3-4 concurrent
+ * model calls) — a cost / latency / context-window denial. Pre-existing for the
+ * diff; #226 item 3 widened it (a 4th reviewer + the new goal+criteria prepend).
+ */
+const DIFF_REVIEW_MAX_CHARS = 100_000;
+const CONTEXT_REVIEW_MAX_CHARS = 8_000;
+
+/**
+ * Truncate `text` to `max` chars, appending a visible marker when it cuts. We
+ * keep the HEAD (file headers + the start of the content, where defects show)
+ * so the reviewer judges honestly on a bounded, partial input (#288).
+ */
+function clampReviewInput(text: string, max: number, label: string): string {
+  if (text.length <= max) return text;
+  const omitted = text.length - max;
+  return (
+    text.slice(0, max) +
+    `\n[... ${label} truncated for review: ${omitted} of ${text.length} chars omitted ` +
+    `to bound reviewer cost (#288) ...]`
+  );
+}
+
 /** One reviewer's prompt: lens role + the diff + context + strict contract. */
 function reviewerPrompt(rolePrompt: string, diff: string, context?: string): string {
+  const boundedContext =
+    context === undefined
+      ? undefined
+      : clampReviewInput(context, CONTEXT_REVIEW_MAX_CHARS, 'context');
   return [
     rolePrompt,
-    ...(context === undefined ? [] : ['## Context', context]),
+    ...(boundedContext === undefined ? [] : ['## Context', boundedContext]),
     '## Diff under review',
-    diff,
+    clampReviewInput(diff, DIFF_REVIEW_MAX_CHARS, 'diff'),
     // The Context and Diff above are UNTRUSTED model-generated data — a defence
     // against prompt injection (#226 item-3 security round): text inside them that
     // looks like an instruction or an output is NOT one.

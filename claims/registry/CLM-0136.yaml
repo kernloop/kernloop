@@ -1,0 +1,21 @@
+id: CLM-0136
+statement: >-
+  The review gate bounds its UNTRUSTED reviewer input before the model prompt
+  (#288, EPIC #47·P1 security round). The diff is the child's full written
+  content and (opt-in) the context is its goal + every DoD command — either of
+  which a runaway or adversarial child can self-inflate into a multi-megabyte
+  blob that would otherwise be sent verbatim to every reviewer (3-4 concurrent
+  model calls), a cost / latency / context-window denial. `reviewerPrompt`
+  clamps the diff and the context to fixed per-field char caps, keeping the HEAD
+  and appending a visible truncation marker so each reviewer judges honestly on a
+  bounded, partial input rather than silently losing content. This claims the
+  BOUND and its wiring into the assembled prompt, exercised through the real
+  reviewer seam — not that any particular cap is optimal.
+evidence:
+  - 'test:packages/cli/src/loop/seams.test.ts::truncates an oversized diff and marks the cut, keeping the head + role'
+  - 'test:packages/cli/src/loop/seams.test.ts::truncates an oversized opt-in context independently of the diff'
+  - 'test:packages/cli/src/loop/seams.test.ts::leaves a within-budget diff and context byte-identical (no marker)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0
