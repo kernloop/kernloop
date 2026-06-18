@@ -3,6 +3,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['scripts/__tests__/**/*.test.mjs'],
+    // These scripts tests spawn real subprocesses (eslint, tsc) and scan the
+    // whole repo, so vitest's 5s default flakes when they contend for CPU during
+    // the full `pnpm test` run (#293) — give them the same 30s floor the
+    // I/O-heavy packages use. A true hang is still bounded by the CI job timeout.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: ['scripts/*.mjs', 'eslint-rules/*.mjs'],
