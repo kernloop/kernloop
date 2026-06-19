@@ -1,0 +1,25 @@
+id: CLM-0150
+statement: >-
+  A finished run's FULL audit trail can be replayed post-hoc on demand (#336 D,
+  the panel-endorsed fast-follow). `kernloop watch --once --verbose` (alias
+  `--explain`) renders a completed run's whole trail from the audit log — the
+  SIGNIFICANT milestones (routing, gate verdicts, spend, child iterations,
+  outcome) PLUS the persisted per-node `▶`/`■` lifecycle heartbeat (CLM-0149) —
+  by threading `{verbose:true}` through `watchSnapshot` → `renderEvent`, the SAME
+  renderer the live progress stream uses, so the live and replay views cannot
+  diverge. It is a READ-ONLY re-render of already-audited facts: no new events, no
+  telemetry, no kernel/contract change. The verbose snapshot is a strict SUPERSET
+  of the default (default still omits the node lifecycle). It works by the
+  caller-known taskId because the loop's lifecycle/spend events carry BOTH taskId
+  and the loop's internal runId (#343) — so a `--task-id` filter catches the whole
+  run even though the runId differs. The default (non-verbose) snapshot and
+  `kernloop watch` are unchanged.
+evidence:
+  - 'test:packages/cli/src/tools/watch.test.ts::default snapshot shows milestones but OMITS the per-node lifecycle'
+  - 'test:packages/cli/src/tools/watch.test.ts::--verbose replays the FULL trail — adds the per-node ▶/■ lifecycle (superset of default)'
+  - 'test:packages/cli/src/tools/watch.test.ts::catches runId-keyed loop events by the caller-known taskId (#343 regression)'
+  - 'code:packages/cli/src/tools/watch.ts#watchSnapshot@doc:/CLM-0150/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

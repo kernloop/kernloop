@@ -282,14 +282,15 @@ function resolveBaseInvoke(
 function documentDeliverable(
   kern: Kernloop,
   runId: string,
+  request: LoopRequest,
   status: RunResult['status'],
-  workspaceDir: string,
 ): DocArtifactResult | undefined {
   if (status !== 'completed') return undefined;
-  const artifact = writeDocArtifact(workspaceDir);
+  const artifact = writeDocArtifact(request.workspaceDir);
   appendEvent(kern.store, {
     type: 'loop.document',
     payload: {
+      taskId: request.task.id, // both ids so a task.id filter catches the run (#343)
       runId,
       written: artifact.written,
       symbolCount: artifact.symbolCount,
@@ -346,6 +347,6 @@ export async function executeCanonicalLoop(
       ? await engine.run(request.task, { runId, ...signalOpt })
       : await engine.resume(runId, signalOpt);
   const { result, aborted } = cleanHalt(raw);
-  const docArtifact = documentDeliverable(kern, runId, result.status, request.workspaceDir);
+  const docArtifact = documentDeliverable(kern, runId, request, result.status);
   return report(result, totals, mode === 'unlimited', docArtifact, aborted ? 'aborted' : undefined);
 }

@@ -129,6 +129,57 @@ describe('watchSnapshot', () => {
   });
 });
 
+describe('watchSnapshot verbose replay (#336 D, CLM-0150)', () => {
+  // A finished run as the loop ACTUALLY persists it (#343): spend/node-lifecycle
+  // carry BOTH taskId and the loop's internal runId, so a snapshot filtered by the
+  // caller-known taskId catches them even though runId differs.
+  const run = [
+    ev(1, 'kernel.router.route', { taskId: 'task-X', outcome: 'workflow.canonical' }),
+    ev(2, 'loop.node.start', { taskId: 'task-X', runId: 'run-uuid', node: 'plan' }),
+    ev(3, 'loop.spend', {
+      taskId: 'task-X',
+      runId: 'run-uuid',
+      node: 'plan',
+      nodeUsd: 0.02,
+      nodeTokens: 50,
+      cumulativeUsd: 0.02,
+    }),
+    ev(4, 'loop.node.finish', { taskId: 'task-X', runId: 'run-uuid', node: 'plan' }),
+    ev(5, 'cli.run.outcome', {
+      taskId: 'task-X',
+      status: 'success',
+      capability: 'workflow.canonical',
+    }),
+  ];
+
+  it('default snapshot shows milestones but OMITS the per-node lifecycle', () => {
+    const snap = watchSnapshot(run, 'task-X');
+    expect(snap).toContain('route → workflow.canonical');
+    expect(snap).toContain('spend: plan');
+    expect(snap).toContain('outcome: success');
+    expect(snap).not.toContain('▶ plan'); // node lifecycle suppressed at default
+    expect(snap).not.toContain('(verbose)');
+  });
+
+  it('--verbose replays the FULL trail — adds the per-node ▶/■ lifecycle (superset of default)', () => {
+    const snap = watchSnapshot(run, 'task-X', { verbose: true });
+    expect(snap).toContain('(verbose)');
+    expect(snap).toContain('▶ plan');
+    expect(snap).toContain('■ plan done');
+    expect(snap).toContain('spend: plan'); // still includes the default milestones
+    expect(snap).toContain('outcome: success');
+  });
+
+  it('catches runId-keyed loop events by the caller-known taskId (#343 regression)', () => {
+    // The fix: loop.node.* carry taskId, so a task.id filter reaches them.
+    expect(watchSnapshot(run, 'task-X', { verbose: true })).toContain('▶ plan');
+    // The PRE-fix shape (runId only, no taskId) is MISSED by a task-id filter —
+    // exactly the silent gap dogfooding caught (#343).
+    const oldShape = [ev(1, 'loop.node.start', { runId: 'run-uuid', node: 'plan' })];
+    expect(watchSnapshot(oldShape, 'task-X', { verbose: true })).not.toContain('plan');
+  });
+});
+
 describe('watchCommand', () => {
   let dir: string;
   let auditDir: string;

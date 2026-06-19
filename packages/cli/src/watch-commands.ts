@@ -32,7 +32,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** `kernloop watch [--task-id T] [--once] [--interval-ms N] [--timeout-ms N]`. */
+/** `kernloop watch [--task-id T] [--once] [--verbose|--explain] [--interval-ms N]
+ * [--timeout-ms N]`. `--once --verbose` (alias `--explain`) replays a finished
+ * run's full audit trail incl. the per-node lifecycle (#336 D). */
 export async function watchCommand(args: string[], io: CliIo): Promise<number> {
   const { values } = parseArgs({
     args,
@@ -40,6 +42,8 @@ export async function watchCommand(args: string[], io: CliIo): Promise<number> {
       dir: { type: 'string' },
       'task-id': { type: 'string' },
       once: { type: 'boolean' },
+      verbose: { type: 'boolean' },
+      explain: { type: 'boolean' }, // alias of --verbose (post-hoc "explain" replay)
       'interval-ms': { type: 'string' },
       'timeout-ms': { type: 'string' },
     },
@@ -48,9 +52,11 @@ export async function watchCommand(args: string[], io: CliIo): Promise<number> {
   const overlayDir = path.join(path.resolve(io.cwd, values.dir ?? '.'), OVERLAY_DIR_NAME);
   const auditPath = path.join(overlayDir, 'audit.jsonl');
   const id = values['task-id'];
+  // Post-hoc replay (#336 D): --once --verbose (alias --explain) adds node lifecycle.
+  const verbose = values.verbose === true || values.explain === true;
 
   if (values.once === true) {
-    io.out(watchSnapshot(readAuditEvents(auditPath), id));
+    io.out(watchSnapshot(readAuditEvents(auditPath), id, { verbose }));
     return 0;
   }
 

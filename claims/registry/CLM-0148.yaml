@@ -10,7 +10,10 @@ statement: >-
   tailer reads the audit JSONL the loop already appends, filtered to the run by
   `task.id` (`startProgressTail`), so fan-out children interleave in file order
   and nothing new is "claimed" — it is a second TRANSPORT for already-audited
-  facts. It is read-only and best-effort: the tailer never throws on a missing or
+  facts. The loop's spend / node-lifecycle / child-iteration events carry the
+  taskId (alongside the loop's internal runId) so the `task.id` filter actually
+  catches them — without that both ids match the filter only by coincidence in a
+  fixture; in a real run the runId differs (#343, caught by dogfooding). It is read-only and best-effort: the tailer never throws on a missing or
   partial file, and a notification failure (sync throw OR async rejection) is
   swallowed so progress can never break the run it narrates. With NO progressToken
   the sink is absent and zero notifications are emitted. HONESTY BOUNDARY: this
