@@ -109,11 +109,25 @@ export function implementExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
+/**
+ * Outcome-level identity fitness (#229/#5): attribute one child's DELIVERABLE
+ * pass/fail to the model class that produced it (the `served` identity on the
+ * implement Outcome — the final, i.e. passing, coder attempt). Feeds the
+ * outcome-level series the adapter selector reads. No `served` ⇒ unattributable,
+ * skipped (an errored child or a pre-#229 resume).
+ */
+function recordChildOutcomeFitness(b: LoopBindings, result: ChildResult, passed: boolean): void {
+  const parsed = OutcomeSchema.safeParse(result.output);
+  if (!parsed.success || parsed.data.served === undefined) return;
+  b.kern.observer.ingestOutcomeFitness(parsed.data.served, passed, parsed.data.cost);
+}
+
 /** The integrate node: success only if every child implemented AND passed quality. */
-export function integrateExecutor(): NodeExecutor {
+export function integrateExecutor(b: LoopBindings): NodeExecutor {
   return (input, ctx) => {
     const results = input as readonly ChildResult[];
     const signals = results.map((result) => childSignal(result));
+    results.forEach((result, i) => recordChildOutcomeFitness(b, result, signals[i]?.passed === true));
     // Status is decided by the BLOCKING child signals ONLY. Advisory review rejects
     // are then appended as non-blocking `needs-review` signals (#226 item 5) — they
     // flag residual doubt at the terminal WITHOUT flipping an otherwise-`success` run.

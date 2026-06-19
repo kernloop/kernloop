@@ -375,7 +375,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),
       }),
     review: reviewExecutor(b),
-    integrate: integrateExecutor(),
+    integrate: integrateExecutor(b),
     retrospect: retrospectExecutor(b),
   };
   return Object.fromEntries(
