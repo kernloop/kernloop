@@ -57,6 +57,27 @@ export const ReviewGateSchema = z.strictObject({
    * model call per goal-directed run); promote to default-on on live-eval precision
    * evidence (#287). Off ⇒ byte-identical to before (no goal threaded, defect lenses only). */
   groundedness: z.boolean().default(false),
+  /**
+   * Promote the review gate to `enforce` IN THIS OVERLAY (#328 Inc2): the value is
+   * the ratification ref — a `consensus_vote:<id>` or human sign-off — recorded as
+   * `ratifiedBy` on the audited `kernel.ladder.tier_change`. Presence flips the gate
+   * to enforce so a rejecting review DRIVES child re-iteration ([CLM-0064] honesty
+   * guard); ABSENT ⇒ the gate stays advisory (a fresh clone never promotes — never a
+   * default). The ratifier attests the gate met its promotion criterion (precision
+   * ≥ 0.8 over n=50, the review manifest's PROMOTION_CRITERION) before setting this;
+   * AUTO-verifying that bar from the fitness ledger at assembly is deferred (#350).
+   * The ref MUST name its provenance source (`<source>:<detail>`, e.g.
+   * `consensus_vote:2026-06-19` or `human:williamz`) so an audit reader can tell
+   * an attested promotion from a future #350-verified one — they share the
+   * `ratifiedBy` field (#351 review finding).
+   */
+  ratifiedEnforce: z
+    .string()
+    .regex(
+      /^[a-z][a-z_]*:.+$/,
+      'ratifiedEnforce must be a provenance-tagged ref like "consensus_vote:<id>" or "human:<name>"',
+    )
+    .optional(),
 });
 
 /** Gate thresholds, keyed by gate. */

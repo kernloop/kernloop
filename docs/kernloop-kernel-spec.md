@@ -231,8 +231,10 @@ others return via claims), `quality` (typecheck/lint/test/coverage over a
 workspace — mechanical, model-free; **security is covered out-of-band** rather
 than as a per-child mechanical check, see note), `review` (adversarial diff
 review with per-voter precision recorded into the fitness ledger — **advisory
-tier until the v1 Epic-E promotion criterion is met**; the n=10 eval set and
-labeling rubric port from v1 as the seed).
+tier by default; promotable to `enforce` per-overlay via a ratified ladder
+transition (`gates.review.ratifiedEnforce`, #328), at which point a rejecting
+review drives child re-iteration**; the n=10 eval set and labeling rubric port
+from v1 as the seed).
 
 > **As-realized note (ratified 2026-06-11).** The quality gate ships
 > typecheck/lint/test (coverage rides the test exit code); it does **not** run

@@ -281,11 +281,17 @@ v1 (`nexus-substrate/nexus-agents`) has exactly two roles here:
    changes, tier promotions, and phase-scope decisions (the same set the
    autonomous-mode loop routes to it) — until kernloop has its own vote gate at
    `enforce` tier. The panel INFORMS the human; the human merge ratifies — it
-   never decides (spec §11). Kernloop's `gate vote`/`gate review` exist but are
-   `advisory` tier (non-blocking signal) — use them as first-pass judgment,
-   never as ratification, and never as licence to self-merge a protected path.
-   Promoting a native vote/review faculty to `enforce` is the dogfooding north
-   star (#328, spec §11).
+   never decides (spec §11). Kernloop's `gate vote`/`gate review` are `advisory`
+   tier BY DEFAULT (non-blocking signal). The review gate can now be promoted to
+   `enforce` PER-OVERLAY via a ratified ladder transition
+   (`gates.review.ratifiedEnforce`, #328 Inc1+Inc2) — a promoted gate drives
+   child re-iteration on a rejecting review. Even promoted, an `enforce` native
+   gate gates the LOOP but is NEVER the sole ratifier of a protected-path /
+   spec / tier decision: the external adversarial check (`consensus_vote`) and
+   the human merge stay in the loop (#348). Use `gate vote`/`gate review` as
+   first-pass judgment, never as licence to self-merge a protected path.
+   Closing the dogfooding gap fully (a native ratifier) remains the north star
+   (#328, spec §11).
 
 It is never an execution engine for this repo. From P3 exit onward, kernloop
 work runs through kernloop itself (dogfooding milestone, spec §11).
