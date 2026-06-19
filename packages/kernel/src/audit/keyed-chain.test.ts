@@ -178,6 +178,28 @@ describe('keyed audit chain (#280 [CLM-0146])', () => {
     appendN(keyedStore(), 3);
     expect(readLines().every((l) => (JSON.parse(l) as AuditEnvelope).keyEpoch === 1)).toBe(true);
   });
+
+  it('erasing a keyed chain below its cutover fails with truncated_below_floor', () => {
+    const store = keyedStore();
+    appendN(store, 4); // firstKeyedSeq = 1
+    writeFileSync(file, '', 'utf8'); // attacker erases the whole keyed JSONL
+    const result = verifyChain(store); // keyring still asserts "keyed from seq 1"
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('truncated_below_floor');
+      expect(result.seq).toBe(0);
+    }
+  });
+
+  it('a keyring that cannot be loaded fails closed (keyring_unavailable), never throws', () => {
+    const store = keyedStore();
+    appendN(store, 2);
+    chmodSync(keyringPath, 0o644); // perms widened — loadKeyring would throw
+    // verifyChain must DEGRADE to a typed failure, not crash a reader (doctor).
+    const result = verifyChain(store);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('keyring_unavailable');
+  });
 });
 
 describe('audit keyring (#280 [CLM-0146])', () => {

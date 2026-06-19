@@ -28,6 +28,13 @@
  *  - `missing_key`           a keyed line's epoch key is absent from the
  *                            keyring — a typed failure, NEVER a silent
  *                            fallback to unkeyed verification
+ *  - `truncated_below_floor` the chain is SHORTER than the keyring's per-chain
+ *                            cutover (firstKeyedSeq) — the keyed prefix was
+ *                            erased (#280; suffix truncation ABOVE the floor
+ *                            still needs `expectedLength`, see caveat / #331)
+ *  - `keyring_unavailable`   the keyring could not be loaded (insecure perms,
+ *                            malformed, partial) — a typed failure so a reader
+ *                            surfaces verified:false instead of throwing
  *
  * KEYED CHAINS (#280 [CLM-0146]): when the store has a `keyringPath`, the
  * keyring (which lives OFF the overlay, so an overlay-JSONL attacker cannot
@@ -68,7 +75,9 @@ export type VerifyFailureReason =
   | 'length_mismatch'
   | 'epoch_regression'
   | 'downgrade_detected'
-  | 'missing_key';
+  | 'missing_key'
+  | 'truncated_below_floor'
+  | 'keyring_unavailable';
 
 /**
  * Discriminated verification result. On failure, `seq` is the 1-based chain
@@ -220,7 +229,15 @@ export function verifyChain(
   store: AuditStore,
   options?: { expectedLength?: number },
 ): VerifyResult {
-  const keyring = store.keyringPath === undefined ? null : loadKeyring(store.keyringPath);
+  // A keyring that cannot be loaded (insecure perms, malformed, partial) is a
+  // typed FAILURE, never a throw — a reader (doctor, metrics, observe) must
+  // surface `verified:false`, not crash on the exact condition it diagnoses.
+  let keyring: AuditKeyring | null;
+  try {
+    keyring = store.keyringPath === undefined ? null : loadKeyring(store.keyringPath);
+  } catch (err) {
+    return fail('keyring_unavailable', 0, err instanceof Error ? err.message : String(err));
+  }
   const lines = readChainLines(store.filePath);
   let prevHash = GENESIS_PREV_HASH;
   let prevEpoch = 0;
@@ -229,6 +246,23 @@ export function verifyChain(
     if ('ok' in result) return result;
     prevHash = result.hash;
     prevEpoch = result.keyEpoch ?? 0;
+  }
+  // No-downgrade-by-DELETION floor: the off-overlay keyring asserts this chain
+  // is keyed from `firstKeyedSeq`, so a chain SHORTER than that floor has had
+  // its keyed prefix erased — a forgery (erase-to-empty/below-floor) the
+  // per-line floor cannot see because the lines are simply gone. (Suffix
+  // truncation ABOVE the floor still needs `expectedLength` — the documented
+  // caveat — until the keyring records a high-water seq, #331.)
+  if (keyring !== null) {
+    const cutover = chainBoundary(keyring, store.filePath);
+    if (cutover !== undefined && lines.length < cutover) {
+      return fail(
+        'truncated_below_floor',
+        lines.length,
+        `chain has ${lines.length} envelope(s) but the keyring keys it from seq ${cutover} ` +
+          `(keyed prefix erased)`,
+      );
+    }
   }
   const expected = options?.expectedLength;
   if (expected !== undefined && lines.length !== expected) {
