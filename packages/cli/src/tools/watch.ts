@@ -160,13 +160,20 @@ export function renderEvent(event: WatchEvent, opts?: { verbose?: boolean }): st
   return `${time} #${String(event.seq)}  ${describe(event)}`;
 }
 
-/** A full snapshot of the matching significant events (the `--once` view) [CLM-0111]:
- * a header plus one rendered line per event, ending in a trailing newline. */
-export function watchSnapshot(events: readonly WatchEvent[], id: string | undefined): string {
+/** A full snapshot of the matching significant events (the `--once` view)
+ * [CLM-0111]: a header plus one rendered line per event, ending in a trailing
+ * newline. `opts.verbose` (#336 D, CLM-0150) ALSO renders the persisted per-node
+ * lifecycle heartbeat — the post-hoc replay of a finished run's full trail. */
+export function watchSnapshot(
+  events: readonly WatchEvent[],
+  id: string | undefined,
+  opts?: { verbose?: boolean },
+): string {
   const lines = events
     .filter((e) => matchesFilter(e, id))
-    .map((e) => renderEvent(e))
+    .map((e) => renderEvent(e, opts))
     .filter((l): l is string => l !== undefined);
-  const header = `kernloop watch — ${String(lines.length)} event(s)${id === undefined ? '' : ` for ${id}`}`;
+  const suffix = opts?.verbose === true ? ' (verbose)' : '';
+  const header = `kernloop watch — ${String(lines.length)} event(s)${id === undefined ? '' : ` for ${id}`}${suffix}`;
   return [header, ...lines].join('\n') + '\n';
 }

@@ -134,14 +134,16 @@ describe('withSpendAudit node lifecycle (#336 P3, CLM-0149)', () => {
     kern.close();
   });
 
-  it('carries ONLY already-known facts (runId, node, childId) — no fabricated ordinal', async () => {
+  it('carries ONLY already-known facts (taskId, runId, node, childId) — no fabricated ordinal', async () => {
     const { kern, b } = boundWithTotals('node-child');
     await withSpendAudit(b, () => Promise.resolve('ok'))(
       {},
       ctxAt('review', { ...task, id: 'task.2' }),
     );
     const start = nodeEvents(kern).find((e) => e.type === 'loop.node.start');
+    // BOTH ids: taskId so a task.id filter catches the run, runId for the loop (#343).
     expect(start?.payload).toEqual({
+      taskId: expect.any(String),
       runId: expect.any(String),
       node: 'review',
       childId: 'task.2',

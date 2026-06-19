@@ -140,12 +140,16 @@ export function integrateExecutor(): NodeExecutor {
  * then THROWS still records its boundary + spend-to-failure before the error
  * propagates. A zero-spend node appends no `loop.spend` (the #230 condition: the
  * financial chain carries no heartbeat noise — node lifecycle is that heartbeat
- * now). The events carry only already-known facts (runId, node, childId) — no
- * fabricated ordinal. Observe-tier: it records, it never acts.
+ * now). The events carry only already-known facts (taskId, runId, node, childId)
+ * — no fabricated ordinal. Both ids are present so a consumer filtering by the
+ * caller-known taskId catches the whole run even though the loop's internal
+ * runId differs (#343): the progress stream/replay filters by task.id.
+ * Observe-tier: it records, it never acts.
  */
 export function withSpendAudit(b: LoopBindings, exec: NodeExecutor): NodeExecutor {
   return async (input, ctx) => {
     const nodeRef = {
+      taskId: ctx.taskId,
       runId: ctx.runId,
       node: ctx.node,
       ...(ctx.child === undefined ? {} : { childId: ctx.child.id }),

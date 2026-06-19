@@ -69,11 +69,16 @@ function budgetGuardFor(
  * recorded and the Observer can later read iterations-to-pass as a fitness
  * signal. Workflows imports no kernel — this seam does the append.
  */
-function childIterateAudit(kern: Kernloop, runId: string): (e: ChildIterateEvent) => void {
+function childIterateAudit(
+  kern: Kernloop,
+  runId: string,
+  taskId: string,
+): (e: ChildIterateEvent) => void {
   return (e) =>
     appendEvent(kern.store, {
       type: 'loop.child.iterate',
       payload: {
+        taskId, // both ids so a task.id filter catches the whole run (#343)
         runId,
         childId: e.childId,
         iteration: e.iteration,
@@ -128,7 +133,7 @@ export function buildLoopEngine(
     // Always-on metered readout for per-child attribution (#56) — the same
     // `totals` the budget guard reads, sliced per child by the engine.
     meteredSpend: () => ({ tokens: seams.totals.tokens, usd: seams.totals.usd }),
-    onChildIterate: childIterateAudit(kern, seams.runId),
+    onChildIterate: childIterateAudit(kern, seams.runId, request.task.id),
   });
 }
 
