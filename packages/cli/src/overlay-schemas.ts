@@ -66,8 +66,18 @@ export const ReviewGateSchema = z.strictObject({
    * default). The ratifier attests the gate met its promotion criterion (precision
    * ≥ 0.8 over n=50, the review manifest's PROMOTION_CRITERION) before setting this;
    * AUTO-verifying that bar from the fitness ledger at assembly is deferred (#350).
+   * The ref MUST name its provenance source (`<source>:<detail>`, e.g.
+   * `consensus_vote:2026-06-19` or `human:williamz`) so an audit reader can tell
+   * an attested promotion from a future #350-verified one — they share the
+   * `ratifiedBy` field (#351 review finding).
    */
-  ratifiedEnforce: z.string().min(1).optional(),
+  ratifiedEnforce: z
+    .string()
+    .regex(
+      /^[a-z][a-z_]*:.+$/,
+      'ratifiedEnforce must be a provenance-tagged ref like "consensus_vote:<id>" or "human:<name>"',
+    )
+    .optional(),
 });
 
 /** Gate thresholds, keyed by gate. */

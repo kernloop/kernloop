@@ -192,6 +192,13 @@ describe('loadOverlay defaults and precedence', () => {
         .ratifiedEnforce,
     ).toBe('consensus_vote:42');
     expect(() => loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: ""\n')).toThrow();
+    // The ref must name its provenance source so an audit reader can tell an
+    // attested promotion from a #350-verified one (#351 review finding).
+    expect(() => loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: "x"\n')).toThrow();
+    expect(
+      loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: "human:williamz"\n').gates.review
+        .ratifiedEnforce,
+    ).toBe('human:williamz');
   });
 
   it('defaults adapterEnvAllow to an empty list and accepts named extras [CLM-0122]', () => {
