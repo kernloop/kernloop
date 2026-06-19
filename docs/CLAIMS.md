@@ -2517,3 +2517,15 @@ A finished run's FULL audit trail can be replayed post-hoc on demand (#336 D, th
 - [`packages/cli/src/tools/watch.test.ts`](../packages/cli/src/tools/watch.test.ts)
 - [`packages/cli/src/tools/watch.ts#watchSnapshot`](../packages/cli/src/tools/watch.ts)
 - CI `test`
+
+## CLM-0151
+
+**Status:** verified — **source:** [`CLM-0151.yaml`](../claims/registry/CLM-0151.yaml)
+
+A vote/review gate Verdict's audit event records the per-voter ballot (each voter's vote), not just the panel names and aggregate result.
+
+**Enforced by:**
+
+- [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
+- [`packages/cli/src/tools/watch.test.ts`](../packages/cli/src/tools/watch.test.ts)
+- CI `test`
