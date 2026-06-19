@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "kernloop": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["packages/cli/dist/cli.js", "serve"]
+    }
+  }
+}
