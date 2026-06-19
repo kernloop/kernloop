@@ -100,4 +100,42 @@ describe('startProgressTail (#336 P1)', () => {
     expect(() => tail.stop()).not.toThrow();
     expect(msgs).toEqual([]);
   });
+
+  it('forwards the node-lifecycle heartbeat ONLY when verbose (#336 P3)', () => {
+    writeEvents([
+      {
+        seq: 1,
+        ts: '2026-06-19T12:00:00.000Z',
+        type: 'kernel.router.route',
+        payload: { taskId: 'r1', outcome: 'coder' },
+      },
+      {
+        seq: 2,
+        ts: '2026-06-19T12:00:01.000Z',
+        type: 'loop.node.start',
+        payload: { runId: 'r1', node: 'plan' },
+      },
+      {
+        seq: 3,
+        ts: '2026-06-19T12:00:02.000Z',
+        type: 'loop.node.finish',
+        payload: { runId: 'r1', node: 'plan' },
+      },
+    ]);
+    // Default (milestones): the route milestone shows; node lifecycle is SUPPRESSED.
+    const def: string[] = [];
+    startProgressTail({ auditPath: file, runId: 'r1', onMessage: (m) => def.push(m) }).stop();
+    expect(def.some((m) => m.includes('route → coder'))).toBe(true);
+    expect(def.some((m) => m.includes('plan'))).toBe(false);
+    // Verbose: the node lifecycle heartbeat is included.
+    const verb: string[] = [];
+    startProgressTail({
+      auditPath: file,
+      runId: 'r1',
+      onMessage: (m) => verb.push(m),
+      verbose: true,
+    }).stop();
+    expect(verb.some((m) => m.includes('▶ plan'))).toBe(true);
+    expect(verb.some((m) => m.includes('■ plan done'))).toBe(true);
+  });
 });

@@ -129,19 +129,28 @@ export function integrateExecutor(): NodeExecutor {
 }
 
 /**
- * Wrap a node executor so it appends ONE `loop.spend` audit event whenever the
- * node ACTUALLY spent (delta > 0) — the in-flight cost/progress signal `watch`
- * renders (#230·P5, CLM-0137). The event carries the per-node DELTA and the
- * CUMULATIVE run total; it is appended in a `finally`, so a node that spends
- * then THROWS still records spend-to-failure before the error propagates. A
- * zero-spend node appends NOTHING — the #230 vote's load-bearing condition: the
- * financial audit chain is not polluted with heartbeat noise (watch already
- * renders per-node progress from the other loop.* events). Observe-tier: it
- * records, it never acts. Spend is read as a snapshot delta (after − before),
- * correct for the loop's sequential node execution.
+ * Wrap a node executor so it appends node-lifecycle + spend audit events. EVERY
+ * node brackets its execution with `loop.node.start`/`loop.node.finish`
+ * (#336 P3, CLM-0149) — a uniform progress heartbeat (now planning / now
+ * reviewing) the verbose progress stream renders; these are kept OUT of the
+ * default `watch`/progress SIGNIFICANT set so an un-opted transcript is not
+ * spammed. WHENEVER the node ACTUALLY spent (delta > 0) it ALSO appends one
+ * `loop.spend` (#230·P5, CLM-0137): the per-node DELTA + the CUMULATIVE run
+ * total. `finish` and `spend` are appended in a `finally`, so a node that runs
+ * then THROWS still records its boundary + spend-to-failure before the error
+ * propagates. A zero-spend node appends no `loop.spend` (the #230 condition: the
+ * financial chain carries no heartbeat noise — node lifecycle is that heartbeat
+ * now). The events carry only already-known facts (runId, node, childId) — no
+ * fabricated ordinal. Observe-tier: it records, it never acts.
  */
 export function withSpendAudit(b: LoopBindings, exec: NodeExecutor): NodeExecutor {
   return async (input, ctx) => {
+    const nodeRef = {
+      runId: ctx.runId,
+      node: ctx.node,
+      ...(ctx.child === undefined ? {} : { childId: ctx.child.id }),
+    };
+    appendEvent(b.kern.store, { type: 'loop.node.start', payload: nodeRef });
     const beforeTokens = b.totals.tokens;
     const beforeUsd = b.totals.usd;
     try {
@@ -153,9 +162,7 @@ export function withSpendAudit(b: LoopBindings, exec: NodeExecutor): NodeExecuto
         appendEvent(b.kern.store, {
           type: 'loop.spend',
           payload: {
-            runId: ctx.runId,
-            node: ctx.node,
-            ...(ctx.child === undefined ? {} : { childId: ctx.child.id }),
+            ...nodeRef,
             nodeTokens,
             nodeUsd,
             cumulativeTokens: b.totals.tokens,
@@ -163,6 +170,7 @@ export function withSpendAudit(b: LoopBindings, exec: NodeExecutor): NodeExecuto
           },
         });
       }
+      appendEvent(b.kern.store, { type: 'loop.node.finish', payload: nodeRef });
     }
   };
 }

@@ -2487,3 +2487,19 @@ A `run`'s live milestones are EMITTED to the MCP host as progress notifications 
 - [`packages/cli/src/mcp.ts#makeProgressSink`](../packages/cli/src/mcp.ts)
 - [`packages/cli/src/loop/progress-tail.ts#startProgressTail`](../packages/cli/src/loop/progress-tail.ts)
 - CI `test`
+
+## CLM-0149
+
+**Status:** verified — **source:** [`CLM-0149.yaml`](../claims/registry/CLM-0149.yaml)
+
+Every canonical-loop node emits a lifecycle heartbeat, surfaced on the live progress stream ONLY at opt-in verbosity (#336 P3). The node wrapper (`withSpendAudit`, applied to every executor) brackets each node with a `loop.node.start` (before execution) and `loop.node.finish` (in a `finally`, so a node that THROWS still records its boundary before the error propagates) audit event — alongside the existing `loop.spend` (CLM-0137). The events carry ONLY already-known facts (runId, node, childId when in a fan-out child) — NEVER a fabricated child index/total ordinal (that lives in the protected engine cursor, not the audit record), so this is honest re-transport, not manufactured telemetry. These two types are kept OUT of the default `watch`/progress SIGNIFICANT set, so the default progress stream and `kernloop watch` are UNCHANGED — the per-node heartbeat ("▶ plan", "■ review done") is forwarded ONLY when the caller opts into `verbose`: the `run` tool's `progress: 'milestones' | 'verbose'` input (default `milestones`) threads to the progress tailer, and `renderEvent(event, {verbose})` is the single gate. So a long run can show now-planning / now-reviewing depth on demand without spamming an un-opted transcript (the consensus-vote's load-bearing anti-spam condition). The verbose set is the node lifecycle only — never adapter payloads, prompts, or finding text. Observe-tier: it records, it never acts.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/loop/spend-audit.test.ts`](../packages/cli/src/loop/spend-audit.test.ts)
+- [`packages/cli/src/loop/progress-tail.test.ts`](../packages/cli/src/loop/progress-tail.test.ts)
+- [`packages/cli/src/loop/executors-nodes.ts#withSpendAudit`](../packages/cli/src/loop/executors-nodes.ts)
+- [`packages/cli/src/tools/watch.ts#renderEvent`](../packages/cli/src/tools/watch.ts)
+- CI `test`
