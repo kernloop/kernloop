@@ -113,9 +113,18 @@ export function boundHelpers(scratch: string): {
   const kernloopFor = (name: string, overlayYaml?: string): Kernloop => {
     const repo = path.join(scratch, name);
     mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
-    if (overlayYaml !== undefined) {
-      writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), overlayYaml);
-    }
+    // Disable the default-on (#227) Docker gate sandbox so real gate checks run
+    // deterministically on the host. Appended only when the custom overlay has no
+    // `gates:` block of its own — an overlay that sets `gates:` must disable sandbox
+    // itself (else we'd emit a duplicate `gates:` key).
+    const sandboxOff = 'gates:\n  quality:\n    sandbox:\n      enabled: false\n';
+    const yaml =
+      overlayYaml === undefined
+        ? `id: ${name}\n${sandboxOff}`
+        : overlayYaml.includes('gates:')
+          ? overlayYaml
+          : `${overlayYaml}${sandboxOff}`;
+    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), yaml);
     return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
   };
   const bindingsFor = (

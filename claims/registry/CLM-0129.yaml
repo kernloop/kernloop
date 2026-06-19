@@ -1,7 +1,11 @@
 id: CLM-0129
 statement: >-
-  Under an explicit gates.quality.sandbox.enabled opt-in (default off), the
-  quality gate runs each subprocess check inside the kernel Docker sandbox: the
+  The Docker gate sandbox is DEFAULT-ON (#227: gates.quality.sandbox defaults
+  enabled:true, enforce:false) — generated code is sandboxed when Docker is
+  available and falls back to the env-scoped host spawn when it is not; set
+  enabled:false for the legacy always-host behavior or enforce:true to fail
+  closed. When enabled, the quality gate runs each subprocess check inside the
+  kernel Docker sandbox: the
   workspace is copied into an ephemeral scratch — excluding .git and
   credential-bearing files and never dereferencing escaping symlinks — together
   with its node_modules, and the check runs under a DIGEST-PINNED,
@@ -33,6 +37,7 @@ evidence:
   - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::cannot read host FS outside the copied workspace'
   - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::caps a fork-bomb without taking down the host (pids-limit)'
   - 'test:packages/faculty-gates/src/sandbox/run-check.docker.test.ts::runs a legitimate check and loads a glibc native dep (better-sqlite3)'
+  - 'test:packages/cli/src/overlay.test.ts::derives full defaults from the repo directory name when overlay.yaml is absent'
   - 'code:packages/faculty-gates/src/run.ts#runQualityGate@doc:/CLM-0129/'
   - 'ci:test'
 status: verified

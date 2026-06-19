@@ -54,9 +54,20 @@ export function fixtureRepo(scratch: string, name: string, overlayYaml?: string)
     JSON.stringify({ compilerOptions: { strict: true, noEmit: true }, include: ['src'] }, null, 2),
   );
   writeFileSync(path.join(repo, 'src', 'index.ts'), 'export const fixture = true;\n');
-  if (overlayYaml !== undefined) {
+  // ALWAYS disable the (default-on, #227) Docker gate sandbox so fixtures run tsc
+  // deterministically on the HOST (the Docker --network none path is covered by the
+  // #236 gate-tier tests). Appended only when the custom overlay has no `gates:` of
+  // its own (else it must disable sandbox itself — avoids a duplicate `gates:` key).
+  {
+    const sandboxOff = 'gates:\n  quality:\n    sandbox:\n      enabled: false\n';
+    const yaml =
+      overlayYaml === undefined
+        ? `id: ${name}\n${sandboxOff}`
+        : overlayYaml.includes('gates:')
+          ? overlayYaml
+          : `${overlayYaml}${sandboxOff}`;
     mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
-    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), overlayYaml);
+    writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), yaml);
   }
   execFileSync('git', ['init', '-q'], { cwd: repo });
   execFileSync('git', ['add', '-A'], { cwd: repo });

@@ -113,7 +113,8 @@ interface EvalResult {
 }
 
 /** The overlay that OPTS IN to the goal-fidelity (groundedness) review — default off (#226 item 3). */
-const GROUNDEDNESS_ON = 'id: eval\ngates:\n  review:\n    groundedness: true\n';
+const GROUNDEDNESS_ON =
+  'id: eval\ngates:\n  review:\n    groundedness: true\n  quality:\n    sandbox:\n      enabled: false\n';
 
 /** Drive the real loop hermetically for one fixture and read its Outcome. */
 async function runFixture(scratch: string, fx: EvalFixture): Promise<EvalResult> {

@@ -2,7 +2,7 @@
  * Tests for `kernloop metrics` (#125): Prometheus exposition text DERIVED from
  * the real audit chain and Observer ledger of a fresh overlay — never fabricated.
  */
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -17,7 +17,15 @@ const dirs: string[] = [];
 function freshKernloop(): Kernloop {
   const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-metrics-'));
   dirs.push(repo);
-  return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
+  const overlayDir = path.join(repo, '.kernloop');
+  // Disable the default-on (#227) Docker gate sandbox so the real subprocess check
+  // runs deterministically on the host (Docker path covered by #236 gate-tier tests).
+  mkdirSync(overlayDir, { recursive: true });
+  writeFileSync(
+    path.join(overlayDir, 'overlay.yaml'),
+    'id: t\ngates:\n  quality:\n    sandbox:\n      enabled: false\n',
+  );
+  return createKernloop({ overlayDir, rng: () => 0.99 });
 }
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });

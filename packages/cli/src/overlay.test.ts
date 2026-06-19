@@ -93,8 +93,9 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
     expect(overlay.gates).toEqual({
       vote: { strategy: 'simple_majority', panel: 3 },
-      // sandbox/diffCoverage/groundedness are all opt-in, default off [CLM-0129/0134/0135]
-      quality: { envAllow: [], sandbox: { enabled: false, enforce: true }, diffCoverage: false },
+      // sandbox is default-ON, non-enforcing (#227): generated code is sandboxed when
+      // Docker is available, else falls back to host spawn. diffCoverage/groundedness opt-in.
+      quality: { envAllow: [], sandbox: { enabled: true, enforce: false }, diffCoverage: false },
       review: { groundedness: false },
     });
     // both router priors are explicit opt-in [CLM-0126, CLM-0128]

@@ -202,7 +202,7 @@ describe('quality executor', () => {
   it('threads the overlay gates.quality.timeoutMsPerCheck knob into the real gate', async () => {
     const kern = kernloopFor(
       'quality-timeout',
-      'id: quality-timeout\ngates:\n  quality:\n    timeoutMsPerCheck: 60000\n',
+      'id: quality-timeout\ngates:\n  quality:\n    timeoutMsPerCheck: 60000\n    sandbox:\n      enabled: false\n',
     );
     const executors = buildLoopExecutors({ ...bindingsFor(kern), checks: [noop] });
     const verdict = (await executors['quality']?.({}, ctxFor(3))) as Verdict;
