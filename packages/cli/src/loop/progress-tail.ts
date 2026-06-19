@@ -31,6 +31,9 @@ export function startProgressTail(opts: {
   auditPath: string;
   runId: string;
   onMessage: (message: string) => void;
+  /** `true` ⇒ also forward the per-node lifecycle heartbeat (#336 P3); default
+   * (false) forwards only the milestone set, so a transcript is not spammed. */
+  verbose?: boolean;
   intervalMs?: number;
 }): ProgressTail {
   let lastSeq = 0;
@@ -39,7 +42,7 @@ export function startProgressTail(opts: {
       if (event.seq <= lastSeq) continue;
       lastSeq = event.seq;
       if (!matchesFilter(event, opts.runId)) continue;
-      const line = renderEvent(event); // undefined for non-significant events
+      const line = renderEvent(event, { verbose: opts.verbose === true }); // undefined when not shown
       if (line !== undefined) opts.onMessage(line);
     }
   };
@@ -64,8 +67,11 @@ export function tailIf(
   onMessage: ((message: string) => void) | undefined,
   auditPath: string,
   runId: string,
+  verbose = false,
 ): ProgressTail | undefined {
-  return onMessage === undefined ? undefined : startProgressTail({ auditPath, runId, onMessage });
+  return onMessage === undefined
+    ? undefined
+    : startProgressTail({ auditPath, runId, onMessage, verbose });
 }
 
 /**

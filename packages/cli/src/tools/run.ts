@@ -76,6 +76,14 @@ export const RunInputSchema = z.strictObject({
    * one-shot CLI still settles the job before the process exits.
    */
   async: z.boolean().default(false),
+  /**
+   * Progress-stream verbosity (#336 P3): `milestones` (default) streams only
+   * turning points — routing, gate verdicts, spend, iterations, outcome;
+   * `verbose` ALSO streams the per-node lifecycle heartbeat (now planning / now
+   * reviewing). Only affects the MCP progress notifications (a progressToken
+   * must be present); never includes adapter payloads, prompts, or finding text.
+   */
+  progress: z.enum(['milestones', 'verbose']).default('milestones'),
 });
 export type RunInput = z.input<typeof RunInputSchema>;
 
@@ -336,9 +344,9 @@ export async function runTool(
       decision: reportDecision(decision),
     };
   }
-  // Tail milestones to the progress sink (#336); return `result` DIRECTLY (no
-  // extra await) so an async run resolves to `running` before it settles.
-  const tail = tailIf(options.onProgress, kern.store.filePath, task.id);
+  // Tail milestones to the progress sink (#336); `result` returns DIRECTLY below.
+  const verbose = parsed.progress === 'verbose';
+  const tail = tailIf(options.onProgress, kern.store.filePath, task.id, verbose);
   const selected = `${decision.selected.name}@${decision.selected.version}`;
   const result = dispatchSelected(kern, task, parsed, selected, options);
   stopTailOnSettle(result, tail);

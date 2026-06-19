@@ -105,3 +105,47 @@ describe('withSpendAudit (#230, CLM-0137)', () => {
     kern.close();
   });
 });
+
+/** Read this run's node-lifecycle events in file order. */
+function nodeEvents(
+  kern: ReturnType<typeof kernloopFor>,
+): Array<{ type: string; payload: Record<string, unknown> }> {
+  return readEnvelopes(kern.paths.audit)
+    .filter((e) => e.type === 'loop.node.start' || e.type === 'loop.node.finish')
+    .map((e) => ({ type: e.type, payload: e.payload as Record<string, unknown> }));
+}
+
+describe('withSpendAudit node lifecycle (#336 P3, CLM-0149)', () => {
+  it('brackets EVERY node with loop.node.start + loop.node.finish (even a zero-spend node)', async () => {
+    const { kern, b } = boundWithTotals('node-zero');
+    await withSpendAudit(b, () => Promise.resolve('noop'))({}, ctxAt('frame'));
+    expect(nodeEvents(kern).map((e) => e.type)).toEqual(['loop.node.start', 'loop.node.finish']);
+    expect(spendEvents(kern)).toHaveLength(0); // a zero-spend node still emits no loop.spend
+    kern.close();
+  });
+
+  it('emits loop.node.finish even when the node THROWS (the finally), then rethrows', async () => {
+    const { kern, b } = boundWithTotals('node-throw');
+    const exec: NodeExecutor = () => {
+      throw new Error('boom');
+    };
+    await expect(withSpendAudit(b, exec)({}, ctxAt('implement'))).rejects.toThrow('boom');
+    expect(nodeEvents(kern).map((e) => e.type)).toEqual(['loop.node.start', 'loop.node.finish']);
+    kern.close();
+  });
+
+  it('carries ONLY already-known facts (runId, node, childId) — no fabricated ordinal', async () => {
+    const { kern, b } = boundWithTotals('node-child');
+    await withSpendAudit(b, () => Promise.resolve('ok'))(
+      {},
+      ctxAt('review', { ...task, id: 'task.2' }),
+    );
+    const start = nodeEvents(kern).find((e) => e.type === 'loop.node.start');
+    expect(start?.payload).toEqual({
+      runId: expect.any(String),
+      node: 'review',
+      childId: 'task.2',
+    });
+    kern.close();
+  });
+});

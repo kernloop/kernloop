@@ -1,0 +1,32 @@
+id: CLM-0149
+statement: >-
+  Every canonical-loop node emits a lifecycle heartbeat, surfaced on the live
+  progress stream ONLY at opt-in verbosity (#336 P3). The node wrapper
+  (`withSpendAudit`, applied to every executor) brackets each node with a
+  `loop.node.start` (before execution) and `loop.node.finish` (in a `finally`, so
+  a node that THROWS still records its boundary before the error propagates) audit
+  event — alongside the existing `loop.spend` (CLM-0137). The events carry ONLY
+  already-known facts (runId, node, childId when in a fan-out child) — NEVER a
+  fabricated child index/total ordinal (that lives in the protected engine cursor,
+  not the audit record), so this is honest re-transport, not manufactured
+  telemetry. These two types are kept OUT of the default `watch`/progress
+  SIGNIFICANT set, so the default progress stream and `kernloop watch` are
+  UNCHANGED — the per-node heartbeat ("▶ plan", "■ review done") is forwarded
+  ONLY when the caller opts into `verbose`: the `run` tool's
+  `progress: 'milestones' | 'verbose'` input (default `milestones`) threads to the
+  progress tailer, and `renderEvent(event, {verbose})` is the single gate. So a
+  long run can show now-planning / now-reviewing depth on demand without spamming
+  an un-opted transcript (the consensus-vote's load-bearing anti-spam condition).
+  The verbose set is the node lifecycle only — never adapter payloads, prompts, or
+  finding text. Observe-tier: it records, it never acts.
+evidence:
+  - 'test:packages/cli/src/loop/spend-audit.test.ts::brackets EVERY node with loop.node.start + loop.node.finish (even a zero-spend node)'
+  - 'test:packages/cli/src/loop/spend-audit.test.ts::emits loop.node.finish even when the node THROWS (the finally), then rethrows'
+  - 'test:packages/cli/src/loop/spend-audit.test.ts::carries ONLY already-known facts (runId, node, childId) — no fabricated ordinal'
+  - 'test:packages/cli/src/loop/progress-tail.test.ts::forwards the node-lifecycle heartbeat ONLY when verbose (#336 P3)'
+  - 'code:packages/cli/src/loop/executors-nodes.ts#withSpendAudit@doc:/CLM-0149/'
+  - 'code:packages/cli/src/tools/watch.ts#renderEvent@doc:/CLM-0149/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

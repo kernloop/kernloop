@@ -132,15 +132,30 @@ function describe(event: WatchEvent): string {
       const mark = status === 'success' ? '✓' : status === 'failure' ? '✗' : '•';
       return `${mark} outcome: ${status} — ${field(p, 'capability')} (${String(num(p, 'wallClockMs'))}ms)`;
     }
+    case 'loop.node.start':
+      return `▶ ${field(p, 'node')}${field(p, 'childId', '') ? ` [${field(p, 'childId')}]` : ''}`;
+    case 'loop.node.finish':
+      return `■ ${field(p, 'node')}${field(p, 'childId', '') ? ` [${field(p, 'childId')}]` : ''} done`;
     default:
       return event.type;
   }
 }
 
+/**
+ * VERBOSE-only event types (#336 P3, CLM-0149): the per-node lifecycle heartbeat.
+ * Kept OUT of {@link SIGNIFICANT} so the default progress stream and `kernloop
+ * watch` are unchanged — they surface ONLY when a caller opts into `verbose`.
+ */
+const VERBOSE_EVENTS: ReadonlySet<string> = new Set(['loop.node.start', 'loop.node.finish']);
+
 /** Render ONE event as a readable `HH:MM:SS #seq  <description>` line, or
- * undefined when the event is not significant enough to show. */
-export function renderEvent(event: WatchEvent): string | undefined {
-  if (!SIGNIFICANT.has(event.type)) return undefined;
+ * undefined when it is not shown at this verbosity (#336 P3, CLM-0149). Default
+ * (no opts) shows only {@link SIGNIFICANT}; `verbose` ALSO shows the
+ * {@link VERBOSE_EVENTS} per-node lifecycle heartbeat. */
+export function renderEvent(event: WatchEvent, opts?: { verbose?: boolean }): string | undefined {
+  const shown =
+    SIGNIFICANT.has(event.type) || (opts?.verbose === true && VERBOSE_EVENTS.has(event.type));
+  if (!shown) return undefined;
   const time = event.ts.length >= 19 ? event.ts.slice(11, 19) : '--:--:--';
   return `${time} #${String(event.seq)}  ${describe(event)}`;
 }
@@ -150,7 +165,7 @@ export function renderEvent(event: WatchEvent): string | undefined {
 export function watchSnapshot(events: readonly WatchEvent[], id: string | undefined): string {
   const lines = events
     .filter((e) => matchesFilter(e, id))
-    .map(renderEvent)
+    .map((e) => renderEvent(e))
     .filter((l): l is string => l !== undefined);
   const header = `kernloop watch — ${String(lines.length)} event(s)${id === undefined ? '' : ` for ${id}`}`;
   return [header, ...lines].join('\n') + '\n';
