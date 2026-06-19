@@ -2587,3 +2587,17 @@ Reasoning nodes (every canonical-loop model node except the coder `implement`) i
 - [`packages/cli/src/loop/node-model.test.ts`](../packages/cli/src/loop/node-model.test.ts)
 - [`packages/kernel/src/adapters/definitions.ts#pureCompletionArgs`](../packages/kernel/src/adapters/definitions.ts)
 - CI `test`
+
+## CLM-0156
+
+**Status:** verified — **source:** [`CLM-0156.yaml`](../claims/registry/CLM-0156.yaml)
+
+The Outcome contract carries an optional served:ModelIdentity (the producing model class); the canonical loop populates it on each child's coder Outcome and ingests the child's DELIVERABLE pass/fail into a SEPARATE outcome-level identity-fitness series (observer_fitness_identity_outcome) that never double-counts with the per-call series; and the adapter selector BLENDS that deliverable-pass signal into its choice, so a model class that produces passing deliverables — not merely calls that don't error — is preferred. An empty deliverable series leaves the call-only ranking unchanged.
+
+**Enforced by:**
+
+- [`packages/faculty-observer/src/identity-ledger.test.ts`](../packages/faculty-observer/src/identity-ledger.test.ts)
+- [`packages/cli/src/loop/adapter-fitness.test.ts`](../packages/cli/src/loop/adapter-fitness.test.ts)
+- [`packages/cli/src/loop.test.ts`](../packages/cli/src/loop.test.ts)
+- [`packages/cli/src/loop/executors-nodes.ts#recordChildOutcomeFitness`](../packages/cli/src/loop/executors-nodes.ts)
+- CI `test`

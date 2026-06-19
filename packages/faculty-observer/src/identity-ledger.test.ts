@@ -215,7 +215,11 @@ describe('ingestOutcomeFitness — outcome-level (deliverable-pass) series (#229
       usd: 0,
       wallClockMs: 0,
     });
-    observer.ingestOutcomeFitness(identity({ family: 'unknown', generation: '0', resolvedBy: 'unknown' }), true, COST);
+    observer.ingestOutcomeFitness(
+      identity({ family: 'unknown', generation: '0', resolvedBy: 'unknown' }),
+      true,
+      COST,
+    );
     const rows = observer.outcomeFitnessLedger();
     expect(rows).toHaveLength(2); // the named class (2 deliverables) + the unknown bucket
     const named = rows.find((r) => r.key.family === 'claude-opus');

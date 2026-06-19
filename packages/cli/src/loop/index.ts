@@ -229,6 +229,7 @@ function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] 
     enabled: kern.config.adapterFitness.enabled,
     epsilon: kern.config.adapterFitness.epsilon,
     ledger: kern.observer.identityFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
+    deliverableLedger: kern.observer.outcomeFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
     discovered,
     endpoints: kern.config.endpoints,
     store: kern.store,

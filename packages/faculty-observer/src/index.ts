@@ -112,7 +112,11 @@ export interface Observer {
   /** OUTCOME-level (deliverable-pass) identity fitness (#229/#5): like
    * {@link ingestModelFitness} but into the SEPARATE outcome series — counts
    * DELIVERABLES that passed quality+review, not model calls. */
-  ingestOutcomeFitness(identity: ModelIdentity, success: boolean, cost: Cost): IdentityFitnessRecord;
+  ingestOutcomeFitness(
+    identity: ModelIdentity,
+    success: boolean,
+    cost: Cost,
+  ): IdentityFitnessRecord;
   /** Identity-series read — one model class's fitness, or undefined if never served. */
   fitnessForIdentity(key: IdentityKey): IdentityFitnessRecord | undefined;
   /** Identity-series read, most recently used first; `limit` caps it to the N freshest (#253). */

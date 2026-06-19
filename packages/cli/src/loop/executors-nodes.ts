@@ -127,7 +127,9 @@ export function integrateExecutor(b: LoopBindings): NodeExecutor {
   return (input, ctx) => {
     const results = input as readonly ChildResult[];
     const signals = results.map((result) => childSignal(result));
-    results.forEach((result, i) => recordChildOutcomeFitness(b, result, signals[i]?.passed === true));
+    results.forEach((result, i) =>
+      recordChildOutcomeFitness(b, result, signals[i]?.passed === true),
+    );
     // Status is decided by the BLOCKING child signals ONLY. Advisory review rejects
     // are then appended as non-blocking `needs-review` signals (#226 item 5) — they
     // flag residual doubt at the terminal WITHOUT flipping an otherwise-`success` run.
