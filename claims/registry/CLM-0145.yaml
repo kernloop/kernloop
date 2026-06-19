@@ -15,10 +15,16 @@ statement: >-
   silent throw (charter rule 7). It is pure path logic — the kernel stays
   model-free. SCOPE/HONESTY: the boundary is GIT-TREE containment, NOT general
   secret protection — a non-git directory holding a `.env` is NOT covered (a
-  separate, larger scope). KNOWN GAP: a real repo cloned UNDER the temp dir is
-  treated as throwaway (location ≠ provenance). Hard refuse, no opt-out flag (a
-  security boundary, not a knob); escapes are copy-to-temp or `--sandbox docker`
-  (#236); an audited overlay opt-out is deferred (#320).
+  separate, larger scope). The contained adapter has no runtime opt-out it can
+  reach (a security boundary, not a knob); escapes are copy-to-temp or `--sandbox
+  docker` (#236); an audited overlay opt-out is deferred (#320). KNOWN GAP /
+  TRUST ASSUMPTION: the throwaway carve-out is the OS temp dir and `os.tmpdir()`
+  honors `$TMPDIR` — the contained model cannot set kernloop's launch env (the
+  guard runs in the parent before the child spawns), but a LAUNCHER that points
+  `$TMPDIR` at/above a working tree disables the carve-out's refusal for it, and a
+  real repo cloned UNDER the temp dir is likewise treated as throwaway (location ≠
+  provenance); deriving the carve-out from a kernloop-OWNED root is the hardening
+  deferred to #332. An unresolvable temp dir fails closed (no carve-out).
 evidence:
   - 'test:packages/kernel/src/adapters/containment.test.ts::REFUSES every agentic adapter in a non-throwaway git tree'
   - 'test:packages/kernel/src/adapters/containment.test.ts::ALLOWS a non-agentic adapter (ollama) in the same real git tree'

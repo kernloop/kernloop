@@ -7,9 +7,17 @@
  *
  * The boundary is GIT-TREE containment, NOT general secret protection: a non-git
  * directory holding a `.env` is NOT covered here (that is a separate, larger
- * scope). Hard refuse, no opt-out flag (a security boundary, not a tuning knob);
- * the audited overlay opt-out is deferred (#320). Pure path logic — the kernel
- * stays model-free.
+ * scope). The contained adapter has no runtime opt-out it can reach (a security
+ * boundary, not a tuning knob); the audited overlay opt-out is deferred (#320).
+ *
+ * TRUST ASSUMPTION (#332): the throwaway carve-out is the OS temp dir, and
+ * `os.tmpdir()` honors `$TMPDIR`/`$TMP`/`$TEMP`. The contained model cannot set
+ * kernloop's launch env (this guard runs in the parent BEFORE the child spawns),
+ * but a LAUNCHER that points `$TMPDIR` at/above a working tree makes that tree
+ * resolve "under tmpRoot" and disables the carve-out's refusal for it. Deriving
+ * the carve-out from a kernloop-OWNED root instead of ambient `$TMPDIR` is the
+ * hardening tracked in #332 (which also closes the cloned-under-tmpdir gap).
+ * Pure path logic — the kernel stays model-free.
  *
  * @module kernel/adapters/containment
  */
@@ -18,6 +26,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { type AdapterName } from './definitions.js';
 import { AgenticRepositoryWorkspaceError } from './errors.js';
+
+/**
+ * Realpath of the OS temp dir, or null when it cannot be resolved (e.g. a
+ * `$TMPDIR` pointing nowhere). Null ⇒ NO throwaway carve-out applies, so a real
+ * git tree is still refused — fail closed rather than throw an untyped ENOENT.
+ */
+function resolveTmpRoot(): string | null {
+  try {
+    return realpathSync(tmpdir());
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Adapters that EXECUTE generated code and read/write their cwd. The complement
@@ -41,13 +62,14 @@ export const NON_AGENTIC_ADAPTERS: ReadonlySet<AdapterName> = new Set(['ollama']
  * pattern) OR when no `.git` exists at or above it. NON-throwaway (true) when a
  * `.git` exists at/above it outside the temp dir. Symlink-resistant (realpath),
  * mirroring the writeWorkspaceFiles escape guard. KNOWN GAP: a real repo cloned
- * UNDER the temp dir is treated as throwaway (location ≠ provenance). `tmpRoot`
- * is injectable for tests; it defaults to the realpath'd OS temp dir (macOS
- * /tmp → /private/tmp), so the prefix compare is symlink-correct.
+ * UNDER the temp dir is treated as throwaway (location ≠ provenance, #332).
+ * `tmpRoot` is injectable for tests; it defaults to the realpath'd OS temp dir
+ * (macOS /tmp → /private/tmp), so the prefix compare is symlink-correct. A null
+ * `tmpRoot` (temp dir unresolvable) disables the carve-out — fail closed.
  */
 export function isNonThrowawayGitTree(
   dir: string,
-  tmpRoot: string = realpathSync(tmpdir()),
+  tmpRoot: string | null = resolveTmpRoot(),
 ): boolean {
   let real: string;
   try {
@@ -55,7 +77,9 @@ export function isNonThrowawayGitTree(
   } catch {
     return false; // a path we cannot resolve is not a tree we can corrupt
   }
-  if (real === tmpRoot || real.startsWith(tmpRoot + path.sep)) return false; // throwaway scratch
+  if (tmpRoot !== null && (real === tmpRoot || real.startsWith(tmpRoot + path.sep))) {
+    return false; // throwaway scratch
+  }
   for (let cur = real; ; ) {
     if (existsSync(path.join(cur, '.git'))) return true; // a real working tree
     const parent = path.dirname(cur);

@@ -70,8 +70,14 @@ describe('isNonThrowawayGitTree (#280 pt2)', () => {
 
   it('KNOWN GAP (documented): a real repo cloned UNDER the temp root is currently ALLOWED', () => {
     // location ≠ provenance — a .git under tmpdir is treated as throwaway. Tracked
-    // as a boundary of the git-tree heuristic, not a general secret guard.
+    // as a boundary of the git-tree heuristic, not a general secret guard (#332).
     expect(isNonThrowawayGitTree(scratch(true))).toBe(false);
+  });
+
+  it('fails closed when the temp root is unresolvable (null tmpRoot ⇒ no carve-out)', () => {
+    // A null tmpRoot (e.g. a $TMPDIR pointing nowhere) disables the carve-out, so
+    // a real git tree is still refused rather than throwing an untyped ENOENT.
+    expect(isNonThrowawayGitTree(scratch(true), null)).toBe(true);
   });
 });
 
