@@ -1,4 +1,5 @@
 id: CLM-0155
+statement: >-
   Reasoning nodes (every canonical-loop model node except the coder `implement`)
   invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI
   and recorded, NOT a uniform cross-adapter guarantee: claude is fully tool-free
