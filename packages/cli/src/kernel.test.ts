@@ -178,7 +178,8 @@ describe('ratified gate promotion (#328 Inc2, CLM-0153/CLM-0064)', () => {
     expect(kern.ladder.tierOf(reviewGateManifest.name)).toBe('enforce');
     // …and audited as a tier_change carrying the ratification ref.
     const promotion = readEnvelopes(kern.paths.audit).find(
-      (e) => e.type === 'kernel.ladder.tier_change' && (e.payload as { to?: string }).to === 'enforce',
+      (e) =>
+        e.type === 'kernel.ladder.tier_change' && (e.payload as { to?: string }).to === 'enforce',
     );
     expect(promotion?.payload).toMatchObject({
       to: 'enforce',
