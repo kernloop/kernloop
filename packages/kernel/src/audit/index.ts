@@ -11,10 +11,21 @@
 export {
   canonicalJson,
   sha256Canonical,
+  hmacSha256Canonical,
   CanonicalizationError,
   type JsonValue,
   type JsonObject,
 } from './canonical.js';
+export {
+  loadKeyring,
+  ensureChainKeyed,
+  getEpochKey,
+  chainBoundary,
+  defaultAuditKeyringPath,
+  AuditKeyringError,
+  AuditKeyringSchema,
+  type AuditKeyring,
+} from './keyring.js';
 export {
   AuditEnvelopeSchema,
   GENESIS_PREV_HASH,

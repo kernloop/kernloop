@@ -23,7 +23,7 @@
  * @module kernel/audit/canonical
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 /** Any value representable in JSON. Payloads and envelopes are JsonValue. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
@@ -83,4 +83,17 @@ export function canonicalJson(value: unknown): string {
 /** Lowercase-hex SHA-256 of the canonical serialization of a JSON value. */
 export function sha256Canonical(value: unknown): string {
   return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
+}
+
+/**
+ * Lowercase-hex HMAC-SHA256 (keyed) of the canonical serialization of a JSON
+ * value (#280 [CLM-0146]). Reuses the SAME {@link canonicalJson} form as
+ * {@link sha256Canonical} — the keyed and unkeyed audit hashes share one
+ * canonical serializer, so the keyed segment cannot diverge from the legacy
+ * one by a serialization quirk. Output is 64 lowercase hex chars, identical in
+ * shape to a SHA-256 digest, so a keyed envelope's `hash` field validates
+ * against the same schema as a legacy one.
+ */
+export function hmacSha256Canonical(key: Buffer, value: unknown): string {
+  return createHmac('sha256', key).update(canonicalJson(value), 'utf8').digest('hex');
 }

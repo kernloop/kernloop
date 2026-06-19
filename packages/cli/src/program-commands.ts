@@ -39,7 +39,7 @@ import { appendEvent } from '@kernloop/kernel';
 import { decomposeGoal } from '@kernloop/faculty-scrum';
 import type { TrackerExec } from '@kernloop/tracker';
 import type { CliIo } from './cli.js';
-import { createKernloop, type Kernloop } from './kernel.js';
+import { createProductionKernloop, type Kernloop } from './kernel.js';
 import type { CommandHelpers } from './portability-commands.js';
 import type { LoopInvoke } from './loop/invoke.js';
 import { buildProgramParent, checkIdLength, isCleanError, readSpecFile } from './program-shared.js';
@@ -215,7 +215,7 @@ export async function programCommand(
     ],
     ['execute'],
   );
-  const kern = createKernloop({
+  const kern = createProductionKernloop({
     overlayDir: path.join(path.resolve(io.cwd, h.str(v.dir) ?? '.'), '.kernloop'),
   });
   try {

@@ -8,7 +8,7 @@
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { createKernloop } from './kernel.js';
+import { createProductionKernloop } from './kernel.js';
 import { OVERLAY_DIR_NAME } from './overlay.js';
 import { collectFamilies, metricsExport } from './tools/metrics.js';
 import type { CliIo } from './cli.js';
@@ -25,7 +25,7 @@ export async function metricsCommand(args: string[], io: CliIo): Promise<number>
     allowPositionals: false,
   });
   const overlayDir = path.join(path.resolve(io.cwd, values.dir ?? '.'), OVERLAY_DIR_NAME);
-  const kern = createKernloop({ overlayDir });
+  const kern = createProductionKernloop({ overlayDir });
   try {
     if (values.otlp !== undefined) {
       // Lazily load the OpenTelemetry SDK (#155) ONLY for the OTLP path — never

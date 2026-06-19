@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import YAML from 'yaml';
-import { createAuditStore, verifyChain } from '@kernloop/kernel';
+import { createAuditStore, defaultAuditKeyringPath, verifyChain } from '@kernloop/kernel';
 import { createMemory } from '@kernloop/faculty-memory';
 import { OverlaySchema, overlayPaths, type OverlayPaths } from './overlay.js';
 import {
@@ -143,9 +143,19 @@ function configChecks(paths: OverlayPaths): DoctorCheck[] {
 
 /** Verify the audit chain; an absent file is a valid chain of length 0. */
 function checkAudit(paths: OverlayPaths): DoctorCheck {
-  const result = verifyChain(createAuditStore(paths.audit));
+  const keyringPath = defaultAuditKeyringPath();
+  const result = verifyChain(createAuditStore(paths.audit, { keyringPath }));
+  // Surface the keyring durably here (#280): the audit layer never prints a
+  // generation warning to a process stream, so doctor is the operator's notice
+  // that the chain is HMAC-keyed and the key must be backed up (loss = the
+  // keyed segment is permanently unverifiable).
+  const keyed = existsSync(keyringPath) ? `; HMAC-keyed — back up ${keyringPath}` : '';
   return result.ok
-    ? { name: 'audit chain', ok: true, detail: `verified, ${String(result.length)} event(s)` }
+    ? {
+        name: 'audit chain',
+        ok: true,
+        detail: `verified, ${String(result.length)} event(s)${keyed}`,
+      }
     : {
         name: 'audit chain',
         ok: false,

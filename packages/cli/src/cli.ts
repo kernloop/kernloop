@@ -14,7 +14,7 @@ import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
 import { runCommand } from './run-command.js';
 import { doctor } from './doctor.js';
-import { createKernloop, type Kernloop } from './kernel.js';
+import { createProductionKernloop, type Kernloop } from './kernel.js';
 import { serveStdio } from './mcp.js';
 import {
   auditTool,
@@ -86,7 +86,7 @@ async function withKernloop(
   dir: string | boolean | undefined,
   fn: (kern: Kernloop) => Promise<unknown> | unknown,
 ): Promise<number> {
-  const kern = createKernloop({ overlayDir: overlayDirFor(io, dir) });
+  const kern = createProductionKernloop({ overlayDir: overlayDirFor(io, dir) });
   try {
     io.out(JSON.stringify(await fn(kern), null, 2));
     return 0;
@@ -105,7 +105,7 @@ async function withKernloopCode(
   dir: string | boolean | undefined,
   fn: (kern: Kernloop) => { json: unknown; code: number },
 ): Promise<number> {
-  const kern = createKernloop({ overlayDir: overlayDirFor(io, dir) });
+  const kern = createProductionKernloop({ overlayDir: overlayDirFor(io, dir) });
   try {
     const { json, code } = fn(kern);
     io.out(JSON.stringify(json, null, 2));
@@ -175,7 +175,7 @@ const HANDLERS: Record<string, Handler> = {
   /* v8 ignore start -- holds the process on stdio; exercised by `kernloop serve` */
   serve: async (args, io) => {
     const v = flags(args, {});
-    await serveStdio(createKernloop({ overlayDir: overlayDirFor(io, v.dir) }));
+    await serveStdio(createProductionKernloop({ overlayDir: overlayDirFor(io, v.dir) }));
     return 0; // the stdio transport holds the process open
   },
   /* v8 ignore stop */

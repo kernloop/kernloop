@@ -1,0 +1,47 @@
+id: CLM-0146
+statement: >-
+  The audit chain can be HMAC-KEYED so a JSONL-rewriting attacker cannot DOWNGRADE
+  or in-place-tamper it undetectably (#280 part 1). An envelope's `keyEpoch` is
+  ABSENT on legacy/unkeyed lines (plain SHA-256, byte-identical to pre-keying
+  chains) and PRESENT (≥1) on keyed lines, whose `hash` is HMAC-SHA256 over the
+  SAME canonical form — with `keyEpoch` itself covered — under a key held in a
+  keyring OUTSIDE the overlay (default `~/.config/kernloop/audit.key`, 0600). The
+  keyring records each chain's keyed cutover (`firstKeyedSeq`); because the
+  attacker cannot write that off-overlay file, `verifyChain` enforces a
+  NO-DOWNGRADE FLOOR: a from-genesis rewrite that re-stamps every record as
+  epoch-0 and recomputes the plain-SHA chain FAILS (`downgrade_detected`), epochs
+  are non-decreasing (`epoch_regression`), a keyed line whose key is unavailable
+  is a typed failure (`missing_key`, NEVER a silent fallback to unkeyed verify),
+  and a chain ERASED below its cutover fails (`truncated_below_floor`). A keyring
+  that cannot be loaded (bad perms/malformed) is itself a typed failure
+  (`keyring_unavailable`), so a reader surfaces verified:false instead of crashing.
+  The keyring is minted only when ABSENT and never re-keyed in place, perms looser
+  than 0600 are refused, and the shipped CLI keys every real run via
+  `createProductionKernloop`. HONESTY BOUNDARY: on-host tamper-EVIDENCE, not
+  tamper-PROOF. HMAC is symmetric, so an attacker who can READ the key file forges,
+  and one who can DELETE the keyring downgrades to legacy verification. SUFFIX
+  truncation of keyed events ABOVE the cutover (dropping the most recent keyed
+  records) is NOT caught here — like the base chain's documented truncation caveat
+  it needs an external length witness (`expectedLength`) until the keyring records
+  a per-chain high-water seq (deferred #331). Remote/separate-custody verifier and
+  the re-key command are deferred (#323/#325/#324).
+evidence:
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::an all-epoch-0 rehash of a keyed store fails with downgrade_detected'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::a keyEpoch regression fails with epoch_regression'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::a keyed line without an available keyring fails with missing_key (no silent fallback)'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::a tampered keyed payload fails with hash_mismatch'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::erasing a keyed chain below its cutover fails with truncated_below_floor'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::a keyring that cannot be loaded fails closed (keyring_unavailable), never throws'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::a legacy unkeyed chain verifies unchanged with no keyring'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::loadKeyring refuses a keyring whose perms are looser than 0600'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::ensureChainKeyed never re-keys over an existing keyring'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::loadKeyring rejects a partial keyring missing its currentEpoch key (no re-key)'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::hmacSha256Canonical is pinned and key-sorts identically to sha256Canonical'
+  - 'test:packages/cli/src/kernel.test.ts::keys the audit chain end-to-end: registration events carry keyEpoch and verify under the keyring'
+  - 'code:packages/kernel/src/audit/keyring.ts#ensureChainKeyed@doc:/CLM-0146/'
+  - 'code:packages/kernel/src/audit/verify.ts#verifyChain@doc:/CLM-0146/'
+  - 'code:packages/kernel/src/audit/canonical.ts#hmacSha256Canonical@doc:/CLM-0146/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

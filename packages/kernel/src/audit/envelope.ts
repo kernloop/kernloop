@@ -19,7 +19,7 @@
 
 import { z } from 'zod';
 import { contractsVersion } from '@kernloop/contracts';
-import { sha256Canonical, type JsonValue } from './canonical.js';
+import { sha256Canonical, hmacSha256Canonical, type JsonValue } from './canonical.js';
 
 /**
  * Documented genesis constant: the `prevHash` of the first envelope in a
@@ -66,7 +66,16 @@ export const AuditEnvelopeSchema = z
     payload: JsonValueSchema,
     /** `hash` of the previous envelope, or GENESIS_PREV_HASH at seq 1. */
     prevHash: Sha256HexSchema,
-    /** SHA-256 over the canonical envelope-minus-hash. */
+    /**
+     * Keyed-segment epoch (#280 [CLM-0146]). ABSENT on legacy/unkeyed lines
+     * (≡ epoch 0): `hash` is the original plain SHA-256, byte-identical to
+     * pre-keying chains. PRESENT (≥1) on keyed lines: `hash` is HMAC-SHA256
+     * under the keyring's epoch key, and `keyEpoch` is itself covered by that
+     * HMAC, so it cannot be re-stamped without the key. The keyring's per-chain
+     * cutover (firstKeyedSeq) is what stops a wholesale downgrade to epoch 0.
+     */
+    keyEpoch: z.number().int().positive().optional(),
+    /** SHA-256 (legacy) or HMAC-SHA256 (keyed) over the canonical envelope-minus-hash. */
     hash: Sha256HexSchema,
   })
   .strict();
@@ -74,23 +83,38 @@ export const AuditEnvelopeSchema = z
 export type AuditEnvelope = z.infer<typeof AuditEnvelopeSchema>;
 
 /**
- * Compute the chain hash of an envelope: SHA-256 over the canonical
- * serialization of every field except `hash` itself.
+ * Compute the chain hash of an envelope over the canonical serialization of
+ * every field except `hash` itself.
+ *
+ * - Legacy/unkeyed (`keyEpoch` absent): plain SHA-256 over the five core
+ *   fields, EXCLUDING `keyEpoch` — byte-identical to pre-keying chains, so
+ *   legacy logs verify unchanged. `key` is ignored.
+ * - Keyed (`keyEpoch` ≥ 1): HMAC-SHA256 over the SAME canonical form WITH
+ *   `keyEpoch` included, under the epoch's `key`. A keyed envelope therefore
+ *   requires its key; passing none is a programming error (the verifier
+ *   resolves the key first and turns a missing key into a typed failure).
  */
-export function computeEnvelopeHash(envelope: Omit<AuditEnvelope, 'hash'>): string {
-  return sha256Canonical({
+export function computeEnvelopeHash(envelope: Omit<AuditEnvelope, 'hash'>, key?: Buffer): string {
+  const core = {
     seq: envelope.seq,
     ts: envelope.ts,
     contractsVersion: envelope.contractsVersion,
     type: envelope.type,
     payload: envelope.payload,
     prevHash: envelope.prevHash,
-  });
+  };
+  if (envelope.keyEpoch === undefined) return sha256Canonical(core);
+  if (key === undefined) {
+    throw new Error('computeEnvelopeHash: a keyed envelope (keyEpoch set) requires its key');
+  }
+  return hmacSha256Canonical(key, { ...core, keyEpoch: envelope.keyEpoch });
 }
 
 /**
  * Build a fully-hashed envelope for the next chain position. Pure — does no
- * I/O; `appendEvent` persists the result.
+ * I/O; `appendEvent` persists the result. Pass `keyEpoch` + `key` to mint a
+ * KEYED envelope (HMAC); omit both for a legacy/unkeyed one (plain SHA-256,
+ * byte-identical to a pre-keying chain).
  */
 export function buildEnvelope(input: {
   seq: number;
@@ -98,8 +122,10 @@ export function buildEnvelope(input: {
   type: string;
   payload: JsonValue;
   prevHash: string;
+  keyEpoch?: number;
+  key?: Buffer;
 }): AuditEnvelope {
-  const unhashed = {
+  const core = {
     seq: input.seq,
     ts: input.ts,
     contractsVersion,
@@ -107,5 +133,12 @@ export function buildEnvelope(input: {
     payload: input.payload,
     prevHash: input.prevHash,
   };
-  return AuditEnvelopeSchema.parse({ ...unhashed, hash: computeEnvelopeHash(unhashed) });
+  if (input.keyEpoch === undefined) {
+    return AuditEnvelopeSchema.parse({ ...core, hash: computeEnvelopeHash(core) });
+  }
+  if (input.key === undefined) {
+    throw new Error('buildEnvelope: a keyed envelope (keyEpoch set) requires its key');
+  }
+  const unhashed = { ...core, keyEpoch: input.keyEpoch };
+  return AuditEnvelopeSchema.parse({ ...unhashed, hash: computeEnvelopeHash(unhashed, input.key) });
 }
