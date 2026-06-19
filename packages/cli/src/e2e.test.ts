@@ -26,6 +26,21 @@ const tscJs = createRequire(path.join(repoRoot, 'package.json')).resolve('typesc
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-e2e-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
+/**
+ * An overlay dir with the Docker sandbox DISABLED so this real-tsc e2e runs the
+ * gate deterministically on the HOST. The sandbox is default-ON (#227), but the
+ * Docker `--network none` path is covered by the dedicated #236 gate-tier tests;
+ * this end-to-end is about real routing/verdict/outcome, not Docker isolation.
+ */
+function hostGateOverlay(dir: string): string {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    path.join(dir, 'overlay.yaml'),
+    'id: e2e\ngates:\n  quality:\n    sandbox:\n      enabled: false\n',
+  );
+  return dir;
+}
+
 /** Scaffold a tiny REAL TypeScript workspace fixture. */
 function fixtureWorkspace(name: string, source: string): string {
   const dir = path.join(scratch, name);
@@ -58,7 +73,7 @@ const BROKEN_TS =
 
 describe('P1 exit: one real task end-to-end through the quality gate', () => {
   it('runs a real task through routing, the real quality gate, audit, and memory — and passes', async () => {
-    const overlay = path.join(scratch, 'pass-repo', '.kernloop');
+    const overlay = hostGateOverlay(path.join(scratch, 'pass-repo', '.kernloop'));
     const kern = createKernloop({ overlayDir: overlay, rng: () => 0.99 });
     const workspace = fixtureWorkspace('pass', GOOD_TS);
 
@@ -115,7 +130,7 @@ describe('P1 exit: one real task end-to-end through the quality gate', () => {
   }, 60_000);
 
   it('fails honestly on a workspace with a type error: fail Verdict, failure Outcome, verified chain', async () => {
-    const overlay = path.join(scratch, 'fail-repo', '.kernloop');
+    const overlay = hostGateOverlay(path.join(scratch, 'fail-repo', '.kernloop'));
     const kern = createKernloop({ overlayDir: overlay, rng: () => 0.99 });
     const workspace = fixtureWorkspace('fail', BROKEN_TS);
 

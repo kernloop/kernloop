@@ -36,11 +36,15 @@ export const QualityGateSchema = z.strictObject({
   /** Non-secret env-var NAMES a check may receive beyond the kernel base allowlist
    * (#235, CLM-0124): check env is `SAFE_ENV_KEYS` ∪ these, never the host env. */
   envAllow: z.array(z.string().min(1)).default([]),
-  /** Docker sandbox for gate checks (#236, CLM-0129): `enabled` runs each subprocess
-   * check in the kernel `--network none` sandbox over a workspace COPY (default OFF
-   * = legacy env-scoped spawn); `enforce` (default true) fails closed without Docker. */
+  /** Docker sandbox for gate checks (#236, CLM-0129; default-on #227): `enabled`
+   * (DEFAULT TRUE) runs each subprocess check — model-generated code — in the kernel
+   * `--network none` sandbox over a workspace COPY; `enforce` (DEFAULT FALSE) falls
+   * back to the env-scoped host spawn when Docker is unavailable (recorded, not
+   * faked) rather than refusing. So generated code is sandboxed BY DEFAULT WHEN
+   * DOCKER IS AVAILABLE, and a Docker-less host still runs (set `enforce: true` to
+   * fail closed, or `enabled: false` for the legacy always-host behavior). */
   sandbox: z
-    .strictObject({ enabled: z.boolean().default(false), enforce: z.boolean().default(true) })
+    .strictObject({ enabled: z.boolean().default(true), enforce: z.boolean().default(false) })
     .prefault({}),
   /** Diff-coverage anti-rubber-stamp (#226 item 2, CLM-0134): when true, the loop's
    * quality gate flags executable source a child WROTE that the test suite never
