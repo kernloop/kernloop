@@ -122,9 +122,14 @@ const CONTEXT_REVIEW_MAX_CHARS = 8_000;
  */
 function clampReviewInput(text: string, max: number, label: string): string {
   if (text.length <= max) return text;
-  const omitted = text.length - max;
+  // Don't split a UTF-16 surrogate pair at the cut (#301): if `max` lands between
+  // a high and its low surrogate, back off one unit so the head ends on a whole
+  // code point and never emits a lone surrogate into the prompt.
+  const high = text.charCodeAt(max - 1);
+  const cut = high >= 0xd800 && high <= 0xdbff ? max - 1 : max;
+  const omitted = text.length - cut;
   return (
-    text.slice(0, max) +
+    text.slice(0, cut) +
     `\n[... ${label} truncated for review: ${omitted} of ${text.length} chars omitted ` +
     `to bound reviewer cost (#288) ...]`
   );

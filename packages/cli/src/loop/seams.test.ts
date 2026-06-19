@@ -106,6 +106,20 @@ describe('reviewerInvoker input bounding (#288)', () => {
     expect(sent).toContain('sneaky');
     expect(sent).not.toContain('NOTE (from the review gate');
   });
+
+  it('does not split a UTF-16 surrogate pair at the truncation cut (#301)', async () => {
+    const { prompt, review } = capturing();
+    // An emoji (a surrogate pair) whose HIGH half lands exactly on the diff cap
+    // boundary (DIFF_REVIEW_MAX_CHARS = 100_000): a naive slice(0, max) would keep
+    // the lone high surrogate and emit invalid UTF-16 into the prompt.
+    const diff = 'A'.repeat(100_000 - 1) + '😀' + 'B'.repeat(100);
+    await review(REVIEWER, diff);
+    const sent = prompt();
+    // The cut backed off one unit, so the assembled prompt has NO unpaired surrogate.
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    expect(loneSurrogate.test(sent)).toBe(false);
+    expect(sent).toContain('diff truncated for review'); // it DID truncate
+  });
 });
 
 describe('reviewerInvoker untrusted-input nonce fence (#289)', () => {

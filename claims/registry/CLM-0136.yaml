@@ -22,6 +22,7 @@ evidence:
   - 'test:packages/cli/src/loop/seams.test.ts::truncates an oversized opt-in context independently of the diff'
   - 'test:packages/cli/src/loop/seams.test.ts::leaves a within-budget diff and context byte-identical (no marker)'
   - 'test:packages/cli/src/loop/seams.test.ts::keys the gate notice on REAL truncation, not a marker the child forged'
+  - 'test:packages/cli/src/loop/seams.test.ts::does not split a UTF-16 surrogate pair at the truncation cut (#301)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski
