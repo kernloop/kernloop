@@ -2573,3 +2573,16 @@ In enforce mode the canonical loop halts BEFORE dispatching a node when the rema
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - CI `test`
+
+## CLM-0155
+
+**Status:** verified — **source:** [`CLM-0155.yaml`](../claims/registry/CLM-0155.yaml)
+
+Reasoning nodes (every canonical-loop model node except the coder `implement`) invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI and recorded, NOT a uniform cross-adapter guarantee: claude is fully tool-free (denies its fs/exec/network tools, `--disallowedTools`), gemini is fully tool-free (read-only `--approval-mode plan`), codex is PARTIAL (already `-s read-only` — writes blocked, reads still allowed), opencode has NO run-level flag (no coverage — recorded, not faked). So a reasoning node consumes only the Brief on claude/gemini; on codex/opencode it is cwd-confined (#280) but not fully tool-free. The coder keeps tools (it produces files).
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- [`packages/cli/src/loop/node-model.test.ts`](../packages/cli/src/loop/node-model.test.ts)
+- [`packages/kernel/src/adapters/definitions.ts#pureCompletionArgs`](../packages/kernel/src/adapters/definitions.ts)
+- CI `test`

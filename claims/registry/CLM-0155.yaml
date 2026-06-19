@@ -1,0 +1,19 @@
+id: CLM-0155
+statement: >-
+  Reasoning nodes (every canonical-loop model node except the coder `implement`)
+  invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI
+  and recorded, NOT a uniform cross-adapter guarantee: claude is fully tool-free
+  (denies its fs/exec/network tools, `--disallowedTools`), gemini is fully
+  tool-free (read-only `--approval-mode plan`), codex is PARTIAL (already
+  `-s read-only` — writes blocked, reads still allowed), opencode has NO run-level
+  flag (no coverage — recorded, not faked). So a reasoning node consumes only the
+  Brief on claude/gemini; on codex/opencode it is cwd-confined (#280) but not fully
+  tool-free. The coder keeps tools (it produces files).
+evidence:
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::pure-completion (#148) disables tools per CLI, and is absent by default'
+  - 'test:packages/cli/src/loop/node-model.test.ts::marks every node EXCEPT implement as a reasoning (tool-free) node'
+  - 'code:packages/kernel/src/adapters/definitions.ts#pureCompletionArgs'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

@@ -23,6 +23,7 @@ import { adapterInvoke, type LoopInvoke, type RunTotals } from './invoke.js';
 import {
   DEFAULT_INVOKE_TIMEOUT_MS,
   invokeTimeoutForNode,
+  isReasoningNode,
   nodeRequirement,
   type TieredNode,
 } from './node-model.js';
@@ -152,6 +153,7 @@ export function buildInvokeForNode(
           totals,
           timeoutMs,
           hooks,
+          isReasoningNode(node),
         )
       : buildApiNodeSeam(
           req,
@@ -189,7 +191,14 @@ export function injectedSeamFor(
     const served = resolveServedFor(req, name, overlay.endpoints);
     // Per-node model-call budget (#127/#142): the configured base, capped per
     // node — bound here so MCP sampling honors it, not the SDK's 60s default.
-    return buildNodeSeam(served, base, totals, invokeTimeoutForNode(node, timeoutBase));
+    return buildNodeSeam(
+      served,
+      base,
+      totals,
+      invokeTimeoutForNode(node, timeoutBase),
+      undefined,
+      isReasoningNode(node),
+    );
   };
   return seamFactory(build, overlay, totals, downgradeFor(overlay, budget), onDowngrade);
 }

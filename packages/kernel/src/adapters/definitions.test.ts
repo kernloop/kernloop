@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ADAPTER_NAMES, adapterDefinitions } from './definitions.js';
+import { ADAPTER_NAMES, CLAUDE_PURE_COMPLETION_DENY, adapterDefinitions } from './definitions.js';
 
 /** Recorded claude 2.0.x `--output-format json` response (v1 evidence). */
 const claudeFixture = JSON.stringify({
@@ -110,6 +110,36 @@ describe('uniform adapter interface (CLM-0021)', () => {
     });
     expect(codex.args).toContain('model_reasoning_effort');
     expect(codex.args).toContain('xhigh');
+  });
+
+  it('pure-completion (#148) disables tools per CLI, and is absent by default', () => {
+    // claude: denies its fs/exec/network tools via --disallowedTools.
+    const claudePure = adapterDefinitions.claude.buildCommand({
+      prompt: 'p',
+      pureCompletion: true,
+    });
+    expect(claudePure.args).toContain('--disallowedTools');
+    expect(claudePure.args).toContain(CLAUDE_PURE_COMPLETION_DENY);
+    expect(adapterDefinitions.claude.buildCommand({ prompt: 'p' }).args).not.toContain(
+      '--disallowedTools',
+    );
+    // gemini: read-only plan mode.
+    const geminiPure = adapterDefinitions.gemini.buildCommand({
+      prompt: 'p',
+      pureCompletion: true,
+    });
+    expect(geminiPure.args).toContain('--approval-mode');
+    expect(geminiPure.args).toContain('plan');
+    expect(adapterDefinitions.gemini.buildCommand({ prompt: 'p' }).args).not.toContain('plan');
+    // codex stays at its already-restrictive -s read-only (no new flag); opencode has none.
+    const codexPure = adapterDefinitions.codex.buildCommand({ prompt: 'p', pureCompletion: true });
+    expect(codexPure.args).toContain('read-only'); // already there, unchanged
+    expect(codexPure.args).not.toContain('--disallowedTools');
+    const opencodePure = adapterDefinitions.opencode.buildCommand({
+      prompt: 'p',
+      pureCompletion: true,
+    });
+    expect(opencodePure.args).not.toContain('--approval-mode'); // honest no-coverage
   });
 });
 

@@ -14,6 +14,7 @@ import {
   TIERED_NODES,
   defaultModelSources,
   invokeTimeoutForNode,
+  isReasoningNode,
   nodeRequirement,
 } from './node-model.js';
 
@@ -83,5 +84,17 @@ describe('invokeTimeoutForNode (#127) — per-node model-call budget', () => {
 
   it('the raised default exceeds the old uniform 5-minute cap for generative nodes', () => {
     expect(DEFAULT_INVOKE_TIMEOUT_MS).toBeGreaterThan(LIGHT_INVOKE_TIMEOUT_MS);
+  });
+});
+
+describe('isReasoningNode (#148) — pure-completion vs the coder', () => {
+  it('marks every node EXCEPT implement as a reasoning (tool-free) node', () => {
+    for (const node of TIERED_NODES) {
+      expect(isReasoningNode(node)).toBe(node !== 'implement');
+    }
+    // The coder keeps tools (it produces files); the rest consume only the Brief.
+    expect(isReasoningNode('implement')).toBe(false);
+    expect(isReasoningNode('plan')).toBe(true);
+    expect(isReasoningNode('review')).toBe(true);
   });
 });
