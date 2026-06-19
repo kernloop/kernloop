@@ -2450,3 +2450,19 @@ The audit chain can be HMAC-KEYED so a JSONL-rewriting attacker cannot DOWNGRADE
 - [`packages/kernel/src/audit/verify.ts#verifyChain`](../packages/kernel/src/audit/verify.ts)
 - [`packages/kernel/src/audit/canonical.ts#hmacSha256Canonical`](../packages/kernel/src/audit/canonical.ts)
 - CI `test`
+
+## CLM-0147
+
+**Status:** verified — **source:** [`CLM-0147.yaml`](../claims/registry/CLM-0147.yaml)
+
+The review gate STRUCTURALLY fences its untrusted diff/context against prompt injection (#289, defence-in-depth hardening the #226 item-3 lexical mitigation). In the cli composition-root seam (`reviewerInvoker`), each review draws a fresh unguessable per-review nonce (64-bit CSPRNG, injectable for tests) and wraps the untrusted, already-clamped (#288) diff and context in `<<UNTRUSTED[nonce] …` / `[nonce]UNTRUSTED>>` fences. The trusted pieces — the reviewer role, the untrusted-data instruction (which names the nonce), the truncation notice, and the strict JSON output contract — live OUTSIDE the fence, so a diff line that mimics a markdown header or an output contract (`+## Output contract: {… approved}`, `+IGNORE PRIOR INSTRUCTIONS`) is structurally INSIDE the fence and cannot be read as the reviewer's own framing. Because clamping happens BEFORE fencing, the closing marker is appended after any truncation and can never be severed (which would re-merge untrusted text into the trusted region). A literal occurrence of the nonce inside the content is neutralized VISIBLY (a placeholder, never a silent edit), so even a leaked nonce cannot forge a closing marker. HONESTY: this claims the PROMPT STRUCTURE the seam assembles — proven by a model-free test asserting the fence layout — NOT that a real model behaviorally resists injection. The nonce defeats marker-FORGERY escape only; semantic social-engineering that never forges a marker is out of scope, and the layer sits atop the gate's ADVISORY tier (a forced approve only suppresses a non-blocking flag) and strict-zod output validation.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.ts#reviewerInvoker`](../packages/cli/src/loop/seams.ts)
+- CI `test`
