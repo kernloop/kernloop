@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultAuditKeyringPath, verifyChain } from '@kernloop/kernel';
+import { reviewGateManifest } from '@kernloop/faculty-gates';
 import {
   createKernloop,
   createProductionKernloop,
@@ -11,6 +12,7 @@ import {
   P3_MANIFESTS,
   SCRUM_MANIFESTS,
 } from './kernel.js';
+import { reviewGateDrivesIteration } from './loop/engine-build.js';
 import { readEnvelopes } from './tools/audit.js';
 
 const dirs: string[] = [];
@@ -18,6 +20,16 @@ function freshKernloop() {
   const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-kernel-'));
   dirs.push(repo);
   return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
+}
+
+/** A kernloop assembled over an overlay.yaml written from `yaml` (#328 Inc2). */
+function kernloopWithOverlay(yaml: string) {
+  const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-kernel-'));
+  dirs.push(repo);
+  const overlayDir = path.join(repo, '.kernloop');
+  mkdirSync(overlayDir, { recursive: true });
+  writeFileSync(path.join(overlayDir, 'overlay.yaml'), yaml);
+  return createKernloop({ overlayDir, rng: () => 0.99 });
 }
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -147,5 +159,35 @@ describe('createProductionKernloop (#280 [CLM-0146])', () => {
     expect(defaultAuditKeyringPath({ XDG_CONFIG_HOME: '/tmp/cfg' })).toBe(
       '/tmp/cfg/kernloop/audit.key',
     );
+  });
+});
+
+describe('ratified gate promotion (#328 Inc2, CLM-0153/CLM-0064)', () => {
+  it('leaves the review gate advisory when no ratification ref is recorded (fresh overlay)', () => {
+    const kern = freshKernloop();
+    expect(kern.ladder.tierOf(reviewGateManifest.name)).toBe('advisory');
+    expect(reviewGateDrivesIteration(kern)).toBe(false); // honesty guard holds by default
+    kern.close();
+  });
+
+  it('promotes the review gate to enforce when the overlay records a ratification ref, driving iteration', () => {
+    const kern = kernloopWithOverlay(
+      'id: x\ngates:\n  review:\n    ratifiedEnforce: "consensus_vote:2026-06-19"\n',
+    );
+    // The promotion is applied through the ratification-guarded ladder…
+    expect(kern.ladder.tierOf(reviewGateManifest.name)).toBe('enforce');
+    // …and audited as a tier_change carrying the ratification ref.
+    const promotion = readEnvelopes(kern.paths.audit).find(
+      (e) => e.type === 'kernel.ladder.tier_change' && (e.payload as { to?: string }).to === 'enforce',
+    );
+    expect(promotion?.payload).toMatchObject({
+      to: 'enforce',
+      ratifiedBy: 'consensus_vote:2026-06-19',
+      direction: 'promotion',
+    });
+    // …so the Inc1 wiring now drives child re-iteration.
+    expect(reviewGateDrivesIteration(kern)).toBe(true);
+    expect(verifyChain(kern.store).ok).toBe(true);
+    kern.close();
   });
 });

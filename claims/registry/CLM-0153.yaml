@@ -1,0 +1,15 @@
+id: CLM-0153
+statement: >-
+  An overlay promotes the review gate to enforce by recording a ratification ref
+  (gates.review.ratifiedEnforce); kernel assembly applies it as an audited
+  ladder transition with that ref as ratifiedBy. It is per-overlay and opt-in —
+  a fresh overlay declares nothing and the gate stays advisory (never a default).
+evidence:
+  - 'test:packages/cli/src/kernel.test.ts::promotes the review gate to enforce when the overlay records a ratification ref, driving iteration'
+  - 'test:packages/cli/src/kernel.test.ts::leaves the review gate advisory when no ratification ref is recorded (fresh overlay)'
+  - 'test:packages/cli/src/overlay.test.ts::accepts a review ratifiedEnforce ref and rejects an empty one [CLM-0153]'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::rejects promotion to enforce without ratifiedBy with a typed error (constitution rule 6)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

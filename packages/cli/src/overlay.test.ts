@@ -185,6 +185,15 @@ describe('loadOverlay defaults and precedence', () => {
     ).toBe(true);
   });
 
+  it('accepts a review ratifiedEnforce ref and rejects an empty one [CLM-0153]', () => {
+    expect(loadFrom('id: x\n').gates.review.ratifiedEnforce).toBeUndefined();
+    expect(
+      loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: "consensus_vote:42"\n').gates.review
+        .ratifiedEnforce,
+    ).toBe('consensus_vote:42');
+    expect(() => loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: ""\n')).toThrow();
+  });
+
   it('defaults adapterEnvAllow to an empty list and accepts named extras [CLM-0122]', () => {
     expect(loadFrom('id: x\n').adapterEnvAllow).toEqual([]);
     expect(

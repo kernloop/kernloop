@@ -888,15 +888,16 @@ File, function, and per-package LOC budgets are CI-enforced: an over-budget pack
 
 **Status:** verified — **source:** [`CLM-0064.yaml`](../claims/registry/CLM-0064.yaml)
 
-The canonical loop runs a review gate per child after the quality gate (implement then quality then review); the review Verdict is advisory, audited, and does not block integration.
+The canonical loop runs a review gate per child after the quality gate (implement then quality then review). BY DEFAULT the review Verdict is advisory, audited, and does not drive re-iteration or block integration; it drives child re-iteration ONLY when the review gate is promoted to enforce via a ratified ladder transition (per-overlay, never a default).
 
 **Enforced by:**
 
 - [`packages/workflows/src/graph.test.ts`](../packages/workflows/src/graph.test.ts)
 - [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
 - [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
-- [`packages/cli/src/loop/gates-in-loop.test.ts`](../packages/cli/src/loop/gates-in-loop.test.ts)
-- [`packages/cli/src/loop.test.ts`](../packages/cli/src/loop.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
 - CI `test`
 
 ## CLM-0066
@@ -2542,4 +2543,18 @@ Whether the review gate drives child re-iteration is derived from its authority-
 - [`packages/kernel/src/ladder/ladder.test.ts`](../packages/kernel/src/ladder/ladder.test.ts)
 - [`packages/cli/src/loop/engine-build.test.ts`](../packages/cli/src/loop/engine-build.test.ts)
 - [`packages/cli/src/loop/engine-build.test.ts`](../packages/cli/src/loop/engine-build.test.ts)
+- CI `test`
+
+## CLM-0153
+
+**Status:** verified — **source:** [`CLM-0153.yaml`](../claims/registry/CLM-0153.yaml)
+
+An overlay promotes the review gate to enforce by recording a ratification ref (gates.review.ratifiedEnforce); kernel assembly applies it as an audited ladder transition with that ref as ratifiedBy. It is per-overlay and opt-in — a fresh overlay declares nothing and the gate stays advisory (never a default).
+
+**Enforced by:**
+
+- [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
+- [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/kernel/src/ladder/ladder.test.ts`](../packages/kernel/src/ladder/ladder.test.ts)
 - CI `test`

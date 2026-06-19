@@ -1,14 +1,17 @@
 id: CLM-0064
 statement: >-
   The canonical loop runs a review gate per child after the quality gate
-  (implement then quality then review); the review Verdict is advisory,
-  audited, and does not block integration.
+  (implement then quality then review). BY DEFAULT the review Verdict is
+  advisory, audited, and does not drive re-iteration or block integration; it
+  drives child re-iteration ONLY when the review gate is promoted to enforce via
+  a ratified ladder transition (per-overlay, never a default).
 evidence:
   - 'test:packages/workflows/src/graph.test.ts::declares the spec §6 shape: the chain, the vote branch, and the child sub-chain'
   - 'test:packages/cli/src/loop/gates-in-loop.test.ts::reviews the child diff, returns an advisory Verdict, and audits it'
-  - 'test:packages/cli/src/loop/gates-in-loop.test.ts::abstains honestly when no diff was stashed (a resume that landed after implement)'
   - 'test:packages/cli/src/loop/gates-in-loop.test.ts::is advisory but SURFACED: a rejecting review adds a needs-review signal without failing the run (#226 item 5)'
-  - 'test:packages/cli/src/loop.test.ts::runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory'
+  - 'test:packages/workflows/src/child-iterate.test.ts::the review gate is advisory: a rejecting review does NOT re-run implement by default'
+  - 'test:packages/workflows/src/child-iterate.test.ts::with reviewDrivesIteration on (review at enforce), a review reject re-runs implement'
+  - 'test:packages/cli/src/kernel.test.ts::promotes the review gate to enforce when the overlay records a ratification ref, driving iteration'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

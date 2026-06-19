@@ -143,6 +143,22 @@ function registerFaculties(registry: ManifestRegistry, ladder: Ladder): void {
 }
 
 /**
+ * Apply an overlay's RATIFIED gate promotions (#328 Inc2). When the overlay
+ * records a ratification ref for the review gate (`gates.review.ratifiedEnforce`),
+ * promote it advisory→enforce through the ladder — audited as
+ * `kernel.ladder.tier_change` with that ref as `ratifiedBy` (the ladder itself
+ * refuses an enforce promotion without one, constitutional rule 6). The promotion
+ * then drives behaviour via {@link reviewGateDrivesIteration} (#328 Inc1). This is
+ * PER-OVERLAY and opt-in: a fresh clone declares nothing and stays advisory, so the
+ * CLM-0064 honesty guard holds by default — never a default upward [CLM-0153].
+ */
+function promoteRatifiedGates(ladder: Ladder, config: Overlay): void {
+  const ratifiedBy = config.gates.review.ratifiedEnforce;
+  if (ratifiedBy === undefined) return;
+  ladder.setTier(reviewGateManifest.name, 'advisory', 'enforce', { ratifiedBy });
+}
+
+/**
  * Assemble the kernel + faculties over one overlay. Registers the three P1
  * faculty manifests in the registry (each registration is audited) and
  * seeds their ladder tiers mechanically from the manifest-declared tier.
@@ -172,6 +188,7 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
   // a decomposed program is recorded here, so a fresh handle resumes it.
   const programs = createProgramStore(paths.programs, msClockOption(clock));
   registerFaculties(registry, ladder);
+  promoteRatifiedGates(ladder, config);
   const kernloop: Kernloop = {
     paths,
     config,
