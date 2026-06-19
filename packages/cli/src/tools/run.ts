@@ -22,6 +22,7 @@ import {
   type Verdict,
 } from '@kernloop/contracts';
 import { ADAPTER_NAMES, RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
+import { stopTailOnSettle, tailIf } from '../loop/progress-tail.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import type { Kernloop } from '../kernel.js';
 import {
@@ -287,6 +288,9 @@ export interface RunToolOptions {
   /** Receives an async run's background settle promise so a one-shot host (the
    * CLI) can drain it before tearing down the overlay. */
   onBackground?: (settled: Promise<void>) => void;
+  /** Per-milestone progress sink (#336 P1, CLM-0148): each SIGNIFICANT audit
+   * event of this run is forwarded (read-only, best-effort) for MCP progress. */
+  onProgress?: (message: string) => void;
 }
 
 /** The `run` tool. See module docs. */
@@ -332,13 +336,13 @@ export async function runTool(
       decision: reportDecision(decision),
     };
   }
-  return dispatchSelected(
-    kern,
-    task,
-    parsed,
-    `${decision.selected.name}@${decision.selected.version}`,
-    options,
-  );
+  // Tail milestones to the progress sink (#336); return `result` DIRECTLY (no
+  // extra await) so an async run resolves to `running` before it settles.
+  const tail = tailIf(options.onProgress, kern.store.filePath, task.id);
+  const selected = `${decision.selected.name}@${decision.selected.version}`;
+  const result = dispatchSelected(kern, task, parsed, selected, options);
+  stopTailOnSettle(result, tail);
+  return result;
 }
 
 /**
