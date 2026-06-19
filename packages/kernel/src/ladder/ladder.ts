@@ -108,6 +108,19 @@ export class Ladder {
   }
 
   /**
+   * The manifest's current authority tier — as last recorded via {@link setTier},
+   * automatic demotion, or initial seeding — or `undefined` if the ladder has
+   * never seen it. The read-only counterpart to {@link setTier}: it lets a
+   * composition root derive tier-conditional behaviour (e.g. an `enforce` review
+   * gate driving child re-iteration, #328) from the ONE ratification-guarded
+   * authority source, rather than the static manifest tier that
+   * `ManifestRegistry.register()` accepts without the ladder's guard [CLM-0152].
+   */
+  tierOf(manifestName: string): Tier | undefined {
+    return this.tiers.get(manifestName);
+  }
+
+  /**
    * Authorize one routed action [CLM-0016]: denied when `requiredTier`
    * exceeds `actorTier` or `authorityCeiling`. Both outcomes append a
    * `kernel.ladder.check` audit event.

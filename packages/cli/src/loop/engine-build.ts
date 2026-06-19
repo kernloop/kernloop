@@ -8,6 +8,7 @@
  */
 import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
+import { reviewGateManifest } from '@kernloop/faculty-gates';
 import {
   JsonlCheckpointStore,
   createEngine,
@@ -24,6 +25,20 @@ import { ensureAdapterAvailable } from './invoke.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
 import type { LoopRequest } from './index.js';
+
+/**
+ * #328 Inc1 — does the review gate drive child re-iteration this run? It does
+ * ONLY when its authority-ladder tier is `enforce`. The ratification-guarded
+ * LADDER is the single authority source — NOT the static manifest tier, which
+ * `ManifestRegistry.register()` accepts without the guard. A fresh overlay seeds
+ * the review gate at its declared `advisory` tier ⇒ `false` (review stays a
+ * non-blocking hint, preserving the CLM-0064 honesty guard); only a ratified
+ * `setTier`→`enforce` promotion (#328 Inc2) flips it. Behaviour-neutral until
+ * such a promotion is recorded [CLM-0152].
+ */
+export function reviewGateDrivesIteration(kern: Pick<Kernloop, 'ladder'>): boolean {
+  return kern.ladder.tierOf(reviewGateManifest.name) === 'enforce';
+}
 
 /**
  * Probe every adapter a default-seam run can actually call — the run adapter
@@ -128,6 +143,7 @@ export function buildLoopEngine(
       Kc: kern.config.Kc,
       gates: { vote: kern.config.gates.vote },
       nodeOverrides: kern.config.nodeOverrides,
+      reviewDrivesIteration: reviewGateDrivesIteration(kern),
     },
     budget: budgetGuardFor(seams.mode, request.task, seams.totals),
     // Always-on metered readout for per-child attribution (#56) — the same

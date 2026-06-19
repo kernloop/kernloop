@@ -2529,3 +2529,17 @@ A vote/review gate Verdict's audit event records the per-voter ballot (each vote
 - [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
 - [`packages/cli/src/tools/watch.test.ts`](../packages/cli/src/tools/watch.test.ts)
 - CI `test`
+
+## CLM-0152
+
+**Status:** verified — **source:** [`CLM-0152.yaml`](../claims/registry/CLM-0152.yaml)
+
+Whether the review gate drives child re-iteration is derived from its authority-ladder tier (enforce ⇒ drives), the ratification-guarded source, not the static manifest tier; the ladder exposes that tier via tierOf.
+
+**Enforced by:**
+
+- [`packages/kernel/src/ladder/ladder.test.ts`](../packages/kernel/src/ladder/ladder.test.ts)
+- [`packages/kernel/src/ladder/ladder.test.ts`](../packages/kernel/src/ladder/ladder.test.ts)
+- [`packages/cli/src/loop/engine-build.test.ts`](../packages/cli/src/loop/engine-build.test.ts)
+- [`packages/cli/src/loop/engine-build.test.ts`](../packages/cli/src/loop/engine-build.test.ts)
+- CI `test`
