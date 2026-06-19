@@ -47,6 +47,8 @@ export type LoopInvoke = (
     model?: string;
     effort?: AdapterCommandEffort;
     tier?: ModelTier;
+    /** Run the CLI tool-free (#148): set by the seam for REASONING nodes. */
+    pureCompletion?: boolean;
   },
 ) => Promise<{ output: string; cost: Cost }>;
 
@@ -109,6 +111,7 @@ export function adapterInvoke(
       timeoutMs: options.timeoutMs ?? LOOP_INVOKE_TIMEOUT_MS,
       ...(options.model === undefined ? {} : { model: options.model }),
       ...(options.effort === undefined ? {} : { effort: options.effort }),
+      ...(options.pureCompletion === undefined ? {} : { pureCompletion: options.pureCompletion }),
       ...(env === undefined ? {} : { env }),
       ...(cwd === undefined ? {} : { cwd }),
       ...(envAllow === undefined ? {} : { envAllow }),

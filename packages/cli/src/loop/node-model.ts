@@ -142,3 +142,13 @@ const HEAVY_NODES: ReadonlySet<TieredNode> = new Set(['implement', 'research', '
 export function invokeTimeoutForNode(node: TieredNode, baseMs: number): number {
   return HEAVY_NODES.has(node) ? baseMs : Math.min(baseMs, LIGHT_INVOKE_TIMEOUT_MS);
 }
+
+/**
+ * Reasoning nodes (#148) run the agentic CLI as a PURE COMPLETION — tool-free, so
+ * they consume only the compiled Brief, never reading/writing the workspace. Every
+ * tiered node EXCEPT `implement` (the coder, which produces files) is a reasoning
+ * node: research/plan/decompose/vote/review judge or plan over text.
+ */
+export function isReasoningNode(node: TieredNode): boolean {
+  return node !== 'implement';
+}

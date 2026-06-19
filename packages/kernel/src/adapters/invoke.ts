@@ -20,6 +20,7 @@ import { CostSchema, type Cost } from '@kernloop/contracts';
 import {
   adapterDefinitions,
   type AdapterCommandEffort,
+  type AdapterCommandRequest,
   type AdapterName,
   type AdapterUsage,
 } from './definitions.js';
@@ -83,6 +84,13 @@ export interface AdapterInvocation {
    * nodes are grounded in (and confined to) the workspace, not the launch dir.
    */
   readonly cwd?: string;
+  /**
+   * Invoke as a PURE COMPLETION (#148): the canonical loop sets this for REASONING
+   * nodes so the agentic CLI runs tool-free (no fs read/write) — see
+   * {@link AdapterCommandRequest.pureCompletion} for per-CLI coverage. Omitted ⇒
+   * the CLI's normal tool access (the coder node).
+   */
+  readonly pureCompletion?: boolean;
 }
 
 /** Which Cost figures were actually reported by the CLI on this call. */
@@ -156,6 +164,18 @@ function buildCost(adapter: AdapterName, usage: AdapterUsage | null, durationMs:
   });
 }
 
+/** The argv-shaping inputs a definition may read, projected from the invocation. */
+function toCommandRequest(invocation: AdapterInvocation): AdapterCommandRequest {
+  return {
+    prompt: invocation.prompt,
+    ...(invocation.model === undefined ? {} : { model: invocation.model }),
+    ...(invocation.effort === undefined ? {} : { effort: invocation.effort }),
+    ...(invocation.pureCompletion === undefined
+      ? {}
+      : { pureCompletion: invocation.pureCompletion }),
+  };
+}
+
 /** Reject invocations the definition cannot honestly execute. */
 function checkInvocation(adapter: AdapterName, invocation: AdapterInvocation): void {
   const definition = adapterDefinitions[adapter];
@@ -193,12 +213,7 @@ export async function invokeAdapter(
     throw new AdapterUnavailableError(adapter, definition.command, availability.probedPaths);
   }
 
-  const request = {
-    prompt: invocation.prompt,
-    ...(invocation.model === undefined ? {} : { model: invocation.model }),
-    ...(invocation.effort === undefined ? {} : { effort: invocation.effort }),
-  };
-  const command = definition.buildCommand(request);
+  const command = definition.buildCommand(toCommandRequest(invocation));
   const raw = await runSubprocess({
     command: availability.resolvedPath,
     args: command.args,

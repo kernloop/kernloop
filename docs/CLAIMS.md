@@ -2573,3 +2573,16 @@ In enforce mode the canonical loop halts BEFORE dispatching a node when the rema
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - CI `test`
+
+## CLM-0155
+
+**Status:** verified — **source:** [`CLM-0155.yaml`](../claims/registry/CLM-0155.yaml)
+
+Reasoning nodes (every canonical-loop model node except the coder `implement`) invoke the agentic CLI as a PURE COMPLETION — tool-free — so they consume only the compiled Brief, never reading/writing the workspace. Coverage is per-CLI and honest: claude denies its fs/exec/network tools (`--disallowedTools`), gemini runs read-only (`--approval-mode plan`), codex is already `-s read-only` (partial — writes blocked, reads allowed), opencode has no run-level flag (no coverage, recorded not faked). The coder keeps tools (it produces files).
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- [`packages/cli/src/loop/node-model.test.ts`](../packages/cli/src/loop/node-model.test.ts)
+- [`packages/kernel/src/adapters/definitions.ts#pureCompletionArgs`](../packages/kernel/src/adapters/definitions.ts)
+- CI `test`

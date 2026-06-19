@@ -1,0 +1,17 @@
+id: CLM-0155
+statement: >-
+  Reasoning nodes (every canonical-loop model node except the coder `implement`)
+  invoke the agentic CLI as a PURE COMPLETION — tool-free — so they consume only
+  the compiled Brief, never reading/writing the workspace. Coverage is per-CLI and
+  honest: claude denies its fs/exec/network tools (`--disallowedTools`), gemini
+  runs read-only (`--approval-mode plan`), codex is already `-s read-only`
+  (partial — writes blocked, reads allowed), opencode has no run-level flag
+  (no coverage, recorded not faked). The coder keeps tools (it produces files).
+evidence:
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::pure-completion (#148) disables tools per CLI, and is absent by default'
+  - 'test:packages/cli/src/loop/node-model.test.ts::marks every node EXCEPT implement as a reasoning (tool-free) node'
+  - 'code:packages/kernel/src/adapters/definitions.ts#pureCompletionArgs'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

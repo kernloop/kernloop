@@ -140,6 +140,8 @@ export function buildNodeSeam(
   totals: RunTotals,
   timeoutMs?: number,
   hooks: NodeSeamHooks = {},
+  /** Bind tool-free invocation for a REASONING node (#148); a per-call option wins. */
+  pureCompletion?: boolean,
 ): NodeSeam {
   // Attribute this node's spend to the adapter that serves it (#44).
   const metered = meteredInvoke(base, totals, served.adapter);
@@ -154,12 +156,14 @@ export function buildNodeSeam(
     // The REQUESTED tier rides through so a host that picks the model itself
     // (MCP sampling, #140) can route high/med/low; CLI/api adapters ignore it.
     const tier = options.tier ?? served.requestedTier;
+    const pure = options.pureCompletion ?? pureCompletion;
     try {
       const result = await metered(prompt, {
         ...options,
         ...(model === undefined ? {} : { model }),
         ...(effort === undefined ? {} : { effort }),
         ...(timeout === undefined ? {} : { timeoutMs: timeout }),
+        ...(pure === undefined ? {} : { pureCompletion: pure }),
         tier,
       });
       // Per-model-call fitness (#66): success = the call returned output.

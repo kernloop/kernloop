@@ -87,11 +87,37 @@ export interface AdapterCommandRequest {
    * direct-API adapter and adds nothing to argv here.
    */
   readonly effort?: AdapterCommandEffort;
+  /**
+   * Invoke the CLI as a PURE COMPLETION (#148): disable filesystem/edit tools so
+   * a REASONING node (research/plan/decompose/vote/review) only sees the prompt +
+   * returns text, never reading or writing the workspace. Coverage is per-CLI and
+   * HONEST: claude denies its tools (`--disallowedTools`); gemini runs read-only
+   * (`--approval-mode plan`); codex is ALREADY `-s read-only` (writes blocked,
+   * reads still allowed — partial); opencode has no run-level flag (no coverage —
+   * recorded, not faked). The coder node leaves this unset (it needs tools).
+   */
+  readonly pureCompletion?: boolean;
 }
 
 /** The `[param, value]` argv pair for an arg-delivered effort knob, else nothing. */
 function effortArgs(effort: AdapterCommandEffort | undefined): string[] {
   return effort !== undefined && effort.via === 'arg' ? [effort.param, effort.value] : [];
+}
+
+/**
+ * claude's fs/exec/network tool names denied in pure-completion mode (#148) — the
+ * known surface a reasoning node must not touch. A space-separated `--disallowedTools`
+ * value (the CLI accepts comma/space-separated names).
+ */
+export const CLAUDE_PURE_COMPLETION_DENY =
+  'Bash Read Write Edit MultiEdit NotebookEdit Glob Grep WebFetch WebSearch Task';
+
+/** Pure-completion restriction argv for a CLI (#148); `[]` when off or unsupported. */
+function pureCompletionArgs(adapter: AdapterName, pure: boolean | undefined): string[] {
+  if (pure !== true) return [];
+  if (adapter === 'claude') return ['--disallowedTools', CLAUDE_PURE_COMPLETION_DENY];
+  if (adapter === 'gemini') return ['--approval-mode', 'plan'];
+  return []; // codex already -s read-only; opencode/ollama have no run-level flag
 }
 
 /**
@@ -168,13 +194,14 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     experimental: false,
     requiresModel: false,
     // Prompt via stdin to avoid argv escaping issues (v1 evidence).
-    buildCommand: ({ prompt, model, effort }) => ({
+    buildCommand: ({ prompt, model, effort, pureCompletion }) => ({
       args: [
         '-p',
         '--output-format',
         'json',
         ...modelArgs('--model', model),
         ...effortArgs(effort),
+        ...pureCompletionArgs('claude', pureCompletion),
       ],
       stdin: prompt,
     }),
@@ -230,8 +257,14 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     experimental: false,
     requiresModel: false,
     // Prompt is positional, JSON output via -o (v1 evidence).
-    buildCommand: ({ prompt, model }) => ({
-      args: [prompt, '-o', 'json', ...modelArgs('-m', model)],
+    buildCommand: ({ prompt, model, pureCompletion }) => ({
+      args: [
+        prompt,
+        '-o',
+        'json',
+        ...modelArgs('-m', model),
+        ...pureCompletionArgs('gemini', pureCompletion),
+      ],
     }),
     parseOutput: parseGeminiOutput,
     // Harness-routed: gemini model family ids per tier; no effort param.
