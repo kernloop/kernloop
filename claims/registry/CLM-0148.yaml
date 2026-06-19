@@ -1,0 +1,34 @@
+id: CLM-0148
+statement: >-
+  A `run`'s live milestones are EMITTED to the MCP host as progress notifications
+  so it can show the loop working (#336 P1). When the host calls the `run` tool
+  with a `progressToken`, the server forwards each of THIS run's SIGNIFICANT audit
+  events — routing, gate verdicts, per-node spend (#302), child iterations, the
+  outcome — as one `notifications/progress` apiece (monotonic counter; NO `total`,
+  since the loop's iteration count is unknown up front). The content is the
+  EXISTING audited events re-rendered by the `watch` renderer: an in-process
+  tailer reads the audit JSONL the loop already appends, filtered to the run by
+  `task.id` (`startProgressTail`), so fan-out children interleave in file order
+  and nothing new is "claimed" — it is a second TRANSPORT for already-audited
+  facts. It is read-only and best-effort: the tailer never throws on a missing or
+  partial file, and a notification failure (sync throw OR async rejection) is
+  swallowed so progress can never break the run it narrates. With NO progressToken
+  the sink is absent and zero notifications are emitted. HONESTY BOUNDARY: this
+  claims the SERVER-SIDE EMISSION of the notifications (asserted by a fake host
+  capturing `sendNotification`) — NOT that any particular client (e.g. Claude
+  Code) renders them to the user, which this layer cannot observe. Deferred to
+  P2/P3 (#336): audit-joined `status --job` for async/no-token hosts, uniform
+  per-node start/finish events, verbosity controls, the terminal two-band UX.
+evidence:
+  - 'test:packages/cli/src/mcp-progress.test.ts::emits one notifications/progress per message with a monotonic counter and no total'
+  - 'test:packages/cli/src/mcp-progress.test.ts::returns undefined (zero notifications) when the host sent no progressToken'
+  - 'test:packages/cli/src/mcp-progress.test.ts::swallows a sendNotification failure — progress never breaks the tool call'
+  - "test:packages/cli/src/loop/progress-tail.test.ts::forwards only this run's SIGNIFICANT milestones, rendered, and drops noise + other runs"
+  - 'test:packages/cli/src/loop/progress-tail.test.ts::does not re-forward an event across drains (monotonic dedup)'
+  - 'test:packages/cli/src/loop/progress-tail.test.ts::a missing audit file forwards nothing and never throws'
+  - 'code:packages/cli/src/mcp.ts#makeProgressSink@doc:/CLM-0148/'
+  - 'code:packages/cli/src/loop/progress-tail.ts#startProgressTail@doc:/CLM-0148/'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

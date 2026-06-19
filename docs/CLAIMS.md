@@ -2467,3 +2467,21 @@ The review gate STRUCTURALLY fences its untrusted diff/context against prompt in
 - [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
 - [`packages/cli/src/loop/seams.ts#reviewerInvoker`](../packages/cli/src/loop/seams.ts)
 - CI `test`
+
+## CLM-0148
+
+**Status:** verified — **source:** [`CLM-0148.yaml`](../claims/registry/CLM-0148.yaml)
+
+A `run`'s live milestones are EMITTED to the MCP host as progress notifications so it can show the loop working (#336 P1). When the host calls the `run` tool with a `progressToken`, the server forwards each of THIS run's SIGNIFICANT audit events — routing, gate verdicts, per-node spend (#302), child iterations, the outcome — as one `notifications/progress` apiece (monotonic counter; NO `total`, since the loop's iteration count is unknown up front). The content is the EXISTING audited events re-rendered by the `watch` renderer: an in-process tailer reads the audit JSONL the loop already appends, filtered to the run by `task.id` (`startProgressTail`), so fan-out children interleave in file order and nothing new is "claimed" — it is a second TRANSPORT for already-audited facts. It is read-only and best-effort: the tailer never throws on a missing or partial file, and a notification failure (sync throw OR async rejection) is swallowed so progress can never break the run it narrates. With NO progressToken the sink is absent and zero notifications are emitted. HONESTY BOUNDARY: this claims the SERVER-SIDE EMISSION of the notifications (asserted by a fake host capturing `sendNotification`) — NOT that any particular client (e.g. Claude Code) renders them to the user, which this layer cannot observe. Deferred to P2/P3 (#336): audit-joined `status --job` for async/no-token hosts, uniform per-node start/finish events, verbosity controls, the terminal two-band UX.
+
+**Enforced by:**
+
+- [`packages/cli/src/mcp-progress.test.ts`](../packages/cli/src/mcp-progress.test.ts)
+- [`packages/cli/src/mcp-progress.test.ts`](../packages/cli/src/mcp-progress.test.ts)
+- [`packages/cli/src/mcp-progress.test.ts`](../packages/cli/src/mcp-progress.test.ts)
+- [`packages/cli/src/loop/progress-tail.test.ts`](../packages/cli/src/loop/progress-tail.test.ts)
+- [`packages/cli/src/loop/progress-tail.test.ts`](../packages/cli/src/loop/progress-tail.test.ts)
+- [`packages/cli/src/loop/progress-tail.test.ts`](../packages/cli/src/loop/progress-tail.test.ts)
+- [`packages/cli/src/mcp.ts#makeProgressSink`](../packages/cli/src/mcp.ts)
+- [`packages/cli/src/loop/progress-tail.ts#startProgressTail`](../packages/cli/src/loop/progress-tail.ts)
+- CI `test`

@@ -47,7 +47,54 @@ import {
 interface ToolEntry {
   readonly description: string;
   readonly schema: z.ZodType;
-  readonly handler: (kern: Kernloop, args: unknown, server: Server) => Promise<unknown> | unknown;
+  /**
+   * `onProgress` (#336 P1, CLM-0148) forwards a long run's milestones as a
+   * progress sink; only the `run` tool uses it, and only when the host sent a
+   * progressToken. Every other tool ignores it.
+   */
+  readonly handler: (
+    kern: Kernloop,
+    args: unknown,
+    server: Server,
+    onProgress?: (message: string) => void,
+  ) => Promise<unknown> | unknown;
+}
+
+/** The subset of the request-handler `extra` this module uses to push progress. */
+interface ProgressExtra {
+  readonly sendNotification?: (notification: {
+    method: 'notifications/progress';
+    params: { progressToken: string | number; progress: number; message: string };
+  }) => Promise<void> | void;
+}
+
+/**
+ * Build a best-effort progress sink (#336 P1, CLM-0148): each call emits one MCP
+ * `notifications/progress` keyed to the host's `progressToken`, with a monotonic
+ * counter and NO `total` (the loop's iteration count is unknown up front — never
+ * fake a denominator). Returns undefined when the host sent no token or the
+ * transport can't notify. A send failure is swallowed — progress must NEVER
+ * break the tool call it narrates (the #336 vote condition).
+ */
+export function makeProgressSink(
+  extra: ProgressExtra,
+  progressToken: string | number | undefined,
+): ((message: string) => void) | undefined {
+  const send = extra.sendNotification;
+  if (progressToken === undefined || send === undefined) return undefined;
+  let progress = 0;
+  return (message: string): void => {
+    progress += 1;
+    try {
+      // Catch BOTH a synchronous transport throw and an async rejection — a
+      // progress notification must never break the tool call it narrates (#336).
+      void Promise.resolve(
+        send({ method: 'notifications/progress', params: { progressToken, progress, message } }),
+      ).catch(() => {});
+    } catch {
+      /* best-effort: transport unavailable mid-call — drop this milestone */
+    }
+  };
 }
 
 /** The eleven-tool dispatch table — the complete MCP surface [CLM-0033]. */
@@ -59,12 +106,11 @@ export const TOOL_TABLE: Readonly<Record<KernelToolName, ToolEntry>> = {
     // When the connected host can serve models via MCP sampling, route the loop
     // through it — kernloop holds no model CLI/key on the server side, the host
     // is the model provider (#135). Otherwise the run uses its --adapter CLI.
-    handler: (kern, args, server) =>
-      runTool(
-        kern,
-        RunInputSchema.parse(args),
-        hostSupportsSampling(server) ? { invoke: samplingInvoke(server) } : {},
-      ),
+    handler: (kern, args, server, onProgress) =>
+      runTool(kern, RunInputSchema.parse(args), {
+        ...(hostSupportsSampling(server) ? { invoke: samplingInvoke(server) } : {}),
+        ...(onProgress === undefined ? {} : { onProgress }),
+      }),
   },
   status: {
     description:
@@ -161,7 +207,7 @@ export function createMcpServer(kern: Kernloop): Server {
       },
     })),
   }));
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const entry = (TOOL_TABLE as Record<string, ToolEntry | undefined>)[request.params.name];
     if (entry === undefined) {
       return textResult(
@@ -172,8 +218,13 @@ export function createMcpServer(kern: Kernloop): Server {
         true,
       );
     }
+    // Forward this call's milestones as MCP progress notifications when the host
+    // supplied a progressToken (#336 P1) — best-effort, only `run` consumes it.
+    const onProgress = makeProgressSink(extra, request.params._meta?.progressToken);
     try {
-      return textResult(await entry.handler(kern, request.params.arguments ?? {}, server));
+      return textResult(
+        await entry.handler(kern, request.params.arguments ?? {}, server, onProgress),
+      );
     } catch (error) {
       return textResult(
         {
