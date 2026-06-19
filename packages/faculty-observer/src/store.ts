@@ -35,6 +35,11 @@ import Database from 'better-sqlite3';
  *   own row, never merging into a named class. This table is SEPARATE from and
  *   ADDITIVE to `observer_fitness`: the subject-keyed ledger (and the
  *   priors/router that read it) is untouched.
+ * - `observer_fitness_identity_outcome` — the parallel OUTCOME-LEVEL fitness
+ *   series (#229/#5), same identity tuple but counting DELIVERABLES that passed
+ *   the quality+review gates, not model CALLS — a higher-quality cross-model
+ *   signal. A SEPARATE table from `observer_fitness_identity` so the two never
+ *   double-count (call-success vs deliverable-pass are different denominators).
  */
 export const SCHEMA_DDL = `
 CREATE TABLE IF NOT EXISTS observer_fitness (
@@ -47,6 +52,19 @@ CREATE TABLE IF NOT EXISTS observer_fitness (
   lastUsedAt INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS observer_fitness_identity (
+  provider TEXT NOT NULL,
+  family TEXT NOT NULL,
+  generation TEXT NOT NULL,
+  tier TEXT NOT NULL,
+  invocations INTEGER NOT NULL,
+  successes INTEGER NOT NULL,
+  tokens INTEGER NOT NULL,
+  usd REAL NOT NULL,
+  wallClockMs REAL NOT NULL,
+  lastUsedAt INTEGER NOT NULL,
+  PRIMARY KEY (provider, family, generation, tier)
+);
+CREATE TABLE IF NOT EXISTS observer_fitness_identity_outcome (
   provider TEXT NOT NULL,
   family TEXT NOT NULL,
   generation TEXT NOT NULL,
