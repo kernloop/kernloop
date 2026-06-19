@@ -144,6 +144,7 @@ export function buildLoopEngine(
       gates: { vote: kern.config.gates.vote },
       nodeOverrides: kern.config.nodeOverrides,
       reviewDrivesIteration: reviewGateDrivesIteration(kern),
+      budgetHeadroomFraction: kern.config.budgetHeadroomFraction,
     },
     budget: budgetGuardFor(seams.mode, request.task, seams.totals),
     // Always-on metered readout for per-child attribution (#56) — the same

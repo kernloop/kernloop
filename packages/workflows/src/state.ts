@@ -113,6 +113,14 @@ export const RunStateSchema = z.strictObject({
   /** Per-child results accumulated as the fan-out progresses. */
   childResults: z.array(ChildResultSchema),
   trace: z.array(TraceEntrySchema),
+  /**
+   * Largest single-NODE metered spend seen this run (#342). The pre-node budget
+   * guard reserves at least this much so an enforce-mode cap is not overshot by
+   * one node's spend. Per-PROCESS like the meter it reads — a resume restarts it
+   * at 0 (the post-node backstop covers the first post-resume node). Defaulted so
+   * a pre-#342 checkpoint resumes cleanly.
+   */
+  observedMaxNodeSpend: ChildSpendSchema.default({ tokens: 0, usd: 0 }),
 });
 export type RunState = z.infer<typeof RunStateSchema>;
 

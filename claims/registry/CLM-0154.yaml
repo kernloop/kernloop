@@ -1,0 +1,17 @@
+id: CLM-0154
+statement: >-
+  In enforce mode the canonical loop halts BEFORE dispatching a node when the
+  remaining budget cannot cover the reserve (the larger of a headroom floor and
+  the largest single-node spend observed so far), so an enforce cap is not
+  overshot by one node's spend; the post-node guard remains the backstop and
+  owns the already-over case.
+evidence:
+  - 'test:packages/workflows/src/budget.test.ts::fires when still within budget but the next node would overshoot (the fix)'
+  - 'test:packages/workflows/src/budget.test.ts::defers to the post-node guard when ALREADY over budget (no double-halt, clearer message)'
+  - 'test:packages/workflows/src/budget.test.ts::trackNodeSpend keeps the per-dim max delta and ignores a negative (meter reset) delta'
+  - 'test:packages/workflows/src/engine.test.ts::HALTS before the node that would overshoot the cap, capping spend below the limit'
+  - 'test:packages/workflows/src/engine.test.ts::does not pre-halt a run that stays clear of the reserve (no false early halt)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

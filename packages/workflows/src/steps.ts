@@ -72,6 +72,7 @@ export function initialState(task: TaskContract, entry: string): RunState {
     children: [],
     childResults: [],
     trace: [],
+    observedMaxNodeSpend: { tokens: 0, usd: 0 },
   };
 }
 

@@ -102,3 +102,106 @@ export function enforceBudget(state: RunState, guard: BudgetGuard | undefined): 
   state.haltReason = 'budget';
   state.findings.push(overspendFinding(guard));
 }
+
+/**
+ * The reserve a PRE-node guard keeps free so dispatching the next node cannot
+ * push spend past the limit (#342) — per dimension, the larger of a configurable
+ * headroom floor (`headroomFraction × limit`) and the largest single-node spend
+ * observed so far. The floor covers COLD START (observedMax is 0 until a node
+ * runs, so the first/most-expensive node is otherwise unprotected); observed-max
+ * adapts the reserve to the run's actual worst node.
+ */
+export function nodeReserve(
+  limit: BudgetLimit,
+  observedMax: BudgetSpend,
+  headroomFraction: number,
+): BudgetSpend {
+  return {
+    tokens: Math.max(headroomFraction * limit.tokens, observedMax.tokens),
+    usd: Math.max(headroomFraction * limit.usd, observedMax.usd),
+  };
+}
+
+/**
+ * True when dispatching the next node could overshoot the budget (#342): in
+ * `enforce` mode, the remaining budget on some dimension is below the reserve.
+ * Halting BEFORE the node turns the cap from a soft post-hoc trip into a
+ * near-ceiling. `unlimited`/absent never pre-halts.
+ */
+export function preNodeOvershoot(
+  guard: BudgetGuard | undefined,
+  observedMax: BudgetSpend,
+  headroomFraction: number,
+): boolean {
+  if (guard === undefined || guard.mode !== 'enforce') return false;
+  // Already over → the post-node {@link enforceBudget} owns this with its clearer
+  // "exceeded its budget" halt; the pre-node guard only PREVENTS overshoot (still
+  // within budget, but the next node's reserve isn't covered).
+  if (overBudget(guard)) return false;
+  const spent = guard.spent();
+  const reserve = nodeReserve(guard.limit, observedMax, headroomFraction);
+  return (
+    guard.limit.tokens - spent.tokens < reserve.tokens || guard.limit.usd - spent.usd < reserve.usd
+  );
+}
+
+/** The finding recorded when a run halts BEFORE a node on the pre-node guard
+ * (#342) — names remaining + reserve + the largest node so the early halt is
+ * legible, never opaque. */
+export function preNodeHaltFinding(
+  guard: BudgetGuard,
+  observedMax: BudgetSpend,
+  headroomFraction: number,
+): Finding {
+  const spent = guard.spent();
+  const reserve = nodeReserve(guard.limit, observedMax, headroomFraction);
+  return {
+    severity: 'error',
+    message:
+      `run halted BEFORE the next node to avoid budget overshoot (#342): remaining ` +
+      `${String(guard.limit.tokens - spent.tokens)} tokens / $${String(guard.limit.usd - spent.usd)} ` +
+      `< reserve ${String(reserve.tokens)} tokens / $${String(reserve.usd)} ` +
+      `(largest node so far ${String(observedMax.tokens)} tokens / $${String(observedMax.usd)}) — ` +
+      `raise the budget or re-run unlimited, then resume`,
+  };
+}
+
+/**
+ * Pre-node budget guard (#342): in `enforce` mode, if dispatching the next node
+ * could overshoot, HALT as escalated BEFORE it runs — keeping the post-node
+ * {@link enforceBudget} as the backstop for the first/novel node the reserve
+ * cannot yet anticipate. Mutates `state` in place.
+ */
+export function enforceBudgetPreNode(
+  state: RunState,
+  guard: BudgetGuard | undefined,
+  observedMax: BudgetSpend,
+  headroomFraction: number,
+): boolean {
+  if (state.status !== 'running' || state.cursor.phase === 'done') return false;
+  if (guard === undefined || !preNodeOvershoot(guard, observedMax, headroomFraction)) return false;
+  state.status = 'escalated';
+  state.haltReason = 'budget';
+  state.findings.push(preNodeHaltFinding(guard, observedMax, headroomFraction));
+  return true; // halted before the node — the caller skips dispatch
+}
+
+/** Update the run's largest-single-node spend (#342) from the metered delta
+ * across one node's execution — per dimension max. A negative delta (a
+ * per-process meter reset on resume) contributes nothing. Mutates `state`. */
+export function trackNodeSpend(state: RunState, before: BudgetSpend, after: BudgetSpend): void {
+  state.observedMaxNodeSpend = {
+    tokens: Math.max(state.observedMaxNodeSpend.tokens, after.tokens - before.tokens),
+    usd: Math.max(state.observedMaxNodeSpend.usd, after.usd - before.usd),
+  };
+}
+
+/** Fold a completed node's metered spend into the run's observed-max (#342),
+ * skipping unmetered runs (no guard or no pre-node snapshot). Mutates `state`. */
+export function foldNodeSpend(
+  state: RunState,
+  guard: BudgetGuard | undefined,
+  before: BudgetSpend | undefined,
+): void {
+  if (guard !== undefined && before !== undefined) trackNodeSpend(state, before, guard.spent());
+}

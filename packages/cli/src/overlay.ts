@@ -119,6 +119,15 @@ export const OverlaySchema = z
      */
     Kc: z.number().int().min(1).default(3),
     /**
+     * Pre-node budget reserve floor as a FRACTION of the parent budget (#342): in
+     * enforce mode the run halts BEFORE a node when remaining < max(this × limit,
+     * largest-node-seen), so the cap is a near-ceiling instead of overshooting by
+     * one node's spend. The floor covers COLD START (the first node). Default 0 —
+     * observed-max alone caps steady-state overshoot; raise this to also bound the
+     * first node.
+     */
+    budgetHeadroomFraction: z.number().min(0).max(1).default(0),
+    /**
      * Budget enforcement mode (spec §8) [CLM-0077]: `enforce` (default) HALTS a
      * run whose metered spend exceeds the parent budget; `unlimited` lifts the
      * restriction but NOT the tracking — usage/cost is metered and reported
