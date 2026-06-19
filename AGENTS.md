@@ -122,12 +122,15 @@ Independence matters: a system grading its own homework is the dishonesty
 this repo exists to prevent. Use external review (nexus-agents quarry-panel,
 adversarial subagents told to _refute_) for these rounds, not only self-audit.
 
-## Autonomous mode (the loop)
+## Autonomous self-improvement mode (the loop)
 
 When the human invokes autonomous/loop mode ("continue autonomously", "loop
 through the backlog", `/loop`, or a standing directive to that effect), operate
-as a continuous loop rather than a single task — but the constitution above is
-unchanged; autonomy is a _cadence_, never a license to weaken a rule.
+as a continuous self-improvement loop rather than a single task — but the
+constitution above is unchanged; autonomy is a _cadence_, never a license to
+weaken a rule. The aim is for kernloop to improve itself along
+consensus-approved paths: propose, gather adversarial judgment, incorporate the
+feedback, and only then ship — with the human as the final ratifier.
 
 - **Ask up front, then don't stop.** Surface every genuinely-blocking question
   (a direction fork, a needed ratification) at the START of the run, so the
@@ -137,18 +140,50 @@ unchanged; autonomy is a _cadence_, never a license to weaken a rule.
   size — a clean cleanup or a large epic), execute it end-to-end to the full
   Definition of Done (claim + tests + wiring + green gates), open a PR, and —
   under the human's standing merge approval — merge it, sync, and repeat. Work
-  in claims-first dependency order.
+  in claims-first dependency order, and keep going across the whole backlog —
+  open PRs, in-flight design reviews, and open issues — until it is empty
+  (stopping at every protected-path / human-ratification checkpoint along the
+  way, per "Stop and surface" below); an empty backlog is the only resting state.
+- **Propose, judge, then ship — gather adversarial review before merging.** Do
+  not rely on self-review:
+  - Use kernloop's own gates as first-pass signal where they apply — `gate
+vote` on a design/proposal and `gate review` on a diff. These are
+    `advisory` tier (non-blocking signal), so a sharp finding is a reason to
+    iterate and file an issue; a clean verdict is NEVER licence to skip human
+    review or to self-ratify.
+  - For anything that needs RATIFICATION — a contract or claims-semantics
+    change, a tier promotion, a phase-scope decision — run nexus-agents
+    `consensus_vote` as the adversarial panel and incorporate its findings. The
+    panel INFORMS the decision; it does not make it — the HUMAN merge is the
+    ratification (protected-path and phase-exit decisions are the human's).
+  - Iterate on the feedback: address each voter/reviewer finding, re-run the
+    gates, and carry a unit to a PR only once the advisory signal is clean and
+    the cited findings are resolved or filed.
+- **Dogfood kernloop's own faculties, and compare them to nexus-agents.** Prefer
+  kernloop's wiring-complete MCP tools (`run`, `status`, `brief`, `gate`,
+  `recall`, `remember`, `distill`, `forge`, `manifest`, `audit`, `observe`) over
+  reaching for the v1 substrate by reflex; when a task could be served by
+  either, compare the result against the nexus-agents equivalent. A gap kernloop
+  should close becomes a `planned` claim and an issue (the dogfooding milestone
+  is spec §11) — comparison is the practice, not a standing per-iteration
+  obligation, and replacing nexus-agents wholesale is not licensed until the
+  native faculty exists and is ratified upward.
 - **Ideas and problems become issues, always** (see Work tracking): a great
-  idea, a finding, a deferral, a question you resolved by being clever — file
-  it the moment it appears; the issue is the durable record a reset cannot lose.
+  idea, a finding, a deferral, a vote/review finding, a question you resolved by
+  being clever — file it the moment it appears; the issue is the durable record
+  a reset cannot lose.
 - **Run the standing rounds** (QA / security / vestigial) when appropriate, not
   only at phase exits — after a substantial change, before relying on a claim.
-  Use adversarial subagents told to _refute_; their findings become issues.
+  Use adversarial subagents told to _refute_, and `gate review` as a second
+  pass; their findings become issues.
 - **Stop and surface, don't guess.** Anything that changes a contract, claims
   semantics, or phase scope, or needs a protected-path human-review merge or a
   phase-exit ratification, goes to the human — autonomous mode never self-merges
-  those, never overrides a ratified decision, and never defaults an authority
-  tier upward.
+  those, never overrides a ratified decision, never defaults an authority tier
+  upward, and never treats an advisory gate verdict as ratification. The
+  protected paths (`packages/contracts/**`, `packages/kernel/**`, `claims/**`,
+  this file) merge only via the human-review PR path, in loop mode exactly as
+  outside it.
 - **Never idle longer than 4.5 minutes in one gap.** The model's prompt cache
   has a ~5-minute TTL; a longer idle (e.g. sleeping on a CI run or a build)
   reads the whole context back UNCACHED — slower and costlier. When a wait would
@@ -241,8 +276,16 @@ v1 (`nexus-substrate/nexus-agents`) has exactly two roles here:
 1. **Quarry (read-only).** Ports follow spec §10: read the v1 source and
    tests, reimplement against kernloop contracts, bring the test cases.
    Never copy wholesale; never import v1 packages.
-2. **Ratification panel.** `consensus_vote` may be used for spec changes and
-   tier promotions until kernloop's own vote gate exists (P2).
+2. **Ratification panel.** `consensus_vote` is the adversarial panel for the
+   decisions that need human ratification — spec / contract / claims-semantics
+   changes, tier promotions, and phase-scope decisions (the same set the
+   autonomous-mode loop routes to it) — until kernloop has its own vote gate at
+   `enforce` tier. The panel INFORMS the human; the human merge ratifies — it
+   never decides (spec §11). Kernloop's `gate vote`/`gate review` exist but are
+   `advisory` tier (non-blocking signal) — use them as first-pass judgment,
+   never as ratification, and never as licence to self-merge a protected path.
+   Promoting a native vote/review faculty to `enforce` is the dogfooding north
+   star (#328, spec §11).
 
 It is never an execution engine for this repo. From P3 exit onward, kernloop
 work runs through kernloop itself (dogfooding milestone, spec §11).
