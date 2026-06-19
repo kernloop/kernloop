@@ -310,6 +310,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       .map((e) => e.payload as { childId: string; iteration: number; gate: string });
     expect(iterateEvents).toEqual([
       {
+        taskId: 'task-loop-fail', // both ids so a task.id filter catches it (#343)
         runId: expect.any(String),
         childId: 'task-loop-fail.1',
         iteration: 1,
