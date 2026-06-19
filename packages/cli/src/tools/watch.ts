@@ -98,6 +98,23 @@ function num(p: Record<string, unknown>, key: string): number {
   return typeof p[key] === 'number' ? (p[key] as number) : 0;
 }
 
+/** The `voters: …` clause of a verdict line. Prefers the per-voter ballot
+ * (`voter:vote`, #345) when present — so the reader sees WHO voted HOW — and
+ * falls back to the bare name list for legacy events that predate the ballot. */
+function voterBreakdown(p: Record<string, unknown>): string {
+  if (Array.isArray(p.ballots)) {
+    const cast = p.ballots
+      .filter((b): b is { voter: string; vote: string } => {
+        const r = asRecord(b);
+        return typeof r.voter === 'string' && typeof r.vote === 'string';
+      })
+      .map((b) => `${b.voter}:${b.vote}`);
+    if (cast.length > 0) return `voters: ${cast.join(', ')}`;
+  }
+  const names = Array.isArray(p.voters) ? p.voters.filter((v) => typeof v === 'string') : [];
+  return names.length > 0 ? `voters: ${names.join(', ')}` : '';
+}
+
 /** The human-readable body for one significant event (its `type`-specific line). */
 function describe(event: WatchEvent): string {
   const p = event.payload;
@@ -105,11 +122,10 @@ function describe(event: WatchEvent): string {
     case 'kernel.router.route':
       return `route → ${field(p, 'outcome')}${p.explored === true ? ' (explored)' : ''}`;
     case 'cli.gate.verdict': {
-      const voters = Array.isArray(p.voters) ? p.voters.filter((v) => typeof v === 'string') : [];
       const findings = num(p, 'findings');
       const extra = [
         findings > 0 ? `${String(findings)} finding(s)` : '',
-        voters.length > 0 ? `voters: ${voters.join(', ')}` : '',
+        voterBreakdown(p),
       ].filter(Boolean);
       return `gate ${field(p, 'gate')}: ${field(p, 'result')}${extra.length ? ` (${extra.join('; ')})` : ''}`;
     }

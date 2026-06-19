@@ -84,6 +84,19 @@ describe('isTerminal + renderEvent', () => {
     expect(verdict).toContain('gate vote: approve');
     expect(verdict).toContain('1 finding(s)');
     expect(verdict).toContain('voters: a, b');
+    // With a per-voter ballot present (#345), the line shows WHO voted HOW.
+    const balloted = renderEvent(
+      ev(9, 'cli.gate.verdict', {
+        gate: 'review',
+        result: 'reject',
+        ballots: [
+          { voter: 'correctness', vote: 'approve' },
+          { voter: 'security', vote: 'reject' },
+        ],
+        voters: ['correctness', 'security'],
+      }),
+    );
+    expect(balloted).toContain('voters: correctness:approve, security:reject');
     expect(
       renderEvent(ev(6, 'loop.child.iterate', { childId: 'T.1', iteration: 2, gate: 'quality' })),
     ).toContain('re-iterate child T.1 #2 after quality gate');

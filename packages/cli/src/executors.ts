@@ -139,6 +139,10 @@ export async function publishVerdict(kern: Kernloop, verdict: Verdict): Promise<
       result: verdict.result,
       findings: verdict.findings.length,
       voters: (verdict.voters ?? []).map((v) => v.voter),
+      // The per-voter ballot (votes only — reasoning stays in the observer to
+      // keep the chain compact) so the tamper-evident chain records WHO voted
+      // HOW, not just the panel + aggregate (#345; a #328 ratification record).
+      ballots: (verdict.voters ?? []).map((v) => ({ voter: v.voter, vote: v.vote })),
       wallClockMs: verdict.cost.wallClockMs ?? 0,
     },
   });
