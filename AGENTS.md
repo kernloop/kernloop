@@ -141,8 +141,9 @@ feedback, and only then ship — with the human as the final ratifier.
   Definition of Done (claim + tests + wiring + green gates), open a PR, and —
   under the human's standing merge approval — merge it, sync, and repeat. Work
   in claims-first dependency order, and keep going across the whole backlog —
-  open PRs, in-flight design reviews, and open issues — until it is empty; an
-  empty backlog is the only resting state.
+  open PRs, in-flight design reviews, and open issues — until it is empty
+  (stopping at every protected-path / human-ratification checkpoint along the
+  way, per "Stop and surface" below); an empty backlog is the only resting state.
 - **Propose, judge, then ship — gather adversarial review before merging.** Do
   not rely on self-review:
   - Use kernloop's own gates as first-pass signal where they apply — `gate
@@ -275,13 +276,16 @@ v1 (`nexus-substrate/nexus-agents`) has exactly two roles here:
 1. **Quarry (read-only).** Ports follow spec §10: read the v1 source and
    tests, reimplement against kernloop contracts, bring the test cases.
    Never copy wholesale; never import v1 packages.
-2. **Ratification panel.** `consensus_vote` is the ratification panel for spec
-   changes and tier promotions until kernloop has its own vote gate at
-   `enforce` tier. Kernloop's `gate vote`/`gate review` exist but are
+2. **Ratification panel.** `consensus_vote` is the adversarial panel for the
+   decisions that need human ratification — spec / contract / claims-semantics
+   changes, tier promotions, and phase-scope decisions (the same set the
+   autonomous-mode loop routes to it) — until kernloop has its own vote gate at
+   `enforce` tier. The panel INFORMS the human; the human merge ratifies — it
+   never decides (spec §11). Kernloop's `gate vote`/`gate review` exist but are
    `advisory` tier (non-blocking signal) — use them as first-pass judgment,
    never as ratification, and never as licence to self-merge a protected path.
-   The panel informs the human; the human merge ratifies. Promoting a native
-   vote/review faculty to `enforce` is tracked as the dogfooding north star.
+   Promoting a native vote/review faculty to `enforce` is the dogfooding north
+   star (#328, spec §11).
 
 It is never an execution engine for this repo. From P3 exit onward, kernloop
 work runs through kernloop itself (dogfooding milestone, spec §11).
