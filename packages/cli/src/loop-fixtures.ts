@@ -56,11 +56,16 @@ export function fixtureRepo(scratch: string, name: string, overlayYaml?: string)
   writeFileSync(path.join(repo, 'src', 'index.ts'), 'export const fixture = true;\n');
   // ALWAYS disable the (default-on, #227) Docker gate sandbox so fixtures run tsc
   // deterministically on the HOST (the Docker --network none path is covered by the
-  // #236 gate-tier tests). Appended to any custom config — no fixture sets `gates:`.
+  // #236 gate-tier tests). Appended only when the custom overlay has no `gates:` of
+  // its own (else it must disable sandbox itself — avoids a duplicate `gates:` key).
   {
     const sandboxOff = 'gates:\n  quality:\n    sandbox:\n      enabled: false\n';
     const yaml =
-      overlayYaml === undefined ? `id: ${name}\n${sandboxOff}` : `${overlayYaml}${sandboxOff}`;
+      overlayYaml === undefined
+        ? `id: ${name}\n${sandboxOff}`
+        : overlayYaml.includes('gates:')
+          ? overlayYaml
+          : `${overlayYaml}${sandboxOff}`;
     mkdirSync(path.join(repo, '.kernloop'), { recursive: true });
     writeFileSync(path.join(repo, '.kernloop', 'overlay.yaml'), yaml);
   }
