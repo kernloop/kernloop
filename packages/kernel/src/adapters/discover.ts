@@ -12,8 +12,8 @@
  *    {@link scrub}, so a hostile endpoint that echoes the `Authorization` header
  *    in its error body cannot leak the key (the discovery no-leak test).
  *  - BASEURL GUARD: {@link assertSafeBaseUrl} validates the operator baseUrl
- *    (scheme/credentials) BEFORE any egress; the request path is the FIXED
- *    the fixed {@link MODELS_PATH} / {@link OLLAMA_TAGS_PATH} SUFFIX (the operator baseUrl prefix rides along);
+ *    (scheme/credentials) BEFORE any egress; the request path is the fixed
+ *    {@link MODELS_PATH} / {@link OLLAMA_TAGS_PATH} SUFFIX (the operator baseUrl prefix rides along);
  *    cross-host redirects are refused (`redirect: 'error'`).
  *  - STREAMED SIZE CAP: the body is read via {@link readCappedBody} (the SAME
  *    reader the model-call path uses) so an oversized listing is a typed error,
