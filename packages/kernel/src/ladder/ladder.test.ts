@@ -167,6 +167,26 @@ describe('setTier [CLM-0017]', () => {
   });
 });
 
+describe('tierOf — read the current authority tier [CLM-0152]', () => {
+  it('returns undefined for a manifest the ladder has never seen', () => {
+    expect(ladder.tierOf('never-registered')).toBeUndefined();
+  });
+
+  it('reflects the last setTier transition (the ratification-guarded source)', () => {
+    ladder.setTier('@kernloop/faculty-gates/review', 'advisory', 'enforce', {
+      ratifiedBy: 'consensus_vote:2026-06-19',
+    });
+    expect(ladder.tierOf('@kernloop/faculty-gates/review')).toBe('enforce');
+  });
+
+  it('reflects an automatic demotion, not just the seeded tier', () => {
+    ladder.setTier('m', 'advisory', 'enforce', { ratifiedBy: 'x' });
+    const threshold: EvidenceThreshold = { metric: 'precision', threshold: 0.8, windowN: 3 };
+    ladder.recordEvidence('m', threshold, [0.1, 0.1, 0.1]);
+    expect(ladder.tierOf('m')).toBe('advisory'); // demoted one tier from enforce
+  });
+});
+
 describe('recordEvidence — automatic demotion on threshold breach [CLM-0017]', () => {
   it('does not breach while the sliding window is not yet full', () => {
     ladder.setTier('faculty-gates', 'suggest', 'advisory', { ratifiedBy: 'williamz' });

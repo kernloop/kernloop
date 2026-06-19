@@ -1,0 +1,14 @@
+id: CLM-0152
+statement: >-
+  Whether the review gate drives child re-iteration is derived from its
+  authority-ladder tier (enforce ⇒ drives), the ratification-guarded source,
+  not the static manifest tier; the ladder exposes that tier via tierOf.
+evidence:
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::returns undefined for a manifest the ladder has never seen'
+  - 'test:packages/kernel/src/ladder/ladder.test.ts::reflects the last setTier transition (the ratification-guarded source)'
+  - 'test:packages/cli/src/loop/engine-build.test.ts::is true ONLY after a ratified enforce promotion of the review gate (the #328 Inc2 path)'
+  - 'test:packages/cli/src/loop/engine-build.test.ts::keys on the REVIEW gate specifically — an enforce VOTE gate does not flip review iteration'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
