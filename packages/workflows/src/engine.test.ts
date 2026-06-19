@@ -293,3 +293,58 @@ describe('wiring and input validation', () => {
     expect(result.nodeTrace).toHaveLength(3);
   });
 });
+
+describe('pre-node budget guard — overshoot prevention (#342, CLM-0154)', () => {
+  /** Wrap scripted executors so running each node bumps a cumulative meter. */
+  function meteredScripted(perNode: number) {
+    const base = scripted();
+    const meter = { total: 0 };
+    const executors: Record<string, NodeExecutor> = {};
+    for (const [name, fn] of Object.entries(base)) {
+      executors[name] = async (input: unknown, ctx: NodeContext) => {
+        const out = await fn(input, ctx);
+        meter.total += perNode;
+        return out;
+      };
+    }
+    return { executors, meter };
+  }
+
+  it('HALTS before the node that would overshoot the cap, capping spend below the limit', async () => {
+    // limit 1000, each node spends 400: nodes 1-2 run (spend 800), node 3's pre-check
+    // sees remaining 200 < reserve 400 (largest node so far) → halt BEFORE it.
+    const { executors, meter } = meteredScripted(400);
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      budget: {
+        mode: 'enforce',
+        limit: { tokens: 1000, usd: 1 },
+        spent: () => ({ tokens: meter.total, usd: 0 }),
+      },
+    }).run(task, { runId: 'run-342-prenode' });
+    expect(result.status).toBe('escalated');
+    expect(result.findings?.some((f) => f.message.includes('halted BEFORE the next node'))).toBe(
+      true,
+    );
+    // The cap is a near-ceiling: spend stopped at 800, never overshooting to 1200
+    // as a post-node-only guard would have allowed.
+    expect(meter.total).toBe(800);
+    expect(meter.total).toBeLessThanOrEqual(1000);
+  });
+
+  it('does not pre-halt a run that stays clear of the reserve (no false early halt)', async () => {
+    // each node spends only 10 of a 1000 budget → remaining always ≫ reserve.
+    const { executors, meter } = meteredScripted(10);
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      budget: {
+        mode: 'enforce',
+        limit: { tokens: 1000, usd: 1 },
+        spent: () => ({ tokens: meter.total, usd: 0 }),
+      },
+    }).run(task, { runId: 'run-342-clear' });
+    expect(result.status).toBe('completed');
+  });
+});

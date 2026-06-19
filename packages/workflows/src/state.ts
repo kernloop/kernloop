@@ -113,6 +113,15 @@ export const RunStateSchema = z.strictObject({
   /** Per-child results accumulated as the fan-out progresses. */
   childResults: z.array(ChildResultSchema),
   trace: z.array(TraceEntrySchema),
+  /**
+   * Largest single-NODE metered spend seen this run (#342). The pre-node budget
+   * guard reserves at least this much so an enforce-mode cap is not overshot by
+   * one node's spend. PERSISTED in the checkpoint, so a resume RESTORES the
+   * learned max — conservative: the prior worst node still bounds the reserve
+   * even though the per-process `spent()` meter restarts. Defaulted so a pre-#342
+   * checkpoint (which lacks the field) resumes cleanly.
+   */
+  observedMaxNodeSpend: ChildSpendSchema.default({ tokens: 0, usd: 0 }),
 });
 export type RunState = z.infer<typeof RunStateSchema>;
 

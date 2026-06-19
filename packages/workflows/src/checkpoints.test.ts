@@ -30,6 +30,7 @@ function record(runId: string, seq: number, node: string): CheckpointRecord {
       children: [],
       childResults: [],
       trace: [{ seq, node, iteration: 0 }],
+      observedMaxNodeSpend: { tokens: 0, usd: 0 },
     },
     createdAt: '2026-06-10T00:00:00.000Z',
   };

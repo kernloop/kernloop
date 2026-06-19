@@ -2558,3 +2558,18 @@ An overlay promotes the review gate to enforce by recording a ratification ref (
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - [`packages/kernel/src/ladder/ladder.test.ts`](../packages/kernel/src/ladder/ladder.test.ts)
 - CI `test`
+
+## CLM-0154
+
+**Status:** verified — **source:** [`CLM-0154.yaml`](../claims/registry/CLM-0154.yaml)
+
+In enforce mode the canonical loop halts BEFORE dispatching a node when the remaining budget cannot cover the reserve (the larger of a headroom floor and the largest single-node spend observed so far), so an enforce cap is not overshot by one node's spend; the post-node guard remains the backstop and owns the already-over case.
+
+**Enforced by:**
+
+- [`packages/workflows/src/budget.test.ts`](../packages/workflows/src/budget.test.ts)
+- [`packages/workflows/src/budget.test.ts`](../packages/workflows/src/budget.test.ts)
+- [`packages/workflows/src/budget.test.ts`](../packages/workflows/src/budget.test.ts)
+- [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
+- [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
+- CI `test`

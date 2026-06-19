@@ -21,6 +21,7 @@ import {
 import { CANONICAL_LOOP, type LoopGraph, type LoopNode } from './graph.js';
 import type { CheckpointStore } from './checkpoints.js';
 import { RunStateSchema, WorkflowError, type RunResult, type RunState } from './state.js';
+import { asWorkflowError } from './engine-errors.js';
 import {
   advance,
   advanceToNextChild,
@@ -30,7 +31,14 @@ import {
   type AdvanceOptions,
   type Step,
 } from './steps.js';
-import { enforceBudget, overBudget, type BudgetGuard, type BudgetSpend } from './budget.js';
+import {
+  enforceBudget,
+  enforceBudgetPreNode,
+  foldNodeSpend,
+  overBudget,
+  type BudgetGuard,
+  type BudgetSpend,
+} from './budget.js';
 import { ChildSpendTracker, childSpends } from './child-spend.js';
 import type { ChildIterateEvent } from './child-iterate.js';
 import { EngineConfigSchema, type EngineConfig, type EngineConfigInput } from './config.js';
@@ -107,29 +115,14 @@ export interface Engine {
   resume(runId: string, options?: Pick<RunOptions, 'signal'>): Promise<RunResult>;
 }
 
-/** True for AbortError throws and fired signals — the "kill" path [CLM-0044]. */
-function isAbort(error: unknown, signal?: AbortSignal): boolean {
-  return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError');
-}
-
-/** Wrap a non-engine throw in a typed WorkflowError. */
-function asWorkflowError(error: unknown, node: string, signal?: AbortSignal): WorkflowError {
-  if (error instanceof WorkflowError) return error;
-  const message = error instanceof Error ? error.message : String(error);
-  return isAbort(error, signal)
-    ? new WorkflowError('aborted', `run aborted at node "${node}": ${message}`, { node })
-    : new WorkflowError('executor_failed', `node "${node}" failed: ${message}`, {
-        node,
-        cause: error,
-      });
-}
-
 /** Engine implementation; see {@link createEngine}. */
 class LoopEngine implements Engine {
   private readonly graph: LoopGraph = CANONICAL_LOOP;
   private readonly executors: Readonly<Record<string, NodeExecutor>>;
   private readonly checkpoints: CheckpointStore;
   private readonly config: EngineConfig;
+  /** Pre-node budget reserve floor fraction (#342), hoisted for a short call site. */
+  private readonly headroom: number;
   private readonly budget: BudgetGuard | undefined;
   private readonly onChildIterate: ((event: ChildIterateEvent) => void) | undefined;
   /** Slices the run-global meter per fan-out child for attribution + halt (#56). */
@@ -139,6 +132,7 @@ class LoopEngine implements Engine {
     this.executors = deps.executors;
     this.checkpoints = deps.checkpoints;
     this.config = EngineConfigSchema.parse(deps.config);
+    this.headroom = this.config.budgetHeadroomFraction;
     this.budget = deps.budget;
     this.childSpend = new ChildSpendTracker(deps.meteredSpend);
     this.onChildIterate = deps.onChildIterate;
@@ -208,6 +202,9 @@ class LoopEngine implements Engine {
     this.childSpend.reset(state); // per-process attribution; drops pre-resume spend (#212)
     while (state.status === 'running') {
       const step = nextStep(this.graph, state);
+      // #342: halt before dispatch if the next node would overshoot (a near-ceiling).
+      if (enforceBudgetPreNode(state, this.budget, state.observedMaxNodeSpend, this.headroom))
+        break;
       const executor = this.executorFor(step.node);
       if (executor === undefined) {
         throw new WorkflowError('unwired_node', `no executor for node "${step.node.name}"`);
@@ -215,6 +212,7 @@ class LoopEngine implements Engine {
       const fanoutIndex = state.cursor.phase === 'fanout' ? state.cursor.childIndex : undefined;
       if (fanoutIndex !== undefined) this.childSpend.ensureBaseline(fanoutIndex);
       const iteration = state.iteration;
+      const spentBefore = this.budget?.spent();
       let output: unknown;
       let childFailed = false;
       try {
@@ -231,9 +229,8 @@ class LoopEngine implements Engine {
         // A child executor failed: recorded honestly (classify advanced the cursor), fan-out continues.
         childFailed = true;
       }
-      if (!childFailed) {
-        advance(this.graph, state, step.node, output, this.advanceOptions(state));
-      }
+      foldNodeSpend(state, this.budget, spentBefore); // #342: per-node delta → observed-max
+      if (!childFailed) advance(this.graph, state, step.node, output, this.advanceOptions(state));
       if (fanoutIndex !== undefined) this.childSpend.attribute(state, fanoutIndex);
       enforceBudget(state, this.budget);
       seq += 1;

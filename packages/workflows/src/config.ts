@@ -38,6 +38,14 @@ export const EngineConfigSchema = z
      * gate is promoted to enforce. We never claim review enforces iteration.
      */
     reviewDrivesIteration: z.boolean().default(false),
+    /**
+     * Pre-node budget reserve floor as a FRACTION of the limit (#342): the
+     * pre-node guard halts before a node when remaining < max(this × limit,
+     * largest-node-seen). The floor covers COLD START (the first node, before any
+     * spend is observed). Default 0 — observed-max still caps steady-state
+     * overshoot; an overlay raises this to also bound the first node.
+     */
+    budgetHeadroomFraction: z.number().min(0).max(1).default(0),
     gates: z.strictObject({ vote: VoteConfigSchema.prefault({}) }).prefault({}),
     nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
   })
