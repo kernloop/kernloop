@@ -32,6 +32,7 @@ import {
 } from './errors.js';
 import { runSubprocess, type SubprocessResult } from './subprocess.js';
 import { scopedChildEnv } from './env.js';
+import { checkAgenticContainment } from './containment.js';
 
 /** Environment shape accepted everywhere here (process.env-compatible). */
 export type AdapterEnv = Readonly<Record<string, string | undefined>>;
@@ -182,6 +183,9 @@ export async function invokeAdapter(
 ): Promise<AdapterResult> {
   const definition = adapterDefinitions[adapter];
   checkInvocation(adapter, invocation);
+  // Refuse an agentic adapter aimed at a real git tree (#280 pt2, CLM-0145) —
+  // the single choke point, so no caller (CLI loop, MCP, direct) can bypass it.
+  checkAgenticContainment(adapter, invocation.cwd);
 
   const env = invocation.env ?? process.env;
   const availability = detectAdapter(adapter, env);
