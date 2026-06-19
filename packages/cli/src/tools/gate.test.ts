@@ -109,6 +109,13 @@ describe('gateTool vote', () => {
       result: 'approve',
       voters: ['architect', 'security', 'scope-steward'],
     });
+    // the per-voter ballot is in the tamper-evident chain — WHO voted HOW, not
+    // just the panel + aggregate (#345). Votes only; reasoning stays in observer.
+    expect((telemetry?.payload as { ballots: unknown }).ballots).toEqual([
+      { voter: 'architect', vote: 'approve' },
+      { voter: 'security', vote: 'approve' },
+      { voter: 'scope-steward', vote: 'approve' },
+    ]);
     expect(kern.observer.voterSeries('architect')).toHaveLength(1);
     expect(kern.observer.voterSeries('architect')[0]).toMatchObject({
       gate: 'vote',

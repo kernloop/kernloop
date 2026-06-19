@@ -1,0 +1,11 @@
+id: CLM-0151
+statement: >-
+  A vote/review gate Verdict's audit event records the per-voter ballot
+  (each voter's vote), not just the panel names and aggregate result.
+evidence:
+  - 'test:packages/cli/src/tools/gate.test.ts::convenes the 3-voter panel over one shared compiled Brief and publishes the Verdict'
+  - 'test:packages/cli/src/tools/watch.test.ts::renders each significant type readably and skips noise'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
