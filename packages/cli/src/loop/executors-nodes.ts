@@ -19,7 +19,7 @@ import {
 import { briefText } from './seams.js';
 import { coderPrompt, decomposePrompt } from './prompts.js';
 import { childSignal, reviewConcernSignals, sumChildCosts } from './aggregate.js';
-import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
+import { identityRef, servedIdentity, servedRef, type NodeSeam } from './node-seam.js';
 import { sinkFor, writeWorkspaceFiles, type LoopBindings } from './executors.js';
 
 /**
@@ -102,6 +102,9 @@ export function implementExecutor(b: LoopBindings): NodeExecutor {
       cost,
       traceRef: `loop:${ctx.runId}#child=${child.id}`,
       distillCandidates: [],
+      // The normalized model class that produced this deliverable (#229/#5), so the
+      // observer can attribute DELIVERABLE-pass (not just call-success) to a model.
+      served: servedIdentity(seam.served, b.discovered),
     });
   };
 }
