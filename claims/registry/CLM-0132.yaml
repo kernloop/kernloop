@@ -14,7 +14,9 @@ statement: >-
   executed), never throws on unparseable OR deeply-nested input (a depth-bounded
   AST visit + a defensive catch, so a crafted file cannot overflow the in-process
   gate), and reuses the shared no-symlink-follow walk + byte budgets so an untrusted
-  workspace cannot escape the tree or OOM the loop. It is HONEST about its evasions:
+  workspace cannot escape the tree or OOM the loop — the walk STREAMS paths lazily
+  as a generator (#278), so even a millions-of-files tree builds no unbounded path
+  array before the byte budgets engage. It is HONEST about its evasions:
   the code rules match a BARE eval/Function/exec name, so indirection
   (globalThis['ev'+'al'], an aliased eval) and any call nested past the depth cap
   are NOT flagged, and the secret scan reports the first match of each format per
@@ -33,6 +35,8 @@ evidence:
   - 'test:packages/docscan/src/security-scan.test.ts::never overflows the stack on a deeply-nested file that TS parses (#277 security round)'
   - 'test:packages/docscan/src/security-scan.test.ts::does NOT scan inside node_modules / build dirs (SKIP_DIRS)'
   - 'test:packages/docscan/src/security-scan.test.ts::never follows a symlink off the workspace tree'
+  - 'test:packages/docscan/src/fs-walk.test.ts::streams lazily as a generator — one path at a time, no up-front array'
+  - 'test:packages/docscan/src/fs-walk.test.ts::never recurses a symlinked directory (no filesystem escape)'
   - 'test:packages/faculty-gates/src/checks.test.ts::default checks cover typecheck, lint, test, the doc-comment scan, and the security scan'
   - 'code:packages/docscan/src/security-scan.ts#scanSecuritySmells@doc:/CLM-0132/'
   - 'ci:test'
