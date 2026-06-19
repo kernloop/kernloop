@@ -84,12 +84,18 @@ function toRecord(row: IdentityFitnessRow): IdentityFitnessRecord {
  * merges into a named class. This writes ONLY `observer_fitness_identity`; the
  * subject-keyed `observer_fitness` ledger is never touched.
  */
+/** The per-CALL series table; OUTCOME_FITNESS_TABLE is its deliverable-pass twin. */
+export const CALL_FITNESS_TABLE = 'observer_fitness_identity';
+/** The OUTCOME-level (deliverable-pass) series table (#229/#5). */
+export const OUTCOME_FITNESS_TABLE = 'observer_fitness_identity_outcome';
+
 export function ingestModelFitness(
   db: Database.Database,
   now: number,
   identity: ModelIdentity,
   success: boolean,
   cost: Cost,
+  table: string = CALL_FITNESS_TABLE,
 ): IdentityFitnessRecord {
   const parsedId = ModelIdentitySchema.safeParse(identity);
   if (!parsedId.success) {
@@ -107,7 +113,7 @@ export function ingestModelFitness(
   const { tokens, usd, wallClockMs } = parsedCost.data;
   const succeeded = success ? 1 : 0;
   db.prepare(
-    `INSERT INTO observer_fitness_identity
+    `INSERT INTO ${table}
        (provider, family, generation, tier, invocations, successes, tokens, usd, wallClockMs, lastUsedAt)
      VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
      ON CONFLICT(provider, family, generation, tier) DO UPDATE SET
@@ -118,20 +124,33 @@ export function ingestModelFitness(
        wallClockMs = wallClockMs + excluded.wallClockMs,
        lastUsedAt = excluded.lastUsedAt`,
   ).run(provider, family, generation, tier, succeeded, tokens, usd, wallClockMs ?? 0, now);
-  const record = fitnessForIdentity(db, { provider, family, generation, tier });
+  const record = fitnessForIdentity(db, { provider, family, generation, tier }, table);
   /* v8 ignore next -- the row was just upserted on the same connection */
   if (record === undefined) throw new InvalidModelFitnessError('identity row missing after upsert');
   return record;
+}
+
+/** Outcome-level (deliverable-pass) ingest (#229/#5): same identity keying as the
+ * per-call series but into the SEPARATE {@link OUTCOME_FITNESS_TABLE}. */
+export function ingestOutcomeFitness(
+  db: Database.Database,
+  now: number,
+  identity: ModelIdentity,
+  success: boolean,
+  cost: Cost,
+): IdentityFitnessRecord {
+  return ingestModelFitness(db, now, identity, success, cost, OUTCOME_FITNESS_TABLE);
 }
 
 /** One identity class's fitness, or `undefined` if never served (#66). */
 export function fitnessForIdentity(
   db: Database.Database,
   key: IdentityKey,
+  table: string = CALL_FITNESS_TABLE,
 ): IdentityFitnessRecord | undefined {
   const row = db
     .prepare(
-      `SELECT * FROM observer_fitness_identity
+      `SELECT * FROM ${table}
        WHERE provider = ? AND family = ? AND generation = ? AND tier = ?`,
     )
     .get(key.provider, key.family, key.generation, key.tier) as IdentityFitnessRow | undefined;
@@ -153,6 +172,7 @@ export function fitnessForIdentity(
 export function identityFitnessLedger(
   db: Database.Database,
   limit?: number,
+  table: string = CALL_FITNESS_TABLE,
 ): IdentityFitnessRecord[] {
   if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
     throw new RangeError(
@@ -162,8 +182,17 @@ export function identityFitnessLedger(
   const order = `ORDER BY lastUsedAt DESC, provider ASC, family ASC, generation ASC, tier ASC`;
   const rows = (
     limit === undefined
-      ? db.prepare(`SELECT * FROM observer_fitness_identity ${order}`).all()
-      : db.prepare(`SELECT * FROM observer_fitness_identity ${order} LIMIT ?`).all(limit)
+      ? db.prepare(`SELECT * FROM ${table} ${order}`).all()
+      : db.prepare(`SELECT * FROM ${table} ${order} LIMIT ?`).all(limit)
   ) as IdentityFitnessRow[];
   return rows.map(toRecord);
+}
+
+/** The OUTCOME-level (deliverable-pass) identity-fitness series (#229/#5),
+ * recency-ordered + bounded like {@link identityFitnessLedger}. */
+export function outcomeFitnessLedger(
+  db: Database.Database,
+  limit?: number,
+): IdentityFitnessRecord[] {
+  return identityFitnessLedger(db, limit, OUTCOME_FITNESS_TABLE);
 }
