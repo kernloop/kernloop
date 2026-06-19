@@ -42,27 +42,30 @@ export const MAX_FILE_BYTES = 1_000_000;
 export const MAX_TOTAL_BYTES = 32_000_000;
 
 /**
- * Recursively collect file paths under `dir`, skipping {@link SKIP_DIRS}. Uses
- * `Dirent.isDirectory`/`isFile`, which report the lstat type and do NOT follow
- * symlinks — so a symlink (to `/etc`, a loop, anywhere) is neither recursed into
- * nor read. Do NOT switch to `statSync` here: that follows symlinks and would
- * reintroduce a filesystem-escape on untrusted workspaces.
+ * Recursively YIELD file paths under `dir`, skipping {@link SKIP_DIRS}. A lazy
+ * generator (#278): paths stream one at a time instead of materializing a
+ * `string[]` of EVERY path up front, so a workspace with millions of tiny files
+ * cannot build an unbounded array (nor pay the O(n) `push(...recursive)` spread)
+ * before a caller's byte budget engages — and a caller that `break`s on
+ * {@link MAX_TOTAL_BYTES} stops the walk early. Uses `Dirent.isDirectory`/
+ * `isFile`, which report the lstat type and do NOT follow symlinks — so a symlink
+ * (to `/etc`, a loop, anywhere) is neither recursed into nor read. Do NOT switch
+ * to `statSync` here: that follows symlinks and would reintroduce a
+ * filesystem-escape on untrusted workspaces.
  */
-export function walkFiles(dir: string): string[] {
-  const out: string[] = [];
+export function* walkFiles(dir: string): Generator<string> {
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
-    return out;
+    return;
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) out.push(...walkFiles(full));
+      if (!SKIP_DIRS.has(entry.name)) yield* walkFiles(full);
     } else if (entry.isFile()) {
-      out.push(full);
+      yield full;
     }
   }
-  return out;
 }
