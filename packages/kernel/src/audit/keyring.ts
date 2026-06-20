@@ -34,15 +34,7 @@
 
 import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -139,9 +131,17 @@ export function loadKeyring(path: string): AuditKeyring | null {
 /** Atomically write the keyring at 0600 (temp + rename, never a torn file). */
 function writeKeyring(path: string, keyring: AuditKeyring): void {
   mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp`;
+  // A UNIQUE temp name per write (#358, #372): the keyring is SHARED across chains
+  // but the sidecar write-lock is per-chain, so two distinct-chain first-keyed
+  // appends can write concurrently. A fixed `${path}.tmp` made them clobber each
+  // other — one writer's `renameSync` moved the temp out from under the other's
+  // `chmodSync`, an ENOENT crash that flaked CI (e.g. decompose-preview). A
+  // per-write random suffix means each writer renames its OWN temp (last wins; a
+  // lost keyring write self-heals on the next append, per ensureChainKeyed).
+  // `writeFileSync` already creates at 0600 (umask cannot WIDEN 0600), so the
+  // separate post-write chmod — the racy step — is dropped as redundant.
+  const tmp = `${path}.${randomBytes(6).toString('hex')}.tmp`;
   writeFileSync(tmp, JSON.stringify(keyring, null, 2) + '\n', { mode: 0o600 });
-  chmodSync(tmp, 0o600); // enforce even if umask widened the create mode
   renameSync(tmp, path);
 }
 
