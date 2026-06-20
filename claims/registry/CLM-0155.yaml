@@ -6,7 +6,7 @@ statement: >-
   guarantee: claude is FULL — verified against the real CLI 2.1.183 that headless
   `-p` "don't ask mode" auto-denies every permission-gated tool (a reasoning
   invocation cannot read a planted sentinel), with `--disallowedTools` as
-  defense-in-depth; gemini is PARTIAL (`--approval-mode plan`); codex is PARTIAL
+  defense-in-depth; codex is PARTIAL
   (already `-s read-only` — writes blocked, reads still allowed); opencode/ollama
   have NO run-level flag (no coverage — recorded, not faked). `--allowedTools` is
   NOT a fail-closed alternative on claude — it is additive auto-approve, not

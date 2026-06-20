@@ -116,7 +116,7 @@ describe('kernloop program author — the model-authored suggest-tier preview', 
     const r = repo();
     const { io, out } = makeIo(r);
     const code = await programCommand(
-      ['author', '--goal', 'Ship the auth program', '--id', 'prog', '--adapter', 'gemini'],
+      ['author', '--goal', 'Ship the auth program', '--id', 'prog', '--adapter', 'agy'],
       io,
       helpers,
       { invoke: scriptedInvoke(JSON.stringify(TWO_STORIES)) },
@@ -124,7 +124,7 @@ describe('kernloop program author — the model-authored suggest-tier preview', 
     expect(code).toBe(0);
     const report = JSON.parse(out[0]!) as AuthorOut;
     expect(report.op).toBe('author');
-    expect(report.adapter).toBe('gemini');
+    expect(report.adapter).toBe('agy');
     expect(report.parent.id).toBe('prog');
     expect(report.children.map((c) => c.id)).toEqual(['prog.1', 'prog.2']);
     const first = parseConstraintTags(report.children[0]!.constraints);

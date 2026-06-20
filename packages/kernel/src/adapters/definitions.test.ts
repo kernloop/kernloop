@@ -1,5 +1,5 @@
 /**
- * Adapter definition acceptance tests (CLM-0020, CLM-0021): the six CLI
+ * Adapter definition acceptance tests (CLM-0020, CLM-0021): the five CLI
  * definitions expose one uniform data shape, and each parser reads token /
  * cost usage out of that CLI's recorded output format — or reports null,
  * never a fabricated number.
@@ -38,18 +38,6 @@ const codexFixture = [
   '{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":10,"output_tokens":100}}',
 ].join('\n');
 
-/** Recorded gemini 0.2x `-o json` response (v1 evidence). */
-const geminiFixture = JSON.stringify({
-  session_id: 'gem_1',
-  response: 'The answer is 42',
-  stats: {
-    models: {
-      'gemini-2.5-pro': { tokens: { input: 120, candidates: 40, total: 160, cached: 5 } },
-      'gemini-2.5-flash': { tokens: { input: 30, candidates: 10, total: 40 } },
-    },
-  },
-});
-
 /** Recorded opencode 1.2.x `run --format json` NDJSON stream (v1 evidence). */
 const opencodeFixture = [
   '{"type":"step_start","sessionID":"ses_35f0a92f","part":{"type":"step-start"}}',
@@ -59,8 +47,8 @@ const opencodeFixture = [
 ].join('\n');
 
 describe('uniform adapter interface (CLM-0021)', () => {
-  it('defines exactly the six spec §3.1 adapters', () => {
-    expect([...ADAPTER_NAMES]).toEqual(['claude', 'codex', 'gemini', 'opencode', 'ollama', 'agy']);
+  it('defines exactly the five spec §3.1 adapters', () => {
+    expect([...ADAPTER_NAMES]).toEqual(['claude', 'codex', 'opencode', 'ollama', 'agy']);
     expect(Object.keys(adapterDefinitions).sort()).toEqual([...ADAPTER_NAMES].sort());
   });
 
@@ -136,14 +124,6 @@ describe('uniform adapter interface (CLM-0021)', () => {
     for (const tool of ['Bash', 'Read', 'Write', 'Edit', 'WebFetch', 'Task']) {
       expect(CLAUDE_PURE_COMPLETION_DENY.split(' ')).toContain(tool);
     }
-    // gemini: read-only plan mode.
-    const geminiPure = adapterDefinitions.gemini.buildCommand({
-      prompt: 'p',
-      pureCompletion: true,
-    });
-    expect(geminiPure.args).toContain('--approval-mode');
-    expect(geminiPure.args).toContain('plan');
-    expect(adapterDefinitions.gemini.buildCommand({ prompt: 'p' }).args).not.toContain('plan');
     // codex stays at its already-restrictive -s read-only (no new flag); opencode has none.
     const codexPure = adapterDefinitions.codex.buildCommand({ prompt: 'p', pureCompletion: true });
     expect(codexPure.args).toContain('read-only'); // already there, unchanged
@@ -159,7 +139,6 @@ describe('uniform adapter interface (CLM-0021)', () => {
   it('pureCompletionCoverage (#355) classifies each adapter, in lockstep with the argv', () => {
     // The single declarative source the dispatch layer audits a degraded posture from.
     expect(pureCompletionCoverage('claude')).toBe('full'); // full --disallowedTools surface
-    expect(pureCompletionCoverage('gemini')).toBe('partial'); // plan mode only
     expect(pureCompletionCoverage('codex')).toBe('partial'); // read-only: reads still allowed
     expect(pureCompletionCoverage('opencode')).toBe('none'); // no run-level flag
     expect(pureCompletionCoverage('ollama')).toBe('none'); // no run-level flag
@@ -243,33 +222,6 @@ describe('codex definition', () => {
   it('returns null output when no agent_message ever arrives', () => {
     const parsed = definition.parseOutput('{"type":"turn.started"}');
     expect(parsed).toEqual({ output: null, usage: null });
-  });
-});
-
-describe('gemini definition', () => {
-  const definition = adapterDefinitions.gemini;
-
-  it('shapes argv with a positional prompt and -o json', () => {
-    const command = definition.buildCommand({ prompt: 'ask', model: 'gemini-2.5-pro' });
-    expect(command.args).toEqual(['ask', '-o', 'json', '-m', 'gemini-2.5-pro']);
-    expect(command.stdin).toBeUndefined();
-  });
-
-  it('aggregates per-model token stats into one usage (CLM-0020)', () => {
-    const parsed = definition.parseOutput(geminiFixture);
-    expect(parsed.output).toBe('The answer is 42');
-    expect(parsed.usage).toEqual({ inputTokens: 150, outputTokens: 50, usd: null });
-  });
-
-  it('returns null usage when stats are absent — never fabricated', () => {
-    const parsed = definition.parseOutput(JSON.stringify({ response: 'bare' }));
-    expect(parsed.output).toBe('bare');
-    expect(parsed.usage).toBeNull();
-  });
-
-  it('returns null output when the response field is missing', () => {
-    const parsed = definition.parseOutput(JSON.stringify({ stats: {} }));
-    expect(parsed.output).toBeNull();
   });
 });
 

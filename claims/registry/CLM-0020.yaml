@@ -5,7 +5,6 @@ evidence:
   - 'test:packages/kernel/src/adapters/invoke.test.ts::reports zero cost as unmetered, never fabricated (CLM-0020)'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::parses response text, tokens, and usd from recorded output (CLM-0020)'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::joins agent_message items and reads turn.completed usage (CLM-0020)'
-  - 'test:packages/kernel/src/adapters/definitions.test.ts::aggregates per-model token stats into one usage (CLM-0020)'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::concatenates text parts and reads step_finish tokens + cost (CLM-0020)'
   - 'ci:test'
 status: verified

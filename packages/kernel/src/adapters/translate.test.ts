@@ -29,8 +29,6 @@ describe('resolveTierModel — exact hit + downward-only degradation', () => {
   });
 
   it('steps DOWNWARD to the nearest populated tier and records degraded', () => {
-    // gemini binds frontier+large to the same id, medium/small to flash variants.
-    const gemini = adapterDefinitions.gemini.tierBinding;
     // A binding missing `large` would degrade frontier→large→… ; construct one.
     const sparse = { frontier: 'top', small: 'tiny' } as const;
     expect(resolveTierModel('large', sparse)).toEqual({
@@ -43,8 +41,8 @@ describe('resolveTierModel — exact hit + downward-only degradation', () => {
       servedTier: 'small',
       degraded: true,
     });
-    // Sanity: the real gemini binding has every tier populated → never degrades.
-    expect(resolveTierModel('medium', gemini).degraded).toBe(false);
+    // Sanity: claude's binding has every tier populated → never degrades.
+    expect(resolveTierModel('medium', adapterDefinitions.claude.tierBinding).degraded).toBe(false);
   });
 
   it('NEVER steps upward: a request below the only populated tier defaults the harness', () => {

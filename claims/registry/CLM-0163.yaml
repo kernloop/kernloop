@@ -17,7 +17,7 @@ statement: >-
 evidence:
   - 'test:packages/kernel/src/adapters/translate.test.ts::agy (Antigravity, #387) is harness-routed: Gemini tier names, NO effort param'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::pureCompletionCoverage (#355) classifies each adapter, in lockstep with the argv'
-  - 'test:packages/kernel/src/adapters/definitions.test.ts::defines exactly the six spec §3.1 adapters'
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::defines exactly the five spec §3.1 adapters'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

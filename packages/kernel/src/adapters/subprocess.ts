@@ -38,7 +38,7 @@ export interface SubprocessSpec {
   /**
    * Working directory for the child. When omitted the child inherits the
    * PARENT's cwd — which for a model-CLI adapter is wherever kernloop was
-   * launched, NOT the task workspace. An agentic CLI (claude/codex/gemini/
+   * launched, NOT the task workspace. An agentic CLI (claude/codex/
    * opencode) reads + writes its cwd, so callers that drive one MUST set this
    * to the intended workspace (#146); leaving it unset exposes the launch dir.
    */

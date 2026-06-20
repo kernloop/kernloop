@@ -2,7 +2,7 @@
  * The vendored catalog [CLM-0080] — a pinned, zod-validated, OFFLINE snapshot.
  * These tests pin the loader boundary (zod rejects a malformed snapshot), the
  * pin-date stamp, and that every key the catalog ships is one of the aliases/ids
- * kernloop's five adapters actually emit (the catalog covers what the loop can
+ * the adapters' served models normalize to (the catalog covers what the loop can
  * serve, not the whole world).
  */
 import { describe, expect, it } from 'vitest';
@@ -19,7 +19,7 @@ describe('catalog — vendored, pinned, validated snapshot', () => {
     expect(catalog).toEqual(loadCatalog());
   });
 
-  it('covers the served aliases the five adapters emit (claude/gemini families)', () => {
+  it('covers the served aliases the adapters emit + the gemini family (via agy/api)', () => {
     for (const alias of ['fable', 'opus', 'sonnet', 'haiku', 'gemini-3.1-pro', 'gemini-3-flash']) {
       expect(catalog.models[alias]).toBeDefined();
     }

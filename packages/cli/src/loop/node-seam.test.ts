@@ -59,9 +59,9 @@ describe('resolveServed — binds the right alias + effort per adapter', () => {
     expect(served.effortArg).toBeUndefined();
   });
 
-  it('records tier degradation: gemini has every tier, a sparse stand-in would degrade', () => {
-    // gemini binds every tier, so large is served exactly.
-    expect(resolveServed(req({ tier: 'large' }), 'gemini').degraded).toBe(false);
+  it('records tier degradation: agy has every tier, a sparse stand-in would degrade', () => {
+    // agy binds every tier, so large is served exactly.
+    expect(resolveServed(req({ tier: 'large' }), 'agy').degraded).toBe(false);
   });
 });
 

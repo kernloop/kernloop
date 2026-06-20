@@ -31,10 +31,10 @@ describe('buildInvokeForNode — backward-compat (no model config)', () => {
   });
 
   it('a different run adapter rebinds every node’s alias (the cost lever)', () => {
-    const invokeFor = buildInvokeForNode('gemini', overlay(), { tokens: 0, usd: 0 });
-    // gemini large → gemini-3.1-pro; medium → gemini-3-flash.
-    expect(invokeFor('implement').served.model).toBe('gemini-3.1-pro');
-    expect(invokeFor('review').served.model).toBe('gemini-3-flash');
+    const invokeFor = buildInvokeForNode('agy', overlay(), { tokens: 0, usd: 0 });
+    // agy large → "Gemini 3.1 Pro (Low)"; medium → "Gemini 3.5 Flash (Medium)".
+    expect(invokeFor('implement').served.model).toBe('Gemini 3.1 Pro (Low)');
+    expect(invokeFor('review').served.model).toBe('Gemini 3.5 Flash (Medium)');
   });
 });
 

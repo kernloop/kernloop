@@ -143,7 +143,7 @@ describe('loadOverlay defaults and precedence', () => {
   });
 
   it('accepts a partial adapters block — any tier may be set alone [CLM-0078]', () => {
-    expect(loadFrom('id: x\nadapters:\n  medium: gemini\n').adapters).toEqual({ medium: 'gemini' });
+    expect(loadFrom('id: x\nadapters:\n  medium: agy\n').adapters).toEqual({ medium: 'agy' });
     expect(loadFrom('id: x\nadapters:\n  frontier: opencode\n').adapters).toEqual({
       frontier: 'opencode',
     });
