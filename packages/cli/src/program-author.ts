@@ -21,12 +21,14 @@
  * the model proposed). The model is invoked through the SAME `adapterInvoke`
  * seam as distill/gate; tests inject `options.invoke`.
  */
-import { appendEvent, ADAPTER_NAMES, type AdapterName } from '@kernloop/kernel';
+import { appendEvent } from '@kernloop/kernel';
 import { decomposeGoal, StorySpecSchema, type StorySpec } from '@kernloop/faculty-scrum';
 import { z } from 'zod';
 import type { CliIo } from './cli.js';
 import type { Kernloop } from './kernel.js';
-import { adapterInvoke, ensureAdapterAvailable, type LoopInvoke } from './loop/invoke.js';
+import { type LoopInvoke } from './loop/invoke.js';
+import { resolveStandaloneInvoke } from './loop/standalone-invoke.js';
+import { isCliAdapter } from './overlay-schemas.js';
 import {
   buildProgramParent,
   checkIdLength,
@@ -127,16 +129,11 @@ function parseAuthoredSpecs(raw: string): StorySpec[] {
   return result.data;
 }
 
-/** The chosen invoke, or the real adapter (probed; absence is the kernel's
- * typed error) — mirrors distill/gate exactly. */
-function resolveInvoke(
-  adapter: AdapterName,
-  envAllow: readonly string[],
-  invoke?: LoopInvoke,
-): LoopInvoke {
+/** The chosen invoke, or the real adapter — a CLI name OR a registered endpoint
+ * (#395); mirrors distill/gate exactly. */
+function resolveInvoke(kern: Kernloop, adapter: string, invoke?: LoopInvoke): LoopInvoke {
   if (invoke !== undefined) return invoke;
-  ensureAdapterAvailable(adapter);
-  return adapterInvoke(adapter, undefined, undefined, envAllow);
+  return resolveStandaloneInvoke(kern, adapter);
 }
 
 /**
@@ -159,15 +156,19 @@ export async function authorOp(
   const id = str(v.id) ?? 'program-root';
   try {
     checkIdLength(id);
-    const adapterParsed = z.enum(ADAPTER_NAMES).default('claude').safeParse(str(v.adapter));
-    if (!adapterParsed.success) {
-      throw new ProgramInputError(`--adapter must be one of: ${ADAPTER_NAMES.join(', ')}`);
+    // CLI name OR registered endpoint id (#395). Validated here as a clean typed
+    // error (the adapter is also audited, so it must be real even with an injected
+    // invoke); resolveStandaloneInvoke re-checks on the real model path.
+    const adapter = str(v.adapter) ?? 'claude';
+    if (!isCliAdapter(adapter) && kern.config.endpoints[adapter] === undefined) {
+      throw new ProgramInputError(
+        `--adapter "${adapter}" is neither a CLI adapter nor a registered endpoint id`,
+      );
     }
-    const adapter = adapterParsed.data;
     const parent = buildProgramParent(kern, id, goal);
     const { output } = await resolveInvoke(
+      kern,
       adapter,
-      kern.config.adapterEnvAllow,
       invoke,
     )(authorPrompt(goal, parent.budget));
     const specs = parseAuthoredSpecs(output);

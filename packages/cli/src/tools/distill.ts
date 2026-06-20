@@ -7,7 +7,6 @@
  * `skills/proposed/<name>/` — never the live library [CLM-0050].
  */
 import { z } from 'zod';
-import { ADAPTER_NAMES } from '@kernloop/kernel';
 import type { Kernloop } from '../kernel.js';
 import { distillFromTrace, type SkillProposal } from '../distill.js';
 import type { LoopInvoke } from '../loop/invoke.js';
@@ -17,7 +16,7 @@ export const DistillInputSchema = z.strictObject({
   /** Task id of the recorded trace; also probed as a loop run id. */
   trace: z.string().min(1),
   /** Adapter the distill call flows through (spec §3.1); default claude. */
-  adapter: z.enum(ADAPTER_NAMES).default('claude'),
+  adapter: z.string().min(1).default('claude'), // CLI name OR registered endpoint id (#395)
 });
 export type DistillInput = z.input<typeof DistillInputSchema>;
 

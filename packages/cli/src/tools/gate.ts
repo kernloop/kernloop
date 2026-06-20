@@ -12,7 +12,6 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { Verdict } from '@kernloop/contracts';
-import { ADAPTER_NAMES } from '@kernloop/kernel';
 import {
   PANEL_DEFAULT,
   PANEL_RATIFICATION,
@@ -22,7 +21,8 @@ import {
 } from '@kernloop/faculty-gates';
 import type { Kernloop } from '../kernel.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
-import { adapterInvoke, ensureAdapterAvailable, type LoopInvoke } from '../loop/invoke.js';
+import { type LoopInvoke } from '../loop/invoke.js';
+import { resolveStandaloneInvoke } from '../loop/standalone-invoke.js';
 import { ballotInvoker, reviewerInvoker } from '../loop/seams.js';
 import { VOTE_STRATEGIES } from '../overlay.js';
 import { briefTool } from './brief.js';
@@ -48,7 +48,7 @@ const VoteInputSchema = z.strictObject({
   /** 3 by default; 7 only at plan ratification (spec §5.3). */
   panel: z.union([z.literal(3), z.literal(7)]).default(3),
   strategy: z.enum(VOTE_STRATEGIES).default('simple_majority'),
-  adapter: z.enum(ADAPTER_NAMES).default('claude'),
+  adapter: z.string().min(1).default('claude'), // CLI name OR registered endpoint id (#395)
 });
 
 /** `gate review`: an adversarial reviewer panel over a unified diff. */
@@ -62,7 +62,7 @@ const ReviewInputSchema = z
     diffFile: z.string().min(1).optional(),
     /** Optional repo/task context shared by every reviewer. */
     context: z.string().min(1).optional(),
-    adapter: z.enum(ADAPTER_NAMES).default('claude'),
+    adapter: z.string().min(1).default('claude'), // CLI name OR registered endpoint id (#395)
   })
   .refine((v) => (v.diff === undefined) !== (v.diffFile === undefined), {
     message: 'provide exactly one of diff or diffFile',
@@ -93,15 +93,10 @@ export interface GateToolOptions {
   invoke?: LoopInvoke;
 }
 
-/** The chosen invoke, or the real adapter (probed; absence is typed). */
-function resolveInvoke(
-  adapter: (typeof ADAPTER_NAMES)[number],
-  envAllow: readonly string[],
-  invoke?: LoopInvoke,
-): LoopInvoke {
+/** The chosen invoke, or the real adapter — a CLI name OR a registered endpoint (#395). */
+function resolveInvoke(kern: Kernloop, adapter: string, invoke?: LoopInvoke): LoopInvoke {
   if (invoke !== undefined) return invoke;
-  ensureAdapterAvailable(adapter);
-  return adapterInvoke(adapter, undefined, undefined, envAllow);
+  return resolveStandaloneInvoke(kern, adapter);
 }
 
 /** Run the vote gate over one shared compiled Brief (spec §8.3). */
@@ -121,7 +116,7 @@ async function voteGate(
     invokeVoter: ballotInvoker({
       overlayDir: kern.paths.dir,
       runId: taskId,
-      invoke: resolveInvoke(input.adapter, kern.config.adapterEnvAllow, invoke),
+      invoke: resolveInvoke(kern, input.adapter, invoke),
     }),
   });
 }
@@ -141,7 +136,7 @@ async function reviewGate(
     invokeReviewer: reviewerInvoker({
       overlayDir: kern.paths.dir,
       runId: taskId,
-      invoke: resolveInvoke(input.adapter, kern.config.adapterEnvAllow, invoke),
+      invoke: resolveInvoke(kern, input.adapter, invoke),
     }),
   });
 }

@@ -2718,3 +2718,17 @@ The canonical-loop run/default adapter (`--adapter`, spec §3.1) may be a regist
 - [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - [`packages/cli/src/cli.test.ts`](../packages/cli/src/cli.test.ts)
 - CI `test`
+
+## CLM-0165
+
+**Status:** verified — **source:** [`CLM-0165.yaml`](../claims/registry/CLM-0165.yaml)
+
+The standalone model-calling verbs — `gate vote`/`gate review`, `distill`, `forge`, `program author` — accept a registered api ENDPOINT id as `--adapter`, not only a CLI adapter name (#395, completing the #392 run-loop work). All four resolve their single model call through one shared `resolveStandaloneInvoke`: a registered endpoint binds the kernel api seam at the endpoint's `large`-tier model (a capable default for a one-shot verb call; resolveServedApi degrades downward if `large` is unbound; the key is read fail-closed at call time), and a CLI adapter is PATH-probed and bound via `adapterInvoke` as before (an absent CLI is a typed error, never a stub). An adapter that is neither a CLI adapter nor a registered endpoint fails fast. So these verbs run on a custom OpenAI-compatible endpoint with NO model CLI installed. (`gate vote` on an endpoint is single-oracle — no provider-diverse CLI panel — like the endpoint-only run loop, honestly degraded).
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- CI `test`
