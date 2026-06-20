@@ -1,7 +1,7 @@
 /**
  * The `api`-kind adapter as DATA (spec §8.4: each adapter "declares its
  * tier→model map, effort support, and capabilities as data, so a new harness
- * is a definition, not a code path"). Unlike the five CLI adapters, an api
+ * is a definition, not a code path"). Unlike the six CLI adapters, an api
  * adapter is CONFIGURED, not hardcoded — the user registers endpoints in the
  * overlay and the composition root builds an {@link ApiAdapterDefinition} from
  * that config. The definition NEVER holds a key: only the NAME of the env var

@@ -127,7 +127,32 @@ describe('resolveEffort — exact, clamp, and honest drop', () => {
   });
 });
 
-describe('the five adapters declare their model-routing profile (spec §8.4)', () => {
+describe('the six adapters declare their model-routing profile (spec §8.4)', () => {
+  it('agy (Antigravity, #387) is harness-routed: Gemini tier names, NO effort param', () => {
+    const agy = adapterDefinitions.agy;
+    expect(agy.kind).toBe('harness-routed');
+    expect(agy.hasAutoRouter).toBe(true);
+    // Tiers map to the verbatim model names `agy models` lists.
+    expect(agy.tierBinding.frontier).toBe('Gemini 3.1 Pro (High)');
+    expect(agy.tierBinding.small).toBe('Gemini 3.5 Flash (Low)');
+    // Effort is baked into the model name (Low/Med/High/Thinking) → no effort param.
+    expect(agy.effort).toBeUndefined();
+    expect(resolveEffort('high', agy.effort)).toEqual({
+      value: undefined,
+      servedEffort: 'unsupported',
+      clamped: false,
+    });
+    // Print mode argv `-p <prompt> --model <m>`; no fs-restriction flag exists, so
+    // pureCompletion adds nothing → identical argv (honest `none` coverage, #387).
+    expect(agy.buildCommand({ prompt: 'p', model: 'm' }).args).toEqual(['-p', 'p', '--model', 'm']);
+    expect(agy.buildCommand({ prompt: 'p', model: 'm', pureCompletion: true }).args).toEqual([
+      '-p',
+      'p',
+      '--model',
+      'm',
+    ]);
+  });
+
   it('claude is harness-routed with a full tier ladder + effort + capabilities', () => {
     const claude = adapterDefinitions.claude;
     expect(claude.kind).toBe('harness-routed');

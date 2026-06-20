@@ -2,7 +2,7 @@ id: CLM-0021
 statement: >-
   Adapters expose one uniform interface across model CLIs; an unavailable CLI is reported as unavailable, never stubbed.
 evidence:
-  - 'test:packages/kernel/src/adapters/definitions.test.ts::defines exactly the five spec §3.1 adapters'
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::defines exactly the six spec §3.1 adapters'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::gives every definition the same shape: command, flags, builder, parser'
   - 'test:packages/kernel/src/adapters/invoke.test.ts::throws AdapterUnavailableError listing what was probed — never a stub'
   - 'test:packages/kernel/src/adapters/invoke.test.ts::reports unavailable when nothing on PATH matches'

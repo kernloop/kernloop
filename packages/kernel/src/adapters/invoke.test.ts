@@ -63,6 +63,7 @@ const fixtures: Record<AdapterName, readonly string[]> = {
       '"tokens":{"total":101,"input":78,"output":23}}}',
   ],
   ollama: ['ollama says hi'],
+  agy: ['agy says hi'],
 };
 
 /** Expected metering per adapter, straight from what each CLI reports. */
@@ -75,6 +76,7 @@ const expectedMetering: Record<
   gemini: { tokens: 160, usd: 0, metered: { tokens: true, usd: false } },
   opencode: { tokens: 101, usd: 0.002, metered: { tokens: true, usd: true } },
   ollama: { tokens: 0, usd: 0, metered: { tokens: false, usd: false } },
+  agy: { tokens: 0, usd: 0, metered: { tokens: false, usd: false } },
 };
 
 const tempDirs: string[] = [];
@@ -131,7 +133,7 @@ describe('detectAdapter', () => {
   });
 });
 
-describe('invokeAdapter — uniform interface across all five (CLM-0021)', () => {
+describe('invokeAdapter — uniform interface across all six (CLM-0021)', () => {
   for (const name of ADAPTER_NAMES) {
     it(`invokes ${name} and returns output, contracts Cost, metered flags, raw`, async () => {
       const invocation = invocationFor(okDir, name === 'ollama' ? { model: 'llama3.3' } : {});

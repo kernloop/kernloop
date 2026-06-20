@@ -1,6 +1,7 @@
 /**
- * The five model-CLI adapter definitions as data (spec §3.1 Adapters):
- * claude, codex, gemini, opencode, and ollama (experimental per spec §5.8).
+ * The six model-CLI adapter definitions as data (spec §3.1 Adapters):
+ * claude, codex, gemini, opencode, ollama, and agy (ollama + agy experimental
+ * per spec §5.8; agy is Antigravity, the gemini-CLI replacement, #387).
  *
  * A definition records the command name, how to shape argv/stdin for one
  * prompt, and how to read response text + token/cost usage back out of the
@@ -25,6 +26,7 @@
  */
 import type { Effort, ModelCapability, ModelTier } from '@kernloop/contracts';
 import {
+  parseAgyOutput,
   parseClaudeOutput,
   parseCodexOutput,
   parseGeminiOutput,
@@ -32,10 +34,10 @@ import {
   parseOpencodeOutput,
 } from './parsers.js';
 
-/** The five adapter names — the complete spec §3.1 set. */
-export const ADAPTER_NAMES = ['claude', 'codex', 'gemini', 'opencode', 'ollama'] as const;
+/** The six adapter names — the complete spec §3.1 set. */
+export const ADAPTER_NAMES = ['claude', 'codex', 'gemini', 'opencode', 'ollama', 'agy'] as const;
 
-/** One of the five adapter names. */
+/** One of the six adapter names. */
 export type AdapterName = (typeof ADAPTER_NAMES)[number];
 
 /** Token/cost usage as reported BY THE CLI ITSELF — never estimated here. */
@@ -148,7 +150,8 @@ function pureCompletionArgs(adapter: AdapterName, pure: boolean | undefined): st
  *    (plans, does not execute) and codex `exec -s read-only` (writes/exec blocked,
  *    but the model can still READ the workspace).
  *  - `none` — NO run-level restriction is applied: opencode/ollama have no flag,
- *    so a `pureCompletion` request is best-effort, not enforced.
+ *    and agy's only flag (`--sandbox`) blocks exec/network but NOT fs read/write
+ *    (#387), so a `pureCompletion` request is best-effort, not enforced.
  * Kept in lockstep with {@link pureCompletionArgs}; a new tool-disable flag moves
  * an adapter up a tier here in the same change.
  */
@@ -225,7 +228,7 @@ function modelArgs(flag: string, model: string | undefined): string[] {
 }
 
 /**
- * The five adapter definitions, keyed by name. Argv shapes are the ones v1
+ * The six adapter definitions, keyed by name. Argv shapes are the ones v1
  * verified against the real CLIs (see PORT-NOTES.md for per-CLI evidence).
  */
 export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>> = {
@@ -365,5 +368,30 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     hasAutoRouter: false,
     tierBinding: {},
     capabilities: ['toolUse'],
+  },
+  agy: {
+    name: 'agy',
+    command: 'agy',
+    // Antigravity CLI (#387) — replaces the deprecated individual gemini CLI;
+    // experimental (self-updates in the background → `adapters:smoke` is the backstop).
+    experimental: true,
+    requiresModel: false,
+    // Print mode `agy -p <prompt>` prints PLAIN TEXT (no JSON); `--model` takes the
+    // verbatim `agy models` name. No pure-completion flag is applied (`--sandbox`
+    // blocks exec/net, not fs, #387 → coverage `none`); effort is baked into the
+    // model name (Low/Med/High/Thinking), not a flag → effort dropped honestly.
+    buildCommand: ({ prompt, model }) => ({
+      args: ['-p', prompt, ...modelArgs('--model', model)],
+    }),
+    parseOutput: parseAgyOutput,
+    kind: 'harness-routed',
+    hasAutoRouter: true,
+    tierBinding: {
+      frontier: 'Gemini 3.1 Pro (High)',
+      large: 'Gemini 3.1 Pro (Low)',
+      medium: 'Gemini 3.5 Flash (Medium)',
+      small: 'Gemini 3.5 Flash (Low)',
+    },
+    capabilities: ['toolUse', 'vision', 'longContext'],
   },
 };

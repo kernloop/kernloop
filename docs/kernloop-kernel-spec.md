@@ -73,7 +73,7 @@ CI fails on breach.
 | **AuditChain** | Append-only hash-chained event log; `verify` op; SIEM-compatible JSON lines | Analytics (Observer's job) |
 | **Ladder** | Enforce authority tiers on every routed action; record tier transitions | Deciding promotions (humans + gates decide; Ladder enforces) |
 | **EventBus** | Typed pub/sub carrying the five contracts; backpressure; replay hooks | Persistence beyond audit (memory faculty owns durable state) |
-| **Adapters** | Uniform interface to model CLIs/APIs (claude, codex, gemini, opencode, ollama); per-call token/cost metering | Routing decisions, prompt assembly |
+| **Adapters** | Uniform interface to model CLIs/APIs (claude, codex, gemini, opencode, ollama, agy); per-call token/cost metering | Routing decisions, prompt assembly |
 
 ### 3.2 Authority ladder (kernel-enforced)
 

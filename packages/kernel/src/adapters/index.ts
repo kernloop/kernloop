@@ -1,8 +1,8 @@
 /**
  * Kernel Adapters (spec §3.1) — public surface of the adapters module.
  *
- * Uniform interface to the five model CLIs (claude, codex, gemini,
- * opencode, ollama) with per-call token/cost metering. Explicitly NOT here:
+ * Uniform interface to the six model CLIs (claude, codex, gemini,
+ * opencode, ollama, agy) with per-call token/cost metering. Explicitly NOT here:
  * routing decisions and prompt assembly (spec §3.1).
  *
  * Ported by evidence from nexus-agents v1 `src/cli-adapters/` (spec §10

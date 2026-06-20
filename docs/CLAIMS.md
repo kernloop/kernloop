@@ -2693,3 +2693,16 @@ The audit keyring opportunistically REAPS its own orphaned write temps (#377, th
 - [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
 - [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
 - CI `test`
+
+## CLM-0163
+
+**Status:** verified — **source:** [`CLM-0163.yaml`](../claims/registry/CLM-0163.yaml)
+
+The Antigravity CLI adapter `agy` (#387) — Google's replacement for the deprecated individual `gemini` CLI — is wired as the sixth kernel adapter and drives Antigravity print mode: `buildCommand` emits `agy -p <prompt> --model <name>`, parsing the PLAIN-TEXT response (no JSON envelope) with NO usage, so the call is metered `false` rather than guessed. It is harness-routed with its own auto-router; tiers bind to the verbatim Gemini model names `agy models` lists (frontier→`Gemini 3.1 Pro (High)` … small→`Gemini 3.5 Flash (Low)`). Effort is BAKED INTO the model name (Low/Medium/High/Thinking), not a separate flag, so the adapter declares no effort profile and effort is dropped honestly. Its pure-completion coverage is `none` and SO DECLARED: `agy`'s only restriction flag, `--sandbox`, blocks exec/network but NOT fs read/write (verified), so a `pureCompletion` request adds no argv and is best-effort, audited — never a silent or fabricated tool-free guarantee. It is classified AGENTIC (cwd-using) for containment, and marked `experimental` (it self-updates in the background).
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/translate.test.ts`](../packages/kernel/src/adapters/translate.test.ts)
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- CI `test`

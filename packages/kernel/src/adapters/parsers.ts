@@ -182,3 +182,14 @@ export function parseOllamaOutput(stdout: string): ParsedOutput {
   const text = stdout.trim();
   return { output: text === '' ? null : text, usage: null };
 }
+
+/**
+ * Antigravity `agy -p` print-mode output (#387): print mode emits the model's
+ * response as PLAIN TEXT (no JSON envelope) and reports NO usage — so the
+ * response IS the captured stdout, usage is always null, and the call is metered
+ * `false` upstream rather than guessed. Empty stdout → no usable response.
+ */
+export function parseAgyOutput(stdout: string): ParsedOutput {
+  const text = stdout.trim();
+  return { output: text === '' ? null : text, usage: null };
+}

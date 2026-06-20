@@ -1,5 +1,5 @@
 /**
- * Adapter definition acceptance tests (CLM-0020, CLM-0021): the five CLI
+ * Adapter definition acceptance tests (CLM-0020, CLM-0021): the six CLI
  * definitions expose one uniform data shape, and each parser reads token /
  * cost usage out of that CLI's recorded output format — or reports null,
  * never a fabricated number.
@@ -59,8 +59,8 @@ const opencodeFixture = [
 ].join('\n');
 
 describe('uniform adapter interface (CLM-0021)', () => {
-  it('defines exactly the five spec §3.1 adapters', () => {
-    expect([...ADAPTER_NAMES]).toEqual(['claude', 'codex', 'gemini', 'opencode', 'ollama']);
+  it('defines exactly the six spec §3.1 adapters', () => {
+    expect([...ADAPTER_NAMES]).toEqual(['claude', 'codex', 'gemini', 'opencode', 'ollama', 'agy']);
     expect(Object.keys(adapterDefinitions).sort()).toEqual([...ADAPTER_NAMES].sort());
   });
 
@@ -76,9 +76,10 @@ describe('uniform adapter interface (CLM-0021)', () => {
     }
   });
 
-  it('marks only ollama experimental (spec §5.8)', () => {
+  it('marks only the experimental-tier adapters (ollama, agy) experimental (spec §5.8)', () => {
+    const experimental = new Set(['ollama', 'agy']);
     for (const name of ADAPTER_NAMES) {
-      expect(adapterDefinitions[name].experimental).toBe(name === 'ollama');
+      expect(adapterDefinitions[name].experimental).toBe(experimental.has(name));
     }
   });
 
@@ -152,6 +153,7 @@ describe('uniform adapter interface (CLM-0021)', () => {
       pureCompletion: true,
     });
     expect(opencodePure.args).not.toContain('--approval-mode'); // honest no-coverage
+    // agy buildCommand + pureCompletion-none is asserted in translate.test.ts (its profile block).
   });
 
   it('pureCompletionCoverage (#355) classifies each adapter, in lockstep with the argv', () => {
@@ -161,6 +163,7 @@ describe('uniform adapter interface (CLM-0021)', () => {
     expect(pureCompletionCoverage('codex')).toBe('partial'); // read-only: reads still allowed
     expect(pureCompletionCoverage('opencode')).toBe('none'); // no run-level flag
     expect(pureCompletionCoverage('ollama')).toBe('none'); // no run-level flag
+    expect(pureCompletionCoverage('agy')).toBe('none'); // --sandbox blocks exec/net, not fs (#387)
     // Lockstep guard: only the `full` adapter applies an explicit tool-deny flag;
     // a `none` adapter applies no pure-completion argv (best-effort, audited).
     expect(
