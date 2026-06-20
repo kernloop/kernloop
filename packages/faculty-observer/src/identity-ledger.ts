@@ -73,6 +73,14 @@ function toRecord(row: IdentityFitnessRow): IdentityFitnessRecord {
   };
 }
 
+/** The per-CALL series table; OUTCOME_FITNESS_TABLE is its deliverable-pass twin. */
+export const CALL_FITNESS_TABLE = 'observer_fitness_identity';
+/** The OUTCOME-level (deliverable-pass) series table (#229/#5). */
+export const OUTCOME_FITNESS_TABLE = 'observer_fitness_identity_outcome';
+/** The two identity-fitness tables — a CLOSED union so the interpolated `table`
+ * arg can never be arbitrary SQL (the #357 review's latent-injection hardening). */
+type FitnessTable = typeof CALL_FITNESS_TABLE | typeof OUTCOME_FITNESS_TABLE;
+
 /**
  * Ingest one per-MODEL-CALL fitness event keyed on a served {@link ModelIdentity}
  * (#66, CLM-0125). `identity` and `cost` are zod-validated at the boundary
@@ -84,18 +92,13 @@ function toRecord(row: IdentityFitnessRow): IdentityFitnessRecord {
  * merges into a named class. This writes ONLY `observer_fitness_identity`; the
  * subject-keyed `observer_fitness` ledger is never touched.
  */
-/** The per-CALL series table; OUTCOME_FITNESS_TABLE is its deliverable-pass twin. */
-export const CALL_FITNESS_TABLE = 'observer_fitness_identity';
-/** The OUTCOME-level (deliverable-pass) series table (#229/#5). */
-export const OUTCOME_FITNESS_TABLE = 'observer_fitness_identity_outcome';
-
 export function ingestModelFitness(
   db: Database.Database,
   now: number,
   identity: ModelIdentity,
   success: boolean,
   cost: Cost,
-  table: string = CALL_FITNESS_TABLE,
+  table: FitnessTable = CALL_FITNESS_TABLE,
 ): IdentityFitnessRecord {
   const parsedId = ModelIdentitySchema.safeParse(identity);
   if (!parsedId.success) {
@@ -146,7 +149,7 @@ export function ingestOutcomeFitness(
 export function fitnessForIdentity(
   db: Database.Database,
   key: IdentityKey,
-  table: string = CALL_FITNESS_TABLE,
+  table: FitnessTable = CALL_FITNESS_TABLE,
 ): IdentityFitnessRecord | undefined {
   const row = db
     .prepare(
@@ -172,7 +175,7 @@ export function fitnessForIdentity(
 export function identityFitnessLedger(
   db: Database.Database,
   limit?: number,
-  table: string = CALL_FITNESS_TABLE,
+  table: FitnessTable = CALL_FITNESS_TABLE,
 ): IdentityFitnessRecord[] {
   if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
     throw new RangeError(
