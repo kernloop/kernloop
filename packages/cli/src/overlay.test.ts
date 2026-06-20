@@ -71,6 +71,7 @@ describe('initOverlay', () => {
       strategy: 'simple_majority',
       panel: 3,
       escalateOnNoConsensus: false,
+      precisionWeighted: false,
     });
   });
 
@@ -96,7 +97,12 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.Kc).toBe(3); // child-iterate bound default [CLM-0043]
     expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
     expect(overlay.gates).toEqual({
-      vote: { strategy: 'simple_majority', panel: 3, escalateOnNoConsensus: false },
+      vote: {
+        strategy: 'simple_majority',
+        panel: 3,
+        escalateOnNoConsensus: false,
+        precisionWeighted: false,
+      },
       // sandbox is default-ON, non-enforcing (#227): generated code is sandboxed when
       // Docker is available, else falls back to host spawn. diffCoverage/groundedness opt-in.
       quality: { envAllow: [], sandbox: { enabled: true, enforce: false }, diffCoverage: false },
@@ -243,6 +249,7 @@ describe('loadOverlay defaults and precedence', () => {
       strategy: 'supermajority',
       panel: 7,
       escalateOnNoConsensus: false,
+      precisionWeighted: false,
     });
     expect(overlay.gates.quality.timeoutMsPerCheck).toBe(60_000);
     expect(overlay.gates.quality.envAllow).toEqual([]); // defaults empty when unset

@@ -37,13 +37,21 @@ interface Tally {
   readonly reject: number;
 }
 
-function tally(votes: readonly BallotVote[]): Tally {
+/**
+ * Tally votes, optionally WEIGHTED by a per-voter weight (#369 Inc3). Each vote
+ * contributes `weights[i]` (default 1) to its side, so a calibrated voter counts
+ * for more. With no weights — or all weights 1 — the tally is integer counts,
+ * byte-identical to the unweighted form. The threshold checks (`clears`) operate
+ * on these (possibly fractional) sums unchanged.
+ */
+function tally(votes: readonly BallotVote[], weights?: readonly number[]): Tally {
   let approve = 0;
   let reject = 0;
-  for (const vote of votes) {
-    if (vote === 'approve') approve += 1;
-    else if (vote === 'reject') reject += 1;
-  }
+  votes.forEach((vote, i) => {
+    const w = weights?.[i] ?? 1;
+    if (vote === 'approve') approve += w;
+    else if (vote === 'reject') reject += w;
+  });
   return { approve, reject };
 }
 
@@ -116,8 +124,9 @@ export function aggregateVotes(
   strategy: VoteStrategy,
   votes: readonly BallotVote[],
   escalateOnNoConsensus = false,
+  weights?: readonly number[],
 ): VoteOutcome {
-  const counts = tally(votes);
+  const counts = tally(votes, weights);
   const nonAbstain = counts.approve + counts.reject;
   if (nonAbstain === 0) {
     return { result: 'abstain', confidence: 0 };
@@ -130,4 +139,23 @@ export function aggregateVotes(
     return { result: 'escalate', confidence };
   }
   return { result: 'reject', confidence };
+}
+
+/** Min labeled votes before a voter's precision is trusted to move its weight off
+ * neutral (#369 Inc3) — small-window precision is high-variance, so an under-sampled
+ * voter stays at weight 1 (chance). */
+export const MIN_LABELED_FOR_WEIGHT = 5;
+
+/**
+ * Map a voter's sliding-window precision to its vote WEIGHT (#369 Inc3). Centered
+ * so a voter at chance (precision 0.5) is NEUTRAL (weight 1); a perfectly-calibrated
+ * voter caps at 1.5, a consistently-wrong one FLOORS at 0.5 — deliberately NOT
+ * silenced or inverted (a noisy low-precision signal must not manufacture a confident
+ * negative weight; per the ratified design). Returns the neutral 1 until the voter
+ * has at least {@link MIN_LABELED_FOR_WEIGHT} labeled votes (or has none), so the
+ * aggregation is byte-identical until real calibration data accrues.
+ */
+export function precisionWeight(precision: number | undefined, labeled: number): number {
+  if (precision === undefined || labeled < MIN_LABELED_FOR_WEIGHT) return 1;
+  return Math.min(1.5, Math.max(0.5, 0.5 + precision));
 }

@@ -17,6 +17,9 @@ const VoteConfigSchema = z.strictObject({
    * Liveness tradeoff (#364): in an UNATTENDED loop there is no "next interaction",
    * so `escalate` halts indefinitely — keep off for autonomous runs. */
   escalateOnNoConsensus: z.boolean().default(false),
+  /** Opt-in precision-weighted voting (#369 Inc3): weight each ballot by the
+   * voter's measured calibration. Default off (byte-identical). */
+  precisionWeighted: z.boolean().default(false),
 });
 
 /** One node override (mirrors the cli overlay's NodeOverrideSchema). */
