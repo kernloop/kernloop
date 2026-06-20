@@ -2681,3 +2681,15 @@ A provider-diverse ratification panel surfaces VOTER DILUTION on the Verdict (#3
 - [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
 - [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
 - CI `test`
+
+## CLM-0162
+
+**Status:** verified — **source:** [`CLM-0162.yaml`](../claims/registry/CLM-0162.yaml)
+
+The audit keyring opportunistically REAPS its own orphaned write temps (#377, the #376 follow-up): the unique-per-write temp name that fixed the clobber race means a crash between writeFileSync and renameSync leaks a distinct `${path}.<hex>.tmp` that nothing reclaimed. On a successful keyring write, reapStaleKeyringTemps deletes sibling temps older than a few-minute floor — never one a concurrent distinct-chain write may still be mid-rename on — matched STRICTLY by the keyring's own basename prefix AND a `.tmp` suffix, so the keyring file itself, backups, and unrelated siblings are never touched. It runs only on the rare first-keyed write (off the hot path), swallows every filesystem error so housekeeping can never break a keyring operation, and emits a `warn` when it reaps so the cleanup is never silent (rule 7).
+
+**Enforced by:**
+
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- [`packages/kernel/src/audit/keyed-chain.test.ts`](../packages/kernel/src/audit/keyed-chain.test.ts)
+- CI `test`
