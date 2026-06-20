@@ -22,20 +22,27 @@ import type { ModelRequirement } from '@kernloop/contracts';
 import { resolveServed, type ServedModel } from './node-seam.js';
 import { resolveServedApi } from './api-seam.js';
 import { apiDefinitionFor, type Endpoints } from '../endpoints.js';
+import { adapterModelOverride, type AdapterModels } from '../overlay-schemas.js';
 
 /**
  * Resolve the {@link ServedModel} a candidate `name` serves `req` with: the api
  * path when `name` is a registered endpoint, else the CLI path. The single
  * source of truth for predicted==served (#271, CLM-0130). Throws (via
  * resolveServed) for an unknown CLI adapter name.
+ *
+ * `adapterModels` (#393, CLM-0166) carries the overlay's per-tier model pins; a
+ * CLI candidate resolves against its pin (via {@link adapterModelOverride}, which
+ * is inert for an endpoint name), so the selector's PREDICTION here matches
+ * node-bind's call-time binding under a pin too (CLM-0130).
  */
 export function resolveServedFor(
   req: ModelRequirement,
   name: string,
   endpoints: Endpoints,
+  adapterModels?: AdapterModels,
 ): ServedModel {
   const endpoint = endpoints[name];
   return endpoint === undefined
-    ? resolveServed(req, name as AdapterName)
+    ? resolveServed(req, name as AdapterName, adapterModelOverride(adapterModels, name))
     : resolveServedApi(req, apiDefinitionFor(name, endpoint));
 }

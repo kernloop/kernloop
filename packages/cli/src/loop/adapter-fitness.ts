@@ -34,6 +34,7 @@ import {
 import { servedIdentity } from './node-seam.js';
 import { resolveServedFor } from './resolve-served.js';
 import type { Endpoints } from '../endpoints.js';
+import type { AdapterModels } from '../overlay-schemas.js';
 
 /** One adapter-selection outcome — chosen adapter + reproducible provenance. */
 export interface AdapterChoice {
@@ -113,6 +114,8 @@ export interface AdapterSelectorDeps {
   readonly discovered: DiscoveredCache;
   /** The overlay's registered endpoints, so an endpoint candidate is predicted (not neutral, #260). */
   readonly endpoints: Endpoints;
+  /** The overlay's per-tier CLI model pins (#393, CLM-0166), so a pinned candidate predicts the pinned model. */
+  readonly adapterModels?: AdapterModels;
   readonly store: AuditStore;
   readonly rng: () => number;
   readonly now: () => number;
@@ -129,9 +132,10 @@ function predictIdentity(
   name: string,
   endpoints: Endpoints,
   discovered: DiscoveredCache,
+  adapterModels: AdapterModels | undefined,
 ): ModelIdentity | null {
   try {
-    return servedIdentity(resolveServedFor(req, name, endpoints), discovered);
+    return servedIdentity(resolveServedFor(req, name, endpoints, adapterModels), discovered);
   } catch {
     return null; // an unknown adapter / unresolvable endpoint → neutral
   }
@@ -151,7 +155,7 @@ export function buildAdapterSelector(
   return (tier, req, candidateNames) => {
     const candidates: CandidateIdentity[] = candidateNames.map((name) => ({
       subject: name,
-      identity: predictIdentity(req, name, deps.endpoints, deps.discovered),
+      identity: predictIdentity(req, name, deps.endpoints, deps.discovered, deps.adapterModels),
     }));
     const choice = chooseAdapter(
       candidates,

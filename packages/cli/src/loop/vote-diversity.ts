@@ -11,7 +11,7 @@ import { ADAPTER_NAMES, appendEvent, type AdapterName, type AuditStore } from '@
 import type { DiscoveredCache } from '@kernloop/faculty-models';
 import { PANEL_RATIFICATION, type InvokeVoter } from '@kernloop/faculty-gates';
 import { requirementForNode, type Overlay } from '../overlay.js';
-import { tierCandidates } from '../overlay-schemas.js';
+import { adapterModelOverride, tierCandidates } from '../overlay-schemas.js';
 import { adapterInvoke, type RunTotals } from './invoke.js';
 import { buildNodeSeam, resolveServed, type NodeSeam } from './node-seam.js';
 import {
@@ -80,7 +80,7 @@ export function buildVoteSeamForAdapter(
     ...(fitness.onModelCall === undefined ? {} : { onModelCall: fitness.onModelCall }),
   };
   return buildNodeSeam(
-    resolveServed(req, name),
+    resolveServed(req, name, adapterModelOverride(overlay.adapterModels, name)),
     adapterInvoke(name, undefined, undefined, overlay.adapterEnvAllow),
     totals,
     timeoutMs,

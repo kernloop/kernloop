@@ -77,6 +77,7 @@ export function overlayPaths(overlayDir: string): OverlayPaths {
 // `from '../overlay.js'` imports are unchanged.
 import {
   AdapterFitnessSchema,
+  AdapterModelsSchema,
   AdaptersSchema,
   BudgetsSchema,
   GatesSchema,
@@ -89,7 +90,9 @@ export {
   NodeOverrideSchema,
   VOTE_PANEL_SIZES,
   VOTE_STRATEGIES,
+  adapterModelOverride,
   isCliAdapter,
+  type AdapterModels,
   type NodeOverride,
   type TierAdapters,
 } from './overlay-schemas.js';
@@ -151,6 +154,7 @@ export const OverlaySchema = z
     adapterFitness: AdapterFitnessSchema.prefault({}), // live identity-fitness adapter pick [CLM-0130]
     nodeOverrides: z.record(z.string().min(1), NodeOverrideSchema).default({}),
     adapters: AdaptersSchema.optional(),
+    adapterModels: AdapterModelsSchema.optional(), // pin a CLI adapter's per-tier model [CLM-0166, #393]
     /**
      * Registered OpenAI-compatible HTTP endpoints (spec §8.4 `api` adapter), keyed
      * by id. The per-tier `adapters` map may name an endpoint id (vs a CLI name);
