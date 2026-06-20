@@ -9,7 +9,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ADAPTER_NAMES, CLAUDE_PURE_COMPLETION_DENY, adapterDefinitions } from './definitions.js';
+import {
+  ADAPTER_NAMES,
+  CLAUDE_PURE_COMPLETION_DENY,
+  adapterDefinitions,
+  pureCompletionCoverage,
+} from './definitions.js';
 
 /** Recorded claude 2.0.x `--output-format json` response (v1 evidence). */
 const claudeFixture = JSON.stringify({
@@ -140,6 +145,23 @@ describe('uniform adapter interface (CLM-0021)', () => {
       pureCompletion: true,
     });
     expect(opencodePure.args).not.toContain('--approval-mode'); // honest no-coverage
+  });
+
+  it('pureCompletionCoverage (#355) classifies each adapter, in lockstep with the argv', () => {
+    // The single declarative source the dispatch layer audits a degraded posture from.
+    expect(pureCompletionCoverage('claude')).toBe('full'); // full --disallowedTools surface
+    expect(pureCompletionCoverage('gemini')).toBe('partial'); // plan mode only
+    expect(pureCompletionCoverage('codex')).toBe('partial'); // read-only: reads still allowed
+    expect(pureCompletionCoverage('opencode')).toBe('none'); // no run-level flag
+    expect(pureCompletionCoverage('ollama')).toBe('none'); // no run-level flag
+    // Lockstep guard: only the `full` adapter applies an explicit tool-deny flag;
+    // a `none` adapter applies no pure-completion argv (best-effort, audited).
+    expect(
+      adapterDefinitions.claude.buildCommand({ prompt: 'p', pureCompletion: true }).args,
+    ).toContain('--disallowedTools');
+    expect(
+      adapterDefinitions.opencode.buildCommand({ prompt: 'p', pureCompletion: true }).args,
+    ).not.toContain('--disallowedTools');
   });
 });
 

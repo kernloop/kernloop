@@ -97,4 +97,11 @@ describe('isReasoningNode (#148) — pure-completion vs the coder', () => {
     expect(isReasoningNode('plan')).toBe(true);
     expect(isReasoningNode('review')).toBe(true);
   });
+
+  it('is an EXPLICIT allowlist, not !== implement (#355): an unknown node is NOT reasoning', () => {
+    // The guard against silent tool-starvation: a future tool-needing node that is
+    // not in the allowlist keeps tools (returns false), rather than defaulting
+    // tool-free. Cast simulates a node added to TIERED_NODES but not the allowlist.
+    expect(isReasoningNode('a-future-coder-node' as (typeof TIERED_NODES)[number])).toBe(false);
+  });
 });

@@ -22,6 +22,8 @@ export { SAFE_ENV_KEYS, scopedChildEnv, droppedEnvKeys } from './env.js';
 export {
   ADAPTER_NAMES,
   adapterDefinitions,
+  pureCompletionCoverage,
+  type PureCompletionCoverage,
   type AdapterName,
   type AdapterDefinition,
   type AdapterCommand,

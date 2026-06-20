@@ -144,11 +144,22 @@ export function invokeTimeoutForNode(node: TieredNode, baseMs: number): number {
 }
 
 /**
- * Reasoning nodes (#148) run the agentic CLI as a PURE COMPLETION — tool-free, so
- * they consume only the compiled Brief, never reading/writing the workspace. Every
- * tiered node EXCEPT `implement` (the coder, which produces files) is a reasoning
- * node: research/plan/decompose/vote/review judge or plan over text.
+ * The tiered nodes that run the agentic CLI as a PURE COMPLETION (#148) — tool-free,
+ * consuming only the compiled Brief, never reading/writing the workspace: the ones
+ * that judge or plan over text. An EXPLICIT allowlist, not `!== 'implement'` (#355):
+ * a future tool-NEEDING node (a second coder-like node) then defaults to NOT
+ * reasoning — it keeps tool access rather than being silently starved tool-free.
+ * Adding a new reasoning node is a conscious one-line edit here.
  */
+const REASONING_NODES: ReadonlySet<TieredNode> = new Set([
+  'research',
+  'plan',
+  'decompose',
+  'vote',
+  'review',
+]);
+
+/** Whether a tiered node runs tool-free (#148) — see {@link REASONING_NODES}. */
 export function isReasoningNode(node: TieredNode): boolean {
-  return node !== 'implement';
+  return REASONING_NODES.has(node);
 }

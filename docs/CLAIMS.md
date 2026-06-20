@@ -2617,3 +2617,18 @@ The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate,
 - [`packages/workflows/src/verdict-disposition.test.ts`](../packages/workflows/src/verdict-disposition.test.ts)
 - [`packages/workflows/src/verdict-disposition.ts#verdictDisposition`](../packages/workflows/src/verdict-disposition.ts)
 - CI `test`
+
+## CLM-0158
+
+**Status:** verified — **source:** [`CLM-0158.yaml`](../claims/registry/CLM-0158.yaml)
+
+Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude --disallowedTools), partial (gemini plan / codex read-only), or none (opencode/ollama); a real-CLI run whose default adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded posture is never silently confused with enforced policy. The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- [`packages/cli/src/loop/pure-completion-audit.test.ts`](../packages/cli/src/loop/pure-completion-audit.test.ts)
+- [`packages/cli/src/loop/pure-completion-audit.test.ts`](../packages/cli/src/loop/pure-completion-audit.test.ts)
+- [`packages/cli/src/loop/node-model.test.ts`](../packages/cli/src/loop/node-model.test.ts)
+- [`packages/kernel/src/adapters/definitions.ts#pureCompletionCoverage`](../packages/kernel/src/adapters/definitions.ts)
+- CI `test`

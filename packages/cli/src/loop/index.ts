@@ -23,7 +23,13 @@ import {
   type Outcome,
   type TaskContract,
 } from '@kernloop/contracts';
-import { appendEvent, droppedEnvKeys, type AdapterName } from '@kernloop/kernel';
+import {
+  appendEvent,
+  droppedEnvKeys,
+  pureCompletionCoverage,
+  type AdapterName,
+  type AuditStore,
+} from '@kernloop/kernel';
 import { cleanHalt, guardWorkspaceContainment, report } from './finalize.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
@@ -263,6 +269,28 @@ function auditEnvScoping(kern: Kernloop, runId: string): void {
 }
 
 /**
+ * Surface a DEGRADED pure-completion posture (#148, #355, rule 7): reasoning nodes
+ * request a tool-free run, but only some CLIs enforce that fully. When the run's
+ * default adapter has less than `full` {@link pureCompletionCoverage}, append a
+ * `cli.run.pure-completion-degraded` event so the gap is visible in the audit
+ * chain — policy is never silently confused with best-effort. A `full`-coverage
+ * adapter (claude) emits nothing. Skipped when the caller injects its own invoke
+ * (no CLI spawns, so no tool surface to restrict).
+ */
+export function auditPureCompletionCoverage(
+  store: AuditStore,
+  adapter: AdapterName,
+  runId: string,
+): void {
+  const coverage = pureCompletionCoverage(adapter);
+  if (coverage === 'full') return;
+  appendEvent(store, {
+    type: 'cli.run.pure-completion-degraded',
+    payload: { runId, adapter, coverage },
+  });
+}
+
+/**
  * The run's base model seam: a caller-injected invoke verbatim, else the real
  * adapter — probed up front (absence is the kernel's typed error, never a stub),
  * its child env scoped to the benign allowlist ∪ `adapterEnvAllow` and that
@@ -278,6 +306,7 @@ function resolveBaseInvoke(
   if (request.invoke !== undefined) return request.invoke;
   ensureRunAdaptersAvailable(adapter, kern.config);
   auditEnvScoping(kern, runId);
+  auditPureCompletionCoverage(kern.store, adapter, runId); // #355: surface a degraded posture
   return adapterInvoke(adapter, undefined, request.workspaceDir, kern.config.adapterEnvAllow);
 }
 
