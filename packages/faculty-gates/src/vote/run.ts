@@ -211,13 +211,24 @@ export async function runVoteGate(options: RunVoteGateOptions): Promise<Verdict>
   });
 }
 
+/**
+ * Voters whose ballot ERRORED (the routed adapter was uncallable at vote time —
+ * authed-out, quota, or crashed), recorded as a `voter_error:` abstain by
+ * {@link castBallot}. PATH-availability is enforced at run setup, so on a diverse
+ * panel these are the runtime (auth/quota) failures that slip past it (#371).
+ */
+function adapterFailureCount(voters: readonly VoterRecord[]): number {
+  return voters.filter((v) => v.vote === 'abstain' && v.reasoning.startsWith('voter_error:'))
+    .length;
+}
+
 /** The normalized class key for a served {@link ModelIdentity} (#369). */
 function identityKey(id: ModelIdentity): string {
   return [id.provider, id.family, id.generation, id.tier].join(' ');
 }
 
 /**
- * Diversity findings for a provider-diverse panel (#369), surfaced ON THE VERDICT
+ * Diversity findings for a provider-diverse panel (#369, #371), surfaced ON THE VERDICT
  * so a human ratifier SEES whether the panel was genuinely independent — never
  * only in the audit log. Computed from what the faculty has (the ballots' served
  * identities); the composition root fills `served` only on a diverse (panel-7)
@@ -231,27 +242,32 @@ function identityKey(id: ModelIdentity): string {
 function diversityFindings(voters: readonly VoterRecord[]): Finding[] {
   const served = voters.map((v) => v.served).filter((s): s is ModelIdentity => s !== undefined);
   if (served.length === 0) return [];
+  const findings: Finding[] = [];
+  const failures = adapterFailureCount(voters);
+  if (failures > 0) {
+    findings.push({
+      severity: 'warn',
+      message: `vote panel DILUTED (#371): ${String(failures)} of ${String(voters.length)} voters failed (adapter error); only ${String(served.length)} independent ballots counted, so a close ratification may turn on the dropped voters`,
+    });
+  }
   const counts = new Map<string, { n: number; id: ModelIdentity }>();
   for (const id of served) {
     const prior = counts.get(identityKey(id));
     counts.set(identityKey(id), { n: (prior?.n ?? 0) + 1, id });
   }
   if (counts.size === 1) {
-    return [
-      {
-        severity: 'warn',
-        message: `vote panel ran SINGLE-ORACLE (#369): all ${String(served.length)} ballots from one model class — not independent (only one provider available)`,
-      },
-    ];
+    findings.push({
+      severity: 'warn',
+      message: `vote panel ran SINGLE-ORACLE (#369): all ${String(served.length)} ballots from one model class — not independent (only one provider available)`,
+    });
+    return findings;
   }
   const top = [...counts.values()].sort((a, b) => b.n - a.n)[0] as { n: number; id: ModelIdentity };
   if (top.n * 2 > served.length) {
-    return [
-      {
-        severity: 'info',
-        message: `vote panel diversity SKEW (#369): one model class (${top.id.provider}/${top.id.family}) cast ${String(top.n)}/${String(served.length)} ballots`,
-      },
-    ];
+    findings.push({
+      severity: 'info',
+      message: `vote panel diversity SKEW (#369): one model class (${top.id.provider}/${top.id.family}) cast ${String(top.n)}/${String(served.length)} ballots`,
+    });
   }
-  return [];
+  return findings;
 }

@@ -1,0 +1,23 @@
+id: CLM-0161
+statement: >-
+  A provider-diverse ratification panel surfaces VOTER DILUTION on the Verdict (#371):
+  when one or more voters' ballots ERROR (the routed adapter was uncallable at vote
+  time — authed-out, quota-exceeded, or crashed — recorded by the gate as a
+  `voter_error:` abstain, never a fabricated vote), runVoteGate emits a `warn`
+  diversity finding naming how many of the panel failed and how many independent
+  ballots actually counted, so the served-based single-oracle/skew ratios are
+  interpretable and a human ratifier sees that a close ratification may have turned
+  on the dropped voters. The dilution finding is computed only when at least one
+  diverse ballot survived (a single-adapter panel-3, which carries no served, yields
+  none) and is emitted ALONGSIDE the single-oracle/skew findings, not instead of
+  them. PATH-availability is already enforced at run setup (the run aborts on a
+  not-installed declared adapter), so the dilution finding catches the residual
+  RUNTIME (auth/quota) failures that slip past that probe.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::emits a DILUTION warn finding when a voter on a diverse panel fails — adapter error (#371)'
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::DILUTION co-occurs with SINGLE-ORACLE: surviving ballots one class + a failure (#371)'
+  - 'test:packages/faculty-gates/src/vote/run.test.ts::no DILUTION finding when every diverse voter succeeds (#371)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
