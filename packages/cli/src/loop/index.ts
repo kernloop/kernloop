@@ -273,9 +273,13 @@ function auditEnvScoping(kern: Kernloop, runId: string): void {
  * request a tool-free run, but only some CLIs enforce that fully. When the run's
  * default adapter has less than `full` {@link pureCompletionCoverage}, append a
  * `cli.run.pure-completion-degraded` event so the gap is visible in the audit
- * chain — policy is never silently confused with best-effort. A `full`-coverage
- * adapter (claude) emits nothing. Skipped when the caller injects its own invoke
- * (no CLI spawns, so no tool surface to restrict).
+ * chain — best-effort is not silently confused with enforced policy. A
+ * `full`-coverage adapter (claude) emits nothing. Skipped when the caller injects
+ * its own invoke (no CLI spawns, so no tool surface to restrict).
+ *
+ * KNOWN GAP (#363): this keys on the run's DEFAULT adapter only. adapterFitness
+ * (#252) can route a single node to a lower-coverage adapter at runtime, which
+ * this setup-time check does not see — tracked for a per-node audit.
  */
 export function auditPureCompletionCoverage(
   store: AuditStore,

@@ -3,11 +3,12 @@ statement: >-
   Pure-completion coverage (#148 hardening, #355) is declarative and visible: a
   single kernel source classifies each adapter's tool-free reasoning coverage as
   full (claude --disallowedTools), partial (gemini plan / codex read-only), or
-  none (opencode/ollama); a real-CLI run whose default adapter has less than full
+  none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full
   coverage appends a cli.run.pure-completion-degraded audit event, so a degraded
-  posture is never silently confused with enforced policy. The reasoning-node set
-  is an EXPLICIT allowlist (not !== implement), so a future tool-needing node
-  keeps tools rather than being silently starved tool-free.
+  default posture is not silently confused with enforced policy (a per-node
+  adapterFitness substitution is a tracked gap, #363). The reasoning-node set is
+  an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps
+  tools rather than being silently starved tool-free.
 evidence:
   - 'test:packages/kernel/src/adapters/definitions.test.ts::pureCompletionCoverage (#355) classifies each adapter, in lockstep with the argv'
   - 'test:packages/cli/src/loop/pure-completion-audit.test.ts::records a degraded event for a no-coverage adapter (opencode)'
