@@ -108,6 +108,14 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
     // Audit: the chain verifies and carries all three gate verdicts
     // (vote + quality + the advisory review).
     expect(verifyChain(kern.store).ok).toBe(true);
+
+    // #229/#5: each child's deliverable PASS was attributed to its producing model
+    // class in the OUTCOME-level identity-fitness series (served populated on the
+    // coder Outcome → integrate fired ingestOutcomeFitness).
+    const outcomeFitness = kern.observer.outcomeFitnessLedger();
+    expect(outcomeFitness.length).toBeGreaterThanOrEqual(1);
+    expect(outcomeFitness[0]?.invocations).toBeGreaterThanOrEqual(1);
+    expect(outcomeFitness[0]?.successRate).toBe(1); // the scripted deliverables passed quality
     const gateEvents = readEnvelopes(kern.paths.audit)
       .filter((e) => e.type === 'cli.gate.verdict')
       .map((e) => e.payload as { gate: string; result: string });

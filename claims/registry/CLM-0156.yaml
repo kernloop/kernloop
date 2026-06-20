@@ -1,0 +1,19 @@
+id: CLM-0156
+statement: >-
+  The Outcome contract carries an optional served:ModelIdentity (the producing
+  model class); the canonical loop populates it on each child's coder Outcome and
+  ingests the child's DELIVERABLE pass/fail into a SEPARATE outcome-level
+  identity-fitness series (observer_fitness_identity_outcome) that never
+  double-counts with the per-call series; and the adapter selector BLENDS that
+  deliverable-pass signal into its choice, so a model class that produces passing
+  deliverables — not merely calls that don't error — is preferred. An empty
+  deliverable series leaves the call-only ranking unchanged.
+evidence:
+  - 'test:packages/faculty-observer/src/identity-ledger.test.ts::writes the OUTCOME series WITHOUT touching the per-call series (no double-count)'
+  - 'test:packages/cli/src/loop/adapter-fitness.test.ts::blends the deliverable-PASS signal: equal call-fitness, the higher deliverable-pass wins (#229/#5)'
+  - 'test:packages/cli/src/loop.test.ts::runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory'
+  - 'code:packages/cli/src/loop/executors-nodes.ts#recordChildOutcomeFitness'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

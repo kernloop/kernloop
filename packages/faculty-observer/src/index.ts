@@ -26,6 +26,8 @@ import {
   fitnessForIdentity,
   identityFitnessLedger,
   ingestModelFitness,
+  ingestOutcomeFitness,
+  outcomeFitnessLedger,
   type IdentityFitnessRecord,
   type IdentityKey,
 } from './identity-ledger.js';
@@ -107,10 +109,20 @@ export interface Observer {
    * untouched. zod-validated at the boundary.
    */
   ingestModelFitness(identity: ModelIdentity, success: boolean, cost: Cost): IdentityFitnessRecord;
+  /** OUTCOME-level (deliverable-pass) identity fitness (#229/#5): like
+   * {@link ingestModelFitness} but into the SEPARATE outcome series — counts
+   * DELIVERABLES that passed quality+review, not model calls. */
+  ingestOutcomeFitness(
+    identity: ModelIdentity,
+    success: boolean,
+    cost: Cost,
+  ): IdentityFitnessRecord;
   /** Identity-series read — one model class's fitness, or undefined if never served. */
   fitnessForIdentity(key: IdentityKey): IdentityFitnessRecord | undefined;
   /** Identity-series read, most recently used first; `limit` caps it to the N freshest (#253). */
   identityFitnessLedger(limit?: number): IdentityFitnessRecord[];
+  /** The OUTCOME-level (deliverable-pass) identity series (#229/#5), bounded like above. */
+  outcomeFitnessLedger(limit?: number): IdentityFitnessRecord[];
   /** Series write — zod-validated Verdict; one row per VoterRecord (CLM-0055). */
   ingestVerdict(verdict: Verdict): number;
   /** Series read — one voter's votes, oldest first. */
@@ -166,6 +178,9 @@ export function createObserver(dbPath: string, options: CreateObserverOptions = 
     fitnessLedger: () => fitnessLedger(db),
     ingestModelFitness: (identity, success, cost) =>
       ingestModelFitness(db, clock(), identity, success, cost),
+    ingestOutcomeFitness: (identity, success, cost) =>
+      ingestOutcomeFitness(db, clock(), identity, success, cost),
+    outcomeFitnessLedger: (limit) => outcomeFitnessLedger(db, limit),
     fitnessForIdentity: (key) => fitnessForIdentity(db, key),
     identityFitnessLedger: (limit) => identityFitnessLedger(db, limit),
     ingestVerdict: (verdict) => ingestVerdict(db, clock(), verdict),

@@ -189,3 +189,41 @@ describe('identityFitnessLedger — bounded, recency-ordered read (#253)', () =>
     observer.close();
   });
 });
+
+describe('ingestOutcomeFitness — outcome-level (deliverable-pass) series (#229/#5)', () => {
+  it('writes the OUTCOME series WITHOUT touching the per-call series (no double-count)', () => {
+    const observer = observerWithTicker();
+    // a deliverable PASSED on this model class
+    observer.ingestOutcomeFitness(identity(), true, COST);
+    // the per-call series is UNTOUCHED (different denominators, separate tables)
+    expect(observer.identityFitnessLedger()).toEqual([]);
+    const outcome = observer.outcomeFitnessLedger();
+    expect(outcome).toHaveLength(1);
+    expect(outcome[0]).toMatchObject({ invocations: 1, successRate: 1 });
+    // and the reverse: a per-call ingest does NOT appear in the outcome series
+    observer.ingestModelFitness(identity(), false, { tokens: 0, usd: 0, wallClockMs: 0 });
+    expect(observer.outcomeFitnessLedger()).toHaveLength(1); // outcome series unchanged
+    expect(observer.identityFitnessLedger()).toHaveLength(1); // call series now has its row
+    observer.close();
+  });
+
+  it('accumulates same-class deliverables into ONE row; an unknown class buckets separately', () => {
+    const observer = observerWithTicker();
+    observer.ingestOutcomeFitness(identity({ raw: 'opus' }), true, COST);
+    observer.ingestOutcomeFitness(identity({ raw: 'opus-latest' }), false, {
+      tokens: 0,
+      usd: 0,
+      wallClockMs: 0,
+    });
+    observer.ingestOutcomeFitness(
+      identity({ family: 'unknown', generation: '0', resolvedBy: 'unknown' }),
+      true,
+      COST,
+    );
+    const rows = observer.outcomeFitnessLedger();
+    expect(rows).toHaveLength(2); // the named class (2 deliverables) + the unknown bucket
+    const named = rows.find((r) => r.key.family === 'claude-opus');
+    expect(named).toMatchObject({ invocations: 2, successRate: 0.5 });
+    observer.close();
+  });
+});

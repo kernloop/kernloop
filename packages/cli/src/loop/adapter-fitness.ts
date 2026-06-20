@@ -45,11 +45,18 @@ export interface AdapterChoice {
   readonly decisions: LiveFitnessDecision[];
 }
 
+/** How much the OUTCOME-level (deliverable-pass) signal weighs against the
+ * per-call signal in the blended score (#229/#5). Modest, so a sparse deliverable
+ * history NUDGES — never dominates — the call-based selection. A constant offset,
+ * so an EMPTY deliverable ledger leaves the call-only ranking unchanged. */
+const DELIVERABLE_FITNESS_WEIGHT = 0.3;
+
 /**
  * Pick the highest-fitness candidate (CLM-0130), or — with probability `epsilon`
  * — explore uniformly (anti-starvation). Pure over its inputs (rng + now). Ties
  * and all-neutral candidates resolve to the first candidate (deterministic,
  * backward-compatible). The rng draw is returned for the audit (reproducibility).
+ * Blends the OUTCOME-level (deliverable-pass) signal (#229/#5) over the per-call.
  */
 export function chooseAdapter(
   candidates: readonly CandidateIdentity[],
@@ -57,8 +64,21 @@ export function chooseAdapter(
   rng: () => number,
   epsilon: number,
   now: number,
+  deliverableLedger: readonly IdentityFitnessRecord[] = [],
 ): AdapterChoice {
   const { map, decisions } = liveFitnessPriors(candidates, ledger, new Map(), now);
+  // Blend the deliverable-PASS signal (#229/#5): prefer a model class that produces
+  // deliverables which PASS quality+review over one whose calls merely don't error.
+  const { map: dmap } = liveFitnessPriors(candidates, deliverableLedger, new Map(), now);
+  const blended = new Map<string, number>();
+  for (const candidate of candidates) {
+    const call = map.get(candidate.subject) ?? NEUTRAL_FITNESS_PRIOR;
+    const deliver = dmap.get(candidate.subject) ?? NEUTRAL_FITNESS_PRIOR;
+    blended.set(
+      candidate.subject,
+      call * (1 - DELIVERABLE_FITNESS_WEIGHT) + deliver * DELIVERABLE_FITNESS_WEIGHT,
+    );
+  }
   const first = candidates[0]?.subject ?? '';
   const draw = rng();
   if (epsilon > 0 && draw < epsilon && candidates.length > 0) {
@@ -73,7 +93,7 @@ export function chooseAdapter(
   let chosen = first;
   let best = -Infinity;
   for (const candidate of candidates) {
-    const score = map.get(candidate.subject) ?? NEUTRAL_FITNESS_PRIOR;
+    const score = blended.get(candidate.subject) ?? NEUTRAL_FITNESS_PRIOR;
     if (score > best) {
       best = score;
       chosen = candidate.subject;
@@ -87,6 +107,9 @@ export interface AdapterSelectorDeps {
   readonly enabled: boolean;
   readonly epsilon: number;
   readonly ledger: readonly IdentityFitnessRecord[];
+  /** The OUTCOME-level (deliverable-pass) identity series (#229/#5), blended into
+   * the score so deliverable quality — not just call-success — biases selection. */
+  readonly deliverableLedger: readonly IdentityFitnessRecord[];
   readonly discovered: DiscoveredCache;
   /** The overlay's registered endpoints, so an endpoint candidate is predicted (not neutral, #260). */
   readonly endpoints: Endpoints;
@@ -130,7 +153,14 @@ export function buildAdapterSelector(
       subject: name,
       identity: predictIdentity(req, name, deps.endpoints, deps.discovered),
     }));
-    const choice = chooseAdapter(candidates, deps.ledger, deps.rng, deps.epsilon, deps.now());
+    const choice = chooseAdapter(
+      candidates,
+      deps.ledger,
+      deps.rng,
+      deps.epsilon,
+      deps.now(),
+      deps.deliverableLedger,
+    );
     appendEvent(deps.store, {
       type: 'cli.node-bind.adapter-fitness',
       payload: {

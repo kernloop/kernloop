@@ -79,6 +79,25 @@ describe('chooseAdapter — fitness argmax + flip (#252)', () => {
     expect(flip.chosen).toBe('adapter-b');
   });
 
+  it('blends the deliverable-PASS signal: equal call-fitness, the higher deliverable-pass wins (#229/#5)', () => {
+    // Equal per-CALL fitness → call-only would tie-break to the first candidate.
+    const callLedger = [
+      row('anthropic', 'claude-opus', 'large', 20, 0.5),
+      row('openai', 'gpt', 'large', 20, 0.5),
+    ];
+    // But adapter-b's model produces deliverables that PASS far more often.
+    const deliverableLedger = [
+      row('anthropic', 'claude-opus', 'large', 10, 0.2),
+      row('openai', 'gpt', 'large', 10, 0.9),
+    ];
+    // With the deliverable ledger, the SELECTION DECISION CHANGES to adapter-b.
+    expect(chooseAdapter(CANDS, callLedger, () => 0.99, 0.1, NOW, deliverableLedger).chosen).toBe(
+      'adapter-b',
+    );
+    // Without it, the call-only tie resolves to the first (proves the deliverable signal flipped it).
+    expect(chooseAdapter(CANDS, callLedger, () => 0.99, 0.1, NOW).chosen).toBe('adapter-a');
+  });
+
   it('all-neutral (no live data) → the first candidate, deterministic', () => {
     const c = chooseAdapter(CANDS, [], () => 0.99, 0.1, NOW);
     expect(c.chosen).toBe('adapter-a');
