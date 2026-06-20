@@ -34,7 +34,7 @@ export const LIVE_FITNESS_LEDGER_LIMIT = 2000;
 function predictIdentity(
   req: ModelRequirement,
   kern: Kernloop,
-  runAdapter: AdapterName,
+  runAdapter: string,
 ): ModelIdentity | null {
   const name = tierCandidates(kern.config.adapters, req.tier)[0] ?? runAdapter;
   if (kern.config.endpoints[name] !== undefined) return null;
@@ -88,7 +88,7 @@ function auditDecisions(
 export function routePriors(
   kern: Kernloop,
   capability: string,
-  runAdapter: AdapterName,
+  runAdapter: string,
   taskId: string,
 ): { fitnessPriors?: Map<string, number> } {
   const seeded = seededPriorsFor(

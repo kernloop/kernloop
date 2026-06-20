@@ -2704,3 +2704,17 @@ The Antigravity CLI adapter `agy` (#387) — Google's replacement for the deprec
 - [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
 - [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
 - CI `test`
+
+## CLM-0164
+
+**Status:** verified — **source:** [`CLM-0164.yaml`](../claims/registry/CLM-0164.yaml)
+
+The canonical-loop run/default adapter (`--adapter`, spec §3.1) may be a registered api ENDPOINT id, not only a CLI adapter name (#392) — so kernloop runs end-to-end with NO model CLI installed, every node routing to the endpoint's api seam (pure HTTP) at its per-tier model. An endpoint run adapter is recognized at run setup and skips the CLI-only steps that do not apply to it: the PATH-probe (`ensureRunAdaptersAvailable`), the agentic-cwd containment guard (an api endpoint has no cwd subprocess), and the pure-completion-CLI coverage audit (a raw completion exposes no agentic tools); its key is validated fail-closed at call time. The provider-diverse vote panel does NOT seed an endpoint run adapter (the panel builds per-adapter CLI seams), so an endpoint-only run votes single-oracle on the node's own api seam — honestly degraded, never a fabricated CLI voter. A run adapter that is neither a CLI adapter nor a registered endpoint id fails fast at setup with the adapter list, never a silent mis-route.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/node-resolve.test.ts`](../packages/cli/src/loop/node-resolve.test.ts)
+- [`packages/cli/src/loop/vote-diversity.test.ts`](../packages/cli/src/loop/vote-diversity.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
+- [`packages/cli/src/cli.test.ts`](../packages/cli/src/cli.test.ts)
+- CI `test`

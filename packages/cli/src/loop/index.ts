@@ -24,12 +24,14 @@ import {
   type TaskContract,
 } from '@kernloop/contracts';
 import {
+  ADAPTER_NAMES,
   appendEvent,
   droppedEnvKeys,
   pureCompletionCoverage,
   type AdapterName,
   type AuditStore,
 } from '@kernloop/kernel';
+import { isCliAdapter } from '../overlay-schemas.js';
 import { cleanHalt, guardWorkspaceContainment, report } from './finalize.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
@@ -42,7 +44,7 @@ import {
 import type { Kernloop } from '../kernel.js';
 import { type LoopRefs } from './executors.js';
 import { writeDocArtifact, type DocArtifactResult } from './doc-artifact.js';
-import { LoopResumeError, adapterInvoke, type LoopInvoke, type RunTotals } from './invoke.js';
+import { LoopResumeError, type LoopInvoke, type RunTotals } from './invoke.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
 import { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
@@ -80,8 +82,9 @@ export interface LoopRequest {
   readonly task: TaskContract;
   /** Workspace the loop's children implement into. */
   readonly workspaceDir: string;
-  /** Adapter the default invoke binds to; default `claude`. */
-  readonly adapter?: AdapterName;
+  /** Adapter the default invoke binds to (default `claude`): a CLI name OR a
+   * registered endpoint id (#392 — an endpoint run adapter needs no CLI). */
+  readonly adapter?: string;
   /** Injectable model seam (tests script it); default: the kernel adapter. */
   readonly invoke?: LoopInvoke;
   /** Resume the checkpointed run with this id instead of starting fresh. */
@@ -295,23 +298,29 @@ export function auditPureCompletionCoverage(
 }
 
 /**
- * The run's base model seam: a caller-injected invoke verbatim, else the real
- * adapter — probed up front (absence is the kernel's typed error, never a stub),
- * its child env scoped to the benign allowlist ∪ `adapterEnvAllow` and that
- * scoping audited (#227). Model-CLI subprocesses run in the task WORKSPACE, not
- * kernloop's launch dir (#146).
+ * Validate + set up the run's default adapter before any node executes (#392): a
+ * REAL CLI run is probed up front (typed error, never a stub) + env/pure-completion
+ * audited (#227/#355). An injected invoke or a registered ENDPOINT run adapter
+ * skips it — per-node seams build the api seam directly, so kernloop runs with no
+ * CLI. CLI subprocesses run in the task WORKSPACE, not the launch dir (#146).
  */
-function resolveBaseInvoke(
+function prepareRunAdapter(
   kern: Kernloop,
   request: LoopRequest,
-  adapter: AdapterName,
+  adapter: string,
   runId: string,
-): LoopInvoke {
-  if (request.invoke !== undefined) return request.invoke;
+): void {
+  if (request.invoke !== undefined) return; // injected invoke: no kernel adapter to probe
+  // An ENDPOINT run adapter is non-CLI/non-agentic (key validated at call time).
+  if (kern.config.endpoints[adapter] !== undefined) return;
+  if (!isCliAdapter(adapter)) {
+    throw new Error(
+      `adapter "${adapter}" is neither a CLI adapter (${ADAPTER_NAMES.join(', ')}) nor a registered endpoint id`,
+    );
+  }
   ensureRunAdaptersAvailable(adapter, kern.config);
   auditEnvScoping(kern, runId);
   auditPureCompletionCoverage(kern.store, adapter, runId); // #355: surface a degraded posture
-  return adapterInvoke(adapter, undefined, request.workspaceDir, kern.config.adapterEnvAllow);
 }
 
 function documentDeliverable(
@@ -347,7 +356,7 @@ export async function executeCanonicalLoop(
   const adapter = request.adapter ?? 'claude';
   const runId = request.resumeRunId ?? request.runId ?? randomUUID();
   guardWorkspaceContainment(kern, adapter, request, runId);
-  const base = resolveBaseInvoke(kern, request, adapter, runId);
+  prepareRunAdapter(kern, request, adapter, runId);
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};
   if (request.resumeRunId !== undefined) await primeFromCheckpoint(kern, checkpoints, runId, refs);
@@ -364,7 +373,7 @@ export async function executeCanonicalLoop(
   const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
       ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade, fitness)
-      : injectedSeamFor(adapter, kern.config, base, totals, budget, onDowngrade);
+      : injectedSeamFor(adapter, kern.config, request.invoke, totals, budget, onDowngrade);
   // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
   const mode = resolveBudgetMode(kern, request, runId);
