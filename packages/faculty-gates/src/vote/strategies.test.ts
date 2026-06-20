@@ -145,17 +145,35 @@ describe('aggregateVotes — escalateOnNoConsensus (#192)', () => {
   });
 
   it('is BYTE-IDENTICAL to the prior behavior when the flag is off (every strategy)', () => {
-    // Exhaustive small-panel sweep: with escalateOnNoConsensus off the result and
-    // confidence must equal the flag-defaulted call — the backward-compat guarantee.
+    // An INDEPENDENT oracle replicating the pre-#192 aggregateVotes (no escalate
+    // branch), so the assertion is not self-referential: flag-off must equal what
+    // the code did BEFORE this change, exactly, across an exhaustive small panel.
+    const priorAggregate = (strategy: VoteStrategy, votes: BallotVote[]) => {
+      let approve = 0;
+      let reject = 0;
+      for (const v of votes) {
+        if (v === A) approve += 1;
+        else if (v === R) reject += 1;
+      }
+      const nonAbstain = approve + reject;
+      if (nonAbstain === 0) return { result: 'abstain', confidence: 0 };
+      const clears =
+        strategy === 'simple_majority'
+          ? approve * 2 > nonAbstain
+          : strategy === 'supermajority'
+            ? approve * 3 >= nonAbstain * 2
+            : reject === 0 && approve >= 1;
+      return { result: clears ? 'approve' : 'reject', confidence: approve / nonAbstain };
+    };
     const ballots: BallotVote[] = [A, R, S];
     for (const strategy of strategies) {
       for (const a of ballots)
         for (const b of ballots)
           for (const c of ballots) {
             const votes = [a, b, c];
-            expect(aggregateVotes(strategy, votes, false)).toEqual(aggregateVotes(strategy, votes));
-            // and never escalate when off
-            expect(aggregateVotes(strategy, votes, false).result).not.toBe('escalate');
+            expect(aggregateVotes(strategy, votes, false)).toEqual(priorAggregate(strategy, votes));
+            // omitting the arg defaults to off — and off NEVER escalates.
+            expect(aggregateVotes(strategy, votes).result).not.toBe('escalate');
           }
     }
   });
