@@ -285,10 +285,20 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     kind: 'concrete-id',
     hasAutoRouter: false,
     tierBinding: {},
+    // codex reasoning effort is a CONFIG OVERRIDE, not a bare flag: `codex exec`
+    // takes `-c model_reasoning_effort=<level>` (`-c, --config <key=value>`).
+    // Passing `model_reasoning_effort high` as two positionals made codex reject
+    // `high` as an unexpected argument (exit 2) — surfaced live by #378/#373 when
+    // codex first served a diverse vote voter at effort `high`.
     effort: {
-      param: 'model_reasoning_effort',
+      param: '-c',
       via: 'arg',
-      levels: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+      levels: {
+        low: 'model_reasoning_effort=low',
+        medium: 'model_reasoning_effort=medium',
+        high: 'model_reasoning_effort=high',
+        xhigh: 'model_reasoning_effort=xhigh',
+      },
     },
     capabilities: ['toolUse', 'jsonMode'],
   },

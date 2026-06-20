@@ -142,11 +142,21 @@ describe('the five adapters declare their model-routing profile (spec §8.4)', (
     expect(claude.capabilities).toContain('vision');
   });
 
-  it('codex is concrete-id with a reasoning-effort param and no tier alias', () => {
+  it('codex is concrete-id; reasoning effort rides as a `-c` config override (#378)', () => {
     const codex = adapterDefinitions.codex;
     expect(codex.kind).toBe('concrete-id');
     expect(codex.tierBinding).toEqual({});
-    expect(codex.effort?.param).toBe('model_reasoning_effort');
+    // `codex exec` takes effort as `-c model_reasoning_effort=<level>`, NOT a bare
+    // positional — the param is `-c` and the resolved value is the `key=value` pair.
+    expect(codex.effort?.param).toBe('-c');
+    expect(resolveEffort('high', codex.effort).value).toBe('model_reasoning_effort=high');
+    // …so the built argv carries the config override the CLI accepts.
+    const args = codex.buildCommand({
+      prompt: 'p',
+      effort: { param: '-c', value: 'model_reasoning_effort=high', via: 'arg' },
+    }).args;
+    expect(args).toContain('-c');
+    expect(args).toContain('model_reasoning_effort=high');
   });
 
   it('opencode is a passthrough harness: every tier defaults the harness', () => {
