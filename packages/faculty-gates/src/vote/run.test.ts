@@ -34,6 +34,34 @@ function baseOptions(invokeVoter: InvokeVoter) {
   return { taskId: 'task-1', proposal: 'add a vote gate', brief: makeBrief(), invokeVoter };
 }
 
+/** A normalized served ModelIdentity for the diversity tests (#369). */
+function served(provider: string, family: string) {
+  return {
+    provider,
+    family,
+    generation: '1',
+    variant: null,
+    tier: 'large' as const,
+    raw: family,
+    resolvedBy: 'table' as const,
+    contextWindow: null,
+    inputCostPerMTok: null,
+    outputCostPerMTok: null,
+  };
+}
+
+/** Scripted voter that also reports a per-voter served identity (the composition
+ * root's job in production) — `served` is keyed off voter name. */
+function servedVoter(byVoter: Record<string, ReturnType<typeof served>>): InvokeVoter {
+  return (voter) =>
+    Promise.resolve({
+      vote: 'approve',
+      reasoning: 'ok',
+      cost: { tokens: 10, usd: 0.01 },
+      ...(byVoter[voter.name] === undefined ? {} : { served: byVoter[voter.name] }),
+    });
+}
+
 describe('runVoteGate — panels (CLM-0037)', () => {
   it('convenes the default 3-voter panel when no panel is given', async () => {
     const invoked: string[] = [];
@@ -242,5 +270,54 @@ describe('runVoteGate — concurrency', () => {
     }
     const verdict = await promise;
     expect(verdict.result).toBe('approve');
+  });
+});
+
+describe('runVoteGate — diversity provenance + findings (#369)', () => {
+  it('records each voter served identity and flags no skew on a fully diverse panel', async () => {
+    const verdict = await runVoteGate(
+      baseOptions(
+        servedVoter({
+          architect: served('anthropic', 'claude'),
+          security: served('google', 'gemini'),
+          'scope-steward': served('openai', 'codex'),
+        }),
+      ),
+    );
+    // Each VoterRecord carries its served class — the panel is verifiably independent.
+    expect(verdict.voters?.map((v) => v.served?.family).sort()).toEqual(['claude', 'codex', 'gemini']);
+    // 3 distinct classes, none a majority ⇒ no single-oracle and no skew finding.
+    expect(verdict.findings.some((f) => f.message.includes('#369'))).toBe(false);
+  });
+
+  it('emits a SINGLE-ORACLE warn finding when all ballots collapse to one class', async () => {
+    const one = served('anthropic', 'claude');
+    const verdict = await runVoteGate(
+      baseOptions(servedVoter({ architect: one, security: one, 'scope-steward': one })),
+    );
+    const f = verdict.findings.find((x) => x.message.includes('SINGLE-ORACLE'));
+    expect(f?.severity).toBe('warn');
+    expect(verdict.voters?.every((v) => v.served?.family === 'claude')).toBe(true);
+  });
+
+  it('emits a diversity-SKEW info finding when one class casts a majority', async () => {
+    const verdict = await runVoteGate(
+      baseOptions(
+        servedVoter({
+          architect: served('anthropic', 'claude'),
+          security: served('anthropic', 'claude'),
+          'scope-steward': served('google', 'gemini'),
+        }),
+      ),
+    );
+    const f = verdict.findings.find((x) => x.message.includes('SKEW'));
+    expect(f?.severity).toBe('info');
+    expect(f?.message).toContain('2/3');
+  });
+
+  it('adds no diversity finding and no served when the panel is single-adapter (today)', async () => {
+    const verdict = await runVoteGate(baseOptions(scriptedVoter({})));
+    expect(verdict.findings.some((f) => f.message.includes('#369'))).toBe(false);
+    expect(verdict.voters?.every((v) => v.served === undefined)).toBe(true);
   });
 });

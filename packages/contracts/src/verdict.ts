@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CostSchema, FindingSchema } from './common.js';
+import { ModelIdentitySchema } from './model.js';
 
 /**
  * Verdict result (spec §4): voting gates use `approve`/`reject`/`abstain`;
@@ -37,6 +38,14 @@ export const VoterRecordSchema = z.strictObject({
   vote: VerdictResultSchema,
   /** The voter's reasoning, kept for precision tracking. */
   reasoning: z.string(),
+  /**
+   * The normalized model CLASS that cast this ballot (#369) — present when a
+   * provider-DIVERSE panel routed each voter to a distinct adapter, so the system
+   * can VERIFY the panel was not one model role-playing N personas (the
+   * correlated-oracle weakness). Absent on a single-adapter panel (every voter
+   * shares one model). Same additive pattern as `Outcome.served` (#229/#5).
+   */
+  served: ModelIdentitySchema.optional(),
 });
 export type VoterRecord = z.infer<typeof VoterRecordSchema>;
 
