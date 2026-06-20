@@ -54,6 +54,22 @@ describe('vote executor — provider-diverse panel (#369)', () => {
     kern.close();
   });
 
+  it('two UNCATALOGUED adapters (codex + opencode) do NOT collapse to a single oracle (#381)', async () => {
+    const kern = kernloopFor('vote-uncatalogued');
+    const bindings = {
+      ...bindingsFor(kern),
+      voteDiversity: { adapters: ['codex', 'opencode'] as AdapterName[], seamForAdapter },
+    };
+    const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(7))) as Verdict;
+    // Both serve the harness default → globally both normalize to unknown/unknown,
+    // which would falsely read as ONE class. The vote-scoped identity keys an unknown
+    // class by its adapter, so the panel reads as TWO providers, not a single oracle.
+    const providers = new Set(verdict.voters?.map((v) => v.served?.provider));
+    expect(providers).toEqual(new Set(['codex', 'opencode']));
+    expect(verdict.findings.some((f) => f.message.includes('SINGLE-ORACLE'))).toBe(false);
+    kern.close();
+  });
+
   it('panel-3 loop votes stay single-adapter (no served) even with diversity available', async () => {
     const kern = kernloopFor('vote3-nodiv');
     const bindings = {

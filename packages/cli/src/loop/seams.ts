@@ -18,7 +18,7 @@ import {
   type InvokeVoter,
 } from '@kernloop/faculty-gates';
 import { BallotEmissionSchema, parseEmission, type LoopInvoke } from './invoke.js';
-import { servedIdentity, type NodeSeam } from './node-seam.js';
+import { voterServedIdentity, type NodeSeam } from './node-seam.js';
 
 /** What both seams bind to: the overlay (for violation sinks), the run/task
  * id labelling preserved raw output, and the one metered invoke. */
@@ -125,7 +125,7 @@ export function diverseBallotInvoker(b: DiverseSeamBindings): InvokeVoter {
     const { output, cost } = await seam.invoke(voterPrompt(voter.rolePrompt, brief, proposal));
     const sink = { overlayDir: b.overlayDir, runId: b.runId, node: `vote-${voter.name}` };
     const ballot = parseEmission(output, BallotEmissionSchema, 'ballot', sink);
-    return { ...ballot, cost, served: servedIdentity(seam.served, b.discovered) };
+    return { ...ballot, cost, served: voterServedIdentity(seam.served, b.discovered) };
   };
 }
 
