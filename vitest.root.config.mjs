@@ -17,7 +17,11 @@ export default defineConfig({
       // in CI (it makes real model calls). Its CI-safe proof is the in-process
       // round-trip in packages/cli/src/loop/mcp-sampling.test.ts. Excluded from
       // UNIT coverage scope — the 80% threshold itself is unchanged.
-      exclude: ['scripts/sampling-host-harness.mjs'],
+      // The adapter smoke harness (#380) likewise runs main() on import and
+      // spawns the real authed model CLIs, so it cannot run in CI unit coverage;
+      // its CI-safe proof is the static scripts/__tests__/adapter-effort-safety
+      // assertion. Excluded from UNIT coverage scope (threshold unchanged).
+      exclude: ['scripts/sampling-host-harness.mjs', 'scripts/adapter-smoke.mjs'],
       thresholds: {
         lines: 80,
         functions: 80,
