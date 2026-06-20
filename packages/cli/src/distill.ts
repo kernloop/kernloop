@@ -26,17 +26,13 @@ import path from 'node:path';
 import { z } from 'zod';
 import YAML from 'yaml';
 import type { Cost } from '@kernloop/contracts';
-import { appendEvent, type AdapterName } from '@kernloop/kernel';
+import { appendEvent } from '@kernloop/kernel';
 import type { TraceSummary } from '@kernloop/faculty-memory';
 import { JsonlCheckpointStore } from '@kernloop/workflows';
 import type { Kernloop } from './kernel.js';
 import { checkpointFile } from './loop/index.js';
-import {
-  adapterInvoke,
-  ensureAdapterAvailable,
-  parseEmission,
-  type LoopInvoke,
-} from './loop/invoke.js';
+import { parseEmission, type LoopInvoke } from './loop/invoke.js';
+import { resolveStandaloneInvoke } from './loop/standalone-invoke.js';
 
 /** Typed failure: the id names no recorded episodic trace. */
 export class TraceNotFoundError extends Error {
@@ -94,8 +90,8 @@ export interface DistillRequest {
   readonly kern: Kernloop;
   /** Task id of the recorded trace; also probed as a loop run id for checkpoints. */
   readonly trace: string;
-  /** Adapter the default invoke binds to; default `claude`. */
-  readonly adapter?: AdapterName;
+  /** Adapter the default invoke binds to (default `claude`): CLI name OR endpoint id (#395). */
+  readonly adapter?: string;
   /** Injectable model seam (tests script it); default: the kernel adapter. */
   readonly invoke?: LoopInvoke;
 }
@@ -216,9 +212,8 @@ export async function distillFromTrace(request: DistillRequest): Promise<SkillPr
   if (summary === undefined) throw new TraceNotFoundError(trace);
   const nodeTrace = await gatherNodeTrace(kern.paths.dir, trace);
   const adapter = request.adapter ?? 'claude';
-  if (request.invoke === undefined) ensureAdapterAvailable(adapter);
-  const invoke =
-    request.invoke ?? adapterInvoke(adapter, undefined, undefined, kern.config.adapterEnvAllow);
+  // A CLI adapter name OR a registered endpoint id (#395) — resolved CLI-or-endpoint.
+  const invoke = request.invoke ?? resolveStandaloneInvoke(kern, adapter);
   const { output, cost } = await invoke(distillPrompt(summary, nodeTrace));
   const emission = parseEmission(output, SkillProposalEmissionSchema, 'skill-proposal', {
     overlayDir: kern.paths.dir,

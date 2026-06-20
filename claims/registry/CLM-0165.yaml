@@ -1,0 +1,22 @@
+id: CLM-0165
+statement: >-
+  The standalone model-calling verbs — `gate vote`/`gate review`, `distill`,
+  `forge`, `program author` — accept a registered api ENDPOINT id as `--adapter`,
+  not only a CLI adapter name (#395, completing the #392 run-loop work). All four
+  resolve their single model call through one shared `resolveStandaloneInvoke`: a
+  registered endpoint binds the kernel api seam at the endpoint's `large`-tier model
+  (a capable default for a one-shot verb call; resolveServedApi degrades downward if
+  `large` is unbound; the key is read fail-closed at call time), and a CLI adapter is
+  PATH-probed and bound via `adapterInvoke` as before (an absent CLI is a typed
+  error, never a stub). An adapter that is neither a CLI adapter nor a registered
+  endpoint fails fast. So these verbs run on a custom OpenAI-compatible endpoint with
+  NO model CLI installed. (`gate vote` on an endpoint is single-oracle — no
+  provider-diverse CLI panel — like the endpoint-only run loop, honestly degraded).
+evidence:
+  - 'test:packages/cli/src/loop/standalone-invoke.test.ts::accepts a registered endpoint id WITHOUT a CLI PATH-probe (no CLI installed)'
+  - 'test:packages/cli/src/loop/standalone-invoke.test.ts::throws for an adapter that is neither a CLI adapter nor a registered endpoint'
+  - 'test:packages/cli/src/loop/standalone-invoke.test.ts::PROBES a CLI adapter — an absent CLI is a typed error, never a stub'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

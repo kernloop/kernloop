@@ -13,7 +13,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { ADAPTER_NAMES, appendEvent } from '@kernloop/kernel';
+import { appendEvent } from '@kernloop/kernel';
 import {
   forge,
   RATIFIED_SANDBOX_PROFILE,
@@ -22,12 +22,8 @@ import {
   type ToolSpec,
 } from '@kernloop/faculty-toolsmith';
 import type { Kernloop } from '../kernel.js';
-import {
-  adapterInvoke,
-  ensureAdapterAvailable,
-  parseEmission,
-  type LoopInvoke,
-} from '../loop/invoke.js';
+import { parseEmission, type LoopInvoke } from '../loop/invoke.js';
+import { resolveStandaloneInvoke } from '../loop/standalone-invoke.js';
 
 /** Input to the `forge` tool. */
 export const ForgeInputSchema = z
@@ -36,8 +32,8 @@ export const ForgeInputSchema = z
     spec: z.unknown().optional(),
     /** …or read from a JSON file (exactly one of the two). */
     specFile: z.string().min(1).optional(),
-    /** Adapter the generation call flows through; default claude. */
-    adapter: z.enum(ADAPTER_NAMES).default('claude'),
+    /** Adapter the generation call flows through (default claude): CLI name OR endpoint id (#395). */
+    adapter: z.string().min(1).default('claude'),
   })
   .refine((v) => (v.spec === undefined) !== (v.specFile === undefined), {
     message: 'provide exactly one of spec or specFile',
@@ -110,8 +106,8 @@ export async function forgeTool(
     let bound: LoopInvoke | undefined;
     invoke = (prompt, opts) => {
       if (bound === undefined) {
-        ensureAdapterAvailable(adapter);
-        bound = adapterInvoke(adapter, undefined, undefined, kern.config.adapterEnvAllow);
+        // A CLI adapter name OR a registered endpoint id (#395).
+        bound = resolveStandaloneInvoke(kern, adapter);
       }
       return bound(prompt, opts);
     };

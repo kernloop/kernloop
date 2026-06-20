@@ -10,7 +10,6 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
-import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
 import { runCommand } from './run-command.js';
 import { doctor } from './doctor.js';
@@ -51,7 +50,7 @@ export interface CliIo {
 const S = { type: 'string' } as const;
 const B = { type: 'boolean' } as const;
 /** `--adapter` flag space (spec §3.1); panel/strategy schemas live in gate-flags.ts. */
-const AdapterFlagSchema = z.enum(ADAPTER_NAMES);
+const AdapterFlagSchema = z.string().min(1); // CLI name OR registered endpoint id (#392/#395)
 
 /** Parse flags for one command; unknown flags fail loudly. */
 function flags<const O extends Record<string, { type: 'string' | 'boolean' }>>(

@@ -6,7 +6,6 @@
  */
 import path from 'node:path';
 import { z } from 'zod';
-import type { AdapterName } from '@kernloop/kernel';
 import { VOTE_STRATEGIES } from './overlay.js';
 import type { GateInput } from './tools/index.js';
 
@@ -31,7 +30,7 @@ function required(value: string | boolean | undefined, flag: string): string {
 export function gateInputFrom(
   cwd: string,
   v: Record<string, string | boolean | undefined>,
-  adapter: AdapterName | undefined,
+  adapter: string | undefined, // CLI name OR registered endpoint id (#395)
 ): GateInput {
   const gateName = str(v.gate) ?? 'quality';
   const taskId = str(v['task-id']);
