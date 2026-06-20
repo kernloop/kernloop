@@ -24,6 +24,8 @@ import { buildLoopExecutors, type LoopRefs } from './executors.js';
 import { ensureAdapterAvailable } from './invoke.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
+import { type ModelFitnessWiring } from './node-bind.js';
+import { buildVoteDiversity, type VoteDiversity } from './vote-diversity.js';
 import type { LoopRequest } from './index.js';
 
 /**
@@ -109,6 +111,23 @@ function childIterateAudit(
  * the budget guard reads (always-on tracking). Kc and budgetMode flow from the
  * overlay; the per-iteration audit hook wires re-entries to the chain [CLM-0043].
  */
+/**
+ * Provider-diverse panel-7 ratification voting (#369): the default (non-injected)
+ * path round-robins voters across the overlay's distinct adapters; the injected
+ * path (tests/sampling) has no CLI adapters to diversify, so panel-7 stays single.
+ */
+function voteDiversityFor(
+  kern: Kernloop,
+  request: LoopRequest,
+  adapter: AdapterName,
+  totals: { tokens: number; usd: number },
+  fitness: ModelFitnessWiring | undefined,
+): VoteDiversity | undefined {
+  return request.invoke === undefined
+    ? buildVoteDiversity(kern.config, adapter, totals, fitness)
+    : undefined;
+}
+
 export function buildLoopEngine(
   kern: Kernloop,
   request: LoopRequest,
@@ -118,10 +137,13 @@ export function buildLoopEngine(
     refs: LoopRefs;
     adapter: AdapterName;
     invokeFor: (node: TieredNode) => NodeSeam;
+    /** Per-model-call fitness wiring (#66), also threaded into the diverse vote seams (#369). */
+    fitness: ModelFitnessWiring | undefined;
     mode: BudgetMode;
     totals: { tokens: number; usd: number };
   },
 ): Engine {
+  const voteDiversity = voteDiversityFor(kern, request, seams.adapter, seams.totals, seams.fitness);
   return createEngine({
     executors: buildLoopExecutors({
       kern,
@@ -136,6 +158,7 @@ export function buildLoopEngine(
       // missing/corrupt cache to empty, so an unsynced run is unaffected).
       discovered: loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString()),
       ...(request.checks === undefined ? {} : { checks: request.checks }),
+      ...(voteDiversity === undefined ? {} : { voteDiversity }),
     }),
     checkpoints: seams.checkpoints,
     config: {

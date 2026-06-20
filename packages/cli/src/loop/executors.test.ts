@@ -17,7 +17,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { type Verdict } from '@kernloop/contracts';
+import { type AdapterName } from '@kernloop/kernel';
 import { PANEL_DEFAULT } from '@kernloop/faculty-gates';
+import { resolveServed, type NodeSeam } from './node-seam.js';
+import { readEnvelopes } from '../tools/audit.js';
 import { JsonlCheckpointStore, type ChildResult } from '@kernloop/workflows';
 import { buildLoopExecutors, type LoopRefs } from './executors.js';
 import { adapterInvoke, type LoopInvoke } from './invoke.js';
@@ -72,6 +75,57 @@ describe('vote executor', () => {
     const executors = buildLoopExecutors(bindingsFor(kern));
     const verdict = (await executors['vote']?.(planBrief, ctxFor(3))) as Verdict;
     expect(verdict.voters).toHaveLength(3);
+    kern.close();
+  });
+
+  const req = { tier: 'large' as const, effort: 'high' as const, capabilities: [] };
+  const seamForAdapter = (name: AdapterName): NodeSeam => ({
+    invoke: scripted,
+    served: resolveServed(req, name),
+  });
+
+  it('convenes a PROVIDER-DIVERSE panel-7: distinct served per voter, no single-oracle (#369)', async () => {
+    const kern = kernloopFor('vote-diverse');
+    const bindings = {
+      ...bindingsFor(kern),
+      voteDiversity: { adapters: ['claude', 'codex', 'gemini'] as AdapterName[], seamForAdapter },
+    };
+    const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(7))) as Verdict;
+    expect(verdict.voters).toHaveLength(7);
+    // Each voter's ballot is stamped with the model class that cast it, and the
+    // round-robin produced ≥2 distinct classes — genuinely independent.
+    const families = new Set(verdict.voters?.map((v) => v.served?.family));
+    expect(families.size).toBeGreaterThanOrEqual(2);
+    expect(verdict.findings.some((f) => f.message.includes('SINGLE-ORACLE'))).toBe(false);
+    kern.close();
+  });
+
+  it('DEGRADES a panel-7 with one adapter: single-oracle finding + audit (#369)', async () => {
+    const kern = kernloopFor('vote-degraded');
+    const bindings = {
+      ...bindingsFor(kern),
+      voteDiversity: { adapters: ['claude'] as AdapterName[], seamForAdapter },
+    };
+    const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(7))) as Verdict;
+    // All ballots collapse to one class ⇒ a visible single-oracle warn finding…
+    expect(verdict.findings.some((f) => f.message.includes('SINGLE-ORACLE'))).toBe(true);
+    // …and a rule-7 audit so the non-independence is recorded, never silent.
+    const events = readEnvelopes(path.join(kern.paths.dir, 'audit.jsonl')).filter(
+      (e) => e.type === 'cli.vote.single-oracle-degraded',
+    );
+    expect(events).toHaveLength(1);
+    kern.close();
+  });
+
+  it('panel-3 loop votes stay single-adapter (no served, no diversity finding) even with diversity available', async () => {
+    const kern = kernloopFor('vote3-nodiv');
+    const bindings = {
+      ...bindingsFor(kern),
+      voteDiversity: { adapters: ['claude', 'gemini'] as AdapterName[], seamForAdapter },
+    };
+    const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(3))) as Verdict;
+    expect(verdict.voters?.every((v) => v.served === undefined)).toBe(true);
+    expect(verdict.findings.some((f) => f.message.includes('#369'))).toBe(false);
     kern.close();
   });
 });

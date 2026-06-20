@@ -38,7 +38,8 @@ import { assembleBrief } from '../gather.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
 import { attributeSkillFitness } from './skill-attribution.js';
 import { LoopParseError, type ViolationSink } from './invoke.js';
-import { ballotInvoker, reviewerInvoker } from './seams.js';
+import { reviewerInvoker } from './seams.js';
+import { voteInvokerFor, type VoteDiversity } from './vote-diversity.js';
 import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
@@ -90,6 +91,10 @@ export interface LoopBindings {
    * `loop.spend` audit event when that node spent (#230, CLM-0137).
    */
   readonly totals: { tokens: number; usd: number };
+  /** Provider-DIVERSE vote panel support (#369): a panel-7 ratification vote
+   * round-robins its voters across these adapters so the panel is not one model
+   * role-playing N personas. Absent on the injected path (panel-7 stays single). */
+  readonly voteDiversity?: VoteDiversity;
 }
 
 /**
@@ -182,22 +187,29 @@ function planExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
-/** The vote gate node: faculty panel over ONE shared Brief (spec §8.3). */
+/** The vote gate node: faculty panel over ONE shared Brief (spec §8.3). A panel-7
+ * RATIFICATION vote convenes a PROVIDER-DIVERSE panel where available (#369). */
 function voteExecutor(b: LoopBindings): NodeExecutor {
   return async (input, ctx) => {
     const planBrief = BriefSchema.parse(input);
+    const isRatification = ctx.config.gates.vote.panel === 7;
+    const invokeVoter = voteInvokerFor({
+      invoke: b.invokeFor('vote').invoke,
+      store: b.kern.store,
+      overlayDir: b.kern.paths.dir,
+      discovered: b.discovered,
+      runId: ctx.runId,
+      isRatification,
+      ...(b.voteDiversity === undefined ? {} : { voteDiversity: b.voteDiversity }),
+    });
     const verdict = await runVoteGate({
       taskId: ctx.taskId,
       proposal: planBrief.sections.map((s) => s.content).join('\n\n'),
       brief: b.refs.researchBrief ?? planBrief,
-      panel: ctx.config.gates.vote.panel === 7 ? PANEL_RATIFICATION : PANEL_DEFAULT,
+      panel: isRatification ? PANEL_RATIFICATION : PANEL_DEFAULT,
       strategy: ctx.config.gates.vote.strategy,
       escalateOnNoConsensus: ctx.config.gates.vote.escalateOnNoConsensus, // #192 opt-in ASK
-      invokeVoter: ballotInvoker({
-        overlayDir: b.kern.paths.dir,
-        runId: ctx.runId,
-        invoke: b.invokeFor('vote').invoke,
-      }),
+      invokeVoter,
     });
     await publishVerdict(b.kern, verdict);
     return verdict;
