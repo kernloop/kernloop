@@ -319,6 +319,59 @@ describe('runVoteGate — diversity provenance + findings (#369)', () => {
     expect(f?.message).toContain('2/3');
   });
 
+  it('emits a DILUTION warn finding when a voter on a diverse panel fails — adapter error (#371)', async () => {
+    const claude = served('anthropic', 'claude');
+    const gemini = served('google', 'gemini');
+    const invoke: InvokeVoter = (voter) => {
+      if (voter.name === 'scope-steward')
+        return Promise.reject(new Error('adapter codex authed out'));
+      return Promise.resolve({
+        vote: 'approve',
+        reasoning: 'ok',
+        cost: { tokens: 10, usd: 0.01 },
+        served: voter.name === 'architect' ? claude : gemini,
+      });
+    };
+    const verdict = await runVoteGate(baseOptions(invoke));
+    const d = verdict.findings.find((f) => f.message.includes('DILUTED'));
+    expect(d?.severity).toBe('warn');
+    expect(d?.message).toContain('1 of 3 voters failed');
+    expect(d?.message).toContain('only 2 independent ballots'); // 2 of 3 ballots survived
+    // the failed voter abstained honestly (voter_error), never a fabricated vote.
+    const failed = verdict.voters?.find((v) => v.voter === 'scope-steward');
+    expect(failed?.vote).toBe('abstain');
+    expect(failed?.reasoning).toContain('voter_error:');
+  });
+
+  it('DILUTION co-occurs with SINGLE-ORACLE: surviving ballots one class + a failure (#371)', async () => {
+    const one = served('anthropic', 'claude');
+    const invoke: InvokeVoter = (voter) => {
+      if (voter.name === 'scope-steward') return Promise.reject(new Error('opencode key limit'));
+      return Promise.resolve({
+        vote: 'approve',
+        reasoning: 'ok',
+        cost: { tokens: 10, usd: 0.01 },
+        served: one,
+      });
+    };
+    const verdict = await runVoteGate(baseOptions(invoke));
+    expect(verdict.findings.some((f) => f.message.includes('DILUTED'))).toBe(true);
+    expect(verdict.findings.some((f) => f.message.includes('SINGLE-ORACLE'))).toBe(true);
+  });
+
+  it('no DILUTION finding when every diverse voter succeeds (#371)', async () => {
+    const verdict = await runVoteGate(
+      baseOptions(
+        servedVoter({
+          architect: served('anthropic', 'claude'),
+          security: served('google', 'gemini'),
+          'scope-steward': served('openai', 'codex'),
+        }),
+      ),
+    );
+    expect(verdict.findings.some((f) => f.message.includes('DILUTED'))).toBe(false);
+  });
+
   it('adds no diversity finding and no served when the panel is single-adapter (today)', async () => {
     const verdict = await runVoteGate(baseOptions(scriptedVoter({})));
     expect(verdict.findings.some((f) => f.message.includes('#369'))).toBe(false);

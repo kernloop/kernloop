@@ -2668,3 +2668,16 @@ Voter calibration (#369 Inc3, the voter analog of CLM-0156 deliverable fitness):
 - [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - [`packages/faculty-gates/src/vote/strategies.ts#precisionWeight`](../packages/faculty-gates/src/vote/strategies.ts)
 - CI `test`
+
+## CLM-0161
+
+**Status:** verified — **source:** [`CLM-0161.yaml`](../claims/registry/CLM-0161.yaml)
+
+A provider-diverse ratification panel surfaces VOTER DILUTION on the Verdict (#371): when one or more voters' ballots ERROR (the routed adapter was uncallable at vote time — authed-out, quota-exceeded, or crashed — recorded by the gate as a `voter_error:` abstain, never a fabricated vote), runVoteGate emits a `warn` diversity finding naming how many of the panel failed and how many independent ballots actually counted, so the served-based single-oracle/skew ratios are interpretable and a human ratifier sees that a close ratification may have turned on the dropped voters. The dilution finding is computed only when at least one diverse ballot survived (a single-adapter panel-3, which carries no served, yields none) and is emitted ALONGSIDE the single-oracle/skew findings, not instead of them. PATH-availability is already enforced at run setup (the run aborts on a not-installed declared adapter), so the dilution finding catches the residual RUNTIME (auth/quota) failures that slip past that probe.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
+- [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
+- [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
+- CI `test`
