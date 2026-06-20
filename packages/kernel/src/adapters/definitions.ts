@@ -121,6 +121,29 @@ function pureCompletionArgs(adapter: AdapterName, pure: boolean | undefined): st
 }
 
 /**
+ * How completely an adapter can run a reasoning node TOOL-FREE (#148, #355) — the
+ * SINGLE declarative source the dispatch layer reads so a degraded posture is
+ * audited, never silent (CLM-0155 records the coverage per CLI):
+ *  - `full` — every fs/exec/network tool is denied: claude `--disallowedTools`
+ *    over the known surface.
+ *  - `partial` — a real but incomplete restriction: gemini `--approval-mode plan`
+ *    (plans, does not execute) and codex `exec -s read-only` (writes/exec blocked,
+ *    but the model can still READ the workspace).
+ *  - `none` — NO run-level restriction is applied: opencode/ollama have no flag,
+ *    so a `pureCompletion` request is best-effort, not enforced.
+ * Kept in lockstep with {@link pureCompletionArgs}; a new tool-disable flag moves
+ * an adapter up a tier here in the same change.
+ */
+export type PureCompletionCoverage = 'full' | 'partial' | 'none';
+
+/** The {@link PureCompletionCoverage} for an adapter (#355) — see its docs. */
+export function pureCompletionCoverage(adapter: AdapterName): PureCompletionCoverage {
+  if (adapter === 'claude') return 'full';
+  if (adapter === 'gemini' || adapter === 'codex') return 'partial';
+  return 'none'; // opencode, ollama — no run-level tool-disable flag
+}
+
+/**
  * How an adapter presents models (spec §8.4, declarative):
  *  - `harness-routed` — the model is a stable ALIAS the harness resolves
  *    (claude `opus`/`sonnet`, gemini family ids); `''` means let the harness
