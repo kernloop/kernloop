@@ -123,4 +123,20 @@ describe('retrospect — voter-outcome labeling (#369 Inc3a)', () => {
     expect(kern.observer.runningPrecision('aye').labeled).toBe(0);
     kern.close();
   });
+
+  it('does NOT label an abstaining voter (abstention is no prediction)', () => {
+    const kern = kernloopFor('label-abstain');
+    const refs: LoopRefs = {
+      planVoteVerdict: {
+        ...planVoteVerdict,
+        voters: [{ voter: 'undecided', vote: 'abstain', reasoning: '' }],
+      },
+    };
+    void buildLoopExecutors(bindingsFor(kern, refs))['retrospect']?.(
+      outcomeWith('failure'),
+      ctxFor(3),
+    );
+    expect(kern.observer.runningPrecision('undecided').labeled).toBe(0);
+    kern.close();
+  });
 });

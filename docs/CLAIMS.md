@@ -2643,9 +2643,9 @@ A panel-7 RATIFICATION vote convenes a PROVIDER-DIVERSE panel (#369): the compos
 
 - [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
 - [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
-- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
-- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
-- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - [`packages/cli/src/loop/vote-diversity.test.ts`](../packages/cli/src/loop/vote-diversity.test.ts)
 - [`packages/cli/src/loop/seams.ts#diverseBallotInvoker`](../packages/cli/src/loop/seams.ts)
 - CI `test`
@@ -2654,14 +2654,15 @@ A panel-7 RATIFICATION vote convenes a PROVIDER-DIVERSE panel (#369): the compos
 
 **Status:** verified — **source:** [`CLM-0160.yaml`](../claims/registry/CLM-0160.yaml)
 
-Voter calibration (#369 Inc3, the voter analog of CLM-0156 deliverable fitness): at retrospect each PROCEEDING plan-vote voter is labeled correct iff its individual vote matched the run's eventual success — APPROVED a plan that fully succeeded, or REJECTED one that did not — on an EXPLICIT success-only threshold (partial/failure/ cancelled are not success); rejected-overall votes (which re-plan, no deliverable) are never labeled, so precision is a NOISY PROXY conditioned on proceeded plans, not a general voter-quality metric. An opt-in precision-WEIGHTED aggregation (gates.vote.precisionWeighted, default false) then weights each ballot by precisionWeight: NEUTRAL at chance (0.5), bounded [0.5,1.5], min-sample-gated, and FLOORED — never silenced or inverted. With the flag off, or before a voter accrues labels, the tally is integer counts (byte-identical). Labeling happens regardless of the flag so the data accrues.
+Voter calibration (#369 Inc3, the voter analog of CLM-0156 deliverable fitness): at retrospect each PROCEEDING plan-vote voter is labeled correct iff its individual vote matched the run's eventual success — APPROVED a plan that fully succeeded, or REJECTED one that did not — on an EXPLICIT success-only threshold (partial/failure/ cancelled are not success); rejected-overall votes (which re-plan, no deliverable) AND abstaining voters (no prediction) are never labeled, so precision is a NOISY PROXY conditioned on proceeded plans, not a general voter-quality metric. An opt-in precision-WEIGHTED aggregation (gates.vote.precisionWeighted, default false) then weights each ballot by precisionWeight: NEUTRAL at chance (0.5), bounded [0.5,1.5], min-sample-gated, and FLOORED — never silenced or inverted. With the flag off, or before a voter accrues labels, the tally is integer counts (byte-identical). Labeling happens regardless of the flag so the data accrues.
 
 **Enforced by:**
 
 - [`packages/faculty-gates/src/vote/strategies.test.ts`](../packages/faculty-gates/src/vote/strategies.test.ts)
 - [`packages/faculty-gates/src/vote/strategies.test.ts`](../packages/faculty-gates/src/vote/strategies.test.ts)
 - [`packages/faculty-gates/src/vote/strategies.test.ts`](../packages/faculty-gates/src/vote/strategies.test.ts)
-- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
-- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - [`packages/faculty-gates/src/vote/strategies.ts#precisionWeight`](../packages/faculty-gates/src/vote/strategies.ts)
 - CI `test`

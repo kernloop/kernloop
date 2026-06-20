@@ -79,7 +79,9 @@ export interface RunVoteGateOptions {
    * Per-voter vote WEIGHTS in panel order (#369 Inc3): a calibrated voter's ballot
    * counts for more (see {@link precisionWeight}). Omitted ⇒ equal weights, an
    * integer tally (byte-identical). The composition root computes these from the
-   * Observer's per-voter precision; the faculty just applies them.
+   * Observer's per-voter precision; the faculty just applies them. NOTE: when
+   * weights are applied the Verdict's `confidence` is the WEIGHTED approve share,
+   * not a head-count ratio.
    */
   readonly weights?: readonly number[];
   /** The injected model call — see {@link InvokeVoter}. */

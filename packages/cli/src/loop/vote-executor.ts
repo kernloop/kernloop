@@ -71,15 +71,18 @@ export function voteExecutor(b: LoopBindings): NodeExecutor {
  * `partial`/`failure`/`cancelled` did not deliver, so approving was not vindicated.
  * This runs only at retrospect, which is reached only after an approving vote
  * PROCEEDED, so the stashed verdict is that proceeding vote; rejected-overall votes
- * (which re-plan, producing no deliverable) are never labeled. Precision is thus a
- * NOISY PROXY conditioned on proceeded plans — NOT a general voter-quality metric.
- * Labeling happens regardless of the precision-weighting flag, so the data accrues.
+ * (which re-plan, producing no deliverable) are never labeled. ABSTAINING voters
+ * are not labeled either — an abstention is "no judgment", not a prediction to be
+ * scored. Precision is thus a NOISY PROXY conditioned on proceeded plans — NOT a
+ * general voter-quality metric. Labeling happens regardless of the precision-
+ * weighting flag, so the data accrues.
  */
 export function labelVoterOutcomes(b: LoopBindings, final: Outcome): void {
   const voters = b.refs.planVoteVerdict?.voters;
   if (voters === undefined) return;
   const succeeded = final.status === 'success';
   for (const v of voters) {
+    if (v.vote !== 'approve' && v.vote !== 'reject') continue; // abstain ⇒ no prediction
     b.kern.observer.recordVoterOutcome(v.voter, final.taskId, (v.vote === 'approve') === succeeded);
   }
 }
