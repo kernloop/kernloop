@@ -2732,3 +2732,19 @@ The standalone model-calling verbs — `gate vote`/`gate review`, `distill`, `fo
 - [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
 - [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
 - CI `test`
+
+## CLM-0166
+
+**Status:** verified — **source:** [`CLM-0166.yaml`](../claims/registry/CLM-0166.yaml)
+
+An overlay can PIN a concrete per-tier model onto a built-in CLI adapter via the `adapterModels` block (`{ <cli-adapter>: { <tier>: <model> } }`, #393) — the agentic-CLI counterpart to the `endpoints` per-tier `models` (direct HTTP). A harness-routed CLI (opencode) defaults every tier to the harness default (`''`, its own auto-router); a pin merges OVER the adapter's `tierBinding` in `resolveServed`, so kernloop runs `opencode -m <model>` for a kernloop-CHOSEN model on a pinned tier while an UNpinned tier keeps the adapter default (merge, not replace — so downward degradation against the adapter's own bound tiers is preserved). The pin is CLI-only (`adapterModelOverride` is inert for an endpoint id, which carries its own `models`), and the schema rejects a pin keyed by a name that is not a built-in CLI adapter. The SAME override threads the selector's PREDICTION (`resolveServedFor`) and node-bind's CALL-TIME binding, so predicted==served holds under a pin (the CLM-0130 honesty invariant): live-fitness can never credit a model that did not serve.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/adapter-model-pin.test.ts`](../packages/cli/src/loop/adapter-model-pin.test.ts)
+- [`packages/cli/src/loop/adapter-model-pin.test.ts`](../packages/cli/src/loop/adapter-model-pin.test.ts)
+- [`packages/cli/src/loop/adapter-model-pin.test.ts`](../packages/cli/src/loop/adapter-model-pin.test.ts)
+- [`packages/cli/src/loop/adapter-model-pin.test.ts`](../packages/cli/src/loop/adapter-model-pin.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
+- CI `test`

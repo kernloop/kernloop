@@ -233,8 +233,7 @@ function downgradeAudit(kern: Kernloop, runId: string): OnDowngrade {
  */
 function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] {
   const discovered = loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString());
-  // Live identity-fitness adapter selection (#252, CLM-0130): read the ledger
-  // ONCE per run (bounded, recency-ordered) and bind the selector when opted in.
+  // Live identity-fitness adapter selection (#252, CLM-0130): ledger read ONCE per run (bounded, recency-ordered), selector bound when opted in.
   const selectAdapter = buildAdapterSelector({
     enabled: kern.config.adapterFitness.enabled,
     epsilon: kern.config.adapterFitness.epsilon,
@@ -242,6 +241,7 @@ function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] 
     deliverableLedger: kern.observer.outcomeFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
     discovered,
     endpoints: kern.config.endpoints,
+    adapterModels: kern.config.adapterModels,
     store: kern.store,
     rng: kern.rng,
     now: () => kern.store.clock().getTime(),

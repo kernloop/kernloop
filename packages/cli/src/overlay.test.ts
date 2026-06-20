@@ -175,6 +175,20 @@ describe('loadOverlay defaults and precedence', () => {
     ).toEqual({ enabled: true, epsilon: 0 });
   });
 
+  it('adapterModels is absent by default and parses a per-tier CLI model pin (#393, CLM-0166)', () => {
+    expect(loadFrom('id: x\n').adapterModels).toBeUndefined();
+    const cfg = loadFrom(
+      'id: x\nadapterModels:\n  opencode:\n    large: custom-api/big\n    medium: custom-api/small\n',
+    );
+    expect(cfg.adapterModels).toEqual({
+      opencode: { large: 'custom-api/big', medium: 'custom-api/small' },
+    });
+  });
+
+  it('adapterModels rejects an unknown adapter key — a pin must name a real CLI adapter (#393)', () => {
+    expect(() => loadFrom('id: x\nadapterModels:\n  not-an-adapter:\n    large: m\n')).toThrow();
+  });
+
   it('loads gates.quality.envAllow names for least-privilege check env [CLM-0124]', () => {
     expect(
       loadFrom('id: x\ngates:\n  quality:\n    envAllow: [NODE_OPTIONS, FOO_TOKEN]\n').gates.quality

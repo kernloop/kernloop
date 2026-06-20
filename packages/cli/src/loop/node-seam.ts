@@ -67,10 +67,24 @@ export interface ServedModel {
  * `adapter`. Pure over the adapter's declarative profile + the kernel seam:
  * the tier resolves (downward-degrading) to a model alias, the effort resolves
  * (clamping/dropping) to a CLI literal, and both honesty flags are carried.
+ *
+ * `modelOverride` (#393, CLM-0166) is an overlay's per-tier model PIN for this
+ * CLI adapter: it merges OVER the adapter's declarative `tierBinding` (a pinned
+ * tier wins, an unpinned tier keeps the adapter default), so kernloop can drive a
+ * harness-routed CLI (opencode) at a kernloop-chosen model per tier instead of
+ * the CLI's own auto-router. Merging (not replacing) preserves downward
+ * degradation against the adapter's own bound tiers; the same override threads
+ * the selector's prediction so predicted==served holds (CLM-0130).
  */
-export function resolveServed(req: ModelRequirement, adapter: AdapterName): ServedModel {
+export function resolveServed(
+  req: ModelRequirement,
+  adapter: AdapterName,
+  modelOverride?: Partial<Record<ModelTier, string>>,
+): ServedModel {
   const def = adapterDefinitions[adapter];
-  const tier = resolveTierModel(req.tier, def.tierBinding);
+  const binding =
+    modelOverride === undefined ? def.tierBinding : { ...def.tierBinding, ...modelOverride };
+  const tier = resolveTierModel(req.tier, binding);
   const effort = resolveEffort(req.effort, def.effort);
   const effortArg =
     def.effort !== undefined && effort.value !== undefined

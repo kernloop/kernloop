@@ -38,7 +38,7 @@ import { buildApiNodeSeam } from './api-seam.js';
 import { apiDefinitionFor } from '../endpoints.js';
 import { resolveServedFor } from './resolve-served.js';
 import { requirementForNode, type Overlay } from '../overlay.js';
-import { tierCandidates } from '../overlay-schemas.js';
+import { adapterModelOverride, tierCandidates } from '../overlay-schemas.js';
 import { applyDowngrade, type BudgetDowngrade, type OnDowngrade } from './downgrade.js';
 
 /** The node's requirement from its single source + overlay override (pre-downgrade). */
@@ -148,7 +148,11 @@ export function buildInvokeForNode(
     const timeoutMs = invokeTimeoutForNode(node, timeoutBase);
     return endpoint === undefined
       ? buildNodeSeam(
-          resolveServed(req, name as AdapterName),
+          resolveServed(
+            req,
+            name as AdapterName,
+            adapterModelOverride(overlay.adapterModels, name),
+          ),
           adapterInvoke(name as AdapterName, undefined, undefined, overlay.adapterEnvAllow),
           totals,
           timeoutMs,
@@ -188,7 +192,7 @@ export function injectedSeamFor(
   const timeoutBase = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
   const build = (req: ModelRequirement, node: TieredNode): NodeSeam => {
     const name = resolveTierAdapterName(req, overlay, runAdapter);
-    const served = resolveServedFor(req, name, overlay.endpoints);
+    const served = resolveServedFor(req, name, overlay.endpoints, overlay.adapterModels);
     // Per-node model-call budget (#127/#142): the configured base, capped per
     // node — bound here so MCP sampling honors it, not the SDK's 60s default.
     return buildNodeSeam(

@@ -8,7 +8,7 @@
  * unchanged.
  */
 import { z } from 'zod';
-import { EffortSchema, ModelTierSchema } from '@kernloop/contracts';
+import { EffortSchema, ModelTierSchema, type ModelTier } from '@kernloop/contracts';
 import { ADAPTER_NAMES } from '@kernloop/kernel';
 
 /** Consensus strategies in use for the P2 vote gate (spec §12.3 proposal). */
@@ -200,6 +200,39 @@ export function tierCandidates(
   const spec = adapters?.[tier];
   if (spec === undefined) return [];
   return Array.isArray(spec) ? [...spec] : [spec];
+}
+
+/**
+ * Per-tier model pins for a harness-routed CLI adapter (#393, CLM-0166). A
+ * built-in CLI adapter (e.g. opencode) defaults its `tierBinding` to the harness
+ * default (`''`) on every tier, so the CLI's OWN auto-router picks the model. This
+ * block lets an overlay PIN a concrete model per tier onto such an adapter — so
+ * kernloop runs `opencode -m <model>` for a kernloop-CHOSEN model, the agentic-CLI
+ * counterpart to the `endpoints` per-tier `models` (which is the direct-HTTP path).
+ * Keyed by built-in CLI adapter NAME (never an endpoint id — an endpoint carries
+ * its own per-tier `models`); each value is a partial tier→model map. An unset
+ * tier keeps the adapter's own default (auto-router), so an absent block is
+ * byte-identical to today. Consumed at the loop composition root via
+ * {@link adapterModelOverride}, threaded into `resolveServed` — the SAME path the
+ * selector predicts on, so predicted==served stays structurally true (CLM-0130).
+ */
+export const AdapterModelsSchema = z.partialRecord(
+  z.enum(ADAPTER_NAMES),
+  z.partialRecord(ModelTierSchema, z.string().min(1)),
+);
+export type AdapterModels = z.infer<typeof AdapterModelsSchema>;
+
+/**
+ * The per-tier model override an overlay pins onto a CLI adapter `name` (#393),
+ * or undefined when none is set. CLI-only by construction: an endpoint id (which
+ * carries its own `models`) never resolves here, so an `adapterModels` entry keyed
+ * by an endpoint id is inert — the lookup is gated on {@link isCliAdapter}.
+ */
+export function adapterModelOverride(
+  adapterModels: AdapterModels | undefined,
+  name: string,
+): Partial<Record<ModelTier, string>> | undefined {
+  return isCliAdapter(name) ? adapterModels?.[name] : undefined;
 }
 
 /** True when `name` is one of the five built-in CLI adapters (vs an endpoint id). */

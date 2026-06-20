@@ -7,7 +7,7 @@
 import { appendEvent, type AdapterName } from '@kernloop/kernel';
 import type { ModelIdentity, ModelRequirement } from '@kernloop/contracts';
 import type { Kernloop } from '../kernel.js';
-import { tierCandidates } from '../overlay-schemas.js';
+import { adapterModelOverride, tierCandidates } from '../overlay-schemas.js';
 import { resolveServed, servedIdentity } from '../loop/node-seam.js';
 import { seededPriorsFor } from './priors-seed.js';
 import {
@@ -39,7 +39,13 @@ function predictIdentity(
   const name = tierCandidates(kern.config.adapters, req.tier)[0] ?? runAdapter;
   if (kern.config.endpoints[name] !== undefined) return null;
   try {
-    return servedIdentity(resolveServed(req, name as AdapterName));
+    return servedIdentity(
+      resolveServed(
+        req,
+        name as AdapterName,
+        adapterModelOverride(kern.config.adapterModels, name),
+      ),
+    );
   } catch {
     return null;
   }
