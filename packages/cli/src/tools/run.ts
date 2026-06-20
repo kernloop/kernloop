@@ -21,7 +21,7 @@ import {
   type Tier,
   type Verdict,
 } from '@kernloop/contracts';
-import { ADAPTER_NAMES, RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
+import { RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
 import { stopTailOnSettle, tailIf } from '../loop/progress-tail.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import type { Kernloop } from '../kernel.js';
@@ -56,8 +56,13 @@ export const RunInputSchema = z.strictObject({
     .optional(),
   authorityCeiling: TierSchema.default('advisory'),
   overlay: z.string().min(1).optional(),
-  /** Adapter the canonical loop's model calls flow through (spec §3.1). */
-  adapter: z.enum(ADAPTER_NAMES).default('claude'),
+  /**
+   * Adapter the canonical loop's model calls flow through (spec §3.1): a CLI
+   * adapter name OR a registered endpoint id (#392). Validated as CLI-or-endpoint
+   * at run setup (the overlay is known there); an endpoint run adapter needs no
+   * CLI installed. Any non-empty string here; an unknown one fails fast at setup.
+   */
+  adapter: z.string().min(1).default('claude'),
   /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
   resume: z.string().min(1).optional(),
   /**

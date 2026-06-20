@@ -67,6 +67,26 @@ describe('buildInvokeForNode — overlay overrides', () => {
     expect(implement.adapter).toBe('ollama');
     expect(implement.servedEffort).toBe('unsupported'); // ollama has no effort param
   });
+
+  it('an ENDPOINT run adapter routes every node to the api seam — no CLI needed (#392)', () => {
+    const ov = overlay({
+      endpoints: {
+        'my-api': {
+          baseUrl: 'https://api.example.com/v1',
+          apiKeyEnv: 'MY_API_KEY',
+          models: { frontier: 'm-front', large: 'm-large', medium: 'm-medium', small: 'm-small' },
+        },
+      },
+    });
+    // Run adapter is the endpoint id (not a CLI) + no `adapters` block → every node
+    // falls back to it, resolving through the api seam at the endpoint's per-tier model.
+    const invokeFor = buildInvokeForNode('my-api', ov, { tokens: 0, usd: 0 });
+    const implement = invokeFor('implement').served; // coder = large
+    expect(implement.adapter).toBe('my-api');
+    expect(implement.model).toBe('m-large');
+    expect(invokeFor('review').served.adapter).toBe('my-api'); // review = medium
+    expect(invokeFor('review').served.model).toBe('m-medium');
+  });
 });
 
 describe('injectedSeamFor — the INJECTED/sampling path binds the per-node budget + tier', () => {

@@ -119,7 +119,7 @@ function childIterateAudit(
 function voteDiversityFor(
   kern: Kernloop,
   request: LoopRequest,
-  adapter: AdapterName,
+  adapter: string,
   totals: { tokens: number; usd: number },
   fitness: ModelFitnessWiring | undefined,
 ): VoteDiversity | undefined {
@@ -135,7 +135,7 @@ export function buildLoopEngine(
     runId: string;
     checkpoints: JsonlCheckpointStore;
     refs: LoopRefs;
-    adapter: AdapterName;
+    adapter: string;
     invokeFor: (node: TieredNode) => NodeSeam;
     /** Per-model-call fitness wiring (#66), also threaded into the diverse vote seams (#369). */
     fitness: ModelFitnessWiring | undefined;

@@ -5,8 +5,6 @@
  * exit. Extracted from cli.ts following the `*Command` module pattern (LOC gate).
  */
 import path from 'node:path';
-import { z } from 'zod';
-import { ADAPTER_NAMES } from '@kernloop/kernel';
 import { runTool } from './tools/index.js';
 import { withSigintAbort } from './sigint-abort.js';
 import { closeIssueAfterRun } from './run-close.js';
@@ -14,7 +12,6 @@ import { parseBudget } from './cli-flags.js';
 import type { CliIo } from './cli.js';
 import type { CommandHelpers } from './portability-commands.js';
 
-const AdapterFlagSchema = z.enum(ADAPTER_NAMES);
 const STR_FLAGS = [
   'goal',
   'capability',
@@ -39,7 +36,9 @@ export function runCommand(args: string[], io: CliIo, h: CommandHelpers): Promis
   const [workspace, id, resume] = [h.str(v.workspace), h.str(v.id), h.str(v.resume)];
   // `--resume` replaces `--goal` (the checkpointed task is the truth).
   const goal = resume === undefined ? required(v.goal, '--goal') : h.str(v.goal);
-  const adapter = h.str(v.adapter) === undefined ? undefined : AdapterFlagSchema.parse(v.adapter);
+  // A CLI adapter name OR a registered endpoint id (#392); validated as
+  // CLI-or-endpoint at run setup (the overlay is known there), not here.
+  const adapter = h.str(v.adapter);
   const budget = parseBudget(h.str(v.budget));
   return h.withKernloop(io, v.dir, async (kern) => {
     // One-shot CLI: drain an async run's background settle before tear-down.

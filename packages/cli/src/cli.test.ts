@@ -281,17 +281,14 @@ describe('kernloop CLI', () => {
     expect(c.err()).toContain('run-ghost');
   });
 
-  it('run rejects an --adapter outside the five kernel adapters', async () => {
+  it('run rejects an --adapter that is neither a CLI adapter nor a registered endpoint (#392)', async () => {
     const repo = repoDir();
     await runCli(['init'], capture(repo).io);
     const c = capture(repo);
-    expect(
-      await runCli(
-        ['run', '--goal', 'g', '--capability', 'workflow.canonical', '--adapter', 'gpt-12'],
-        c.io,
-      ),
-    ).toBe(1);
-    expect(c.err()).toContain('claude');
+    // Validated at run setup now (#392); --workspace clears the earlier gate.
+    const argv = ['run', '--goal', 'g', '--capability', 'workflow.canonical'];
+    expect(await runCli([...argv, '--workspace', repo, '--adapter', 'gpt-12'], c.io)).toBe(1);
+    expect(c.err()).toContain('neither a CLI adapter');
   });
 
   it('prints usage for help and for a bare invocation', async () => {

@@ -39,4 +39,13 @@ describe('diverseVoteAdapters (#369)', () => {
     const overlay = overlayWith({ large: ['claude', 'codex'] });
     expect(diverseVoteAdapters(overlay, 'agy')).toEqual(['agy', 'claude', 'codex']);
   });
+
+  it('does NOT seed an ENDPOINT run adapter into the panel — only CLI candidates (#392)', () => {
+    // An endpoint run adapter can't be a diverse voter (the panel builds CLI seams);
+    // it is dropped, leaving only the CLI tier candidate (→ single-oracle if alone).
+    const overlay = overlayWith({ large: ['claude'] }, { 'my-api': {} });
+    expect(diverseVoteAdapters(overlay, 'my-api')).toEqual(['claude']);
+    // With NO CLI candidates, an endpoint-only run yields [] → degraded single-oracle.
+    expect(diverseVoteAdapters(overlayWith({}, { 'my-api': {} }), 'my-api')).toEqual([]);
+  });
 });

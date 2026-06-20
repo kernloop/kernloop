@@ -94,7 +94,7 @@ function seamFactory(
 function resolveTierAdapterName(
   req: ModelRequirement,
   overlay: Overlay,
-  runAdapter: AdapterName,
+  runAdapter: string,
   selectAdapter?: ModelFitnessWiring['selectAdapter'],
 ): string {
   const pool = tierCandidates(overlay.adapters, req.tier);
@@ -130,7 +130,7 @@ export interface ModelFitnessWiring {
  * served identity re-keys the Observer's additive identity-fitness series.
  */
 export function buildInvokeForNode(
-  runAdapter: AdapterName,
+  runAdapter: string,
   overlay: Overlay,
   totals: RunTotals,
   budget?: BudgetDowngrade['budget'],
@@ -178,7 +178,7 @@ export function buildInvokeForNode(
  * MCP SDK's 60s request default (#142).
  */
 export function injectedSeamFor(
-  runAdapter: AdapterName,
+  runAdapter: string,
   overlay: Overlay,
   base: LoopInvoke,
   totals: RunTotals,

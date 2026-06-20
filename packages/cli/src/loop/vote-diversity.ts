@@ -38,8 +38,13 @@ export interface VoteDiversity {
  * runs single-oracle (honestly degraded + audited); real diversity only when the
  * operator configures ≥2 distinct adapters.
  */
-export function diverseVoteAdapters(overlay: Overlay, runAdapter: AdapterName): AdapterName[] {
-  const set = new Set<string>([runAdapter]);
+export function diverseVoteAdapters(overlay: Overlay, runAdapter: string): AdapterName[] {
+  // Seed with the run adapter ONLY when it is a CLI adapter — a registered ENDPOINT
+  // run adapter (#392) cannot be a diverse-vote voter (the panel builds per-adapter
+  // CLI seams); an endpoint-only run therefore yields [] → the vote runs single-
+  // oracle on the node's own (api) seam, honestly degraded + audited.
+  const set = new Set<string>();
+  if (ADAPTER_NAMES.includes(runAdapter as AdapterName)) set.add(runAdapter);
   for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
     for (const candidate of tierCandidates(overlay.adapters, tier)) {
       if (
@@ -87,7 +92,7 @@ export function buildVoteSeamForAdapter(
 /** Assemble the {@link VoteDiversity} for the default (non-injected) loop path. */
 export function buildVoteDiversity(
   overlay: Overlay,
-  runAdapter: AdapterName,
+  runAdapter: string,
   totals: RunTotals,
   fitness: ModelFitnessWiring = {},
 ): VoteDiversity {

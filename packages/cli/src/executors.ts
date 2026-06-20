@@ -39,7 +39,7 @@ import type {
   TaskContract,
   Verdict,
 } from '@kernloop/contracts';
-import { appendEvent, droppedEnvKeys, type AdapterName } from '@kernloop/kernel';
+import { appendEvent, droppedEnvKeys } from '@kernloop/kernel';
 import type { Kernloop } from './kernel.js';
 import { assembleBrief } from './gather.js';
 import { executeCanonicalLoop, type LoopInvoke, type LoopReport } from './loop/index.js';
@@ -52,7 +52,7 @@ export interface ExecutionContext {
   /** Programmatic check override for the quality gate (tests only). */
   readonly checks?: readonly QualityCheck[];
   /** Adapter the loop's default invoke binds to (workflow.canonical). */
-  readonly adapter?: AdapterName;
+  readonly adapter?: string;
   /** Injectable model seam for the loop (tests script it). */
   readonly invoke?: LoopInvoke;
   /** Resume this checkpointed loop run instead of starting fresh. */

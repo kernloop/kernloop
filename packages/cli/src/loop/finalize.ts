@@ -26,14 +26,17 @@ import type { LoopReport, LoopRequest } from './index.js';
  */
 export function guardWorkspaceContainment(
   kern: Kernloop,
-  adapter: AdapterName,
+  adapter: string,
   request: LoopRequest,
   runId: string,
   tmpRoot?: string,
 ): void {
   if (request.invoke !== undefined) return;
+  // A registered endpoint run adapter (#392) is non-agentic (no cwd subprocess) —
+  // nothing to contain; only CLI adapters execute code in / read-write a git tree.
+  if (kern.config.endpoints[adapter] !== undefined) return;
   try {
-    checkAgenticContainment(adapter, request.workspaceDir, tmpRoot);
+    checkAgenticContainment(adapter as AdapterName, request.workspaceDir, tmpRoot);
   } catch (error) {
     if (error instanceof AgenticRepositoryWorkspaceError) {
       appendEvent(kern.store, {
