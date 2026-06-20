@@ -11,7 +11,15 @@
  * never-re-key durability rule.
  */
 
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -207,6 +215,15 @@ describe('audit keyring (#280 [CLM-0146])', () => {
     ensureChainKeyed(keyringPath, file, 1); // generate at 0600
     chmodSync(keyringPath, 0o644); // operator/attacker widened it
     expect(() => loadKeyring(keyringPath)).toThrow(AuditKeyringError);
+  });
+
+  it('generates the keyring at 0600 from the write mode alone (#358/#372: no racy chmod)', () => {
+    ensureChainKeyed(keyringPath, file, 1);
+    // writeFileSync({ mode: 0o600 }) is the sole mode source — the post-write
+    // chmod that raced on a shared temp name was removed.
+    expect(statSync(keyringPath).mode & 0o777).toBe(0o600);
+    // No leftover temp files (the rename is atomic, the temp name is unique).
+    expect(readdirSync(dir).filter((f) => f.includes('.tmp'))).toEqual([]);
   });
 
   it('ensureChainKeyed never re-keys over an existing keyring', () => {
