@@ -1,0 +1,25 @@
+id: CLM-0160
+statement: >-
+  Voter calibration (#369 Inc3, the voter analog of CLM-0156 deliverable fitness):
+  at retrospect each PROCEEDING plan-vote voter is labeled correct iff its individual
+  vote matched the run's eventual success — APPROVED a plan that fully succeeded, or
+  REJECTED one that did not — on an EXPLICIT success-only threshold (partial/failure/
+  cancelled are not success); rejected-overall votes (which re-plan, no deliverable)
+  are never labeled, so precision is a NOISY PROXY conditioned on proceeded plans,
+  not a general voter-quality metric. An opt-in precision-WEIGHTED aggregation
+  (gates.vote.precisionWeighted, default false) then weights each ballot by
+  precisionWeight: NEUTRAL at chance (0.5), bounded [0.5,1.5], min-sample-gated, and
+  FLOORED — never silenced or inverted. With the flag off, or before a voter accrues
+  labels, the tally is integer counts (byte-identical). Labeling happens regardless
+  of the flag so the data accrues.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::centers neutral at chance and bounds [0.5, 1.5] — never silences or inverts'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::a high-weight voter can outweigh more numerous low-weight dissenters'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::weights all 1 are byte-identical to the unweighted tally'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::labels approve-correct on success and reject-correct on failure'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::inverts the labels when the run FAILED (a vindicated rejecter is correct)'
+  - 'code:packages/faculty-gates/src/vote/strategies.ts#precisionWeight'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

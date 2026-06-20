@@ -5,7 +5,13 @@
  * pinned by an explicit vote table.
  */
 import { describe, expect, it } from 'vitest';
-import { aggregateVotes, type BallotVote, type VoteStrategy } from './strategies.js';
+import {
+  MIN_LABELED_FOR_WEIGHT,
+  aggregateVotes,
+  precisionWeight,
+  type BallotVote,
+  type VoteStrategy,
+} from './strategies.js';
 
 const A: BallotVote = 'approve';
 const R: BallotVote = 'reject';
@@ -174,6 +180,45 @@ describe('aggregateVotes — escalateOnNoConsensus (#192)', () => {
             expect(aggregateVotes(strategy, votes, false)).toEqual(priorAggregate(strategy, votes));
             // omitting the arg defaults to off — and off NEVER escalates.
             expect(aggregateVotes(strategy, votes).result).not.toBe('escalate');
+          }
+    }
+  });
+});
+
+describe('precisionWeight (#369 Inc3)', () => {
+  it('is NEUTRAL (1) with no data or below the min-sample gate', () => {
+    expect(precisionWeight(undefined, 0)).toBe(1);
+    expect(precisionWeight(0.9, MIN_LABELED_FOR_WEIGHT - 1)).toBe(1); // under-sampled
+  });
+
+  it('centers neutral at chance and bounds [0.5, 1.5] — never silences or inverts', () => {
+    const n = MIN_LABELED_FOR_WEIGHT + 5;
+    expect(precisionWeight(0.5, n)).toBe(1); // chance ⇒ neutral
+    expect(precisionWeight(1.0, n)).toBe(1.5); // perfectly calibrated ⇒ cap
+    expect(precisionWeight(0.0, n)).toBe(0.5); // consistently wrong ⇒ FLOOR, not 0 or inverted
+    expect(precisionWeight(0.8, n)).toBeCloseTo(1.3);
+  });
+});
+
+describe('aggregateVotes — precision weighting (#369 Inc3)', () => {
+  it('a high-weight voter can outweigh more numerous low-weight dissenters', () => {
+    // Unweighted: 1 approve vs 2 reject ⇒ reject. Weighted (approver counts 3) ⇒ approve.
+    const votes: BallotVote[] = [A, R, R];
+    expect(aggregateVotes('simple_majority', votes).result).toBe('reject');
+    expect(aggregateVotes('simple_majority', votes, false, [3, 1, 1]).result).toBe('approve');
+  });
+
+  it('weights all 1 are byte-identical to the unweighted tally', () => {
+    const ballots: BallotVote[] = [A, R, S];
+    const strategies: VoteStrategy[] = ['simple_majority', 'supermajority', 'unanimous'];
+    for (const strategy of strategies) {
+      for (const a of ballots)
+        for (const b of ballots)
+          for (const c of ballots) {
+            const votes = [a, b, c];
+            expect(aggregateVotes(strategy, votes, false, [1, 1, 1])).toEqual(
+              aggregateVotes(strategy, votes),
+            );
           }
     }
   });

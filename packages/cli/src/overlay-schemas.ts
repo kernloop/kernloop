@@ -42,6 +42,14 @@ export const VoteGateSchema = z.strictObject({
    * for autonomous runs.
    */
   escalateOnNoConsensus: z.boolean().default(false),
+  /**
+   * Opt-in precision-WEIGHTED voting (#369 Inc3): when true, each voter's ballot
+   * is weighted by its measured calibration — a voter whose votes have matched
+   * eventual run outcomes counts for more (see `precisionWeight`). Default false ⇒
+   * equal weights (byte-identical). Inert even when ON until a voter accrues enough
+   * labeled outcomes; labeling itself happens regardless of this flag.
+   */
+  precisionWeighted: z.boolean().default(false),
 });
 
 /** Quality-gate knobs; the per-check timeout has no honest overlay default — the gate owns it. */

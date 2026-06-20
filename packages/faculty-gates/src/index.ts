@@ -69,6 +69,8 @@ export {
 } from './vote/voters.js';
 export {
   aggregateVotes,
+  precisionWeight,
+  MIN_LABELED_FOR_WEIGHT,
   type BallotVote,
   type VoteOutcome,
   type VoteStrategy,

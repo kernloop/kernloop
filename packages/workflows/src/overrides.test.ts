@@ -179,6 +179,7 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
       strategy: 'simple_majority',
       panel: 3,
       escalateOnNoConsensus: false,
+      precisionWeighted: false,
     });
     expect(parsed.nodeOverrides).toEqual({});
     expect(() => EngineConfigSchema.parse({ k: 5 })).toThrow();
@@ -200,6 +201,11 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
       checkpoints: new InMemoryCheckpointStore(),
       config: { gates: { vote: { strategy: 'unanimous', panel: 7 } } },
     }).run(task);
-    expect(seen).toEqual({ strategy: 'unanimous', panel: 7, escalateOnNoConsensus: false });
+    expect(seen).toEqual({
+      strategy: 'unanimous',
+      panel: 7,
+      escalateOnNoConsensus: false,
+      precisionWeighted: false,
+    });
   });
 });

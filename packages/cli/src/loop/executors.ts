@@ -20,14 +20,12 @@ import {
   VerdictSchema,
   type Brief,
   type TaskContract,
+  type Verdict,
 } from '@kernloop/contracts';
 import {
-  PANEL_DEFAULT,
-  PANEL_RATIFICATION,
   REVIEW_PANEL_DEFAULT,
   REVIEWER_GROUNDEDNESS,
   runReviewGate,
-  runVoteGate,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
 import type { DiscoveredCache } from '@kernloop/faculty-models';
@@ -39,7 +37,8 @@ import { executeQualityGate, publishVerdict } from '../executors.js';
 import { attributeSkillFitness } from './skill-attribution.js';
 import { LoopParseError, type ViolationSink } from './invoke.js';
 import { reviewerInvoker } from './seams.js';
-import { voteInvokerFor, type VoteDiversity } from './vote-diversity.js';
+import { type VoteDiversity } from './vote-diversity.js';
+import { labelVoterOutcomes, voteExecutor } from './vote-executor.js';
 import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
@@ -61,6 +60,10 @@ export interface LoopRefs {
    * after implement but before review, the stash is empty and review abstains
    * honestly (it is advisory, so the run is unaffected). */
   writtenByChild?: Record<string, ReadonlyArray<{ path: string; content: string }>>;
+  /** The proceeding plan-vote Verdict (#369 Inc3a) — its VoterRecords are labeled
+   * at retrospect against the run's eventual success. Not checkpointed: a resume
+   * landing after the vote simply skips labeling (advisory, run unaffected). */
+  planVoteVerdict?: Verdict;
 }
 
 /** What the executor set is bound to for one run. */
@@ -187,35 +190,6 @@ function planExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
-/** The vote gate node: faculty panel over ONE shared Brief (spec §8.3). A panel-7
- * RATIFICATION vote convenes a PROVIDER-DIVERSE panel where available (#369). */
-function voteExecutor(b: LoopBindings): NodeExecutor {
-  return async (input, ctx) => {
-    const planBrief = BriefSchema.parse(input);
-    const isRatification = ctx.config.gates.vote.panel === 7;
-    const invokeVoter = voteInvokerFor({
-      invoke: b.invokeFor('vote').invoke,
-      store: b.kern.store,
-      overlayDir: b.kern.paths.dir,
-      discovered: b.discovered,
-      runId: ctx.runId,
-      isRatification,
-      ...(b.voteDiversity === undefined ? {} : { voteDiversity: b.voteDiversity }),
-    });
-    const verdict = await runVoteGate({
-      taskId: ctx.taskId,
-      proposal: planBrief.sections.map((s) => s.content).join('\n\n'),
-      brief: b.refs.researchBrief ?? planBrief,
-      panel: isRatification ? PANEL_RATIFICATION : PANEL_DEFAULT,
-      strategy: ctx.config.gates.vote.strategy,
-      escalateOnNoConsensus: ctx.config.gates.vote.escalateOnNoConsensus, // #192 opt-in ASK
-      invokeVoter,
-    });
-    await publishVerdict(b.kern, verdict);
-    return verdict;
-  };
-}
-
 /**
  * The review child node (spec §6 "implement → quality gate → review gate").
  * ADVISORY: an adversarial reviewer panel judges the diff this child wrote;
@@ -304,6 +278,7 @@ function retrospectExecutor(b: LoopBindings): NodeExecutor {
     }
     // Attribute the outcome to the skills whose body reached the brief (#228 P3·2).
     attributeSkillFitness(b, ctx.runId, final);
+    labelVoterOutcomes(b, final);
     return Promise.resolve(final);
   };
 }

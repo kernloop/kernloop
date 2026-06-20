@@ -13,9 +13,9 @@ statement: >-
 evidence:
   - 'test:packages/faculty-gates/src/vote/run.test.ts::records each voter served identity and flags no skew on a fully diverse panel'
   - 'test:packages/faculty-gates/src/vote/run.test.ts::emits a SINGLE-ORACLE warn finding when all ballots collapse to one class'
-  - 'test:packages/cli/src/loop/executors.test.ts::convenes a PROVIDER-DIVERSE panel-7: distinct served per voter, no single-oracle (#369)'
-  - 'test:packages/cli/src/loop/executors.test.ts::DEGRADES a panel-7 with one adapter: single-oracle finding + audit (#369)'
-  - 'test:packages/cli/src/loop/executors.test.ts::panel-3 loop votes stay single-adapter (no served, no diversity finding) even with diversity available'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::convenes a PROVIDER-DIVERSE panel-7: distinct served per voter, no single-oracle'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::DEGRADES a panel-7 with one adapter: single-oracle finding + audit'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::panel-3 loop votes stay single-adapter (no served) even with diversity available'
   - 'test:packages/cli/src/loop/vote-diversity.test.ts::dedups the run adapter, excludes endpoints + non-CLI names, and stable-sorts'
   - 'code:packages/cli/src/loop/seams.ts#diverseBallotInvoker'
   - 'ci:test'
