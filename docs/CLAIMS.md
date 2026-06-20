@@ -2646,5 +2646,6 @@ A panel-7 RATIFICATION vote convenes a PROVIDER-DIVERSE panel (#369): the compos
 - [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
 - [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
 - [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
+- [`packages/cli/src/loop/vote-diversity.test.ts`](../packages/cli/src/loop/vote-diversity.test.ts)
 - [`packages/cli/src/loop/seams.ts#diverseBallotInvoker`](../packages/cli/src/loop/seams.ts)
 - CI `test`
