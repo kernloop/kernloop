@@ -54,7 +54,33 @@ describe('renderBlock — the generated README table', () => {
     });
     expect(block.startsWith(BEGIN)).toBe(true);
     expect(block.trimEnd().endsWith(END)).toBe(true);
-    expect(block).toContain('| 5 | 11 | 12 | 9 | 109 |');
+    // The value cells are column-ALIGNED to the header widths (#400) — the same
+    // form claims:render writes, so the two generators agree.
+    expect(block).toContain(
+      '| 5                | 11               | 12                 | 9              | 109             |',
+    );
+  });
+
+  test('value cells align to the header column widths — guards the #400 padding regression', () => {
+    // If the value row ever reverts to unpadded (`| 5 | 11 | …`), CI's exact-match
+    // render-claims --check goes red while stats:check (padding-tolerant) stays
+    // green. Assert structural alignment so a regression fails HERE, not in CI.
+    const block = renderBlock({
+      contracts: 5,
+      tools: 11,
+      languages: 12,
+      gatedPackages: 13,
+      templates: 5,
+      claims: 163,
+    });
+    const lines = block.split('\n').filter((l) => l.startsWith('|'));
+    const widths = (row) =>
+      row
+        .split('|')
+        .slice(1, -1)
+        .map((c) => c.length);
+    const [header, , values] = lines; // header, separator, value row
+    expect(widths(values)).toEqual(widths(header));
   });
 });
 
@@ -72,7 +98,8 @@ describe('applyBlock — inject / check / stale / missing branches', () => {
   test('render mode rewrites the block in place', () => {
     const { text, error } = applyBlock(withMarkers, block, false);
     expect(error).toBeNull();
-    expect(text).toContain('| 5 | 11 | 12 | 9 | 1 |');
+    // The exact rendered block is injected verbatim (robust to the #400 padding form).
+    expect(text).toContain(block);
     expect(text).not.toContain('\nold\n');
   });
   test('check mode flags a stale block', () => {

@@ -53,14 +53,32 @@ export function deriveStats() {
   };
 }
 
-/** The generated README "at a glance" table (digits, drift-checked). */
+/** The "at a glance" table column headers — widths drive value-cell padding. */
+const STAT_HEADERS = [
+  'Frozen contracts',
+  'Kernel MCP tools',
+  'Doc-gate languages',
+  'Gated packages',
+  'Verified claims',
+];
+
+/** One `| a | b | … |` markdown row, each cell right-padded to its header width. */
+const statRow = (cells) =>
+  `| ${cells.map((c, i) => String(c).padEnd(STAT_HEADERS[i].length)).join(' | ')} |`;
+
+/**
+ * The generated README "at a glance" table (digits, drift-checked). Value cells
+ * are column-ALIGNED to the header widths — the same form `claims:render` writes,
+ * so the two generators agree and CI's exact-match `render-claims --check` stays
+ * green after a `pnpm stats` run (#400).
+ */
 export function renderBlock(s) {
   return [
     BEGIN,
     '',
-    '| Frozen contracts | Kernel MCP tools | Doc-gate languages | Gated packages | Verified claims |',
-    '| ---------------- | ---------------- | ------------------ | -------------- | --------------- |',
-    `| ${s.contracts} | ${s.tools} | ${s.languages} | ${s.gatedPackages} | ${s.claims} |`,
+    statRow(STAT_HEADERS),
+    `| ${STAT_HEADERS.map((h) => '-'.repeat(h.length)).join(' | ')} |`,
+    statRow([s.contracts, s.tools, s.languages, s.gatedPackages, s.claims]),
     '',
     END,
   ].join('\n');
