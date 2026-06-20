@@ -13,11 +13,13 @@
 
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -256,6 +258,34 @@ describe('audit keyring (#280 [CLM-0146])', () => {
       mode: 0o600,
     });
     expect(() => loadKeyring(keyringPath)).toThrow(AuditKeyringError);
+  });
+
+  it('reaps orphaned write temps older than the threshold on a successful write (#377)', () => {
+    // A crash between writeFileSync and renameSync leaves a unique `.tmp` orphan.
+    const stale = join(dir, 'audit.key.deadbeef.tmp');
+    const fresh = join(dir, 'audit.key.cafe01.tmp');
+    writeFileSync(stale, '{}', { mode: 0o600 });
+    writeFileSync(fresh, '{}', { mode: 0o600 });
+    const old = new Date(Date.now() - 10 * 60_000); // 10 min ago → past the 5-min floor
+    utimesSync(stale, old, old);
+    const warnings: string[] = [];
+    // Minting the keyring writes it → the opportunistic reap runs after the rename.
+    ensureChainKeyed(keyringPath, file, 1, (m) => warnings.push(m));
+    expect(existsSync(stale)).toBe(false); // the old orphan is swept
+    expect(existsSync(fresh)).toBe(true); // a recent temp may still be mid-rename → kept
+    expect(existsSync(keyringPath)).toBe(true); // the keyring itself is written
+    expect(warnings.some((w) => w.includes('reaped 1 orphaned'))).toBe(true); // never silent
+  });
+
+  it('the reaper never touches the keyring file or non-.tmp siblings (#377)', () => {
+    ensureChainKeyed(keyringPath, file, 1); // mint the keyring
+    const backup = join(dir, 'audit.key.backup'); // shares the prefix but is not a .tmp
+    writeFileSync(backup, 'BACKUP', { mode: 0o600 });
+    const old = new Date(Date.now() - 10 * 60_000);
+    utimesSync(backup, old, old);
+    ensureChainKeyed(keyringPath, join(dir, 'other.jsonl'), 5); // a new-chain write → reap runs
+    expect(readFileSync(backup, 'utf8')).toBe('BACKUP'); // untouched — only `.tmp` is reaped
+    expect(existsSync(keyringPath)).toBe(true);
   });
 
   it('loadKeyring rejects a partial keyring missing its currentEpoch key (no re-key)', () => {

@@ -1,0 +1,20 @@
+id: CLM-0162
+statement: >-
+  The audit keyring opportunistically REAPS its own orphaned write temps (#377,
+  the #376 follow-up): the unique-per-write temp name that fixed the clobber race
+  means a crash between writeFileSync and renameSync leaks a distinct
+  `${path}.<hex>.tmp` that nothing reclaimed. On a successful keyring write,
+  reapStaleKeyringTemps deletes sibling temps older than a few-minute floor — never
+  one a concurrent distinct-chain write may still be mid-rename on — matched
+  STRICTLY by the keyring's own basename prefix AND a `.tmp` suffix, so the keyring
+  file itself, backups, and unrelated siblings are never touched. It runs only on
+  the rare first-keyed write (off the hot path), swallows every filesystem error so
+  housekeeping can never break a keyring operation, and emits a `warn` when it
+  reaps so the cleanup is never silent (rule 7).
+evidence:
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::reaps orphaned write temps older than the threshold on a successful write (#377)'
+  - 'test:packages/kernel/src/audit/keyed-chain.test.ts::the reaper never touches the keyring file or non-.tmp siblings (#377)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

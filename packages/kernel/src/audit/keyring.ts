@@ -34,9 +34,18 @@
 
 import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 /** Thrown on any keyring failure — never a silent fallback to unkeyed verify. */
 export class AuditKeyringError extends Error {
@@ -128,8 +137,46 @@ export function loadKeyring(path: string): AuditKeyring | null {
   return keyring;
 }
 
+/** A keyring write temp older than this is an orphan from a crashed write (#377). */
+const KEYRING_TEMP_REAP_MS = 5 * 60_000;
+
+/**
+ * Best-effort sweep of orphaned keyring write temps (#377). The unique-name fix
+ * (#376) stopped the clobber race but means each crash BETWEEN `writeFileSync`
+ * and `renameSync` leaks a DISTINCT `${path}.<hex>.tmp` that nothing reaps —
+ * slow litter in the keyring dir. On a successful write we delete sibling temps
+ * older than {@link KEYRING_TEMP_REAP_MS} (a few minutes — never one a concurrent
+ * distinct-chain write may still be mid-rename on). Matched STRICTLY by the
+ * keyring's own basename prefix + `.tmp` suffix so the keyring itself, backups,
+ * and unrelated files are never touched. Off the hot path (only the rare
+ * first-keyed write); every error is swallowed and `warn` makes a reap visible —
+ * housekeeping must NEVER break a keyring operation or act silently (rule 7).
+ */
+function reapStaleKeyringTemps(path: string, warn: (msg: string) => void, nowMs: number): void {
+  const prefix = `${basename(path)}.`;
+  let reaped = 0;
+  try {
+    for (const name of readdirSync(dirname(path))) {
+      if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
+      const full = join(dirname(path), name);
+      try {
+        if (nowMs - statSync(full).mtimeMs > KEYRING_TEMP_REAP_MS) {
+          unlinkSync(full);
+          reaped += 1;
+        }
+      } catch {
+        /* sibling vanished mid-sweep or is unreadable — ignore */
+      }
+    }
+  } catch {
+    /* the keyring dir is unreadable — housekeeping is best-effort */
+  }
+  if (reaped > 0)
+    warn(`reaped ${String(reaped)} orphaned audit-keyring write temp(s) in ${dirname(path)}`);
+}
+
 /** Atomically write the keyring at 0600 (temp + rename, never a torn file). */
-function writeKeyring(path: string, keyring: AuditKeyring): void {
+function writeKeyring(path: string, keyring: AuditKeyring, warn: (msg: string) => void): void {
   mkdirSync(dirname(path), { recursive: true });
   // A UNIQUE temp name per write (#358, #372): the keyring is SHARED across chains
   // but the sidecar write-lock is per-chain, so two distinct-chain first-keyed
@@ -143,6 +190,7 @@ function writeKeyring(path: string, keyring: AuditKeyring): void {
   const tmp = `${path}.${randomBytes(6).toString('hex')}.tmp`;
   writeFileSync(tmp, JSON.stringify(keyring, null, 2) + '\n', { mode: 0o600 });
   renameSync(tmp, path);
+  reapStaleKeyringTemps(path, warn, Date.now());
 }
 
 /**
@@ -172,7 +220,7 @@ export function ensureChainKeyed(
       keys: { '1': randomBytes(32).toString('hex') },
       chains: { [chainId]: { firstKeyedSeq } },
     };
-    writeKeyring(keyringPath, keyring);
+    writeKeyring(keyringPath, keyring, warn);
     warn(
       `audit keyring generated at ${keyringPath} (epoch 1, ${chainId} keyed from seq ` +
         `${String(firstKeyedSeq)}); BACK IT UP — key loss makes the keyed segment ` +
@@ -185,7 +233,7 @@ export function ensureChainKeyed(
       ...existing,
       chains: { ...existing.chains, [chainId]: { firstKeyedSeq } },
     };
-    writeKeyring(keyringPath, keyring);
+    writeKeyring(keyringPath, keyring, warn);
     warn(
       `audit chain ${chainId} keyed from seq ${String(firstKeyedSeq)} (epoch ${String(keyring.currentEpoch)})`,
     );
