@@ -115,12 +115,17 @@ function effortArgs(effort: AdapterCommandEffort | undefined): string[] {
  * FUTURE ones, because there is no interactive user to grant permission; verified
  * a reasoning invocation cannot read a planted sentinel file (returns no-access).
  * This deny-list is DEFENSE-IN-DEPTH over the named fs/exec/network tools, not the
- * sole barrier. `--allowedTools` is NOT a fail-closed alternative: it is an
- * ADDITIVE auto-approve list, not a restrictive allowlist (an empty or unrelated
- * allowlist still leaves tools usable — verified), which is why #355's proposed
- * allowlist switch is invalid for this CLI. Every name here must be a REAL claude
- * tool — an unknown name (e.g. the removed `MultiEdit`) makes the CLI emit a
- * "matches no known tool" warning on each invocation.
+ * sole barrier. ASSUMPTION: that barrier holds only because claude's buildCommand
+ * ALWAYS passes `-p` (headless) — a future non-headless caller would lose the
+ * auto-deny and fall back to this deny-list alone. RESIDUAL (#368): a future
+ * ALWAYS-allowed tool that could read the workspace would bypass both the headless
+ * gate and this deny-list; today's always-allowed set (Skill/ToolSearch/…) cannot.
+ * `--allowedTools` is NOT a fail-closed alternative: it is an ADDITIVE auto-approve
+ * list, not a restrictive allowlist (an empty or unrelated allowlist still leaves
+ * tools usable — verified), which is why #355's proposed allowlist switch is
+ * invalid for this CLI. Every name here must be a REAL claude tool — an unknown
+ * name (e.g. the removed `MultiEdit`) makes the CLI emit a "matches no known tool"
+ * warning on each invocation.
  */
 export const CLAUDE_PURE_COMPLETION_DENY =
   'Bash Read Write Edit NotebookEdit Glob Grep WebFetch WebSearch Task';

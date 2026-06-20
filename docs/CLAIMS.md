@@ -2622,7 +2622,7 @@ The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate,
 
 **Status:** verified — **source:** [`CLM-0158.yaml`](../claims/registry/CLM-0158.yaml)
 
-Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude --disallowedTools), partial (gemini plan / codex read-only), or none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded default posture is not silently confused with enforced policy (a per-node adapterFitness substitution is a tracked gap, #363). The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
+Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude — headless `-p` auto-deny + `--disallowedTools` defense-in-depth, #355), partial (gemini plan / codex read-only), or none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded default posture is not silently confused with enforced policy (a per-node adapterFitness substitution is a tracked gap, #363). The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
 
 **Enforced by:**
 
