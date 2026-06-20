@@ -13,7 +13,9 @@ const VoteConfigSchema = z.strictObject({
   strategy: z.enum(['simple_majority', 'supermajority', 'unanimous']).default('simple_majority'),
   panel: z.union([z.literal(3), z.literal(7)]).default(3),
   /** Opt-in ASK (#192): a deadlocked panel emits `escalate` → the loop halts as
-   * escalated for a human, instead of auto-rejecting. Default off (byte-identical). */
+   * escalated for a human, instead of auto-rejecting. Default off (byte-identical).
+   * Liveness tradeoff (#364): in an UNATTENDED loop there is no "next interaction",
+   * so `escalate` halts indefinitely — keep off for autonomous runs. */
   escalateOnNoConsensus: z.boolean().default(false),
 });
 

@@ -30,6 +30,14 @@ behavior (a deadlock still resolves to `reject`). Any Verdict serialized before
 this change validates unchanged, and any consumer that never enables the flag
 observes no new value.
 
+**Operator note — liveness tradeoff (#364).** `escalate` halts the loop and
+surfaces on the operator's _next interaction_. In a fully UNATTENDED loop (cron,
+or a detached `/loop` with no operator returning) there is no next interaction,
+so enabling `escalateOnNoConsensus` turns a deadlock into an INDEFINITE halt —
+whereas the default `reject` re-plans within K and continues. Enable the flag
+only for runs a human actually watches; leave it off for autonomous runs.
+(Surfaced by kernloop's own native gate vote during #348 parity gathering.)
+
 **Source-compatibility — handled, not silent.** Adding a value to a TypeScript
 enum does not by itself force consumers to handle it. To prevent silent
 mishandling, the loop's verdict routing now goes through a single exhaustive

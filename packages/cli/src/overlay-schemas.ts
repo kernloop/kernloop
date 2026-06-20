@@ -34,6 +34,12 @@ export const VoteGateSchema = z.strictObject({
    * `reject`, so the loop HALTS as escalated for a human to rule on the next
    * interaction rather than auto-blocking. Default false ⇒ a deadlock still
    * resolves to `reject` (byte-identical to prior behavior).
+   *
+   * LIVENESS TRADEOFF (#364): in a fully UNATTENDED loop (cron / detached
+   * `/loop` with no operator returning), `escalate` halts INDEFINITELY — there
+   * is no "next interaction" — whereas the default `reject` re-plans within K and
+   * continues. Enable this only for runs a human actually watches; keep it off
+   * for autonomous runs.
    */
   escalateOnNoConsensus: z.boolean().default(false),
 });
