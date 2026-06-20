@@ -2715,5 +2715,6 @@ The canonical-loop run/default adapter (`--adapter`, spec §3.1) may be a regist
 
 - [`packages/cli/src/loop/node-resolve.test.ts`](../packages/cli/src/loop/node-resolve.test.ts)
 - [`packages/cli/src/loop/vote-diversity.test.ts`](../packages/cli/src/loop/vote-diversity.test.ts)
+- [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - [`packages/cli/src/cli.test.ts`](../packages/cli/src/cli.test.ts)
 - CI `test`
