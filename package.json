@@ -24,6 +24,7 @@
     "stats:check": "tsx scripts/stats.mjs --check",
     "governance:check": "node scripts/governance-check.mjs",
     "audit:selftest": "node scripts/audit-selftest.mjs",
+    "adapters:smoke": "node scripts/adapter-smoke.mjs",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "prepare": "husky"
