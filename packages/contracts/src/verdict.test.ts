@@ -12,8 +12,8 @@ const valid: Verdict = {
 };
 
 describe('VerdictResultSchema', () => {
-  it('accepts all five result values', () => {
-    for (const result of ['approve', 'reject', 'abstain', 'pass', 'fail']) {
+  it('accepts all six result values (incl. escalate, #192)', () => {
+    for (const result of ['approve', 'reject', 'abstain', 'pass', 'fail', 'escalate']) {
       expect(VerdictResultSchema.parse(result)).toBe(result);
     }
   });
