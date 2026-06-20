@@ -28,6 +28,14 @@ export const BudgetsSchema = z.strictObject({
 export const VoteGateSchema = z.strictObject({
   strategy: z.enum(VOTE_STRATEGIES).default('simple_majority'),
   panel: z.union([z.literal(3), z.literal(7)]).default(3),
+  /**
+   * Opt-in human-decision ASK (#192): when true, a DEADLOCKED panel (neither the
+   * approve bar nor the symmetric reject bar clears) emits `escalate` instead of
+   * `reject`, so the loop HALTS as escalated for a human to rule on the next
+   * interaction rather than auto-blocking. Default false ⇒ a deadlock still
+   * resolves to `reject` (byte-identical to prior behavior).
+   */
+  escalateOnNoConsensus: z.boolean().default(false),
 });
 
 /** Quality-gate knobs; the per-check timeout has no honest overlay default — the gate owns it. */

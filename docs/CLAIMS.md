@@ -2601,3 +2601,19 @@ The Outcome contract carries an optional served:ModelIdentity (the producing mod
 - [`packages/cli/src/loop.test.ts`](../packages/cli/src/loop.test.ts)
 - [`packages/cli/src/loop/executors-nodes.ts#recordChildOutcomeFitness`](../packages/cli/src/loop/executors-nodes.ts)
 - CI `test`
+
+## CLM-0157
+
+**Status:** verified — **source:** [`CLM-0157.yaml`](../claims/registry/CLM-0157.yaml)
+
+The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate, under the opt-in gates.vote.escalateOnNoConsensus, emits `escalate` when a panel DEADLOCKS (neither the approve bar nor the symmetric reject bar clears) instead of defaulting to reject; with the flag off a deadlock still resolves to reject, byte-identical across every strategy. The canonical loop routes an `escalate` verdict to its EXISTING escalated outcome — it HALTS for a human IMMEDIATELY (regardless of the K/Kc bound), with a distinct haltReason 'vote-escalation' so an operator tells a deadlock from K-exhaustion. All verdict routing goes through a single never-exhaustiveness classifier, so a future VerdictResult value is a compile error, never a silent mis-route.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/vote/strategies.test.ts`](../packages/faculty-gates/src/vote/strategies.test.ts)
+- [`packages/faculty-gates/src/vote/strategies.test.ts`](../packages/faculty-gates/src/vote/strategies.test.ts)
+- [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/workflows/src/verdict-disposition.test.ts`](../packages/workflows/src/verdict-disposition.test.ts)
+- [`packages/workflows/src/verdict-disposition.ts#verdictDisposition`](../packages/workflows/src/verdict-disposition.ts)
+- CI `test`

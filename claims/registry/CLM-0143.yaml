@@ -19,7 +19,7 @@ statement: >-
   returns (inherited CLM-0044 limitation, not immediate kill).
 evidence:
   - 'test:packages/cli/src/loop-abort.test.ts::halts cleanly on an injected abort: cancelled Outcome, spend preserved + reconciled, resumable'
-  - 'test:packages/cli/src/loop-abort.test.ts::a vote/budget escalate (NO haltReason) still maps to partial, not cancelled — regression guard'
+  - "test:packages/cli/src/loop-abort.test.ts::a vote escalate (haltReason 'vote') still maps to partial, not cancelled — regression guard"
   - 'test:packages/cli/src/loop-abort.test.ts::a non-aborted run is unaffected: completes normally with no haltReason'
   - 'ci:test'
 status: verified

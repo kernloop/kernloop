@@ -111,3 +111,52 @@ describe('aggregateVotes — degenerate panels', () => {
     }
   });
 });
+
+describe('aggregateVotes — escalateOnNoConsensus (#192)', () => {
+  const strategies: VoteStrategy[] = ['simple_majority', 'supermajority', 'unanimous'];
+
+  // The deadlock band per strategy: neither the approve bar nor the symmetric
+  // reject bar clears. With the flag ON these escalate; with it OFF they reject.
+  const deadlocks: Record<VoteStrategy, BallotVote[]> = {
+    simple_majority: [A, R], // exact tie
+    supermajority: [A, A, A, R, R, R], // 3-3, neither side ≥ 2/3
+    unanimous: [A, R], // an approve+reject mix is neither all-approve nor all-reject
+  };
+
+  it('emits escalate on a deadlock ONLY when the flag is on (else reject)', () => {
+    for (const strategy of strategies) {
+      const votes = deadlocks[strategy];
+      expect(aggregateVotes(strategy, votes, true).result).toBe('escalate');
+      // Default (flag off) keeps the deadlock resolving to reject.
+      expect(aggregateVotes(strategy, votes, false).result).toBe('reject');
+      expect(aggregateVotes(strategy, votes).result).toBe('reject'); // omitted == off
+    }
+  });
+
+  it('never escalates a DECISIVE panel, even with the flag on', () => {
+    // A clear approve and a clear reject are unchanged by the opt-in.
+    expect(aggregateVotes('simple_majority', [A, A, R], true).result).toBe('approve');
+    expect(aggregateVotes('simple_majority', [A, R, R], true).result).toBe('reject');
+    expect(aggregateVotes('supermajority', [A, A, R], true).result).toBe('approve'); // 2/3
+    expect(aggregateVotes('unanimous', [A, A, S], true).result).toBe('approve'); // no rejects
+    expect(aggregateVotes('unanimous', [R, S], true).result).toBe('reject'); // a reject, no approve
+    // An all-abstain panel still abstains (no signal), flag or not.
+    expect(aggregateVotes('supermajority', [S, S], true).result).toBe('abstain');
+  });
+
+  it('is BYTE-IDENTICAL to the prior behavior when the flag is off (every strategy)', () => {
+    // Exhaustive small-panel sweep: with escalateOnNoConsensus off the result and
+    // confidence must equal the flag-defaulted call — the backward-compat guarantee.
+    const ballots: BallotVote[] = [A, R, S];
+    for (const strategy of strategies) {
+      for (const a of ballots)
+        for (const b of ballots)
+          for (const c of ballots) {
+            const votes = [a, b, c];
+            expect(aggregateVotes(strategy, votes, false)).toEqual(aggregateVotes(strategy, votes));
+            // and never escalate when off
+            expect(aggregateVotes(strategy, votes, false).result).not.toBe('escalate');
+          }
+    }
+  });
+});

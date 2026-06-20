@@ -21,6 +21,7 @@ import {
   gateDrivesIteration,
   reiterateChild,
 } from './child-iterate.js';
+import { verdictDisposition } from './verdict-disposition.js';
 
 /**
  * Loop-shaping inputs the engine resolves from its config + injected seams and
@@ -168,12 +169,24 @@ function enterFanout(graph: LoopGraph, state: RunState, from: string): void {
 /** Apply a completed VOTE: branch on the Verdict, bounded by K [CLM-0043]. */
 function advanceVote(graph: LoopGraph, state: RunState, node: LoopNode, k: number): void {
   const verdict = state.values[node.name] as Verdict;
-  if (verdict.result === 'approve') {
+  const disposition = verdictDisposition(verdict.result);
+  if (disposition === 'advance') {
     const edge = successor(graph, node.name, 'approved');
     if (edge !== undefined) state.cursor = { phase: 'main', node: edge.to };
     return;
   }
   state.findings.push(...verdict.findings);
+  if (disposition === 'escalate') {
+    // The gate ruled "a human must decide" (#192): HALT as escalated IMMEDIATELY,
+    // regardless of K — not a re-iterate. A distinct haltReason lets an operator
+    // tell a deadlock from K-exhaustion. Cursor parks on the rejected edge so a
+    // resume after the human rules continues from plan [CLM-0043].
+    const edge = successor(graph, node.name, 'rejected');
+    if (edge !== undefined) state.cursor = { phase: 'main', node: edge.to };
+    state.status = 'escalated';
+    state.haltReason = 'vote-escalation';
+    return;
+  }
   if (state.iteration >= k) {
     // K re-entries exhausted: HALT as escalated, cursor parked at plan so a
     // resume after the human edits continues from there [CLM-0043].

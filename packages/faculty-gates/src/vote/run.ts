@@ -59,6 +59,13 @@ export interface RunVoteGateOptions {
   readonly panel?: readonly VoterTemplate[];
   /** Consensus strategy; defaults to `simple_majority`. */
   readonly strategy?: VoteStrategy;
+  /**
+   * When true (#192), a panel that DEADLOCKS (neither the approve bar nor the
+   * symmetric reject bar clears) emits `escalate` instead of `reject` — the
+   * loop then halts as escalated for a human to rule. Default false ⇒ a deadlock
+   * still resolves to `reject`, byte-identical to prior behavior.
+   */
+  readonly escalateOnNoConsensus?: boolean;
   /** The injected model call — see {@link InvokeVoter}. */
   readonly invokeVoter: InvokeVoter;
 }
@@ -167,6 +174,7 @@ export async function runVoteGate(options: RunVoteGateOptions): Promise<Verdict>
   const outcome = aggregateVotes(
     strategy,
     ballots.map((b) => b.vote),
+    options.escalateOnNoConsensus ?? false,
   );
   return VerdictSchema.parse({
     taskId: options.taskId,

@@ -83,7 +83,7 @@ export function ctxFor(panel: 3 | 7): NodeContext {
       Kc: 1,
       reviewDrivesIteration: false,
       budgetHeadroomFraction: 0,
-      gates: { vote: { strategy: 'unanimous', panel } },
+      gates: { vote: { strategy: 'unanimous', panel, escalateOnNoConsensus: false } },
       nodeOverrides: {},
     },
     node: 'vote',

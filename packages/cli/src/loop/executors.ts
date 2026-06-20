@@ -192,6 +192,7 @@ function voteExecutor(b: LoopBindings): NodeExecutor {
       brief: b.refs.researchBrief ?? planBrief,
       panel: ctx.config.gates.vote.panel === 7 ? PANEL_RATIFICATION : PANEL_DEFAULT,
       strategy: ctx.config.gates.vote.strategy,
+      escalateOnNoConsensus: ctx.config.gates.vote.escalateOnNoConsensus, // #192 opt-in ASK
       invokeVoter: ballotInvoker({
         overlayDir: b.kern.paths.dir,
         runId: ctx.runId,

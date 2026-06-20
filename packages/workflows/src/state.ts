@@ -96,12 +96,14 @@ export const RunStateSchema = z.strictObject({
   cursor: CursorSchema,
   /**
    * Why an escalated run halted: `vote` (the K vote-iterate bound — resume
-   * re-plans with a fresh K after the human edit [CLM-0043]) or `budget` (the
-   * run exceeded its budget in enforce mode — resume continues from the cursor
-   * once the human raises the budget or re-runs unlimited [CLM-0077]). Absent
-   * while running/completed.
+   * re-plans with a fresh K after the human edit [CLM-0043]); `vote-escalation`
+   * (a vote gate ruled `escalate` — a deadlocked panel asking a human, #192 —
+   * distinct from `vote` so an operator tells a deadlock from K-exhaustion;
+   * resume re-plans the same way); or `budget` (the run exceeded its budget in
+   * enforce mode — resume continues from the cursor once the human raises the
+   * budget or re-runs unlimited [CLM-0077]). Absent while running/completed.
    */
-  haltReason: z.enum(['vote', 'budget']).optional(),
+  haltReason: z.enum(['vote', 'vote-escalation', 'budget']).optional(),
   /** Vote-iterate count: how many times the rejected edge re-entered plan. */
   iteration: z.number().int().nonnegative(),
   /** Last emission per node name — the values that flow along edges. */
@@ -189,6 +191,13 @@ export interface RunResult {
   readonly nodeTrace: readonly TraceEntry[];
   /** The final Outcome, on completion. */
   readonly outcome?: Outcome;
+  /**
+   * Why an escalated run halted, surfaced so an operator can triage: `vote` (the
+   * K vote-iterate bound), `vote-escalation` (a vote gate ruled `escalate` — a
+   * deadlocked panel asking a human, #192), or `budget`. Present only on
+   * `escalated`; the cli maps a cooperative-abort cancel to its own `'aborted'`.
+   */
+  readonly haltReason?: 'vote' | 'vote-escalation' | 'budget';
   /** Accumulated rejecting-vote findings, on escalation. */
   readonly findings?: readonly Finding[];
   /** The typed error, on failure. */

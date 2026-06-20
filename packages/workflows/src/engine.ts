@@ -252,6 +252,7 @@ class LoopEngine implements Engine {
       status: 'escalated',
       nodeTrace: state.trace,
       findings: state.findings,
+      ...(state.haltReason === undefined ? {} : { haltReason: state.haltReason }),
       ...(childSpend === undefined ? {} : { childSpend }),
     };
   }

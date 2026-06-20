@@ -235,6 +235,27 @@ describe('the K-bounded vote-iterate cycle [CLM-0043]', () => {
     const result = await engine.run(task);
     expect(result.status).toBe('escalated');
   });
+
+  it('a vote `escalate` HALTS immediately for a human — regardless of K (#192)', async () => {
+    // K=3 would allow 3 re-entries, but an escalate verdict asks a human NOW: the
+    // loop halts after the FIRST vote with a DISTINCT haltReason (not K-exhaustion).
+    const { executors, calls } = counted(scripted(['escalate']));
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { K: 3 },
+    }).run(task);
+
+    expect(result.status).toBe('escalated');
+    expect(result.haltReason).toBe('vote-escalation'); // distinct from 'vote' (K-exhaustion)
+    expect(result.outcome).toBeUndefined();
+    // Voted exactly ONCE — no re-iteration despite K=3 headroom.
+    expect(calls['vote']).toBe(1);
+    expect(calls['plan']).toBe(1);
+    expect(names(result.nodeTrace)).toEqual(['frame', 'research', 'plan', 'vote']);
+    // The deadlock findings are carried for the human.
+    expect(result.findings?.map((f) => f.message)).toEqual(['vote found the plan wanting']);
+  });
 });
 
 describe('wiring and input validation', () => {

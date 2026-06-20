@@ -97,6 +97,35 @@ describe('review-driven child iteration [CLM-0043]', () => {
     expect(c2?.verdict?.result).toBe('pass');
   });
 
+  it('a quality `escalate` stops the child for a human IMMEDIATELY — regardless of Kc (#192)', async () => {
+    let integrateInput: unknown;
+    // The child's quality gate ESCALATES on the first attempt; Kc=3 would allow
+    // re-runs, but an escalate verdict asks a human now — no re-iteration.
+    const { executors, qualityCalls } = scripted({ 'task-1.c1': ['escalate'] });
+    executors['integrate'] = (input) => {
+      integrateInput = input;
+      return Promise.resolve(outcome(task.id));
+    };
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { Kc: 3 },
+    }).run(task);
+
+    expect(result.status).toBe('completed'); // one escalated child does not sink the run
+    // c1 ran quality exactly ONCE — escalate skipped the Kc=3 re-run headroom.
+    expect(qualityCalls['task-1.c1']).toBe(1);
+    expect(names(result.nodeTrace).filter((n) => n === 'implement:task-1.c1')).toHaveLength(1);
+    const results = integrateInput as Array<{
+      child: TaskContract;
+      escalated?: boolean;
+      verdict?: Verdict;
+    }>;
+    const c1 = results.find((r) => r.child.id === 'task-1.c1');
+    expect(c1?.escalated).toBe(true);
+    expect(c1?.verdict?.result).toBe('escalate');
+  });
+
   it('the review gate is advisory: a rejecting review does NOT re-run implement by default', async () => {
     const { executors, qualityCalls } = scripted({ 'task-1.c1': ['pass'] });
     executors['review'] = (_i, ctx) =>
