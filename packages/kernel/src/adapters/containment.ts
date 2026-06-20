@@ -51,6 +51,7 @@ export const AGENTIC_ADAPTERS: ReadonlySet<AdapterName> = new Set([
   'codex',
   'gemini',
   'opencode',
+  'agy',
 ]);
 
 /** Adapters that take no cwd (read stdin, return text) — not a filesystem threat. */

@@ -9,7 +9,7 @@
  * root actually ingested. Nothing is estimated, sampled, or fabricated.
  */
 import { z } from 'zod';
-import { ADAPTER_NAMES, detectAdapter, verifyChain } from '@kernloop/kernel';
+import { ADAPTER_NAMES, adapterDefinitions, detectAdapter, verifyChain } from '@kernloop/kernel';
 import type {
   DriftSignal,
   FitnessRecord,
@@ -149,7 +149,14 @@ export function observeTool(kern: Kernloop, input: ObserveInput = {}): ObserveRe
     memory: { episodicTraces: kern.memory.listSummaries({ limit: 1_000_000 }).length },
     adapters: ADAPTER_NAMES.map((adapter) => {
       const probe = detectAdapter(adapter);
-      return { adapter, available: probe.available, experimental: adapter === 'ollama' };
+      // Experimental tier comes from the adapter definition (the single source of
+      // truth), not a hardcoded name — so a new experimental adapter (e.g. agy, #387)
+      // is reported honestly without editing this list.
+      return {
+        adapter,
+        available: probe.available,
+        experimental: adapterDefinitions[adapter].experimental,
+      };
     }),
     observer: observerReport(kern, gateVerdictPayloads),
   };

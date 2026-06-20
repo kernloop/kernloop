@@ -163,7 +163,7 @@ describe('observeTool', () => {
     kern.close();
   });
 
-  it('probes all five adapters for availability and marks ollama experimental', () => {
+  it('probes all six adapters for availability and marks ollama + agy experimental', () => {
     const kern = freshKernloop();
     const report = observeTool(kern, {});
     expect(report.adapters.map((a) => a.adapter)).toEqual([
@@ -172,11 +172,13 @@ describe('observeTool', () => {
       'gemini',
       'opencode',
       'ollama',
+      'agy',
     ]);
     for (const adapter of report.adapters) {
       expect(typeof adapter.available).toBe('boolean');
     }
     expect(report.adapters.find((a) => a.adapter === 'ollama')?.experimental).toBe(true);
+    expect(report.adapters.find((a) => a.adapter === 'agy')?.experimental).toBe(true);
     kern.close();
   });
 });

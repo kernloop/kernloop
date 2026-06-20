@@ -2,7 +2,7 @@
  * Uniform adapter invocation + per-call metering (spec §3.1 Adapters,
  * spec §8 item 4's substrate: adapters meter, the Router tiers).
  *
- * `invokeAdapter(name, …)` is the one entry point for all five model CLIs:
+ * `invokeAdapter(name, …)` is the one entry point for all six model CLIs:
  * resolve the executable on PATH (unavailable ⇒ typed
  * {@link AdapterUnavailableError}, never a stub), run it under a wall-clock
  * timeout, parse the recorded output format, and report a contracts-shaped
