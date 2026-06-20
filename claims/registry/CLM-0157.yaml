@@ -1,0 +1,23 @@
+id: CLM-0157
+statement: >-
+  The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate,
+  under the opt-in gates.vote.escalateOnNoConsensus, emits `escalate` when a panel
+  DEADLOCKS (neither the approve bar nor the symmetric reject bar clears) instead
+  of defaulting to reject; with the flag off a deadlock still resolves to reject,
+  byte-identical across every strategy. The canonical loop routes an `escalate`
+  verdict to its EXISTING escalated outcome — it HALTS for a human IMMEDIATELY
+  (regardless of the K/Kc bound), with a distinct haltReason 'vote-escalation' so
+  an operator tells a deadlock from K-exhaustion. All verdict routing goes through
+  a single never-exhaustiveness classifier, so a future VerdictResult value is a
+  compile error, never a silent mis-route.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::emits escalate on a deadlock ONLY when the flag is on (else reject)'
+  - 'test:packages/faculty-gates/src/vote/strategies.test.ts::is BYTE-IDENTICAL to the prior behavior when the flag is off (every strategy)'
+  - 'test:packages/workflows/src/engine.test.ts::a vote `escalate` HALTS immediately for a human — regardless of K (#192)'
+  - 'test:packages/workflows/src/child-iterate.test.ts::a quality `escalate` stops the child for a human IMMEDIATELY — regardless of Kc (#192)'
+  - 'test:packages/workflows/src/verdict-disposition.test.ts::maps every VerdictResult to its routing disposition'
+  - 'code:packages/workflows/src/verdict-disposition.ts#verdictDisposition'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

@@ -79,7 +79,7 @@ describe('cooperative mid-run abort (#304, CLM-0143)', () => {
     kern.close();
   }, 120_000);
 
-  it('a vote/budget escalate (NO haltReason) still maps to partial, not cancelled — regression guard', async () => {
+  it("a vote escalate (haltReason 'vote') still maps to partial, not cancelled — regression guard", async () => {
     const repo = makeFixtureRepo(scratch, 'escalate');
     const kern = kernloopFor(repo);
     const result = await runTool(
@@ -96,7 +96,9 @@ describe('cooperative mid-run abort (#304, CLM-0143)', () => {
     expect(result.kind).toBe('escalated');
     if (result.kind !== 'escalated') throw new Error('expected escalated');
     expect(result.outcome.status).toBe('partial'); // the new abort branch must NOT capture it
-    expect((result.data as LoopReport).haltReason).toBeUndefined();
+    // The engine's halt reason is now surfaced (#192) — a K-exhaustion escalate is
+    // 'vote', distinct from the abort's 'aborted'; only 'aborted' maps to cancelled.
+    expect((result.data as LoopReport).haltReason).toBe('vote');
     kern.close();
   }, 120_000);
 

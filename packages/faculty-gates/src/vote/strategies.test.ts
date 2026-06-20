@@ -111,3 +111,70 @@ describe('aggregateVotes — degenerate panels', () => {
     }
   });
 });
+
+describe('aggregateVotes — escalateOnNoConsensus (#192)', () => {
+  const strategies: VoteStrategy[] = ['simple_majority', 'supermajority', 'unanimous'];
+
+  // The deadlock band per strategy: neither the approve bar nor the symmetric
+  // reject bar clears. With the flag ON these escalate; with it OFF they reject.
+  const deadlocks: Record<VoteStrategy, BallotVote[]> = {
+    simple_majority: [A, R], // exact tie
+    supermajority: [A, A, A, R, R, R], // 3-3, neither side ≥ 2/3
+    unanimous: [A, R], // an approve+reject mix is neither all-approve nor all-reject
+  };
+
+  it('emits escalate on a deadlock ONLY when the flag is on (else reject)', () => {
+    for (const strategy of strategies) {
+      const votes = deadlocks[strategy];
+      expect(aggregateVotes(strategy, votes, true).result).toBe('escalate');
+      // Default (flag off) keeps the deadlock resolving to reject.
+      expect(aggregateVotes(strategy, votes, false).result).toBe('reject');
+      expect(aggregateVotes(strategy, votes).result).toBe('reject'); // omitted == off
+    }
+  });
+
+  it('never escalates a DECISIVE panel, even with the flag on', () => {
+    // A clear approve and a clear reject are unchanged by the opt-in.
+    expect(aggregateVotes('simple_majority', [A, A, R], true).result).toBe('approve');
+    expect(aggregateVotes('simple_majority', [A, R, R], true).result).toBe('reject');
+    expect(aggregateVotes('supermajority', [A, A, R], true).result).toBe('approve'); // 2/3
+    expect(aggregateVotes('unanimous', [A, A, S], true).result).toBe('approve'); // no rejects
+    expect(aggregateVotes('unanimous', [R, S], true).result).toBe('reject'); // a reject, no approve
+    // An all-abstain panel still abstains (no signal), flag or not.
+    expect(aggregateVotes('supermajority', [S, S], true).result).toBe('abstain');
+  });
+
+  it('is BYTE-IDENTICAL to the prior behavior when the flag is off (every strategy)', () => {
+    // An INDEPENDENT oracle replicating the pre-#192 aggregateVotes (no escalate
+    // branch), so the assertion is not self-referential: flag-off must equal what
+    // the code did BEFORE this change, exactly, across an exhaustive small panel.
+    const priorAggregate = (strategy: VoteStrategy, votes: BallotVote[]) => {
+      let approve = 0;
+      let reject = 0;
+      for (const v of votes) {
+        if (v === A) approve += 1;
+        else if (v === R) reject += 1;
+      }
+      const nonAbstain = approve + reject;
+      if (nonAbstain === 0) return { result: 'abstain', confidence: 0 };
+      const clears =
+        strategy === 'simple_majority'
+          ? approve * 2 > nonAbstain
+          : strategy === 'supermajority'
+            ? approve * 3 >= nonAbstain * 2
+            : reject === 0 && approve >= 1;
+      return { result: clears ? 'approve' : 'reject', confidence: approve / nonAbstain };
+    };
+    const ballots: BallotVote[] = [A, R, S];
+    for (const strategy of strategies) {
+      for (const a of ballots)
+        for (const b of ballots)
+          for (const c of ballots) {
+            const votes = [a, b, c];
+            expect(aggregateVotes(strategy, votes, false)).toEqual(priorAggregate(strategy, votes));
+            // omitting the arg defaults to off — and off NEVER escalates.
+            expect(aggregateVotes(strategy, votes).result).not.toBe('escalate');
+          }
+    }
+  });
+});

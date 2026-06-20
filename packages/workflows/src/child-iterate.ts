@@ -22,6 +22,7 @@
 import type { Finding, Verdict } from '@kernloop/contracts';
 import type { LoopNode } from './graph.js';
 import type { ChildResult, RunState } from './state.js';
+import { verdictDisposition } from './verdict-disposition.js';
 
 /** How a child sub-gate's verdict steers the fan-out cursor. */
 export type ChildBranch = 'pass' | 'reiterate' | 'escalate';
@@ -32,11 +33,6 @@ export interface ChildIterateEvent {
   readonly iteration: number;
   readonly gate: string;
   readonly findingCount: number;
-}
-
-/** A gate verdict that does not pass (reject/fail/abstain) carries findings to fold. */
-function isReject(verdict: Verdict): boolean {
-  return verdict.result !== 'pass' && verdict.result !== 'approve';
 }
 
 /**
@@ -56,6 +52,11 @@ export function gateDrivesIteration(node: LoopNode, reviewDrives: boolean): bool
  * sub-chain; `reiterate` re-runs implement (within Kc and budget); `escalate`
  * stops the child at the bound. `withinBudget` is false when a re-entry would
  * exceed the run budget (Part B) — that forces `escalate` before Kc.
+ *
+ * An `escalate` VERDICT (#192) — the gate ruling "a human must decide" — forces
+ * `escalate` IMMEDIATELY, regardless of Kc or budget: a human ruling is not a
+ * re-attempt. Routing goes through {@link verdictDisposition} so a future
+ * `VerdictResult` value is a compile error here, never a silent mis-branch.
  */
 export function childBranch(
   verdict: Verdict,
@@ -63,7 +64,9 @@ export function childBranch(
   kc: number,
   withinBudget: boolean,
 ): ChildBranch {
-  if (!isReject(verdict)) return 'pass';
+  const disposition = verdictDisposition(verdict.result);
+  if (disposition === 'advance') return 'pass';
+  if (disposition === 'escalate') return 'escalate';
   if (result.iteration >= kc || !withinBudget) return 'escalate';
   return 'reiterate';
 }

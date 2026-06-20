@@ -155,7 +155,11 @@ interface Brief {
 
 interface Verdict {
   taskId: string; gate: string;
-  result: 'approve' | 'reject' | 'abstain' | 'pass' | 'fail';
+  result: 'approve' | 'reject' | 'abstain' | 'pass' | 'fail'
+        | 'escalate';                     // #192: neither approve nor block — a
+                                          //   human must rule; the loop HALTS as
+                                          //   escalated, surfacing on next
+                                          //   interaction (see MIGRATIONS.md)
   confidence: number;
   findings: Finding[];                  // structured, severity-tagged
   voters?: VoterRecord[];               // per-voter reasoning, for precision tracking

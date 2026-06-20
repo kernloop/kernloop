@@ -104,10 +104,11 @@ export interface LoopReport {
   readonly runId: string;
   readonly status: 'completed' | 'escalated' | 'failed';
   /**
-   * Why an `escalated` run halted: `'vote'`/`'budget'` (the engine's halts) or
+   * Why an `escalated` run halted: `'vote'`/`'vote-escalation'` (#192, a
+   * deadlocked panel asking a human)/`'budget'` (the engine's halts) or
    * `'aborted'` (cooperative abort, #304). cli-owned (not a frozen field); it
    * lets the run-tool map an abort to the `cancelled` Outcome status, distinct
-   * from a vote/budget escalate (which maps to `partial`).
+   * from a vote/escalation/budget escalate (which maps to `partial`).
    */
   readonly haltReason?: string;
   readonly nodeTrace: readonly TraceEntry[];
@@ -349,5 +350,7 @@ export async function executeCanonicalLoop(
       : await engine.resume(runId, signalOpt);
   const { result, aborted } = cleanHalt(raw);
   const docArtifact = documentDeliverable(kern, runId, request, result.status);
-  return report(result, totals, mode === 'unlimited', docArtifact, aborted ? 'aborted' : undefined);
+  // Abort → 'aborted'; else the engine's halt reason ('vote-escalation' vs 'vote', #192).
+  const halt = aborted ? 'aborted' : result.haltReason;
+  return report(result, totals, mode === 'unlimited', docArtifact, halt);
 }

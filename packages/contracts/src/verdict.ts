@@ -5,8 +5,24 @@ import { CostSchema, FindingSchema } from './common.js';
  * Verdict result (spec §4): voting gates use `approve`/`reject`/`abstain`;
  * checking gates use `pass`/`fail`. All gates are uniform Verdict emitters
  * (spec §5.3).
+ *
+ * `escalate` (#192, ≈ ASK) is the human-decision disposition: "I will NEITHER
+ * approve NOR block — a human must rule." It is NOT a synchronous
+ * human-in-the-loop prompt: an autonomous loop has no human present at the
+ * moment a gate escalates, so the canonical loop routes `escalate` to its
+ * EXISTING escalated outcome — it HALTS as `escalated` and surfaces the run to
+ * the operator on the next interaction (never a silent pass, never an automatic
+ * reject). Purely additive: existing Verdicts never carry it, so a consumer
+ * compiled before #192 sees byte-identical values (see MIGRATIONS.md).
  */
-export const VerdictResultSchema = z.enum(['approve', 'reject', 'abstain', 'pass', 'fail']);
+export const VerdictResultSchema = z.enum([
+  'approve',
+  'reject',
+  'abstain',
+  'pass',
+  'fail',
+  'escalate',
+]);
 export type VerdictResult = z.infer<typeof VerdictResultSchema>;
 
 /**
@@ -32,7 +48,7 @@ export type VoterRecord = z.infer<typeof VoterRecordSchema>;
  *
  * Fields (exactly as specified):
  * - `taskId` / `gate` — what was judged and by which gate
- * - `result` — `approve | reject | abstain | pass | fail`
+ * - `result` — `approve | reject | abstain | pass | fail | escalate`
  * - `confidence` — the gate's confidence in its result, 0..1
  * - `findings` — structured, severity-tagged Findings
  * - `voters?` — per-voter reasoning, for precision tracking

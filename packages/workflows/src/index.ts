@@ -51,3 +51,4 @@ export {
   type WorkflowErrorCode,
 } from './state.js';
 export { workflowsManifest } from './manifest.js';
+export { verdictDisposition, type VerdictDisposition } from './verdict-disposition.js';

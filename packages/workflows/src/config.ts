@@ -12,6 +12,9 @@ import { z } from 'zod';
 const VoteConfigSchema = z.strictObject({
   strategy: z.enum(['simple_majority', 'supermajority', 'unanimous']).default('simple_majority'),
   panel: z.union([z.literal(3), z.literal(7)]).default(3),
+  /** Opt-in ASK (#192): a deadlocked panel emits `escalate` → the loop halts as
+   * escalated for a human, instead of auto-rejecting. Default off (byte-identical). */
+  escalateOnNoConsensus: z.boolean().default(false),
 });
 
 /** One node override (mirrors the cli overlay's NodeOverrideSchema). */

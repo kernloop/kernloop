@@ -67,7 +67,11 @@ describe('initOverlay', () => {
     const parsed = OverlaySchema.parse(raw);
     expect(parsed).toEqual(OverlaySchema.parse({ id: path.basename(repo) }));
     expect(parsed.K).toBe(3);
-    expect(parsed.gates.vote).toEqual({ strategy: 'simple_majority', panel: 3 });
+    expect(parsed.gates.vote).toEqual({
+      strategy: 'simple_majority',
+      panel: 3,
+      escalateOnNoConsensus: false,
+    });
   });
 
   it('never overwrites existing files on re-init', () => {
@@ -92,7 +96,7 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.Kc).toBe(3); // child-iterate bound default [CLM-0043]
     expect(overlay.budgetMode).toBe('enforce'); // budget enforced by default [CLM-0077]
     expect(overlay.gates).toEqual({
-      vote: { strategy: 'simple_majority', panel: 3 },
+      vote: { strategy: 'simple_majority', panel: 3, escalateOnNoConsensus: false },
       // sandbox is default-ON, non-enforcing (#227): generated code is sandboxed when
       // Docker is available, else falls back to host spawn. diffCoverage/groundedness opt-in.
       quality: { envAllow: [], sandbox: { enabled: true, enforce: false }, diffCoverage: false },
@@ -235,7 +239,11 @@ describe('loadOverlay defaults and precedence', () => {
         '',
       ].join('\n'),
     );
-    expect(overlay.gates.vote).toEqual({ strategy: 'supermajority', panel: 7 });
+    expect(overlay.gates.vote).toEqual({
+      strategy: 'supermajority',
+      panel: 7,
+      escalateOnNoConsensus: false,
+    });
     expect(overlay.gates.quality.timeoutMsPerCheck).toBe(60_000);
     expect(overlay.gates.quality.envAllow).toEqual([]); // defaults empty when unset
     expect(overlay.nodeOverrides['review']).toEqual({ gate: 'security-review' });

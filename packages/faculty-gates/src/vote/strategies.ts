@@ -16,8 +16,13 @@ export type BallotVote = 'approve' | 'reject' | 'abstain';
 
 /** Aggregated panel outcome: the gate-level result plus its confidence. */
 export interface VoteOutcome {
-  /** Panel decision under the strategy. */
-  readonly result: 'approve' | 'reject' | 'abstain';
+  /**
+   * Panel decision under the strategy. `escalate` (#192) is emitted ONLY when
+   * `escalateOnNoConsensus` is on AND the panel deadlocks (neither the approve
+   * bar nor the symmetric reject bar clears); with the flag off the deadlock
+   * resolves to `reject` exactly as before.
+   */
+  readonly result: 'approve' | 'reject' | 'abstain' | 'escalate';
   /**
    * Approve share among non-abstain votes, in [0,1] — the gate's
    * confidence in an `approve` is the size of its majority; in a `reject`
@@ -67,6 +72,28 @@ function clears(strategy: VoteStrategy, counts: Tally): boolean {
 }
 
 /**
+ * The SYMMETRIC mirror of {@link clears} for the reject side (#192): does the
+ * reject count clear the same bar approvals must? Used only to tell a decisive
+ * reject from a genuine DEADLOCK — when neither side clears, the panel reached
+ * no consensus. By construction `clears` and `clearsReject` are never both true
+ * for the same tally, so the deadlock band (`!clears && !clearsReject`) is the
+ * exact, non-overlapping middle: an exact tie under `simple_majority`, a sub-2/3
+ * split either way under `supermajority`, any approve+reject mix under
+ * `unanimous` (mirror of "zero rejections + ≥1 approval").
+ */
+function clearsReject(strategy: VoteStrategy, counts: Tally): boolean {
+  const nonAbstain = counts.approve + counts.reject;
+  switch (strategy) {
+    case 'simple_majority':
+      return counts.reject * 2 > nonAbstain;
+    case 'supermajority':
+      return counts.reject * 3 >= nonAbstain * 2;
+    case 'unanimous':
+      return counts.approve === 0 && counts.reject >= 1;
+  }
+}
+
+/**
  * Aggregate a panel's ballots into one outcome (CLM-0037). Edge cases,
  * deterministic by construction:
  * - Abstentions never count toward the denominator (v1 semantics).
@@ -78,15 +105,29 @@ function clears(strategy: VoteStrategy, counts: Tally): boolean {
  * - `unanimous` with approvals + abstentions but zero rejections →
  *   `approve`; with only abstentions → `abstain` (caught by the all-abstain
  *   guard before the ≥1-approve rule applies).
+ *
+ * `escalateOnNoConsensus` (#192, default false) is the ONLY way `escalate` is
+ * produced: when neither the approve bar nor the symmetric reject bar clears (a
+ * genuine deadlock), the panel ASKS a human instead of defaulting to `reject`.
+ * With the flag off the deadlock band still resolves to `reject` — byte-identical
+ * to the prior behavior across every strategy.
  */
-export function aggregateVotes(strategy: VoteStrategy, votes: readonly BallotVote[]): VoteOutcome {
+export function aggregateVotes(
+  strategy: VoteStrategy,
+  votes: readonly BallotVote[],
+  escalateOnNoConsensus = false,
+): VoteOutcome {
   const counts = tally(votes);
   const nonAbstain = counts.approve + counts.reject;
   if (nonAbstain === 0) {
     return { result: 'abstain', confidence: 0 };
   }
-  return {
-    result: clears(strategy, counts) ? 'approve' : 'reject',
-    confidence: counts.approve / nonAbstain,
-  };
+  const confidence = counts.approve / nonAbstain;
+  if (clears(strategy, counts)) {
+    return { result: 'approve', confidence };
+  }
+  if (escalateOnNoConsensus && !clearsReject(strategy, counts)) {
+    return { result: 'escalate', confidence };
+  }
+  return { result: 'reject', confidence };
 }

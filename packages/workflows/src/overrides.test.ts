@@ -175,7 +175,11 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
     expect(parsed.K).toBe(3);
     expect(parsed.Kc).toBe(3); // child-iterate bound default [CLM-0043]
     expect(parsed.reviewDrivesIteration).toBe(false); // review stays advisory (CLM-0064)
-    expect(parsed.gates.vote).toEqual({ strategy: 'simple_majority', panel: 3 });
+    expect(parsed.gates.vote).toEqual({
+      strategy: 'simple_majority',
+      panel: 3,
+      escalateOnNoConsensus: false,
+    });
     expect(parsed.nodeOverrides).toEqual({});
     expect(() => EngineConfigSchema.parse({ k: 5 })).toThrow();
     expect(() => EngineConfigSchema.parse({ K: 0 })).toThrow();
@@ -196,6 +200,6 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
       checkpoints: new InMemoryCheckpointStore(),
       config: { gates: { vote: { strategy: 'unanimous', panel: 7 } } },
     }).run(task);
-    expect(seen).toEqual({ strategy: 'unanimous', panel: 7 });
+    expect(seen).toEqual({ strategy: 'unanimous', panel: 7, escalateOnNoConsensus: false });
   });
 });
