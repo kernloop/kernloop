@@ -45,6 +45,16 @@ describe('resolveServed — per-tier model pin (#393, CLM-0166)', () => {
     const served = resolveServed(req({ tier: 'large' }), 'claude', { large: 'pinned-model' });
     expect(served.model).toBe('pinned-model');
   });
+
+  it('MIXED config in one block — pinned tiers bind, unpinned tiers keep the default', () => {
+    // The partial-merge precedence is the core behavior: one block pins large+small,
+    // leaves frontier+medium unset → opencode's auto-router ('') on those tiers.
+    const pin = { large: 'custom-api/big', small: 'custom-api/tiny' };
+    expect(resolveServed(req({ tier: 'large' }), 'opencode', pin).model).toBe('custom-api/big');
+    expect(resolveServed(req({ tier: 'small' }), 'opencode', pin).model).toBe('custom-api/tiny');
+    expect(resolveServed(req({ tier: 'frontier' }), 'opencode', pin).model).toBe('');
+    expect(resolveServed(req({ tier: 'medium' }), 'opencode', pin).model).toBe('');
+  });
 });
 
 describe('adapterModelOverride — CLI-only lookup', () => {
