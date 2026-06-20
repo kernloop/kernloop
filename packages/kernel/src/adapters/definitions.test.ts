@@ -108,13 +108,13 @@ describe('uniform adapter interface (CLM-0021)', () => {
     expect(withEffort.args).toContain('high');
     const withoutEffort = adapterDefinitions.claude.buildCommand({ prompt: 'p' });
     expect(withoutEffort.args).not.toContain('--effort');
-    // codex carries its reasoning-effort key the same way.
+    // codex carries reasoning effort as a `-c` config override (#378), not a bare flag.
     const codex = adapterDefinitions.codex.buildCommand({
       prompt: 'p',
-      effort: { param: 'model_reasoning_effort', value: 'xhigh', via: 'arg' },
+      effort: { param: '-c', value: 'model_reasoning_effort=xhigh', via: 'arg' },
     });
-    expect(codex.args).toContain('model_reasoning_effort');
-    expect(codex.args).toContain('xhigh');
+    expect(codex.args).toContain('-c');
+    expect(codex.args).toContain('model_reasoning_effort=xhigh');
   });
 
   it('pure-completion (#148) disables tools per CLI, and is absent by default', () => {
