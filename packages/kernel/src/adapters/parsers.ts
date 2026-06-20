@@ -102,43 +102,6 @@ export function parseCodexOutput(stdout: string): ParsedOutput {
   return { output: messages.length > 0 ? messages.join('\n') : null, usage };
 }
 
-/** Sum gemini per-model `tokens.{input,candidates}` stats into one usage. */
-function aggregateGeminiUsage(models: Record<string, unknown>): AdapterUsage | null {
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let sawAny = false;
-  for (const modelStats of Object.values(models)) {
-    const tokens = asRecord(asRecord(modelStats)?.tokens ?? null);
-    if (tokens === null) continue;
-    const input = intField(tokens, 'input');
-    const candidates = intField(tokens, 'candidates');
-    if (input !== null) {
-      inputTokens += input;
-      sawAny = true;
-    }
-    if (candidates !== null) {
-      outputTokens += candidates;
-      sawAny = true;
-    }
-  }
-  return sawAny ? { inputTokens, outputTokens, usd: null } : null;
-}
-
-/**
- * gemini CLI single-JSON output (v1 `gemini-parser.ts`, gemini 0.2x
- * `-o json`): `{"response":"…","stats":{"models":{"<model>":{"tokens":
- * {"input":…,"candidates":…}}}}}`. Per-model stats are aggregated; no
- * dollar figure is reported.
- */
-export function parseGeminiOutput(stdout: string): ParsedOutput {
-  const record = asRecord(tryJson(stdout));
-  if (record === null) return { output: null, usage: null };
-  const models = asRecord(asRecord(record.stats)?.models ?? null);
-  const usage = models === null ? null : aggregateGeminiUsage(models);
-  const response = record.response;
-  return { output: typeof response === 'string' ? response : null, usage };
-}
-
 /** Read opencode `step_finish` part: `tokens.{input,output}` + `cost`. */
 function usageFromOpencodePart(part: Record<string, unknown>): AdapterUsage | null {
   const tokens = asRecord(part.tokens);

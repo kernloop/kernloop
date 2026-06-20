@@ -163,13 +163,12 @@ describe('observeTool', () => {
     kern.close();
   });
 
-  it('probes all six adapters for availability and marks ollama + agy experimental', () => {
+  it('probes all five adapters for availability and marks ollama + agy experimental', () => {
     const kern = freshKernloop();
     const report = observeTool(kern, {});
     expect(report.adapters.map((a) => a.adapter)).toEqual([
       'claude',
       'codex',
-      'gemini',
       'opencode',
       'ollama',
       'agy',

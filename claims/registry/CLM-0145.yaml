@@ -2,7 +2,7 @@ id: CLM-0145
 statement: >-
   An AGENTIC adapter is refused before launch when its workspace is a real git
   tree (#280 part 2 / #138, the P2 AppSec containment). An agentic adapter
-  (claude/codex/gemini/opencode — the CLIs that execute generated code and
+  (claude/codex/opencode/agy — the CLIs that execute generated code and
   read/write their cwd; ollama is pure-API and exempt) pointed at a NON-throwaway
   git working tree could poison `.git/hooks`, rewrite `.git/config`, or read
   tracked secrets — so `checkAgenticContainment` throws an

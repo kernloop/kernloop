@@ -249,7 +249,6 @@ Every adapter call is metered — tokens, usd, and duration — and reported in 
 - [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
 - [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
 - [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
-- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
 - CI `test`
 
 ## CLM-0021
@@ -1271,7 +1270,6 @@ kernloop models sync discovers every registered overlay endpoint plus a local ol
 - [`packages/cli/src/tools/models.test.ts`](../packages/cli/src/tools/models.test.ts)
 - [`packages/cli/src/tools/models.test.ts`](../packages/cli/src/tools/models.test.ts)
 - [`packages/cli/src/tools/models.test.ts`](../packages/cli/src/tools/models.test.ts)
-- [`packages/cli/src/tools/models.test.ts`](../packages/cli/src/tools/models.test.ts)
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - CI `test`
 
@@ -1778,7 +1776,7 @@ When kernloop runs as an MCP server (kernloop serve) and the connected HOST decl
 
 **Status:** verified — **source:** [`CLM-0109.yaml`](../claims/registry/CLM-0109.yaml)
 
-A model-CLI adapter subprocess runs in a caller-given working directory, not the parent's cwd: when the canonical loop drives an adapter it passes the task WORKSPACE as that cwd (#146), so an agentic CLI (claude/codex/gemini/opencode) is grounded in — and confined to — the workspace, never the directory kernloop was launched from. Omitting cwd inherits the parent cwd (the documented default, exercised); the loop never omits it.
+A model-CLI adapter subprocess runs in a caller-given working directory, not the parent's cwd: when the canonical loop drives an adapter it passes the task WORKSPACE as that cwd (#146), so an agentic CLI (claude/codex/opencode/agy) is grounded in — and confined to — the workspace, never the directory kernloop was launched from. Omitting cwd inherits the parent cwd (the documented default, exercised); the loop never omits it.
 
 **Enforced by:**
 
@@ -2418,7 +2416,7 @@ Ctrl-C cooperatively aborts a run (EPIC #47·P5 #317 — the operator-facing TRI
 
 **Status:** verified — **source:** [`CLM-0145.yaml`](../claims/registry/CLM-0145.yaml)
 
-An AGENTIC adapter is refused before launch when its workspace is a real git tree (#280 part 2 / #138, the P2 AppSec containment). An agentic adapter (claude/codex/gemini/opencode — the CLIs that execute generated code and read/write their cwd; ollama is pure-API and exempt) pointed at a NON-throwaway git working tree could poison `.git/hooks`, rewrite `.git/config`, or read tracked secrets — so `checkAgenticContainment` throws an `AgenticRepositoryWorkspaceError` at the kernel `invokeAdapter` choke point, the single funnel every caller (CLI loop, MCP, direct) passes through, so a cli-only guard cannot be bypassed. NON-throwaway = the realpath'd cwd is NOT under the realpath'd temp dir AND a `.git` exists at or above it (symlink-proof via realpath; a symlinked path into a real repo is still refused). On the loop path the refusal is AUDITED (`cli.adapter.refused`) before any node runs, not a silent throw (charter rule 7). It is pure path logic — the kernel stays model-free. SCOPE/HONESTY: the boundary is GIT-TREE containment, NOT general secret protection — a non-git directory holding a `.env` is NOT covered (a separate, larger scope). The contained adapter has no runtime opt-out it can reach (a security boundary, not a knob); escapes are copy-to-temp or `--sandbox docker` (#236); an audited overlay opt-out is deferred (#320). KNOWN GAP / TRUST ASSUMPTION: the throwaway carve-out is the OS temp dir and `os.tmpdir()` honors `$TMPDIR` — the contained model cannot set kernloop's launch env (the guard runs in the parent before the child spawns), but a LAUNCHER that points `$TMPDIR` at/above a working tree disables the carve-out's refusal for it, and a real repo cloned UNDER the temp dir is likewise treated as throwaway (location ≠ provenance); deriving the carve-out from a kernloop-OWNED root is the hardening deferred to #332. An unresolvable temp dir fails closed (no carve-out).
+An AGENTIC adapter is refused before launch when its workspace is a real git tree (#280 part 2 / #138, the P2 AppSec containment). An agentic adapter (claude/codex/opencode/agy — the CLIs that execute generated code and read/write their cwd; ollama is pure-API and exempt) pointed at a NON-throwaway git working tree could poison `.git/hooks`, rewrite `.git/config`, or read tracked secrets — so `checkAgenticContainment` throws an `AgenticRepositoryWorkspaceError` at the kernel `invokeAdapter` choke point, the single funnel every caller (CLI loop, MCP, direct) passes through, so a cli-only guard cannot be bypassed. NON-throwaway = the realpath'd cwd is NOT under the realpath'd temp dir AND a `.git` exists at or above it (symlink-proof via realpath; a symlinked path into a real repo is still refused). On the loop path the refusal is AUDITED (`cli.adapter.refused`) before any node runs, not a silent throw (charter rule 7). It is pure path logic — the kernel stays model-free. SCOPE/HONESTY: the boundary is GIT-TREE containment, NOT general secret protection — a non-git directory holding a `.env` is NOT covered (a separate, larger scope). The contained adapter has no runtime opt-out it can reach (a security boundary, not a knob); escapes are copy-to-temp or `--sandbox docker` (#236); an audited overlay opt-out is deferred (#320). KNOWN GAP / TRUST ASSUMPTION: the throwaway carve-out is the OS temp dir and `os.tmpdir()` honors `$TMPDIR` — the contained model cannot set kernloop's launch env (the guard runs in the parent before the child spawns), but a LAUNCHER that points `$TMPDIR` at/above a working tree disables the carve-out's refusal for it, and a real repo cloned UNDER the temp dir is likewise treated as throwaway (location ≠ provenance); deriving the carve-out from a kernloop-OWNED root is the hardening deferred to #332. An unresolvable temp dir fails closed (no carve-out).
 
 **Enforced by:**
 
@@ -2579,7 +2577,7 @@ In enforce mode the canonical loop halts BEFORE dispatching a node when the rema
 
 **Status:** verified — **source:** [`CLM-0155.yaml`](../claims/registry/CLM-0155.yaml)
 
-Reasoning nodes (every canonical-loop model node except the coder `implement`) invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI and recorded (full/partial/none, #355 CLM-0158), NOT a uniform cross-adapter guarantee: claude is FULL — verified against the real CLI 2.1.183 that headless `-p` "don't ask mode" auto-denies every permission-gated tool (a reasoning invocation cannot read a planted sentinel), with `--disallowedTools` as defense-in-depth; gemini is PARTIAL (`--approval-mode plan`); codex is PARTIAL (already `-s read-only` — writes blocked, reads still allowed); opencode/ollama have NO run-level flag (no coverage — recorded, not faked). `--allowedTools` is NOT a fail-closed alternative on claude — it is additive auto-approve, not restrictive (verified). The coder keeps tools (it produces files).
+Reasoning nodes (every canonical-loop model node except the coder `implement`) invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI and recorded (full/partial/none, #355 CLM-0158), NOT a uniform cross-adapter guarantee: claude is FULL — verified against the real CLI 2.1.183 that headless `-p` "don't ask mode" auto-denies every permission-gated tool (a reasoning invocation cannot read a planted sentinel), with `--disallowedTools` as defense-in-depth; codex is PARTIAL (already `-s read-only` — writes blocked, reads still allowed); opencode/ollama have NO run-level flag (no coverage — recorded, not faked). `--allowedTools` is NOT a fail-closed alternative on claude — it is additive auto-approve, not restrictive (verified). The coder keeps tools (it produces files).
 
 **Enforced by:**
 
@@ -2622,7 +2620,7 @@ The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate,
 
 **Status:** verified — **source:** [`CLM-0158.yaml`](../claims/registry/CLM-0158.yaml)
 
-Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude — headless `-p` auto-deny + `--disallowedTools` defense-in-depth, #355), partial (gemini plan / codex read-only), or none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded default posture is not silently confused with enforced policy (a per-node adapterFitness substitution is a tracked gap, #363). The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
+Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude — headless `-p` auto-deny + `--disallowedTools` defense-in-depth, #355), partial (codex read-only), or none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded default posture is not silently confused with enforced policy (a per-node adapterFitness substitution is a tracked gap, #363). The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
 
 **Enforced by:**
 

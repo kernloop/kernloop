@@ -7,7 +7,9 @@
  * hardcoded date because `Date.now` is unavailable in this repo; refresh is a
  * re-pin (a reviewed edit to `catalog/models.json`), never a runtime mutation.
  *
- * Keys are the served aliases/ids kernloop's five adapters actually emit (the
+ * Keys are the served aliases/ids the adapters' served models normalize to — incl.
+ * the gemini model family, still reachable via agy/an api endpoint after the gemini
+ * CLI adapter was retired (#387) (the
  * adapter `tierBinding` values — `opus`, `gemini-3.1-pro`, … — plus common
  * codex/ollama ids), NOT the whole model world: the catalog is deliberately
  * small, covering only what the loop can serve. Each entry carries the

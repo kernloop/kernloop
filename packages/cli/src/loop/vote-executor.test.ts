@@ -29,7 +29,7 @@ describe('vote executor — provider-diverse panel (#369)', () => {
     const kern = kernloopFor('vote-diverse');
     const bindings = {
       ...bindingsFor(kern),
-      voteDiversity: { adapters: ['claude', 'codex', 'gemini'] as AdapterName[], seamForAdapter },
+      voteDiversity: { adapters: ['claude', 'codex', 'agy'] as AdapterName[], seamForAdapter },
     };
     const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(7))) as Verdict;
     expect(verdict.voters).toHaveLength(7);
@@ -74,7 +74,7 @@ describe('vote executor — provider-diverse panel (#369)', () => {
     const kern = kernloopFor('vote3-nodiv');
     const bindings = {
       ...bindingsFor(kern),
-      voteDiversity: { adapters: ['claude', 'gemini'] as AdapterName[], seamForAdapter },
+      voteDiversity: { adapters: ['claude', 'agy'] as AdapterName[], seamForAdapter },
     };
     const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(3))) as Verdict;
     expect(verdict.voters?.every((v) => v.served === undefined)).toBe(true);

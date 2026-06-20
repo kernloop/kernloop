@@ -3,7 +3,7 @@ statement: >-
   Pure-completion coverage (#148 hardening, #355) is declarative and visible: a
   single kernel source classifies each adapter's tool-free reasoning coverage as
   full (claude — headless `-p` auto-deny + `--disallowedTools` defense-in-depth,
-  #355), partial (gemini plan / codex read-only), or
+  #355), partial (codex read-only), or
   none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full
   coverage appends a cli.run.pure-completion-degraded audit event, so a degraded
   default posture is not silently confused with enforced policy (a per-node

@@ -49,7 +49,6 @@ function resolveTmpRoot(): string | null {
 export const AGENTIC_ADAPTERS: ReadonlySet<AdapterName> = new Set([
   'claude',
   'codex',
-  'gemini',
   'opencode',
   'agy',
 ]);

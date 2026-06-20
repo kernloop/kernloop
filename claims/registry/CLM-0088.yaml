@@ -22,7 +22,6 @@ evidence:
   - 'test:packages/cli/src/tools/models.test.ts::lists vendored rows always, and discovered rows with source + syncedAt'
   - 'test:packages/cli/src/tools/models.test.ts::with no cache, lists only vendored rows and a null discovered snapshot'
   - 'test:packages/cli/src/tools/models.test.ts::maps each harness-routed adapter to a cli:<name> source of its declared tier-bindings'
-  - 'test:packages/cli/src/tools/models.test.ts::dedupes aliases bound to more than one tier (gemini frontier+large share an id)'
   - 'test:packages/cli/src/tools/models.test.ts::a concrete-id adapter with no bindings (codex) honestly records an empty set, never fabricated'
   - 'test:packages/cli/src/tools/models.test.ts::--no-cli-adapters (skipCliAdapters) omits every cli:<name> source'
   - 'test:packages/cli/src/overlay.test.ts::scaffolds overlay.yaml and gitignores the memory database'

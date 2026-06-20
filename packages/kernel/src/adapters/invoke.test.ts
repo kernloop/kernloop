@@ -53,10 +53,6 @@ const fixtures: Record<AdapterName, readonly string[]> = {
     '{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"codex says hi"}}',
     '{"type":"turn.completed","usage":{"input_tokens":200,"output_tokens":100}}',
   ],
-  gemini: [
-    '{"response":"gemini says hi","stats":{"models":{"gemini-2.5-pro":' +
-      '{"tokens":{"input":120,"candidates":40}}}}}',
-  ],
   opencode: [
     '{"type":"text","sessionID":"ses_1","part":{"type":"text","text":"opencode says hi"}}',
     '{"type":"step_finish","sessionID":"ses_1","part":{"type":"step-finish","cost":0.002,' +
@@ -73,7 +69,6 @@ const expectedMetering: Record<
 > = {
   claude: { tokens: 150, usd: 0.0015, metered: { tokens: true, usd: true } },
   codex: { tokens: 300, usd: 0, metered: { tokens: true, usd: false } },
-  gemini: { tokens: 160, usd: 0, metered: { tokens: true, usd: false } },
   opencode: { tokens: 101, usd: 0.002, metered: { tokens: true, usd: true } },
   ollama: { tokens: 0, usd: 0, metered: { tokens: false, usd: false } },
   agy: { tokens: 0, usd: 0, metered: { tokens: false, usd: false } },
@@ -122,8 +117,8 @@ describe('detectAdapter', () => {
 
   it('skips a matching file that is not executable', () => {
     const dir = makeDir('noexec');
-    writeFileSync(join(dir, 'gemini'), '#!/bin/sh\n', { mode: 0o644 });
-    expect(detectAdapter('gemini', { PATH: dir }).available).toBe(false);
+    writeFileSync(join(dir, 'opencode'), '#!/bin/sh\n', { mode: 0o644 });
+    expect(detectAdapter('opencode', { PATH: dir }).available).toBe(false);
   });
 
   it('defaults to process.env and still returns a coherent probe', () => {
@@ -133,7 +128,7 @@ describe('detectAdapter', () => {
   });
 });
 
-describe('invokeAdapter — uniform interface across all six (CLM-0021)', () => {
+describe('invokeAdapter — uniform interface across all five (CLM-0021)', () => {
   for (const name of ADAPTER_NAMES) {
     it(`invokes ${name} and returns output, contracts Cost, metered flags, raw`, async () => {
       const invocation = invocationFor(okDir, name === 'ollama' ? { model: 'llama3.3' } : {});
@@ -217,9 +212,9 @@ describe('invokeAdapter — typed failures', () => {
   it('throws AdapterTimeoutError and kills the CLI on wall-clock breach (CLM-0019)', async () => {
     const dir = makeDir('hang');
     // Builtin-only busy loop: hangs forever without external commands.
-    writeFileSync(join(dir, 'gemini'), '#!/bin/sh\nwhile :; do :; done\n', { mode: 0o755 });
+    writeFileSync(join(dir, 'opencode'), '#!/bin/sh\nwhile :; do :; done\n', { mode: 0o755 });
     const started = performance.now();
-    const error = await invokeAdapter('gemini', invocationFor(dir, { timeoutMs: 150 })).then(
+    const error = await invokeAdapter('opencode', invocationFor(dir, { timeoutMs: 150 })).then(
       () => null,
       (e: unknown) => e,
     );

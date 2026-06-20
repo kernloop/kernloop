@@ -1,7 +1,8 @@
 /**
- * The six model-CLI adapter definitions as data (spec §3.1 Adapters):
- * claude, codex, gemini, opencode, ollama, and agy (ollama + agy experimental
- * per spec §5.8; agy is Antigravity, the gemini-CLI replacement, #387).
+ * The five model-CLI adapter definitions as data (spec §3.1 Adapters):
+ * claude, codex, opencode, ollama, and agy (ollama + agy experimental per
+ * spec §5.8; agy is Antigravity, the replacement for the now-retired gemini
+ * CLI — dead for individual accounts, #387).
  *
  * A definition records the command name, how to shape argv/stdin for one
  * prompt, and how to read response text + token/cost usage back out of the
@@ -29,15 +30,14 @@ import {
   parseAgyOutput,
   parseClaudeOutput,
   parseCodexOutput,
-  parseGeminiOutput,
   parseOllamaOutput,
   parseOpencodeOutput,
 } from './parsers.js';
 
-/** The six adapter names — the complete spec §3.1 set. */
-export const ADAPTER_NAMES = ['claude', 'codex', 'gemini', 'opencode', 'ollama', 'agy'] as const;
+/** The five adapter names — the complete spec §3.1 set. */
+export const ADAPTER_NAMES = ['claude', 'codex', 'opencode', 'ollama', 'agy'] as const;
 
-/** One of the six adapter names. */
+/** One of the five adapter names. */
 export type AdapterName = (typeof ADAPTER_NAMES)[number];
 
 /** Token/cost usage as reported BY THE CLI ITSELF — never estimated here. */
@@ -93,10 +93,10 @@ export interface AdapterCommandRequest {
    * Invoke the CLI as a PURE COMPLETION (#148): disable filesystem/edit tools so
    * a REASONING node (research/plan/decompose/vote/review) only sees the prompt +
    * returns text, never reading or writing the workspace. Coverage is per-CLI and
-   * HONEST: claude denies its tools (`--disallowedTools`); gemini runs read-only
-   * (`--approval-mode plan`); codex is ALREADY `-s read-only` (writes blocked,
-   * reads still allowed — partial); opencode has no run-level flag (no coverage —
-   * recorded, not faked). The coder node leaves this unset (it needs tools).
+   * HONEST: claude denies its tools (`--disallowedTools`); codex is ALREADY
+   * `-s read-only` (writes blocked, reads still allowed — partial); opencode/agy
+   * have no run-level flag (no coverage — recorded, not faked). The coder node
+   * leaves this unset (it needs tools).
    */
   readonly pureCompletion?: boolean;
 }
@@ -136,7 +136,6 @@ export const CLAUDE_PURE_COMPLETION_DENY =
 function pureCompletionArgs(adapter: AdapterName, pure: boolean | undefined): string[] {
   if (pure !== true) return [];
   if (adapter === 'claude') return ['--disallowedTools', CLAUDE_PURE_COMPLETION_DENY];
-  if (adapter === 'gemini') return ['--approval-mode', 'plan'];
   return []; // codex already -s read-only; opencode/ollama have no run-level flag
 }
 
@@ -146,9 +145,8 @@ function pureCompletionArgs(adapter: AdapterName, pure: boolean | undefined): st
  * audited, never silent (CLM-0155 records the coverage per CLI):
  *  - `full` — every fs/exec/network tool is denied: claude `--disallowedTools`
  *    over the known surface.
- *  - `partial` — a real but incomplete restriction: gemini `--approval-mode plan`
- *    (plans, does not execute) and codex `exec -s read-only` (writes/exec blocked,
- *    but the model can still READ the workspace).
+ *  - `partial` — a real but incomplete restriction: codex `exec -s read-only`
+ *    (writes/exec blocked, but the model can still READ the workspace).
  *  - `none` — NO run-level restriction is applied: opencode/ollama have no flag,
  *    and agy's only flag (`--sandbox`) blocks exec/network but NOT fs read/write
  *    (#387), so a `pureCompletion` request is best-effort, not enforced.
@@ -160,14 +158,14 @@ export type PureCompletionCoverage = 'full' | 'partial' | 'none';
 /** The {@link PureCompletionCoverage} for an adapter (#355) — see its docs. */
 export function pureCompletionCoverage(adapter: AdapterName): PureCompletionCoverage {
   if (adapter === 'claude') return 'full';
-  if (adapter === 'gemini' || adapter === 'codex') return 'partial';
+  if (adapter === 'codex') return 'partial';
   return 'none'; // opencode, ollama — no run-level tool-disable flag
 }
 
 /**
  * How an adapter presents models (spec §8.4, declarative):
  *  - `harness-routed` — the model is a stable ALIAS the harness resolves
- *    (claude `opus`/`sonnet`, gemini family ids); `''` means let the harness
+ *    (claude `opus`/`sonnet`); `''` means let the harness
  *    pick its own default.
  *  - `concrete-id` — the model is a concrete id the CLI takes verbatim.
  *  - `api` — a future direct-API adapter (no such adapter ships in this phase).
@@ -304,33 +302,6 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
       },
     },
     capabilities: ['toolUse', 'jsonMode'],
-  },
-  gemini: {
-    name: 'gemini',
-    command: 'gemini',
-    experimental: false,
-    requiresModel: false,
-    // Prompt is positional, JSON output via -o (v1 evidence).
-    buildCommand: ({ prompt, model, pureCompletion }) => ({
-      args: [
-        prompt,
-        '-o',
-        'json',
-        ...modelArgs('-m', model),
-        ...pureCompletionArgs('gemini', pureCompletion),
-      ],
-    }),
-    parseOutput: parseGeminiOutput,
-    // Harness-routed: gemini model family ids per tier; no effort param.
-    kind: 'harness-routed',
-    hasAutoRouter: false,
-    tierBinding: {
-      frontier: 'gemini-3.1-pro',
-      large: 'gemini-3.1-pro',
-      medium: 'gemini-3-flash',
-      small: 'gemini-3.1-flash-lite',
-    },
-    capabilities: ['toolUse', 'vision', 'longContext', 'jsonMode'],
   },
   opencode: {
     name: 'opencode',

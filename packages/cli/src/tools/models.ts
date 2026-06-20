@@ -57,15 +57,16 @@ import type { Kernloop } from '../kernel.js';
 
 /**
  * The agent-CLI adapters whose DECLARED tier-bindings `models sync` records as a
- * `cli:<name>` source (spec §8.4): a harness-routed adapter (`claude`/`gemini`)
- * maps each tier to a served alias, so the catalog learns what the harness will
- * route to with NO network and NO subprocess — the adapter's own declared
- * routing, recorded verbatim. `ollama` is excluded (it has its own live daemon
- * probe); a concrete-id adapter with no bindings (`codex`) honestly contributes
- * an empty set. These are NOT a live model-list enumeration (an opencode-style
- * `/v1/models`-equivalent probe is a separate, subprocess-gated transport).
+ * `cli:<name>` source (spec §8.4): a harness-routed adapter (`claude`) maps each
+ * tier to a served alias, so the catalog learns what the harness will route to
+ * with NO network and NO subprocess — the adapter's own declared routing,
+ * recorded verbatim. `ollama` is excluded (it has its own live daemon probe); a
+ * concrete-id adapter with no bindings (`codex`) honestly contributes an empty
+ * set. `agy`'s declared bindings are verbose Antigravity names that aren't catalog
+ * aliases, so it is excluded here (its `agy models` enumeration is a separate,
+ * subprocess-gated transport, #389). These are NOT a live model-list enumeration.
  */
-const CLI_AGENT_ADAPTERS = ['claude', 'codex', 'gemini', 'opencode'] as const;
+const CLI_AGENT_ADAPTERS = ['claude', 'codex', 'opencode'] as const;
 
 /** One source's sync outcome — honest about whether it succeeded and why not. */
 export interface SourceSyncResult {
@@ -99,7 +100,7 @@ export interface ModelsSyncOptions {
   readonly ollamaHost?: string;
   /** Skip the ollama probe entirely (e.g. when the operator runs no local daemon). */
   readonly skipOllama?: boolean;
-  /** Skip the agent-CLI tier-binding sources (claude/codex/gemini/opencode). */
+  /** Skip the agent-CLI tier-binding sources (claude/codex/opencode). */
   readonly skipCliAdapters?: boolean;
   /** Skip the LIVE agent-CLI model-list probe (opencode); spawns a subprocess (#131). */
   readonly skipCliLive?: boolean;

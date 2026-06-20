@@ -218,20 +218,6 @@ describe('modelsSyncTool — agent-CLI tier-binding sources (#131)', () => {
     }
   });
 
-  it('dedupes aliases bound to more than one tier (gemini frontier+large share an id)', async () => {
-    handler = listingHandler();
-    const kern = kernWithEndpoint();
-    try {
-      const result = await modelsSyncTool(kern, { skipCliLive: true, skipOllama: true });
-      const gemini = result.sources.find((s) => s.source === 'cli:gemini');
-      // four tiers, but two share `gemini-3.1-pro` → fewer than four distinct ids.
-      expect(gemini?.discovered).toBeGreaterThan(0);
-      expect(gemini?.discovered).toBeLessThan(4);
-    } finally {
-      kern.close();
-    }
-  });
-
   it('a concrete-id adapter with no bindings (codex) honestly records an empty set, never fabricated', async () => {
     handler = listingHandler();
     const kern = kernWithEndpoint();

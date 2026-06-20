@@ -18,12 +18,12 @@ function overlayWith(
 describe('diverseVoteAdapters (#369)', () => {
   it('dedups the run adapter, excludes endpoints + non-CLI names, and stable-sorts', () => {
     const overlay = overlayWith(
-      { large: ['gemini', 'codex'], medium: 'claude', frontier: 'my-endpoint' },
+      { large: ['agy', 'codex'], medium: 'claude', frontier: 'my-endpoint' },
       { 'my-endpoint': {} },
     );
     // claude deduped (run adapter ∪ medium); my-endpoint excluded (endpoint + not a
     // CLI adapter); result deterministic (sorted) regardless of declaration order.
-    expect(diverseVoteAdapters(overlay, 'claude')).toEqual(['claude', 'codex', 'gemini']);
+    expect(diverseVoteAdapters(overlay, 'claude')).toEqual(['agy', 'claude', 'codex']);
   });
 
   it('returns just the run adapter with no `adapters` block (→ degraded single-oracle)', () => {
@@ -31,12 +31,12 @@ describe('diverseVoteAdapters (#369)', () => {
   });
 
   it('excludes a tier candidate that is a registered endpoint id', () => {
-    const overlay = overlayWith({ large: ['gemini', 'ep1'] }, { ep1: {} });
-    expect(diverseVoteAdapters(overlay, 'claude')).toEqual(['claude', 'gemini']);
+    const overlay = overlayWith({ large: ['agy', 'ep1'] }, { ep1: {} });
+    expect(diverseVoteAdapters(overlay, 'claude')).toEqual(['agy', 'claude']);
   });
 
   it('is deterministic regardless of the run adapter (still sorted, deduped)', () => {
     const overlay = overlayWith({ large: ['claude', 'codex'] });
-    expect(diverseVoteAdapters(overlay, 'gemini')).toEqual(['claude', 'codex', 'gemini']);
+    expect(diverseVoteAdapters(overlay, 'agy')).toEqual(['agy', 'claude', 'codex']);
   });
 });

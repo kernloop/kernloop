@@ -32,7 +32,7 @@ export function overlayTemplate(defaults: Overlay): string {
     '#  quality: { timeoutMsPerCheck: 120000, sandbox: { enabled: false, enforce: true } }  # sandbox: gate checks in Docker --network none, fail-closed if absent (#236)',
     '# router: { seedPriors: false, liveFitness: false }  # opt-in (spec §7): seed=reviewed priors.yaml (CLM-0126), live=identity-fitness transfer (CLM-0128)',
     '# adapters:  # per-tier model adapters (spec §8.4) — which adapter serves each model tier',
-    '#   frontier: claude  # any of: claude codex gemini opencode ollama, OR a registered endpoint id below',
+    '#   frontier: claude  # any of: claude codex opencode ollama agy, OR a registered endpoint id below',
     '#   large: claude     # unset → falls back to --adapter (so no adapters block = single-adapter behavior)',
     '#   medium: [codex, opencode]  # a LIST = candidates; with adapterFitness.enabled the fittest is picked (#252)',
     '#   small: ollama',

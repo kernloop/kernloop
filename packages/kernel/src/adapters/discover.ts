@@ -226,7 +226,7 @@ export async function discoverOllamaModels(host: string = DEFAULT_OLLAMA_HOST): 
 
 /**
  * Agent-CLI adapters that expose an ENUMERABLE model list, and the fixed argv to
- * list them (#131). A harness-routed CLI (claude/codex/gemini) routes by alias
+ * list them (#131). A harness-routed CLI (claude/codex) routes by alias
  * and exposes NO list — absent here, it degrades to its declared tier-bindings
  * (the `cli:<name>` source, #171). Only `opencode` enumerates today (~338).
  */
