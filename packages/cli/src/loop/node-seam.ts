@@ -217,6 +217,27 @@ export function servedIdentity(
 }
 
 /**
+ * The served identity FOR A DIVERSITY VOTE (#369, #381): like {@link servedIdentity},
+ * but when the served model normalizes to an `unknown` class (a concrete-id adapter
+ * like codex serving the harness default, with no catalog entry), it disambiguates by
+ * the SERVING ADAPTER — `provider` becomes the adapter name, `family` stays the honest
+ * `'unknown'`. Without this, two DISTINCT uncatalogued adapters (e.g. codex + opencode,
+ * both → `unknown/unknown`) would share one diversity CLASS KEY and the vote gate's
+ * #369 findings would falsely COLLAPSE them into a single oracle even though two
+ * independent providers voted. Scoped to the vote ballot: the global provenance
+ * ({@link identityRef}, CLM-0081) and the fitness ledger (CLM-0125) keep the honest
+ * `unknown` identity unchanged. A catalogued/ruled identity is returned verbatim.
+ */
+export function voterServedIdentity(
+  served: ServedModel,
+  discovered: DiscoveredCache = NO_DISCOVERED,
+): ModelIdentity {
+  const id = servedIdentity(served, discovered);
+  if (id.resolvedBy !== 'unknown') return id;
+  return { ...id, provider: served.adapter };
+}
+
+/**
  * Compact provenance ref naming the NORMALIZED served identity [CLM-0081], e.g.
  * `identity:claude-opus@4.8/large(table)` or, for a harness default,
  * `identity:unknown(unknown)`. It rides ALONGSIDE {@link servedRef} so the

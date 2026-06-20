@@ -13,6 +13,7 @@ import {
   resolveServed,
   servedIdentity,
   servedRef,
+  voterServedIdentity,
   type ServedModel,
 } from './node-seam.js';
 
@@ -100,6 +101,30 @@ describe('servedIdentity / identityRef — the normalized served model class [CL
     expect(served.model).toBe('');
     expect(servedIdentity(served).resolvedBy).toBe('unknown');
     expect(identityRef(served)).toBe('identity:unknown(unknown)');
+  });
+
+  it('voterServedIdentity disambiguates an unknown class by ADAPTER so two uncatalogued adapters stay distinct (#381)', () => {
+    // codex + opencode both serve the harness default → both globally normalize to
+    // the SAME unknown/unknown class, which would collapse the #369 diversity key.
+    const codex = resolveServed(req({ tier: 'small' }), 'codex');
+    const opencode = resolveServed(req({ tier: 'small' }), 'opencode');
+    expect(servedIdentity(codex).provider).toBe('unknown');
+    expect(servedIdentity(opencode).provider).toBe('unknown'); // collide globally
+    // The vote-scoped identity keys an unknown class by its adapter → DISTINCT
+    // providers, so the panel's two independent oracles are not merged into one.
+    const c = voterServedIdentity(codex);
+    const o = voterServedIdentity(opencode);
+    expect(c.provider).toBe('codex');
+    expect(o.provider).toBe('opencode');
+    expect(c.provider).not.toBe(o.provider); // no diversity-key collapse
+    expect(c.family).toBe('unknown'); // family stays honestly unknown
+    expect(c.resolvedBy).toBe('unknown'); // still honestly an unknown class
+  });
+
+  it('voterServedIdentity returns a catalogued identity verbatim — no adapter override', () => {
+    const claude = resolveServed(req(), 'claude'); // large → opus → catalogued
+    expect(voterServedIdentity(claude)).toEqual(servedIdentity(claude));
+    expect(voterServedIdentity(claude).provider).toBe('anthropic'); // the model class, not the adapter
   });
 
   it('a DISCOVERED served model normalizes by the cache, NOT a bare rule parse [CLM-0087]', () => {
