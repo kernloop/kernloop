@@ -12,10 +12,15 @@ const valid: Verdict = {
 };
 
 describe('VerdictResultSchema', () => {
-  it('accepts all five result values', () => {
-    for (const result of ['approve', 'reject', 'abstain', 'pass', 'fail']) {
+  it('accepts every value the schema enumerates (incl. escalate, #192)', () => {
+    // Iterate the schema's OWN options, not a hard-coded list, so this test can
+    // never silently lag the enum again (the gap #192 left — a 7th value is
+    // covered automatically). An explicit check pins that escalate is present.
+    for (const result of VerdictResultSchema.options) {
       expect(VerdictResultSchema.parse(result)).toBe(result);
     }
+    expect(VerdictResultSchema.options).toContain('escalate');
+    expect(VerdictResultSchema.options).toHaveLength(6);
   });
 
   it('rejects unknown result values', () => {
