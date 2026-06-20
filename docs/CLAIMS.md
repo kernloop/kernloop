@@ -2632,3 +2632,19 @@ Pure-completion coverage (#148 hardening, #355) is declarative and visible: a si
 - [`packages/cli/src/loop/node-model.test.ts`](../packages/cli/src/loop/node-model.test.ts)
 - [`packages/kernel/src/adapters/definitions.ts#pureCompletionCoverage`](../packages/kernel/src/adapters/definitions.ts)
 - CI `test`
+
+## CLM-0159
+
+**Status:** verified — **source:** [`CLM-0159.yaml`](../claims/registry/CLM-0159.yaml)
+
+A panel-7 RATIFICATION vote convenes a PROVIDER-DIVERSE panel (#369): the composition root round-robins the voters across the overlay's distinct available adapters (stable-sorted, deterministic) and binds each voter to its OWN adapter's seam, so the panel is not one model role-playing N personas (the correlated-oracle weakness). Each ballot records the normalized served:ModelIdentity that cast it on the VoterRecord, so independence is VERIFIABLE. When fewer than 2 distinct adapters are available the panel runs single-oracle but surfaces it honestly — a visible single-oracle WARN finding on the Verdict AND a cli.vote.single-oracle-degraded audit (rule 7), never silent. Panel-3 loop votes stay single-adapter (no served, byte-identical). The faculty stays model-free; the cli owns per-voter routing.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
+- [`packages/faculty-gates/src/vote/run.test.ts`](../packages/faculty-gates/src/vote/run.test.ts)
+- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
+- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
+- [`packages/cli/src/loop/executors.test.ts`](../packages/cli/src/loop/executors.test.ts)
+- [`packages/cli/src/loop/seams.ts#diverseBallotInvoker`](../packages/cli/src/loop/seams.ts)
+- CI `test`

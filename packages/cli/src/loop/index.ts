@@ -360,9 +360,10 @@ export async function executeCanonicalLoop(
   // Budget-aware downgrade (#194): past the overlay fraction, later nodes route a tier lower.
   const budget = { tokens: request.task.budget.tokens, usd: request.task.budget.usd };
   const onDowngrade = downgradeAudit(kern, runId);
+  const fitness = modelFitness(kern);
   const invokeFor: (node: TieredNode) => NodeSeam =
     request.invoke === undefined
-      ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade, modelFitness(kern))
+      ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade, fitness)
       : injectedSeamFor(adapter, kern.config, base, totals, budget, onDowngrade);
   // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
@@ -373,6 +374,7 @@ export async function executeCanonicalLoop(
     refs,
     adapter,
     invokeFor,
+    fitness,
     mode,
     totals,
   });

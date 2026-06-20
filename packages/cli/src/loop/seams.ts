@@ -11,12 +11,14 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { Brief } from '@kernloop/contracts';
+import type { DiscoveredCache } from '@kernloop/faculty-models';
 import {
   ReviewFindingSchema,
   type InvokeReviewer,
   type InvokeVoter,
 } from '@kernloop/faculty-gates';
 import { BallotEmissionSchema, parseEmission, type LoopInvoke } from './invoke.js';
+import { servedIdentity, type NodeSeam } from './node-seam.js';
 
 /** What both seams bind to: the overlay (for violation sinks), the run/task
  * id labelling preserved raw output, and the one metered invoke. */
@@ -95,6 +97,35 @@ export function ballotInvoker(b: SeamBindings): InvokeVoter {
     const sink = { overlayDir: b.overlayDir, runId: b.runId, node: `vote-${voter.name}` };
     const ballot = parseEmission(output, BallotEmissionSchema, 'ballot', sink);
     return { ...ballot, cost };
+  };
+}
+
+/** Bindings for the provider-DIVERSE ballot invoker (#369): a per-voter seam (so
+ * each voter is bound to a distinct adapter) + the discovered cache the served
+ * alias normalizes against (so the reported class matches provenance). */
+export interface DiverseSeamBindings {
+  readonly overlayDir: string;
+  readonly runId: string;
+  /** The seam (invoke + served) assigned to a voter by name — the composition
+   * root's round-robin over the available adapters. */
+  readonly seamForVoter: (voterName: string) => NodeSeam;
+  readonly discovered?: DiscoveredCache;
+}
+
+/**
+ * The provider-DIVERSE voter seam (#369): routes each voter to its OWN assigned
+ * adapter's seam (breaking the single-oracle correlation) and stamps the ballot
+ * with the NORMALIZED model class that cast it, so {@link runVoteGate} can record
+ * `VoterRecord.served` and verify the panel was genuinely independent. Same strict
+ * ballot contract + honest-abstain-on-malformed behavior as {@link ballotInvoker}.
+ */
+export function diverseBallotInvoker(b: DiverseSeamBindings): InvokeVoter {
+  return async (voter, brief, proposal) => {
+    const seam = b.seamForVoter(voter.name);
+    const { output, cost } = await seam.invoke(voterPrompt(voter.rolePrompt, brief, proposal));
+    const sink = { overlayDir: b.overlayDir, runId: b.runId, node: `vote-${voter.name}` };
+    const ballot = parseEmission(output, BallotEmissionSchema, 'ballot', sink);
+    return { ...ballot, cost, served: servedIdentity(seam.served, b.discovered) };
   };
 }
 

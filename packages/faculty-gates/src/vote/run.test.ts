@@ -285,7 +285,11 @@ describe('runVoteGate — diversity provenance + findings (#369)', () => {
       ),
     );
     // Each VoterRecord carries its served class — the panel is verifiably independent.
-    expect(verdict.voters?.map((v) => v.served?.family).sort()).toEqual(['claude', 'codex', 'gemini']);
+    expect(verdict.voters?.map((v) => v.served?.family).sort()).toEqual([
+      'claude',
+      'codex',
+      'gemini',
+    ]);
     // 3 distinct classes, none a majority ⇒ no single-oracle and no skew finding.
     expect(verdict.findings.some((f) => f.message.includes('#369'))).toBe(false);
   });
