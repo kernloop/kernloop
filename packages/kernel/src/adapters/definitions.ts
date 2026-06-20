@@ -108,9 +108,27 @@ function effortArgs(effort: AdapterCommandEffort | undefined): string[] {
  * claude's fs/exec/network tool names denied in pure-completion mode (#148) — the
  * known surface a reasoning node must not touch. A space-separated `--disallowedTools`
  * value (the CLI accepts comma/space-separated names).
+ *
+ * EMPIRICALLY GROUNDED against the real claude CLI 2.1.183 (#355): the actual
+ * fail-closed barrier is headless `-p` "don't ask mode" — it AUTO-DENIES every
+ * permission-gated tool (Read/Write/Bash/the Workflow subagent/…), including
+ * FUTURE ones, because there is no interactive user to grant permission; verified
+ * a reasoning invocation cannot read a planted sentinel file (returns no-access).
+ * This deny-list is DEFENSE-IN-DEPTH over the named fs/exec/network tools, not the
+ * sole barrier. ASSUMPTION: that barrier holds only because claude's buildCommand
+ * ALWAYS passes `-p` (headless) — a future non-headless caller would lose the
+ * auto-deny and fall back to this deny-list alone. RESIDUAL (#368): a future
+ * ALWAYS-allowed tool that could read the workspace would bypass both the headless
+ * gate and this deny-list; today's always-allowed set (Skill/ToolSearch/…) cannot.
+ * `--allowedTools` is NOT a fail-closed alternative: it is an ADDITIVE auto-approve
+ * list, not a restrictive allowlist (an empty or unrelated allowlist still leaves
+ * tools usable — verified), which is why #355's proposed allowlist switch is
+ * invalid for this CLI. Every name here must be a REAL claude tool — an unknown
+ * name (e.g. the removed `MultiEdit`) makes the CLI emit a "matches no known tool"
+ * warning on each invocation.
  */
 export const CLAUDE_PURE_COMPLETION_DENY =
-  'Bash Read Write Edit MultiEdit NotebookEdit Glob Grep WebFetch WebSearch Task';
+  'Bash Read Write Edit NotebookEdit Glob Grep WebFetch WebSearch Task';
 
 /** Pure-completion restriction argv for a CLI (#148); `[]` when off or unsupported. */
 function pureCompletionArgs(adapter: AdapterName, pure: boolean | undefined): string[] {

@@ -2579,7 +2579,7 @@ In enforce mode the canonical loop halts BEFORE dispatching a node when the rema
 
 **Status:** verified — **source:** [`CLM-0155.yaml`](../claims/registry/CLM-0155.yaml)
 
-Reasoning nodes (every canonical-loop model node except the coder `implement`) invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI and recorded, NOT a uniform cross-adapter guarantee: claude is fully tool-free (denies its fs/exec/network tools, `--disallowedTools`), gemini is fully tool-free (read-only `--approval-mode plan`), codex is PARTIAL (already `-s read-only` — writes blocked, reads still allowed), opencode has NO run-level flag (no coverage — recorded, not faked). So a reasoning node consumes only the Brief on claude/gemini; on codex/opencode it is cwd-confined (#280) but not fully tool-free. The coder keeps tools (it produces files).
+Reasoning nodes (every canonical-loop model node except the coder `implement`) invoke the agentic CLI tool-free WHERE THE CLI SUPPORTS IT — coverage is per-CLI and recorded (full/partial/none, #355 CLM-0158), NOT a uniform cross-adapter guarantee: claude is FULL — verified against the real CLI 2.1.183 that headless `-p` "don't ask mode" auto-denies every permission-gated tool (a reasoning invocation cannot read a planted sentinel), with `--disallowedTools` as defense-in-depth; gemini is PARTIAL (`--approval-mode plan`); codex is PARTIAL (already `-s read-only` — writes blocked, reads still allowed); opencode/ollama have NO run-level flag (no coverage — recorded, not faked). `--allowedTools` is NOT a fail-closed alternative on claude — it is additive auto-approve, not restrictive (verified). The coder keeps tools (it produces files).
 
 **Enforced by:**
 
@@ -2622,7 +2622,7 @@ The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate,
 
 **Status:** verified — **source:** [`CLM-0158.yaml`](../claims/registry/CLM-0158.yaml)
 
-Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude --disallowedTools), partial (gemini plan / codex read-only), or none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded default posture is not silently confused with enforced policy (a per-node adapterFitness substitution is a tracked gap, #363). The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
+Pure-completion coverage (#148 hardening, #355) is declarative and visible: a single kernel source classifies each adapter's tool-free reasoning coverage as full (claude — headless `-p` auto-deny + `--disallowedTools` defense-in-depth, #355), partial (gemini plan / codex read-only), or none (opencode/ollama); a real-CLI run whose DEFAULT adapter has less than full coverage appends a cli.run.pure-completion-degraded audit event, so a degraded default posture is not silently confused with enforced policy (a per-node adapterFitness substitution is a tracked gap, #363). The reasoning-node set is an EXPLICIT allowlist (not !== implement), so a future tool-needing node keeps tools rather than being silently starved tool-free.
 
 **Enforced by:**
 
