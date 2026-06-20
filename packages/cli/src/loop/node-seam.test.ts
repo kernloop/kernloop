@@ -44,9 +44,10 @@ describe('resolveServed — binds the right alias + effort per adapter', () => {
   it('codex (concrete-id, no tier alias) degrades the harness default but keeps effort', () => {
     const served = resolveServed(req({ tier: 'frontier', effort: 'medium' }), 'codex');
     expect(served.model).toBe(''); // no tier alias ships → harness default
+    // Effort rides as a `-c` config override (#378): `-c model_reasoning_effort=medium`.
     expect(served.effortArg).toEqual({
-      param: 'model_reasoning_effort',
-      value: 'medium',
+      param: '-c',
+      value: 'model_reasoning_effort=medium',
       via: 'arg',
     });
   });
