@@ -128,6 +128,13 @@ describe('uniform adapter interface (CLM-0021)', () => {
     expect(adapterDefinitions.claude.buildCommand({ prompt: 'p' }).args).not.toContain(
       '--disallowedTools',
     );
+    // The deny-list must name only REAL claude tools — `MultiEdit` was removed
+    // (claude 2.1.183 emits "matches no known tool" for it), and the core
+    // fs/exec/network tools must stay denied (#355, empirically verified).
+    expect(CLAUDE_PURE_COMPLETION_DENY).not.toContain('MultiEdit');
+    for (const tool of ['Bash', 'Read', 'Write', 'Edit', 'WebFetch', 'Task']) {
+      expect(CLAUDE_PURE_COMPLETION_DENY.split(' ')).toContain(tool);
+    }
     // gemini: read-only plan mode.
     const geminiPure = adapterDefinitions.gemini.buildCommand({
       prompt: 'p',
