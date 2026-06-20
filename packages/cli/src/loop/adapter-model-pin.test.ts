@@ -72,14 +72,20 @@ describe('adapterModelOverride — CLI-only lookup', () => {
 
 describe('predicted==served under a pin (CLM-0130, #393)', () => {
   const NO_ENDPOINTS: Endpoints = {};
-  const models: AdapterModels = { opencode: { large: 'custom-api/big', medium: 'custom-api/small' } };
+  const models: AdapterModels = {
+    opencode: { large: 'custom-api/big', medium: 'custom-api/small' },
+  };
 
   it('prediction equals call-time binding under a pin (CLM-0130)', () => {
     // The selector predicts via resolveServedFor; node-bind binds via resolveServed
     // with adapterModelOverride. They must agree or live-fitness would credit a
     // model that didn't serve — exactly the drift #271 guards against.
     const predicted = resolveServedFor(req({ tier: 'large' }), 'opencode', NO_ENDPOINTS, models);
-    const bound = resolveServed(req({ tier: 'large' }), 'opencode', adapterModelOverride(models, 'opencode'));
+    const bound = resolveServed(
+      req({ tier: 'large' }),
+      'opencode',
+      adapterModelOverride(models, 'opencode'),
+    );
     expect(predicted).toEqual(bound);
     expect(predicted.model).toBe('custom-api/big');
   });
@@ -89,7 +95,11 @@ describe('predicted==served under a pin (CLM-0130, #393)', () => {
   for (const tier of ['frontier', 'large', 'medium', 'small'] as const) {
     it(`opencode/${tier}: prediction equals call-time binding`, () => {
       const predicted = resolveServedFor(req({ tier }), 'opencode', NO_ENDPOINTS, models);
-      const bound = resolveServed(req({ tier }), 'opencode', adapterModelOverride(models, 'opencode'));
+      const bound = resolveServed(
+        req({ tier }),
+        'opencode',
+        adapterModelOverride(models, 'opencode'),
+      );
       expect(predicted).toEqual(bound);
     });
   }

@@ -148,7 +148,11 @@ export function buildInvokeForNode(
     const timeoutMs = invokeTimeoutForNode(node, timeoutBase);
     return endpoint === undefined
       ? buildNodeSeam(
-          resolveServed(req, name as AdapterName, adapterModelOverride(overlay.adapterModels, name)),
+          resolveServed(
+            req,
+            name as AdapterName,
+            adapterModelOverride(overlay.adapterModels, name),
+          ),
           adapterInvoke(name as AdapterName, undefined, undefined, overlay.adapterEnvAllow),
           totals,
           timeoutMs,

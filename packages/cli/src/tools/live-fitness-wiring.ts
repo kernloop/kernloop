@@ -40,7 +40,11 @@ function predictIdentity(
   if (kern.config.endpoints[name] !== undefined) return null;
   try {
     return servedIdentity(
-      resolveServed(req, name as AdapterName, adapterModelOverride(kern.config.adapterModels, name)),
+      resolveServed(
+        req,
+        name as AdapterName,
+        adapterModelOverride(kern.config.adapterModels, name),
+      ),
     );
   } catch {
     return null;

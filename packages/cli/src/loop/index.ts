@@ -241,7 +241,7 @@ function modelFitness(kern: Kernloop): Parameters<typeof buildInvokeForNode>[5] 
     deliverableLedger: kern.observer.outcomeFitnessLedger(LIVE_FITNESS_LEDGER_LIMIT),
     discovered,
     endpoints: kern.config.endpoints,
-    ...(kern.config.adapterModels === undefined ? {} : { adapterModels: kern.config.adapterModels }),
+    adapterModels: kern.config.adapterModels,
     store: kern.store,
     rng: kern.rng,
     now: () => kern.store.clock().getTime(),

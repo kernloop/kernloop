@@ -114,8 +114,8 @@ export interface AdapterSelectorDeps {
   readonly discovered: DiscoveredCache;
   /** The overlay's registered endpoints, so an endpoint candidate is predicted (not neutral, #260). */
   readonly endpoints: Endpoints;
-  /** The overlay's per-tier CLI model pins (#393, CLM-0166), so a pinned candidate predicts the pinned model. */
-  readonly adapterModels?: AdapterModels;
+  /** The overlay's per-tier CLI model pins (#393, CLM-0166), so a pinned candidate predicts the pinned model (undefined ⇒ none). */
+  readonly adapterModels: AdapterModels | undefined;
   readonly store: AuditStore;
   readonly rng: () => number;
   readonly now: () => number;
