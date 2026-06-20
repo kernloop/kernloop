@@ -40,6 +40,17 @@ export function resolveStandaloneInvoke(
       { tier: STANDALONE_TIER, effort: 'medium', capabilities: [] },
       def,
     );
+    // resolveServedApi degrades DOWNWARD only, so an endpoint that binds only
+    // `frontier` leaves `large` (and below) unresolved → ''. Fail at config-time
+    // with a remedy that names the fix, not a cryptic call-time 'no model resolved'
+    // from the kernel adapter (#397): degrading up to `frontier` is not an option.
+    if (served.model === '') {
+      throw new Error(
+        `endpoint "${adapter}" binds no model for the \`${STANDALONE_TIER}\` tier or below, ` +
+          `which a standalone verb needs — add a \`large\`, \`medium\`, or \`small\` entry under ` +
+          `endpoints.${adapter}.models in your overlay.`,
+      );
+    }
     const base = apiInvoke(def, env);
     return (prompt, options = {}) =>
       base(prompt, { ...options, model: options.model ?? served.model });

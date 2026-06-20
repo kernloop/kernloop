@@ -91,6 +91,31 @@ describe('resolveStandaloneInvoke (#395)', () => {
     kern.close();
   });
 
+  it('a frontier-ONLY endpoint fails at config-time with a tier+remedy hint, not a cryptic call-time error (#397)', () => {
+    // resolveServedApi degrades DOWNWARD only, so binding only `frontier` leaves
+    // the standalone `large` tier unresolved — error here, naming the fix.
+    const overlayDir = path.join(scratch, '.kernloop');
+    mkdirSync(overlayDir, { recursive: true });
+    writeFileSync(
+      path.join(overlayDir, 'overlay.yaml'),
+      [
+        'id: frontier-only',
+        'endpoints:',
+        '  big-only:',
+        '    baseUrl: https://api.example.com/v1',
+        '    apiKeyEnv: BIG_KEY',
+        '    models: { frontier: huge-model }',
+        '',
+      ].join('\n'),
+    );
+    const kern = createKernloop({ overlayDir });
+    expect(() => resolveStandaloneInvoke(kern, 'big-only')).toThrow(
+      /binds no model for the `large`/,
+    );
+    expect(() => resolveStandaloneInvoke(kern, 'big-only')).toThrow(/endpoints\.big-only\.models/);
+    kern.close();
+  });
+
   it('PROBES a CLI adapter — an absent CLI is a typed error, never a stub', () => {
     const kern = kernWithEndpoint();
     expect(() => resolveStandaloneInvoke(kern, 'claude', { PATH: '/nonexistent' })).toThrow();
