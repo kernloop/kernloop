@@ -151,6 +151,14 @@ const KEYRING_TEMP_REAP_MS = 5 * 60_000;
  * and unrelated files are never touched. Off the hot path (only the rare
  * first-keyed write); every error is swallowed and `warn` makes a reap visible —
  * housekeeping must NEVER break a keyring operation or act silently (rule 7).
+ *
+ * This is OPPORTUNISTIC, not a periodic GC: orphans linger until the NEXT
+ * first-keyed write sweeps them, which is fine for slow minor litter. The one
+ * pathological case — a concurrent distinct-chain writer STALLED (SIGSTOP /
+ * host hibernation) for > {@link KEYRING_TEMP_REAP_MS} BETWEEN its writeFileSync
+ * and renameSync, whose temp is then reaped, failing its rename — self-heals
+ * per #376 (a lost keyring write is re-minted on the next append); it corrupts
+ * nothing, and needs a multi-minute stall between two adjacent syscalls.
  */
 function reapStaleKeyringTemps(path: string, warn: (msg: string) => void, nowMs: number): void {
   const prefix = `${basename(path)}.`;
