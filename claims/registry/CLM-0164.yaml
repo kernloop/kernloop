@@ -16,6 +16,7 @@ statement: >-
 evidence:
   - 'test:packages/cli/src/loop/node-resolve.test.ts::an ENDPOINT run adapter routes every node to the api seam — no CLI needed (#392)'
   - 'test:packages/cli/src/loop/vote-diversity.test.ts::does NOT seed an ENDPOINT run adapter into the panel — only CLI candidates (#392)'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::AUDITS the endpoint-only degradation: ZERO CLI adapters still single-oracle-audits (#392)'
   - 'test:packages/cli/src/cli.test.ts::run rejects an --adapter that is neither a CLI adapter nor a registered endpoint (#392)'
   - 'ci:test'
 status: verified

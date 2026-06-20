@@ -122,6 +122,14 @@ export interface VoteInvokerDeps {
  * degraded` audit (rule 7) so the non-independence is recorded, never silent. A
  * panel-3 loop vote, or the injected-invoke path, uses the single-seam invoker.
  */
+/** Append a `cli.vote.single-oracle-degraded` audit (rule 7) — never a silent degrade. */
+function auditSingleOracle(deps: VoteInvokerDeps, adapter: string | null, reason: string): void {
+  appendEvent(deps.store, {
+    type: 'cli.vote.single-oracle-degraded',
+    payload: { runId: deps.runId, adapter, reason },
+  });
+}
+
 export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
   const single = ballotInvoker({
     overlayDir: deps.overlayDir,
@@ -129,7 +137,20 @@ export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
     invoke: deps.invoke,
   });
   const div = deps.voteDiversity;
-  if (!deps.isRatification || div === undefined || div.adapters.length === 0) return single;
+  // A panel-3 loop vote or the injected path uses the single-seam invoker (no diversity).
+  if (!deps.isRatification || div === undefined) return single;
+  // An ENDPOINT-ONLY run (#392): NO CLI voter → diverseVoteAdapters is empty. The
+  // vote runs single-oracle on the node's own (api) seam; AUDIT it (rule 7) before
+  // returning the single invoker — the degradation is never silent, and there is no
+  // served-class finding because the single seam carries no served identity.
+  if (div.adapters.length === 0) {
+    auditSingleOracle(
+      deps,
+      null,
+      'no CLI adapter available (endpoint-only run) — single-oracle on the node seam',
+    );
+    return single;
+  }
   const seamCache = new Map<AdapterName, NodeSeam>();
   const seamFor = (name: AdapterName): NodeSeam => {
     let seam = seamCache.get(name);
@@ -145,15 +166,10 @@ export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
       seamFor(div.adapters[i % div.adapters.length] as AdapterName),
     ]),
   );
+  // One CLI adapter (length 1): the panel collapses onto it — served-class finding
+  // fires (all ballots one class) AND the audit records the degraded posture.
   if (div.adapters.length < 2) {
-    appendEvent(deps.store, {
-      type: 'cli.vote.single-oracle-degraded',
-      payload: {
-        runId: deps.runId,
-        adapter: div.adapters[0] ?? null,
-        reason: 'fewer than 2 distinct adapters available',
-      },
-    });
+    auditSingleOracle(deps, div.adapters[0] ?? null, 'fewer than 2 distinct adapters available');
   }
   return diverseBallotInvoker({
     overlayDir: deps.overlayDir,

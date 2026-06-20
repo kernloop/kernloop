@@ -54,6 +54,25 @@ describe('vote executor — provider-diverse panel (#369)', () => {
     kern.close();
   });
 
+  it('AUDITS the endpoint-only degradation: ZERO CLI adapters still single-oracle-audits (#392)', async () => {
+    const kern = kernloopFor('vote-endpoint-only');
+    // An endpoint run adapter is not a CLI voter → diverseVoteAdapters yields [].
+    // The ratification vote runs single-oracle on the node seam and MUST audit it,
+    // never silently (rule 7) — the gap the #394 consensus_vote caught.
+    const bindings = {
+      ...bindingsFor(kern),
+      voteDiversity: { adapters: [] as AdapterName[], seamForAdapter },
+    };
+    const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(7))) as Verdict;
+    expect(verdict.result).toBeDefined(); // the vote still produced a verdict
+    const events = readEnvelopes(path.join(kern.paths.dir, 'audit.jsonl')).filter(
+      (e) => e.type === 'cli.vote.single-oracle-degraded',
+    );
+    expect(events).toHaveLength(1); // degradation recorded, not silent
+    expect(JSON.stringify(events[0])).toContain('endpoint-only');
+    kern.close();
+  });
+
   it('two UNCATALOGUED adapters (codex + opencode) do NOT collapse to a single oracle (#381)', async () => {
     const kern = kernloopFor('vote-uncatalogued');
     const bindings = {
