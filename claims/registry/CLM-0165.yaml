@@ -16,6 +16,7 @@ evidence:
   - 'test:packages/cli/src/loop/standalone-invoke.test.ts::accepts a registered endpoint id WITHOUT a CLI PATH-probe (no CLI installed)'
   - 'test:packages/cli/src/loop/standalone-invoke.test.ts::throws for an adapter that is neither a CLI adapter nor a registered endpoint'
   - 'test:packages/cli/src/loop/standalone-invoke.test.ts::PROBES a CLI adapter — an absent CLI is a typed error, never a stub'
+  - 'test:packages/cli/src/loop/standalone-invoke.test.ts::BINDS the endpoint per-tier model into the call — the verb passes none (#395)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

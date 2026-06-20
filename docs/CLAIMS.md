@@ -2730,4 +2730,5 @@ The standalone model-calling verbs — `gate vote`/`gate review`, `distill`, `fo
 - [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
 - [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
 - [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
 - CI `test`
