@@ -7,7 +7,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   PARSIMONY_RECEIPT_EVENT,
-  ParsimonyReceiptSchema,
   hasDeferredFloor,
   parseParsimonyReceipt,
   type ParsimonyReceipt,
@@ -104,6 +103,24 @@ describe('ParsimonyReceipt schema (#408, CLM-0168)', () => {
     expect(hasDeferredFloor(valid())).toBe(false);
   });
 
+  it('enforces the DEFERRED INVARIANT: a deferred-status check with no deferred block THROWS', () => {
+    const r = valid({
+      floorChecks: [
+        { name: 'access', catalog: 'nist-800-53r5', controlIds: ['AC-3'], status: 'deferred' },
+      ],
+      deferred: null, // lies: a control was deferred but no debt recorded
+    });
+    expect(() => parseParsimonyReceipt(r)).toThrow(/deferred invariant/);
+  });
+
+  it('enforces the DEFERRED INVARIANT: a deferred block with no deferred-status check THROWS', () => {
+    const r = valid({
+      // all checks pass, yet a debt block is present — the record would lie
+      deferred: { debtId: 'd', reason: 'x', controlRisk: ['AC-3'], owner: 'a' },
+    });
+    expect(() => parseParsimonyReceipt(r)).toThrow(/deferred invariant/);
+  });
+
   it('rejects a verification method other than blind_independent', () => {
     const r = { ...valid(), verification: { ...valid().verification, method: 'self_attested' } };
     expect(() => parseParsimonyReceipt(r)).toThrow();
@@ -111,10 +128,10 @@ describe('ParsimonyReceipt schema (#408, CLM-0168)', () => {
 });
 
 describe('ParsimonyReceiptSchema is the payload only (chain fields excluded)', () => {
-  it('does not declare prevHash/hash/seq — those come from the audit envelope', () => {
-    const shape = ParsimonyReceiptSchema.shape;
-    expect('prevHash' in shape).toBe(false);
-    expect('hash' in shape).toBe(false);
-    expect('seq' in shape).toBe(false);
+  it('REJECTS chain fields (prevHash/hash/seq) — those come from the audit envelope', () => {
+    // strict: a payload carrying envelope-owned chain fields is invalid, never coerced.
+    expect(() => parseParsimonyReceipt({ ...valid(), prevHash: 'sha256:x' })).toThrow();
+    expect(() => parseParsimonyReceipt({ ...valid(), hash: 'sha256:y' })).toThrow();
+    expect(() => parseParsimonyReceipt({ ...valid(), seq: 7 })).toThrow();
   });
 });

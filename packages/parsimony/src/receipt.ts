@@ -93,7 +93,7 @@ export type Verification = z.infer<typeof VerificationSchema>;
  * audit envelope, not here. `strictObject` so an unknown field is a validation
  * error, not silently dropped (prime directive: the record is exactly what happened).
  */
-export const ParsimonyReceiptSchema = z.strictObject({
+const ParsimonyReceiptShape = z.strictObject({
   /** ULID identifying this receipt (and linked from the inline `kl:parsimony` marker). */
   receiptId: z.string().min(1),
   /** ISO-8601 timestamp the decision was recorded. */
@@ -118,6 +118,25 @@ export const ParsimonyReceiptSchema = z.strictObject({
   deferred: DeferredSchema.nullable(),
   /** The blind-verification verdict. */
   verification: VerificationSchema,
+});
+
+/**
+ * The parsimony Decision Receipt schema. Beyond the field shape it enforces the
+ * DEFERRED INVARIANT: a `deferred`-status floor check exists **iff** the receipt
+ * carries a `deferred` block. This stops a receipt from claiming a deferred control
+ * without recording the debt (an unmitigated shortcut hidden from `kl debt`/OSCAL),
+ * or recording a debt block with no floor check that actually deferred — either way
+ * the record would lie about what happened. The chain fields stay envelope-owned.
+ */
+export const ParsimonyReceiptSchema = ParsimonyReceiptShape.superRefine((r, ctx) => {
+  const hasDeferredCheck = r.floorChecks.some((c) => c.status === 'deferred');
+  if (hasDeferredCheck !== (r.deferred !== null)) {
+    ctx.addIssue({
+      code: 'custom',
+      message:
+        'deferred invariant: a `deferred`-status floor check requires a `deferred` block, and a `deferred` block requires a deferred-status floor check',
+    });
+  }
 });
 export type ParsimonyReceipt = z.infer<typeof ParsimonyReceiptSchema>;
 

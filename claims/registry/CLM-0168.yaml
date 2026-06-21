@@ -11,8 +11,11 @@ statement: >-
   a first-class block carrying its `controlRisk` (when an applicable floor entry is
   unsatisfied), and the blind-verification verdict (method fixed to
   `blind_independent`). The agent's prose is stored only as a `rationaleDigest`
-  (content hash), never raw, so blind verification stays unbiased. The schema is
-  strict (an unknown field or catalog, or a rung outside 0..5, THROWS) and
+  (content hash), never raw, so blind verification stays unbiased. The schema
+  ENFORCES the deferred invariant — a `deferred`-status floor check exists IFF a
+  `deferred` block does — so a receipt cannot record a deferred control without its
+  debt (nor a debt with no deferral). The schema is strict (an unknown field or
+  catalog, a rung outside 0..5, or a chain field like prevHash/hash/seq, THROWS) and
   round-trips losslessly through parse.
 evidence:
   - 'test:packages/parsimony/src/receipt.test.ts::round-trips a valid receipt through parse without mutation'
@@ -21,7 +24,9 @@ evidence:
   - 'test:packages/parsimony/src/receipt.test.ts::THROWS on an unknown catalog — a floor entry cannot lie about its catalog'
   - 'test:packages/parsimony/src/receipt.test.ts::THROWS on an unknown field (strict) and a rung out of 0..5'
   - 'test:packages/parsimony/src/receipt.test.ts::a deferred shortcut is a first-class block with its control risk'
-  - 'test:packages/parsimony/src/receipt.test.ts::does not declare prevHash/hash/seq — those come from the audit envelope'
+  - 'test:packages/parsimony/src/receipt.test.ts::enforces the DEFERRED INVARIANT: a deferred-status check with no deferred block THROWS'
+  - 'test:packages/parsimony/src/receipt.test.ts::enforces the DEFERRED INVARIANT: a deferred block with no deferred-status check THROWS'
+  - 'test:packages/parsimony/src/receipt.test.ts::REJECTS chain fields (prevHash/hash/seq) — those come from the audit envelope'
   - 'ci:test'
 status: verified
 owner: williamzujkowski
