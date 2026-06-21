@@ -43,6 +43,20 @@ export function reviewGateDrivesIteration(kern: Pick<Kernloop, 'ladder'>): boole
 }
 
 /**
+ * #9/#415 — does the parsimony gate drive child re-iteration this run? It does at
+ * intensity `full` (DEFAULT) and `ultra` (a rejecting parsimony verdict re-runs
+ * implement within Kc, folding the floor findings in); NOT at `lite` (advisory —
+ * the receipt is emitted but the verdict never blocks) or `off` (the gate does no
+ * work at all). The dial lives in the overlay (`gates.parsimony.intensity`); this
+ * derives the boolean the engine needs. DEFAULT FULL ⇒ enforce-by-default
+ * (user-ratified; deliberately NOT byte-identical to the pre-#9 advisory past).
+ */
+export function parsimonyGateDrivesIteration(kern: Pick<Kernloop, 'config'>): boolean {
+  const intensity = kern.config.gates.parsimony.intensity;
+  return intensity === 'full' || intensity === 'ultra';
+}
+
+/**
  * Probe every adapter a default-seam run can actually call — the run adapter
  * plus any tier adapter the overlay declares — so a misconfigured environment
  * fails fast up front, never mid-loop. Each absence is a typed error.
@@ -167,6 +181,7 @@ export function buildLoopEngine(
       gates: { vote: kern.config.gates.vote },
       nodeOverrides: kern.config.nodeOverrides,
       reviewDrivesIteration: reviewGateDrivesIteration(kern),
+      parsimonyDrivesIteration: parsimonyGateDrivesIteration(kern),
       budgetHeadroomFraction: kern.config.budgetHeadroomFraction,
     },
     budget: budgetGuardFor(seams.mode, request.task, seams.totals),

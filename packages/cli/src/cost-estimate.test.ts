@@ -27,6 +27,7 @@ const DEFAULT: LoopShape = {
   votePanel: 3,
   reviewPanel: 3,
   reviewDrivesIteration: false,
+  parsimonyIntensity: 'full', // the overlay default (#9/#415)
 };
 
 describe('estimateLoopCalls — arithmetic band (#303)', () => {
@@ -34,8 +35,9 @@ describe('estimateLoopCalls — arithmetic band (#303)', () => {
     const e = estimateLoopCalls(DEFAULT, { childCount: 1 });
     // min: research1 + plan1 + vote(3×1) + decompose1 + implement(1) + quality0 + review(3×1) + parsimony(2: assessor+verifier) = 12
     expect(e.total.min).toBe(12);
-    // max: 1 + plan(K+1=4) + vote(3×4=12) + 1 + implement(2×1×(Kc+1=4)=8) + 0 + review(3×1) + parsimony(2) = 31
-    expect(e.total.max).toBe(31);
+    // max: 1 + plan(K+1=4) + vote(3×4=12) + 1 + implement(2×1×(Kc+1=4)=8) + 0 + review(3×1) + parsimony(at full, 2×(Kc+1=4)=8) = 37
+    expect(e.total.max).toBe(37);
+    expect(e.perNode.parsimony).toEqual({ min: 2, max: 8 }); // full ENFORCES: re-runs per attempt
     expect(e.perNode.quality).toEqual({ min: 0, max: 0 }); // mechanical, no model call
     expect(e.perNode.vote).toEqual({ min: 3, max: 12 });
   });
@@ -44,8 +46,19 @@ describe('estimateLoopCalls — arithmetic band (#303)', () => {
     const e = estimateLoopCalls(DEFAULT, { childCount: 3 });
     expect(e.perNode.implement).toEqual({ min: 3, max: 24 }); // 3 children × [1, 2×4]
     expect(e.perNode.review).toEqual({ min: 9, max: 9 }); // 3 × 3, review runs once/child
-    expect(e.perNode.parsimony).toEqual({ min: 6, max: 6 }); // assessor + blind verifier per child (#413)
+    expect(e.perNode.parsimony).toEqual({ min: 6, max: 24 }); // 3 × [2, 2×(Kc+1=4)] at full
     expect(e.total.min).toBe(24); // 12 happy-path terms but implement+review+parsimony ×3
+  });
+
+  it('parsimony intensity gates the parsimony band: off ⇒ 0; lite ⇒ single-pass; full/ultra ⇒ enforce', () => {
+    const off = estimateLoopCalls({ ...DEFAULT, parsimonyIntensity: 'off' }, { childCount: 2 });
+    expect(off.perNode.parsimony).toEqual({ min: 0, max: 0 }); // the gate does no work
+    const lite = estimateLoopCalls({ ...DEFAULT, parsimonyIntensity: 'lite' }, { childCount: 2 });
+    expect(lite.perNode.parsimony).toEqual({ min: 4, max: 4 }); // 2/child, single-pass advisory
+    const full = estimateLoopCalls({ ...DEFAULT, parsimonyIntensity: 'full' }, { childCount: 2 });
+    expect(full.perNode.parsimony).toEqual({ min: 4, max: 16 }); // 2 × [2, 2×(Kc+1=4)]
+    const ultra = estimateLoopCalls({ ...DEFAULT, parsimonyIntensity: 'ultra' }, { childCount: 2 });
+    expect(ultra.perNode.parsimony).toEqual({ min: 4, max: 16 }); // ultra also enforces
   });
 
   it('a panel-7 ratification vote widens the vote band', () => {

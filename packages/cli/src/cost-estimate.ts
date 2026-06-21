@@ -27,6 +27,14 @@ export interface LoopShape {
   readonly reviewPanel: number;
   /** When review drives child iteration (default off), review re-runs per attempt. */
   readonly reviewDrivesIteration: boolean;
+  /**
+   * The parsimony gate intensity (gates.parsimony.intensity, DEFAULT full, #9/#415):
+   *  - `off`            ⇒ 0 parsimony calls (the gate does no work);
+   *  - `lite`           ⇒ 2 calls/child, single-pass (advisory, never re-iterates);
+   *  - `full` / `ultra` ⇒ 2 calls/child, and ENFORCING — a refute (or an ultra
+   *                       deferral) re-runs the child, so the MAX scales with childAttempts.
+   */
+  readonly parsimonyIntensity: 'off' | 'lite' | 'full' | 'ultra';
 }
 
 /** A [min,max] count band — min is the happy path, max the worst case. */
@@ -49,6 +57,24 @@ export const DEFAULT_ASSUMED_CHILDREN = 3;
 const band = (min: number, max: number): CallBand => ({ min, max });
 
 /**
+ * The parsimony node's call band (#9/#415): per child ONE assessor call + ONE blind-
+ * verifier call (#413) = 2×c per attempt. `off` ⇒ 0 (the gate does no work); `lite` ⇒
+ * 2×c single-pass (advisory, never re-iterates); `full`/`ultra` ENFORCE, so the MAX
+ * scales with `childAttempts` (a refute / ultra-deferral re-runs the child, like review
+ * at enforce). The sole sub-min case (an assessment with NO claimed-pass guard ⇒ the
+ * verifier confirms vacuously without a call, c) is below this happy-path min.
+ */
+function parsimonyBand(
+  intensity: LoopShape['parsimonyIntensity'],
+  c: number,
+  childAttempts: number,
+): CallBand {
+  if (intensity === 'off') return band(0, 0);
+  const runs = intensity === 'full' || intensity === 'ultra' ? childAttempts : 1;
+  return band(2 * c, 2 * c * runs);
+}
+
+/**
  * Estimate the model-call-count band for one canonical-loop run of the given
  * shape and assumed child count (#303, CLM-0138). Pure: same inputs → same
  * output. The arithmetic is proven against a real loop run, not just itself.
@@ -57,7 +83,7 @@ export function estimateLoopCalls(
   shape: LoopShape,
   opts: { childCount: number },
 ): LoopCallEstimate {
-  const { K, Kc, votePanel, reviewPanel, reviewDrivesIteration } = shape;
+  const { K, Kc, votePanel, reviewPanel, reviewDrivesIteration, parsimonyIntensity } = shape;
   const c = opts.childCount;
   const plan = band(1, K + 1); // vote reject re-enters plan until iteration ≥ K
   const childAttempts = Kc + 1; // quality reject reiterates until iteration ≥ Kc
@@ -70,14 +96,7 @@ export function estimateLoopCalls(
     implement: band(c, 2 * c * childAttempts), // ×2: the CLM-0107 parse-retry
     quality: band(0, 0), // mechanical checks — no model call
     review: band(c * reviewPanel, c * reviewPanel * reviewRuns),
-    // The Check-layer parsimony gate (#411, CLM-0172 + #413/#7, CLM-0176): per child,
-    // ONE assessor model call PLUS ONE blind-verifier model call (#413) — so 2×c. The
-    // happy path (a real requested change satisfies the `intent` floor guard, a
-    // claimed-pass) DOES run the verifier, so min=max=2×c. (The sole sub-min case is an
-    // assessment with NO claimed-pass guard at all: the verifier confirms vacuously
-    // without a call — c, below this happy-path min.) Advisory + single-pass: no child
-    // re-iteration.
-    parsimony: band(2 * c, 2 * c),
+    parsimony: parsimonyBand(parsimonyIntensity, c, childAttempts), // #9/#415 (see helper)
     retrospect: band(0, 0),
   };
   const total = Object.values(perNode).reduce(

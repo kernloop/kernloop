@@ -57,6 +57,11 @@ export const ChildResultSchema = z.strictObject({
   output: z.unknown().optional(),
   verdict: VerdictSchema.optional(),
   reviewVerdict: VerdictSchema.optional(),
+  /** The parsimony Check-layer gate's verdict (#9/#415): at intensity lite it is
+   * advisory (recorded, never blocking, like `reviewVerdict`); at full/ultra a
+   * REJECT drives child re-iteration. Kept in its OWN slot so the parsimony gate
+   * never clobbers the quality `verdict` (the parsimony node runs after both). */
+  parsimonyVerdict: VerdictSchema.optional(),
   error: z.string().min(1).optional(),
   /** How many times implement has been re-run for this child (0 on first). */
   iteration: z.number().int().nonnegative().default(0),

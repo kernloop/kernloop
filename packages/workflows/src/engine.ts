@@ -264,6 +264,7 @@ class LoopEngine implements Engine {
       kc: this.config.Kc,
       specialists: this.specialists(),
       reviewDrivesIteration: this.config.reviewDrivesIteration,
+      parsimonyDrivesIteration: this.config.parsimonyDrivesIteration,
       // Re-implement allowed only within BOTH the run budget AND the child's own
       // slice (#56); over either forces escalation before Kc.
       childWithinBudget:

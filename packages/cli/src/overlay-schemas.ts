@@ -119,11 +119,50 @@ export const ReviewGateSchema = z.strictObject({
     .optional(),
 });
 
+/**
+ * The parsimony gate's INTENSITY DIAL + enforcement (#9/#415, EPIC #407). The
+ * parsimony Check-layer node assesses a child's diff, evaluates the restraint
+ * ladder + Control Floor, runs a blind floor verifier, and emits a
+ * `parsimony.receipt`. This dial controls how its verdict GATES the loop:
+ *
+ * - `off`   — the gate does NO work: an immediate abstain, NO assessor/verifier
+ *             model calls, NO receipt. Fully disables parsimony; cheapest.
+ * - `lite`  — ADVISORY (the pre-#9 behavior): assess + verify + emit receipt;
+ *             result `pass`; deferrals + refutes are `warn` findings only,
+ *             never reject. Use this for runs that want the receipt but not the
+ *             back-pressure.
+ * - `full`  — DEFAULT (user-ratified — deliberately NOT byte-identical to the
+ *             advisory past): assess + verify + emit receipt. A REFUTED blind
+ *             verification → result `reject` (the child RE-ITERATES with the
+ *             floor findings folded in, bounded by Kc) — or `escalate` when
+ *             `escalateOnRefute`. A confirmed verification → `pass`. A DEFERRED
+ *             floor check stays a `warn` finding (debt is ALLOWED at full).
+ * - `ultra` — `full` PLUS: any DEFERRED floor check ALSO → reject (no debt
+ *             allowed; same escalate-vs-reject rule via `escalateOnRefute`).
+ *
+ * HONEST SCOPE (#7 consensus conditions, recorded on #415): the blind verifier
+ * is answer-key-anchored — it catches pass-OVER-claims (a refuted claimed-pass
+ * guard) but NOT applicability-UNDER-claims (an assessor that reports a floor
+ * flag false / a guard `na` when the diff really crosses that boundary bypasses
+ * both the verifier and the deferral). The gate is NOT evasion-proof; closing
+ * that gap (the verifier independently deriving the FloorContext from the diff)
+ * is a filed follow-up (#435). See parsimony-executor.ts for the residual.
+ */
+export const ParsimonyGateSchema = z.strictObject({
+  intensity: z.enum(['off', 'lite', 'full', 'ultra']).default('full'),
+  /** When true, a REJECTING parsimony outcome (a refute at full/ultra, or a
+   * deferral at ultra) emits `escalate` instead of `reject` — the loop HALTS for
+   * a human rather than re-iterating. Default false ⇒ reject (the child
+   * re-iterates within Kc). Mirrors `gates.vote.escalateOnNoConsensus` (#192). */
+  escalateOnRefute: z.boolean().default(false),
+});
+
 /** Gate thresholds, keyed by gate. */
 export const GatesSchema = z.strictObject({
   vote: VoteGateSchema.prefault({}),
   quality: QualityGateSchema.prefault({}),
   review: ReviewGateSchema.prefault({}),
+  parsimony: ParsimonyGateSchema.prefault({}),
 });
 
 /**

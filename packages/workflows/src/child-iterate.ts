@@ -35,15 +35,25 @@ export interface ChildIterateEvent {
   readonly findingCount: number;
 }
 
+/** Which gates drive child iteration this run — flags the engine resolves from
+ * config (review at enforce; parsimony at intensity full/ultra). */
+export interface IterationDrivers {
+  readonly reviewDrives: boolean;
+  readonly parsimonyDrives: boolean;
+}
+
 /**
  * Whether THIS gate sub-node drives child iteration. Quality always drives.
- * Review drives only when `reviewDrivesIteration` is on (the review gate is at
- * enforce) — the honesty guard. Non-driving gates never trigger a re-implement;
- * their findings still fold in as hints (see {@link foldHints}).
+ * Review drives only when `reviewDrives` is on (the review gate is at enforce)
+ * — the honesty guard. Parsimony drives only when `parsimonyDrives` is on (the
+ * overlay's `gates.parsimony.intensity` is full/ultra, #9/#415) — at lite/off it
+ * is advisory/disabled. Non-driving gates never trigger a re-implement; their
+ * findings still fold in as hints (see {@link foldHints}).
  */
-export function gateDrivesIteration(node: LoopNode, reviewDrives: boolean): boolean {
+export function gateDrivesIteration(node: LoopNode, drivers: IterationDrivers): boolean {
   if (node.gate === 'quality') return true;
-  if (node.gate === 'review') return reviewDrives;
+  if (node.gate === 'review') return drivers.reviewDrives;
+  if (node.gate === 'parsimony') return drivers.parsimonyDrives;
   return false;
 }
 

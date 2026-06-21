@@ -53,6 +53,17 @@ export const EngineConfigSchema = z
      */
     reviewDrivesIteration: z.boolean().default(false),
     /**
+     * Does the parsimony gate drive child re-iteration this run (#9/#415)? The
+     * CLI computes this from the overlay's `gates.parsimony.intensity`: true at
+     * `full`/`ultra` (a rejecting parsimony verdict re-runs implement within Kc),
+     * false at `lite`/`off` (advisory or disabled). Default false ⇒ a fresh
+     * EngineConfig is byte-identical (the engine never drives parsimony unless the
+     * mapping flips it). The INTENSITY itself lives in the cli Overlay
+     * (`gates.parsimony`) and reaches the executor via `kern.config`; only this
+     * derived drive-flag the engine needs is mirrored here [CLM-0045].
+     */
+    parsimonyDrivesIteration: z.boolean().default(false),
+    /**
      * Pre-node budget reserve floor as a FRACTION of the limit (#342): the
      * pre-node guard halts before a node when remaining < max(this × limit,
      * largest-node-seen). The floor covers COLD START (the first node, before any
