@@ -14,11 +14,13 @@
  *
  * @module cli/debt-commands
  */
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   PARSIMONY_RECEIPT_EVENT,
   parseParsimonyReceipt,
+  toOscalAssessmentResults,
   type ParsimonyReceipt,
 } from '@kernloop/parsimony';
 import { createProductionKernloop, type Kernloop } from './kernel.js';
@@ -44,22 +46,34 @@ export interface DebtHarvest {
 }
 
 /**
- * Harvest the unmitigated parsimony debt from the overlay's audit log: read every
- * `parsimony.receipt` event, validate it, and keep those with a `deferred` block.
- * A non-parsimony envelope is filtered by type; a malformed parsimony payload is
- * skipped (validation throws are swallowed), so an unrelated or corrupt event can
- * never crash the harvest. Pure read — no mutation, no append.
+ * Read EVERY parsimony receipt back off the overlay's audit log (the same
+ * {@link readEnvelopes} reader the `audit` tool uses — no copy). A non-parsimony
+ * envelope is filtered by type and a malformed parsimony payload is skipped
+ * (validation throws swallowed), so an unrelated or corrupt event can never crash
+ * the read. Pure read — no mutation, no append. Feeds both the debt harvest
+ * (deferrals only) and the OSCAL projection (all receipts).
+ */
+export function readParsimonyReceipts(kern: Kernloop): ParsimonyReceipt[] {
+  const receipts: ParsimonyReceipt[] = [];
+  for (const env of readEnvelopes(kern.paths.audit)) {
+    if (env.type !== PARSIMONY_RECEIPT_EVENT) continue;
+    try {
+      receipts.push(parseParsimonyReceipt(env.payload));
+    } catch {
+      continue; // malformed parsimony payload — skip, never crash the read
+    }
+  }
+  return receipts;
+}
+
+/**
+ * Harvest the unmitigated parsimony debt — the {@link readParsimonyReceipts} that
+ * carry a `deferred` block (a Control Floor entry that applied and was not
+ * satisfied, with a recorded control risk). Pure read; mutates/appends nothing.
  */
 export function harvestDebt(kern: Kernloop): DebtHarvest {
   const debts: DebtItem[] = [];
-  for (const env of readEnvelopes(kern.paths.audit)) {
-    if (env.type !== PARSIMONY_RECEIPT_EVENT) continue;
-    let receipt: ParsimonyReceipt;
-    try {
-      receipt = parseParsimonyReceipt(env.payload);
-    } catch {
-      continue; // malformed parsimony payload — skip, never crash the harvest
-    }
+  for (const receipt of readParsimonyReceipts(kern)) {
     if (receipt.deferred === null) continue;
     debts.push({
       receiptId: receipt.receiptId,
@@ -91,16 +105,30 @@ export function renderDebtTable(harvest: DebtHarvest): string {
   return lines.join('\n').trimEnd();
 }
 
-/** Parse `--dir`/`--json`, harvest the deferred parsimony debt, emit table or JSON. */
+/**
+ * Parse `--dir`/`--json`/`--oscal`, then emit. Default: the deferred-debt harvest
+ * (table, or JSON with `--json`). With `--oscal`: project ALL parsimony receipts
+ * (not just deferrals) into a schema-valid OSCAL assessment-results document and
+ * print it — the real entry point for the OSCAL projection (#430). The document
+ * uuid + timestamp are minted per-invocation (the projection stays pure).
+ */
 export async function debtCommand(args: string[], io: CliIo): Promise<number> {
   const { values } = parseArgs({
     args,
-    options: { dir: { type: 'string' }, json: { type: 'boolean' } },
+    options: { dir: { type: 'string' }, json: { type: 'boolean' }, oscal: { type: 'boolean' } },
     allowPositionals: false,
   });
   const overlayDir = path.join(path.resolve(io.cwd, values.dir ?? '.'), OVERLAY_DIR_NAME);
   const kern = createProductionKernloop({ overlayDir });
   try {
+    if (values.oscal === true) {
+      const oscal = toOscalAssessmentResults(readParsimonyReceipts(kern), {
+        uuid: randomUUID(),
+        lastModified: new Date().toISOString(),
+      });
+      io.out(JSON.stringify(oscal, null, 2));
+      return 0;
+    }
     const harvest = harvestDebt(kern);
     io.out(values.json === true ? JSON.stringify(harvest, null, 2) : renderDebtTable(harvest));
     return 0;
