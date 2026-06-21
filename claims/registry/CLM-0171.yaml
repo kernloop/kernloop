@@ -1,0 +1,28 @@
+id: CLM-0171
+statement: >-
+  `buildParsimonyReceipt` (`@kernloop/parsimony`, #411/#5) assembles a validated
+  parsimony Decision Receipt from an evaluated decision — the caller supplies the
+  ULID/timestamp/loopIter/overlay/subject/rationaleDigest/verifier plus the
+  `LadderResult` and evaluated `FloorCheck`s, and the builder maps the rung+outcome,
+  forces a `deferred` block when any floor check deferred (else null), and starts
+  verification `pending`/`checkedFloor:false` (the blind verifier #7 flips it). It
+  CLOSES #423: `DeferredSchema.controlRisk` is `.min(1)`, but a Section-508 / intent
+  floor miss carries no 800-53 control id — so `deferredRisk` synthesizes a
+  `<catalog>:<name>` SENTINEL token for a control-less deferred check, keeping
+  `controlRisk` non-empty whenever a deferral happened (the receipt's deferred
+  invariant holds for ANY applicable unsatisfied guard, NIST or not) while letting
+  the OSCAL projection (#8) still distinguish a non-control deferral. The aggregate
+  is the distinct union of control ids and sentinels; empty exactly when nothing
+  deferred. The assembled receipt is schema-validated (throws on an invalid one,
+  never a partial).
+evidence:
+  - 'test:packages/parsimony/src/build.test.ts::returns the distinct 800-53 control ids of deferred checks'
+  - 'test:packages/parsimony/src/build.test.ts::synthesizes a <catalog>:<name> SENTINEL for a deferred check with no control id'
+  - 'test:packages/parsimony/src/build.test.ts::is empty exactly when nothing deferred'
+  - 'test:packages/parsimony/src/build.test.ts::builds a valid receipt with deferred=null when the floor fully passed'
+  - 'test:packages/parsimony/src/build.test.ts::forces a deferred block whose controlRisk is non-empty even for a 508-only miss (#423)'
+  - 'test:packages/parsimony/src/build.test.ts::aggregates control + sentinel risk across mixed deferred checks'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

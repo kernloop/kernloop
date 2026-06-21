@@ -2819,3 +2819,19 @@ The Control Floor (#410, EPIC #407) is a TYPED, MULTI-CATALOG set of non-waivabl
 - [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
 - [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
 - CI `test`
+
+## CLM-0171
+
+**Status:** verified — **source:** [`CLM-0171.yaml`](../claims/registry/CLM-0171.yaml)
+
+`buildParsimonyReceipt` (`@kernloop/parsimony`, #411/#5) assembles a validated parsimony Decision Receipt from an evaluated decision — the caller supplies the ULID/timestamp/loopIter/overlay/subject/rationaleDigest/verifier plus the `LadderResult` and evaluated `FloorCheck`s, and the builder maps the rung+outcome, forces a `deferred` block when any floor check deferred (else null), and starts verification `pending`/`checkedFloor:false` (the blind verifier #7 flips it). It CLOSES #423: `DeferredSchema.controlRisk` is `.min(1)`, but a Section-508 / intent floor miss carries no 800-53 control id — so `deferredRisk` synthesizes a `<catalog>:<name>` SENTINEL token for a control-less deferred check, keeping `controlRisk` non-empty whenever a deferral happened (the receipt's deferred invariant holds for ANY applicable unsatisfied guard, NIST or not) while letting the OSCAL projection (#8) still distinguish a non-control deferral. The aggregate is the distinct union of control ids and sentinels; empty exactly when nothing deferred. The assembled receipt is schema-validated (throws on an invalid one, never a partial).
+
+**Enforced by:**
+
+- [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
+- [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
+- [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
+- [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
+- [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
+- [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
+- CI `test`

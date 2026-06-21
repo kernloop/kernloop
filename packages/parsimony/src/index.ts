@@ -41,3 +41,4 @@ export {
   type FloorContext,
   type FloorEntry,
 } from './floor.js';
+export { buildParsimonyReceipt, deferredRisk, type ParsimonyDecision } from './build.js';
