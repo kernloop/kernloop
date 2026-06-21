@@ -29,6 +29,7 @@ import {
   statusTool,
 } from './tools/index.js';
 import { metricsCommand } from './metrics-commands.js';
+import { debtCommand } from './debt-commands.js';
 import { watchCommand } from './watch-commands.js';
 import { gateInputFrom } from './gate-flags.js';
 import { memoryCommand, priorsCommand, type CommandHelpers } from './portability-commands.js';
@@ -265,6 +266,7 @@ const HANDLERS: Record<string, Handler> = {
     return withKernloop(io, v.dir, (kern) => observeTool(kern, {}));
   },
   metrics: (args, io) => metricsCommand(args, io),
+  debt: (args, io) => debtCommand(args, io),
   watch: (args, io) => watchCommand(args, io),
   memory: (args, io) => memoryCommand(args, io, commandHelpers),
   priors: (args, io) => priorsCommand(args, io, commandHelpers),

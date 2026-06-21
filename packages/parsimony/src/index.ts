@@ -42,3 +42,4 @@ export {
   type FloorEntry,
 } from './floor.js';
 export { buildParsimonyReceipt, deferredRisk, type ParsimonyDecision } from './build.js';
+export { parsimonyMarker, parseMarker, MARKER_TAG } from './marker.js';

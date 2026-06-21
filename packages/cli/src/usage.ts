@@ -27,6 +27,7 @@ export const USAGE = [
   '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
+  '  debt      [--json]                              harvest unmitigated parsimony deferrals from the audit log (#6)',
   '  metrics   [--out <file>] [--otlp <endpoint>]    governance metrics: Prometheus text (#125), or OTLP push (#155)',
   '  watch     [--task-id T] [--once] [--timeout-ms N]   live-tail the audit chain of a run (#126)',
   '  memory    export [--out <file>]                 portable memory export (JSON; default stdout)',
