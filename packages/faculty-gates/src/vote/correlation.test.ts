@@ -134,6 +134,23 @@ describe('runVoteGate — correlation-aware aggregation (#369 Inc4, CLM-0167)', 
     expect(v.findings?.some((f) => f.message.includes('1.00 effective'))).toBe(true);
   });
 
+  it('composes with Inc3 precision weights — the finding reports the REAL weighted contribution', async () => {
+    // Both precisionWeighted (weights) AND correlationAware on: the class's effective
+    // votes must be c(K)×Σ(base weights), not the unweighted K×c(K). The 4 anthropic
+    // approvers each carry precision weight 1.5 → baseSum 6.0; sqrt c(4)=0.5 → 3.0
+    // effective (vs 2.0 unweighted), so the finding must say 3.00, not 2.00.
+    const v = await runVoteGate({
+      ...base,
+      invokeVoter: BLOC_APPROVE_DIVERSE_REJECT,
+      weights: [1.5, 1.5, 1.5, 1.5, 1, 1, 1], // panel order: 4 approvers weighted, 3 rejecters neutral
+      correlationAware: true,
+    });
+    const finding = v.findings?.find((f) => f.message.includes('correlation discount'));
+    expect(finding?.message).toContain('3.00 effective'); // 6.0 baseSum × 0.5 = 3.0, reflects precision
+    // Tally: approve 6.0×0.5=3.0 vs reject 3×1×1=3.0 → simple_majority tie → reject.
+    expect(v.result).toBe('reject');
+  });
+
   it('OFF is byte-identical: same panel, correlationAware unset ⇒ approve, no discount finding', async () => {
     const v = await runVoteGate({ ...base, invokeVoter: BLOC_APPROVE_DIVERSE_REJECT });
     expect(v.result).toBe('approve');

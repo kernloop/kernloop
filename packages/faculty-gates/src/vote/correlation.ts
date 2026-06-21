@@ -54,28 +54,39 @@ export function correlationWeights(
 /**
  * Visible `info` findings for the #369 Inc4 correlation discount — one per served
  * class that cast ≥2 ballots, naming the class (readable `provider/family`, not the
- * raw NUL-joined key) and the EFFECTIVE vote weight it was discounted to, so a human
+ * raw NUL-joined key) and the EFFECTIVE vote weight it contributes, so a human
  * ratifier sees the downweighting (never silent). A fully-diverse panel (every class
  * a singleton) yields no finding — nothing was discounted.
+ *
+ * The reported "effective votes" is the class's REAL contribution to the weighted
+ * tally — `c(K) × Σ(base weight of each member)` — so it stays honest when the Inc3
+ * precision weights are ALSO active (composed multiplicatively), not just the
+ * unweighted `K × c(K)`. With no base weights every member contributes 1, so it
+ * reduces to `K × c(K)`.
  */
 export function correlationFindings(
   voters: readonly VoterRecord[],
+  base: readonly number[] | undefined,
   form: CorrelationForm,
 ): Finding[] {
-  const classes = new Map<string, { n: number; id: ModelIdentity }>();
-  for (const v of voters) {
-    if (v.served === undefined) continue;
+  const classes = new Map<string, { n: number; id: ModelIdentity; baseSum: number }>();
+  voters.forEach((v, i) => {
+    if (v.served === undefined) return;
     const key = identityKey(v.served);
     const prior = classes.get(key);
-    classes.set(key, { n: (prior?.n ?? 0) + 1, id: v.served });
-  }
+    classes.set(key, {
+      n: (prior?.n ?? 0) + 1,
+      id: v.served,
+      baseSum: (prior?.baseSum ?? 0) + (base?.[i] ?? 1),
+    });
+  });
   const findings: Finding[] = [];
-  for (const { n, id } of classes.values()) {
+  for (const { n, id, baseSum } of classes.values()) {
     if (n < 2) continue;
-    const effective = (n * correlationDiscount(form, n)).toFixed(2);
+    const effective = (baseSum * correlationDiscount(form, n)).toFixed(2);
     findings.push({
       severity: 'info',
-      message: `vote correlation discount (#369 Inc4, ${form}): ${String(n)} ballots from class ${id.provider}/${id.family} counted as ${effective} effective votes (not independent)`,
+      message: `vote correlation discount (#369 Inc4, ${form}): ${String(n)} ballots from class ${id.provider}/${id.family} contribute ${effective} effective votes to the weighted tally (not independent)`,
     });
   }
   return findings;

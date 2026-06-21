@@ -23,6 +23,7 @@ evidence:
   - 'test:packages/faculty-gates/src/vote/correlation.test.ts::DEMONSTRATION: a 4-voter one-class bloc out-votes 3 diverse dissenters — but the discount FLIPS it'
   - 'test:packages/faculty-gates/src/vote/correlation.test.ts::surfaces a VISIBLE info finding naming the discounted class and its effective votes'
   - 'test:packages/faculty-gates/src/vote/correlation.test.ts::OFF is byte-identical: same panel, correlationAware unset ⇒ approve, no discount finding'
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::composes with Inc3 precision weights — the finding reports the REAL weighted contribution'
   - 'test:packages/faculty-gates/src/vote/correlation.test.ts::inert on a single-adapter panel: correlationAware ON but NO served ⇒ unchanged + no finding'
   - 'test:packages/cli/src/overlay-vote.test.ts::vote correlationAware defaults off with sqrt form, and parses an opt-in (#369 Inc4, CLM-0167)'
   - 'ci:test'

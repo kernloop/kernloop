@@ -231,7 +231,7 @@ export async function runVoteGate(options: RunVoteGateOptions): Promise<Verdict>
     findings: [
       ...dissentFindings(voters),
       ...diversityFindings(voters),
-      ...(options.correlationAware ? correlationFindings(voters, form) : []),
+      ...(options.correlationAware ? correlationFindings(voters, options.weights, form) : []),
     ],
     voters,
     cost: sumCosts(ballots, Date.now() - started),

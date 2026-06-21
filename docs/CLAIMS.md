@@ -2764,5 +2764,6 @@ The vote gate supports CORRELATION-AWARE aggregation (#369 Inc4): voters that sh
 - [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
 - [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
 - [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
 - [`packages/cli/src/overlay-vote.test.ts`](../packages/cli/src/overlay-vote.test.ts)
 - CI `test`
