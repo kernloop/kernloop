@@ -34,6 +34,7 @@ export const GATED_PACKAGES = [
   'kernel',
   'cli',
   'docscan',
+  'parsimony',
   'workflows',
   'faculty-compiler',
   'faculty-gates',

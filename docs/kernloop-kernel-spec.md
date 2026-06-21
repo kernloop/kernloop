@@ -543,6 +543,7 @@ kernloop/                       # pnpm + turborepo, Node 22, MIT
 │   ├── contracts/              # the frozen five + zod (≤800 LOC)
 │   ├── kernel/                 # L0 (≤5k LOC)
 │   ├── docscan/                # tree-sitter doc-comment scanner lib (CLM-0104)
+│   ├── parsimony/              # restraint ladder + Control Floor + receipt lib (EPIC #407, CLM-0168)
 │   ├── faculty-compiler/
 │   ├── faculty-memory/
 │   ├── faculty-gates/

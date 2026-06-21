@@ -12,6 +12,8 @@ export const BUDGETS = [
   { pattern: /^kernel$/, budget: 5000 },
   // docscan: the tree-sitter doc-scanner lib (extracted from faculty-gates, #255).
   { pattern: /^docscan$/, budget: 2500 },
+  // parsimony: the ponytail-derived restraint ladder + Control Floor + receipt lib (EPIC #407).
+  { pattern: /^parsimony$/, budget: 2500 },
   { pattern: /^faculty-/, budget: 4000 },
   // Spec §2 gives workflows no explicit budget; held to the faculty ceiling
   // so no package in the tree grows unbounded.

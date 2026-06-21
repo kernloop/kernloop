@@ -95,6 +95,7 @@ export const WORDS = {
   eleven: 11,
   twelve: 12,
   thirteen: 13,
+  fourteen: 14,
 };
 export const toInt = (tok) => (/^\d+$/.test(tok) ? Number(tok) : WORDS[tok.toLowerCase()]);
 

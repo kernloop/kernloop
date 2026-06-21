@@ -16,7 +16,7 @@ statement: >-
   never silently ignored.
 evidence:
   - 'test:scripts/__tests__/stats.test.mjs::the doc-gate covers twelve tree-sitter languages'
-  - 'test:scripts/__tests__/stats.test.mjs::thirteen packages are doc-coverage gated'
+  - 'test:scripts/__tests__/stats.test.mjs::fourteen packages are doc-coverage gated'
   - 'test:scripts/__tests__/stats.test.mjs::the claim count matches the registry glob'
   - 'test:scripts/__tests__/stats.test.mjs::the live repo has zero watched-count drift'
   - 'test:scripts/__tests__/stats.test.mjs::a drifted derived value is reported with the offending file'

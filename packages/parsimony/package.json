@@ -1,0 +1,29 @@
+{
+  "name": "@kernloop/parsimony",
+  "version": "0.1.0",
+  "description": "Kernloop parsimony subsystem (ponytail-derived) — the restraint ladder, the multi-catalog Control Floor, and the parsimony Decision Receipt (a typed event on the existing hash-chained audit log, NIST 800-53r5/OSCAL-mapped). Policy + pure evaluators consumed by the canonical loop; NOT a faculty and NOT a sixth contract.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3"
+  }
+}
