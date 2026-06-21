@@ -33,3 +33,11 @@ export {
   type LadderRung,
   type LadderResult,
 } from './ladder.js';
+export {
+  CONTROL_FLOOR,
+  evaluateFloor,
+  floorControlRisk,
+  floorHasDeferral,
+  type FloorContext,
+  type FloorEntry,
+} from './floor.js';

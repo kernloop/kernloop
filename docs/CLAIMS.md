@@ -2802,3 +2802,20 @@ The Parsimony Ladder (#409, EPIC #407) is a PURE, deterministic evaluator (`@ker
 - [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
 - [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
 - CI `test`
+
+## CLM-0170
+
+**Status:** verified — **source:** [`CLM-0170.yaml`](../claims/registry/CLM-0170.yaml)
+
+The Control Floor (#410, EPIC #407) is a TYPED, MULTI-CATALOG set of non-waivable guards (`@kernloop/parsimony` `CONTROL_FLOOR` + pure `evaluateFloor`): each entry is `{name, catalog, controlIds, appliesWhen}` policy data, and the catalog is heterogeneous on purpose — `nist-800-53r5` (input_validation SI-10, error_recovery SI-11/CP-10, access_enforcement AC-3/IA-2/SC-8, audit_logging AU-2/AU-3/AU-10), `section-508` (accessibility — NO 800-53 control id), and `intent` (no catalog control) — so a consumer (notably the OSCAL projection #8) must NOT assume every entry maps to a NIST control. `appliesWhen` names a {@link FloorContext} trust-boundary key (not a closure, so the floor is overlay-loadable and fires ONLY on a relevant diff): an entry that does not apply is `na`, one that applies and is satisfied is `pass`, and one that applies and is NOT satisfied is `deferred` — FAIL-CLOSED (a missing `satisfied` entry defaults to unsatisfied, never an assumed pass). `floorControlRisk` aggregates the distinct control ids of the deferred checks for the forced Deferred block, and `floorHasDeferral` detects a deferral even when it carries no control id (a 508 miss) — so an applicable unsatisfied guard can never be silently dropped.
+
+**Enforced by:**
+
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- [`packages/parsimony/src/floor.test.ts`](../packages/parsimony/src/floor.test.ts)
+- CI `test`

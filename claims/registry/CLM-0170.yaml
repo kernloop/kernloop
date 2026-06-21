@@ -1,0 +1,30 @@
+id: CLM-0170
+statement: >-
+  The Control Floor (#410, EPIC #407) is a TYPED, MULTI-CATALOG set of non-waivable
+  guards (`@kernloop/parsimony` `CONTROL_FLOOR` + pure `evaluateFloor`): each entry
+  is `{name, catalog, controlIds, appliesWhen}` policy data, and the catalog is
+  heterogeneous on purpose — `nist-800-53r5` (input_validation SI-10, error_recovery
+  SI-11/CP-10, access_enforcement AC-3/IA-2/SC-8, audit_logging AU-2/AU-3/AU-10),
+  `section-508` (accessibility — NO 800-53 control id), and `intent` (no catalog
+  control) — so a consumer (notably the OSCAL projection #8) must NOT assume every
+  entry maps to a NIST control. `appliesWhen` names a {@link FloorContext}
+  trust-boundary key (not a closure, so the floor is overlay-loadable and fires ONLY
+  on a relevant diff): an entry that does not apply is `na`, one that applies and is
+  satisfied is `pass`, and one that applies and is NOT satisfied is `deferred` —
+  FAIL-CLOSED (a missing `satisfied` entry defaults to unsatisfied, never an assumed
+  pass). `floorControlRisk` aggregates the distinct control ids of the deferred
+  checks for the forced Deferred block, and `floorHasDeferral` detects a deferral
+  even when it carries no control id (a 508 miss) — so an applicable unsatisfied
+  guard can never be silently dropped.
+evidence:
+  - 'test:packages/parsimony/src/floor.test.ts::is MULTI-CATALOG — NIST 800-53r5, Section 508, and intent all present'
+  - 'test:packages/parsimony/src/floor.test.ts::applies_when gates each entry — an irrelevant diff makes every entry `na`'
+  - 'test:packages/parsimony/src/floor.test.ts::an applicable + SATISFIED entry is `pass` (with its evidence ref)'
+  - 'test:packages/parsimony/src/floor.test.ts::an applicable + UNSATISFIED entry is `deferred` — fail-closed on a missing entry'
+  - 'test:packages/parsimony/src/floor.test.ts::floorControlRisk aggregates the DISTINCT control ids of deferred checks'
+  - 'test:packages/parsimony/src/floor.test.ts::a 508 accessibility miss defers WITHOUT a control id — empty risk ≠ no deferral'
+  - 'test:packages/parsimony/src/floor.test.ts::accepts an overlay-supplied floor (policy data, not code)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
