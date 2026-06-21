@@ -55,7 +55,7 @@ export const defaultAssessNonce = (): string => randomBytes(8).toString('hex');
 /** Hard cap on the UNTRUSTED diff sent to the assessor (parity with the review
  * seam's #288 bound): a runaway child cannot inflate the diff into a cost/latency
  * denial. The head is kept (where the change's shape shows). */
-const DIFF_ASSESS_MAX_CHARS = 100_000;
+export const DIFF_ASSESS_MAX_CHARS = 100_000;
 
 /** Truncate to `max` chars on a whole code point, marking the cut visibly. */
 function clampDiff(text: string, max: number): string {
@@ -117,18 +117,154 @@ export interface AssessSeam {
 }
 
 /**
- * Run the ONE assessor call over `diff` and parse its strict emission. A malformed
- * assessment throws a typed {@link LoopParseError} (raw output preserved for
- * diagnosis) — the caller never coerces prose into an assessment, so the receipt is
- * only ever built from a genuine model judgment.
+ * Split `diff` into consecutive {@link DIFF_ASSESS_MAX_CHARS}-sized chunks on whole
+ * code-point boundaries (never mid-surrogate — the same rule {@link clampDiff} uses
+ * for its cut), so a diff that exceeds one budget is assessed in full rather than
+ * head-only. A diff that fits in one budget returns a single chunk (the common case),
+ * so single-chunk behavior is byte-identical to a direct single assessment.
+ */
+export function chunkDiff(diff: string, max: number = DIFF_ASSESS_MAX_CHARS): string[] {
+  if (diff.length <= max) return [diff];
+  const chunks: string[] = [];
+  let i = 0;
+  while (i < diff.length) {
+    let end = Math.min(i + max, diff.length);
+    if (end < diff.length) {
+      // Don't cut between a high (lead) surrogate and its low (trail) surrogate:
+      // back off one unit so the surrogate pair stays whole in this chunk.
+      const high = diff.charCodeAt(end - 1);
+      if (high >= 0xd800 && high <= 0xdbff) end -= 1;
+    }
+    chunks.push(diff.slice(i, end));
+    i = end;
+  }
+  return chunks;
+}
+
+/**
+ * UNION the per-chunk assessments into ONE assessment (#426 — full trust-boundary
+ * coverage with no head-only evasion). Exactly one non-empty list in, exactly one
+ * assessment out:
+ * - floorContext: logical OR per flag — a boundary anywhere in the diff is seen
+ *   (a trust-boundary change buried past the head can no longer draw a clean floor).
+ * - satisfied: FAIL-CLOSED AND per entry — `satisfied[name]` is true iff at least
+ *   one chunk reported it AND no chunk reported it false; a guard claimed satisfied
+ *   in one chunk but reported unsatisfied in another is NOT satisfied overall.
+ * - signals + rung: from the FIRST chunk only. The ladder is the advisory Prime
+ *   layer — a wrong rung is inefficiency, not a control breach (plan §2.5/§6) — so a
+ *   first-chunk view is acceptable; the security-critical FLOOR gets full coverage.
+ * - rationale: the per-chunk rationales joined (deterministic), so the receipt's
+ *   `rationaleDigest` still reflects every chunk.
+ */
+export function unionAssessments(parts: readonly ParsimonyAssessment[]): ParsimonyAssessment {
+  const first = parts[0];
+  if (first === undefined) throw new Error('unionAssessments requires at least one assessment');
+  if (parts.length === 1) return first;
+  const floorContext: FloorContext = {
+    crossesTrustBoundary: parts.some((p) => p.floorContext.crossesTrustBoundary),
+    risksDataLoss: parts.some((p) => p.floorContext.risksDataLoss),
+    enforcesAccess: parts.some((p) => p.floorContext.enforcesAccess),
+    hasUserInterface: parts.some((p) => p.floorContext.hasUserInterface),
+    acts: parts.some((p) => p.floorContext.acts),
+    wasRequested: parts.some((p) => p.floorContext.wasRequested),
+  };
+  // Fail-closed AND: an entry is satisfied only if some chunk reported it true and
+  // NO chunk reported it false (a false anywhere — or unsatisfied in a later chunk —
+  // sinks the whole entry).
+  const satisfied: Record<string, boolean> = {};
+  for (const part of parts) {
+    for (const [name, ok] of Object.entries(part.satisfied)) {
+      if (ok === false) satisfied[name] = false;
+      else if (satisfied[name] === undefined) satisfied[name] = true;
+    }
+  }
+  return {
+    rung: first.rung,
+    signals: first.signals,
+    floorContext,
+    satisfied,
+    rationale: parts.map((p) => p.rationale).join('\n---\n'),
+  };
+}
+
+/** Run the assessor over ONE diff chunk (its own per-call nonce fence — #289/#288
+ * preserved per chunk) and parse its strict emission. A malformed chunk emission
+ * throws a typed {@link LoopParseError} (raw output preserved) here. */
+async function assessChunk(
+  seam: AssessSeam,
+  chunk: string,
+): Promise<{ assessment: ParsimonyAssessment; cost: { tokens: number; usd: number } }> {
+  const nonce = (seam.nonce ?? defaultAssessNonce)();
+  const { output, cost } = await seam.invoke(parsimonyPrompt(chunk, nonce));
+  const sink = { overlayDir: seam.overlayDir, runId: seam.childId, node: 'parsimony' };
+  const assessment = parseEmission(output, ParsimonyAssessmentSchema, 'parsimony', sink);
+  return { assessment, cost: { tokens: cost.tokens, usd: cost.usd } };
+}
+
+/**
+ * Hard cap on the number of assessor chunks (≈800k chars covered). Bounds the model
+ * spend a single child can force: chunking the WHOLE diff would otherwise turn one
+ * clamped call into O(diff size) calls — a cost/latency denial an adversarial child
+ * could trigger with a giant diff. Past this cap the floor FAILS CLOSED instead of
+ * spending unboundedly (the unassessed tail is assumed to touch every boundary).
+ */
+export const MAX_ASSESS_CHUNKS = 8;
+
+/** Every floor flag applies — the fail-closed FloorContext for an unassessable tail. */
+const ALL_BOUNDARIES: FloorContext = {
+  crossesTrustBoundary: true,
+  risksDataLoss: true,
+  enforcesAccess: true,
+  hasUserInterface: true,
+  acts: true,
+  wasRequested: true,
+};
+
+/**
+ * Assess `diff` and parse the strict emission. When the diff FITS in one per-chunk
+ * budget (the common case) this is ONE call over the whole diff — byte-identical to
+ * the prior single-call behavior. When it EXCEEDS the budget it is split into
+ * consecutive budget-sized chunks (each in its own per-call nonce fence, #289/#288
+ * preserved per chunk), assessed once per chunk (at most {@link MAX_ASSESS_CHUNKS} —
+ * a hard cost bound), and UNIONed into one assessment (see {@link unionAssessments} —
+ * floorContext OR'd for full trust-boundary coverage, satisfied fail-closed AND'd,
+ * ladder from the first chunk). Per-chunk costs are SUMMED.
+ *
+ * When the diff needs MORE than {@link MAX_ASSESS_CHUNKS} chunks, only the first
+ * `MAX_ASSESS_CHUNKS` are assessed (cost stays bounded) and the floor FAILS CLOSED on
+ * the unassessed tail: every guard is forced to APPLY and NONE is treated as
+ * satisfied, so a too-large diff can never draw a clean floor by burying a boundary
+ * past the cap. The ladder (advisory) keeps the first chunk's signals. A malformed
+ * chunk emission throws a typed {@link LoopParseError} (raw output preserved) — never
+ * a fabricated assessment (prime directive: the record is what happened).
  */
 export async function assessParsimony(
   seam: AssessSeam,
   diff: string,
 ): Promise<{ assessment: ParsimonyAssessment; cost: { tokens: number; usd: number } }> {
-  const nonce = (seam.nonce ?? defaultAssessNonce)();
-  const { output, cost } = await seam.invoke(parsimonyPrompt(diff, nonce));
-  const sink = { overlayDir: seam.overlayDir, runId: seam.childId, node: 'parsimony' };
-  const assessment = parseEmission(output, ParsimonyAssessmentSchema, 'parsimony', sink);
-  return { assessment, cost: { tokens: cost.tokens, usd: cost.usd } };
+  const allChunks = chunkDiff(diff);
+  const overflow = allChunks.length > MAX_ASSESS_CHUNKS;
+  const chunks = overflow ? allChunks.slice(0, MAX_ASSESS_CHUNKS) : allChunks;
+  const parts: ParsimonyAssessment[] = [];
+  let tokens = 0;
+  let usd = 0;
+  for (const chunk of chunks) {
+    const { assessment, cost } = await assessChunk(seam, chunk);
+    parts.push(assessment);
+    tokens += cost.tokens;
+    usd += cost.usd;
+  }
+  const union = unionAssessments(parts);
+  if (!overflow) return { assessment: union, cost: { tokens, usd } };
+  // Fail closed: the unassessed tail could touch any boundary and violate any guard,
+  // so force every guard to apply with none satisfied (⇒ evaluateFloor defers all).
+  return {
+    assessment: {
+      ...union,
+      floorContext: ALL_BOUNDARIES,
+      satisfied: {},
+      rationale: `${union.rationale}\n---\n[diff too large: ${String(allChunks.length)} chunks exceed the ${String(MAX_ASSESS_CHUNKS)}-chunk cap; floor FAILS CLOSED on the unassessed tail]`,
+    },
+    cost: { tokens, usd },
+  };
 }
