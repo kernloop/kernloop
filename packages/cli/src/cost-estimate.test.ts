@@ -32,10 +32,10 @@ const DEFAULT: LoopShape = {
 describe('estimateLoopCalls — arithmetic band (#303)', () => {
   it('default shape, 1 child: min is the happy path, max assumes full iteration + retry', () => {
     const e = estimateLoopCalls(DEFAULT, { childCount: 1 });
-    // min: research1 + plan1 + vote(3×1) + decompose1 + implement(1) + quality0 + review(3×1) + parsimony(1) = 11
-    expect(e.total.min).toBe(11);
-    // max: 1 + plan(K+1=4) + vote(3×4=12) + 1 + implement(2×1×(Kc+1=4)=8) + 0 + review(3×1) + parsimony(1) = 30
-    expect(e.total.max).toBe(30);
+    // min: research1 + plan1 + vote(3×1) + decompose1 + implement(1) + quality0 + review(3×1) + parsimony(2: assessor+verifier) = 12
+    expect(e.total.min).toBe(12);
+    // max: 1 + plan(K+1=4) + vote(3×4=12) + 1 + implement(2×1×(Kc+1=4)=8) + 0 + review(3×1) + parsimony(2) = 31
+    expect(e.total.max).toBe(31);
     expect(e.perNode.quality).toEqual({ min: 0, max: 0 }); // mechanical, no model call
     expect(e.perNode.vote).toEqual({ min: 3, max: 12 });
   });
@@ -44,8 +44,8 @@ describe('estimateLoopCalls — arithmetic band (#303)', () => {
     const e = estimateLoopCalls(DEFAULT, { childCount: 3 });
     expect(e.perNode.implement).toEqual({ min: 3, max: 24 }); // 3 children × [1, 2×4]
     expect(e.perNode.review).toEqual({ min: 9, max: 9 }); // 3 × 3, review runs once/child
-    expect(e.perNode.parsimony).toEqual({ min: 3, max: 3 }); // one assessor call per child
-    expect(e.total.min).toBe(21); // 11 happy-path terms but implement+review+parsimony ×3
+    expect(e.perNode.parsimony).toEqual({ min: 6, max: 6 }); // assessor + blind verifier per child (#413)
+    expect(e.total.min).toBe(24); // 12 happy-path terms but implement+review+parsimony ×3
   });
 
   it('a panel-7 ratification vote widens the vote band', () => {
@@ -108,7 +108,7 @@ describe('estimateLoopCalls — BOUND TO real loop behavior (#303 vote condition
 
     // The default-overlay shape, 1 realized child. The happy path = the MIN row.
     const e = estimateLoopCalls(DEFAULT, { childCount });
-    expect(calls).toBe(e.total.min); // exact: research+plan+vote(3)+decompose+implement+review(3)=10
+    expect(calls).toBe(e.total.min); // exact: research+plan+vote(3)+decompose+implement+review(3)+parsimony(assessor+verifier=2)
     expect(calls).toBeLessThanOrEqual(e.total.max);
     kern.close();
   }, 120_000);

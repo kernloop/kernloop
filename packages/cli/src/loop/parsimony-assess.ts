@@ -57,7 +57,12 @@ export const defaultAssessNonce = (): string => randomBytes(8).toString('hex');
  * denial. The head is kept (where the change's shape shows). */
 export const DIFF_ASSESS_MAX_CHARS = 100_000;
 
-/** Truncate to `max` chars on a whole code point, marking the cut visibly. */
+/** Truncate to `max` chars on a whole code point, marking the cut visibly. Exported
+ * as {@link clampForFence} so the blind verifier (#7, parsimony-verify.ts) clamps the
+ * UNTRUSTED diff in its own fence by the identical #288 rule. */
+export function clampForFence(text: string, max: number): string {
+  return clampDiff(text, max);
+}
 function clampDiff(text: string, max: number): string {
   if (text.length <= max) return text;
   const high = text.charCodeAt(max - 1);

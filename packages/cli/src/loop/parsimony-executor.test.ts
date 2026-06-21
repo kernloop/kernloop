@@ -31,9 +31,29 @@ const refsWithDiff: LoopRefs = {
   writtenByChild: { [task.id]: [{ path: 'src/x.ts', content: 'export const x = 1;\n' }] },
 };
 
-/** An assessor invoke returning a canned assessment object. */
-function assessor(assessment: unknown): LoopInvoke {
-  return () => Promise.resolve({ output: JSON.stringify(assessment), cost: COST });
+/** A blind-verifier CONFIRM verdict (the default for a clean diff). */
+const CONFIRM = JSON.stringify({ status: 'confirmed', refutedChecks: [], reason: 'guards hold' });
+
+/**
+ * A combined invoke: returns the canned assessment for the ASSESSOR prompt and a
+ * blind-verifier verdict for the VERIFIER prompt (#413). `verifier` defaults to a
+ * CONFIRM; pass a refute to exercise the advisory warn path. The verifier prompt is
+ * captured so a test can assert it is BLIND to the assessor's rationale.
+ */
+function assessor(
+  assessment: unknown,
+  verifier: string = CONFIRM,
+): LoopInvoke & { verifierPrompts: string[] } {
+  const verifierPrompts: string[] = [];
+  const invoke = ((prompt: string) => {
+    if (prompt.includes('BLIND PARSIMONY VERIFIER')) {
+      verifierPrompts.push(prompt);
+      return Promise.resolve({ output: verifier, cost: COST });
+    }
+    return Promise.resolve({ output: JSON.stringify(assessment), cost: COST });
+  }) as LoopInvoke & { verifierPrompts: string[] };
+  invoke.verifierPrompts = verifierPrompts;
+  return invoke;
 }
 
 /** A CLEAN assessment: rung 1 (stdlib), no floor entry applies. */
@@ -89,7 +109,46 @@ describe('parsimony executor — advisory Check-layer gate [CLM-0172]', () => {
     expect(r[0]?.deferred).toBeNull();
     expect(r[0]?.subject).toBe(task.id);
     expect(r[0]?.rationaleDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
-    expect(r[0]?.verification.status).toBe('pending'); // blind verifier runs in #7
+    // The blind verifier (#413/#7) ran and CONFIRMED — verification is now real evidence.
+    expect(r[0]?.verification.status).toBe('confirmed');
+    expect(r[0]?.verification.checkedFloor).toBe(true);
+    kern.close();
+  });
+
+  it('a REFUTED blind verification adds a warn finding but the Verdict still PASSES (advisory)', async () => {
+    const kern = kernloopFor('parsimony-refuted');
+    const refute = JSON.stringify({
+      status: 'refuted',
+      refutedChecks: ['intent'],
+      reason: 'the diff does not actually satisfy intent',
+    });
+    const executors = buildLoopExecutors(
+      bindingsFor(kern, refsWithDiff, assessor(cleanAssessment, refute)),
+    );
+    const verdict = (await executors['parsimony']?.(undefined, ctxFor(3))) as Verdict;
+    // ADVISORY in this PR: a refute is a warn finding, NOT a reject (#9 makes it reject).
+    expect(verdict.result).toBe('pass');
+    expect(verdict.findings).toHaveLength(1);
+    expect(verdict.findings[0]?.severity).toBe('warn');
+    expect(verdict.findings[0]?.message).toContain('REFUTED');
+    expect(verdict.findings[0]?.message).toContain('intent');
+    const r = receipts(kern.paths.audit);
+    expect(r[0]?.verification.status).toBe('refuted');
+    expect(r[0]?.verification.checkedFloor).toBe(true);
+    kern.close();
+  });
+
+  it('the blind verifier is NOT given the assessor rationale (blind verification)', async () => {
+    const kern = kernloopFor('parsimony-blind');
+    const invoke = assessor(cleanAssessment); // rationale: "reuses the stdlib; nothing crosses..."
+    const executors = buildLoopExecutors(bindingsFor(kern, refsWithDiff, invoke));
+    await executors['parsimony']?.(undefined, ctxFor(3));
+    expect(invoke.verifierPrompts).toHaveLength(1);
+    const prompt = invoke.verifierPrompts[0] ?? '';
+    // The verifier prompt must NOT carry the assessor's self-justification.
+    expect(prompt).not.toContain(cleanAssessment.rationale);
+    expect(prompt).toContain('BLIND PARSIMONY VERIFIER');
+    expect(prompt).toContain('intent'); // it DOES get the claimed-pass guard names
     kern.close();
   });
 
@@ -109,6 +168,26 @@ describe('parsimony executor — advisory Check-layer gate [CLM-0172]', () => {
     expect(r).toHaveLength(1);
     expect(r[0]?.deferred).not.toBeNull();
     expect(r[0]?.deferred?.controlRisk).toContain('SI-10');
+    kern.close();
+  });
+
+  it('NO claimed-pass guard ⇒ verification CONFIRMS vacuously WITHOUT a verifier call', async () => {
+    const kern = kernloopFor('parsimony-vacuous');
+    // Nothing requested + a trust boundary but no validation ⇒ intent is `na`,
+    // input_validation is `deferred`: ZERO `pass` checks ⇒ nothing to verify.
+    const noPass = {
+      ...deferringAssessment,
+      floorContext: { ...deferringAssessment.floorContext, wasRequested: false },
+      satisfied: {}, // nothing claimed satisfied
+    };
+    const invoke = assessor(noPass);
+    const executors = buildLoopExecutors(bindingsFor(kern, refsWithDiff, invoke));
+    const verdict = (await executors['parsimony']?.(undefined, ctxFor(3))) as Verdict;
+    expect(verdict.result).toBe('pass');
+    expect(invoke.verifierPrompts).toHaveLength(0); // no claimed-pass ⇒ NO verifier call
+    const r = receipts(kern.paths.audit);
+    expect(r[0]?.verification.status).toBe('confirmed'); // vacuously confirmed
+    expect(r[0]?.verification.checkedFloor).toBe(true);
     kern.close();
   });
 

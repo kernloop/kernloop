@@ -70,9 +70,14 @@ export function estimateLoopCalls(
     implement: band(c, 2 * c * childAttempts), // ×2: the CLM-0107 parse-retry
     quality: band(0, 0), // mechanical checks — no model call
     review: band(c * reviewPanel, c * reviewPanel * reviewRuns),
-    // The Check-layer parsimony gate (#411, CLM-0172): ONE assessor model call per
-    // child. Advisory and single-pass (it does not re-iterate the child), so min=max=c.
-    parsimony: band(c, c),
+    // The Check-layer parsimony gate (#411, CLM-0172 + #413/#7, CLM-0176): per child,
+    // ONE assessor model call PLUS ONE blind-verifier model call (#413) — so 2×c. The
+    // happy path (a real requested change satisfies the `intent` floor guard, a
+    // claimed-pass) DOES run the verifier, so min=max=2×c. (The sole sub-min case is an
+    // assessment with NO claimed-pass guard at all: the verifier confirms vacuously
+    // without a call — c, below this happy-path min.) Advisory + single-pass: no child
+    // re-iteration.
+    parsimony: band(2 * c, 2 * c),
     retrospect: band(0, 0),
   };
   const total = Object.values(perNode).reduce(
