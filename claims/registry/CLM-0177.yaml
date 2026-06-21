@@ -36,7 +36,14 @@ statement: >-
   rejects at ultra under a vacuous confirm. The over-cap refute (a diff over
   MAX_ASSESS_CHUNKS) names its reason distinctly so an operator can tell "too large to
   verify" from "a guard is actually unmet". The under-claim residual is a filed
-  follow-up (#435).
+  follow-up (#435). HONEST COST BOUND: a re-iterated reject costs ONE extra child
+  attempt ONLY when the next attempt fixes the refute; a DETERMINISTIC false-refute
+  (the verifier persistently misreading a guard the diff genuinely satisfies — a fixed
+  diff, not transient noise) cannot be fixed by re-iteration and burns the FULL Kc
+  budget, re-charging assessor+verifier each attempt, then terminates with a parsimony
+  reject — bounded (never an infinite wedge) but worst-case Kc×(assess+verify), not one.
+  The blind verifier's false-refute rate is unmeasured; the FP-rate harness that would
+  bound this is a filed follow-up (#436).
 evidence:
   - 'test:packages/cli/src/loop/parsimony-executor.test.ts::off does NO assessor/verifier model call, emits NO receipt, abstains'
   - 'test:packages/cli/src/loop/parsimony-executor.test.ts::a REFUTED blind verification adds a warn finding but the Verdict still PASSES (advisory)'

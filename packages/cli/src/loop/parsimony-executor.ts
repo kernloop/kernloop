@@ -49,6 +49,14 @@
  *      (it cannot be fully verified). At full/ultra that rejects a legitimate huge
  *      change; the refute finding NAMES the reason (too-large vs guard-unmet) so an
  *      operator can tell why ({@link refuteFinding}).
+ *   4. DETERMINISTIC-FALSE-REFUTE COST: a re-iterated reject costs ONE extra child
+ *      attempt only when the next attempt fixes the refute. A verifier that PERSISTENTLY
+ *      misreads a guard the diff genuinely satisfies (a fixed diff, not transient noise)
+ *      cannot be fixed by re-iterating — it burns the FULL Kc budget, re-charging
+ *      assessor+verifier each attempt, then terminates with a parsimony reject. Bounded
+ *      (never an infinite wedge) but worst-case Kc×(assess+verify), not one. The blind
+ *      verifier's false-refute rate is unmeasured; the FP-rate harness is a follow-up
+ *      (#436). `off`/`lite` are the zero-cost / advisory escape hatches.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { VerdictSchema, type Finding, type Verdict, type VerdictResult } from '@kernloop/contracts';
