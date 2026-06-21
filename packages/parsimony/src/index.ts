@@ -43,3 +43,15 @@ export {
 } from './floor.js';
 export { buildParsimonyReceipt, deferredRisk, type ParsimonyDecision } from './build.js';
 export { parsimonyMarker, parseMarker, MARKER_TAG } from './marker.js';
+export { toOscalAssessmentResults, isSentinelRisk, type OscalMeta } from './oscal.js';
+export {
+  PARSIMONY_OSCAL_VERSION,
+  type OscalAssessmentResults,
+  type OscalMetadata,
+  type OscalResult,
+  type OscalObservation,
+  type OscalFinding,
+  type OscalFindingTarget,
+  type OscalControlSelection,
+  type OscalProperty,
+} from './oscal-types.js';

@@ -24,6 +24,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3"
+    "@types/node": "^25.9.3",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
   }
 }
