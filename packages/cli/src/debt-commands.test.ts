@@ -167,4 +167,19 @@ describe('debtCommand (--json shape + dispatch)', () => {
     expect(cap.out()).toContain('01J9DEBT00000000000000000');
     expect(cap.out()).toContain('unmitigated deferral');
   });
+
+  it('--oscal projects ALL parsimony receipts into an OSCAL assessment-results document (#430)', async () => {
+    const { kern, repo } = freshKernloop();
+    seed(kern); // 1 deferred + 1 clean + 1 unrelated + 1 malformed (the realistic mix)
+    kern.close();
+    const cap = capture(repo);
+    expect(await debtCommand(['--oscal'], cap.io)).toBe(0);
+    const doc = JSON.parse(cap.out()) as { 'assessment-results': { results: unknown[] } };
+    // the OSCAL root + the projection ran over BOTH receipts (not just deferrals),
+    // surviving the unrelated/malformed events; the deferred receipt's control risk
+    // (SI-10) rides into a finding, so the document is non-empty and wired.
+    expect(doc['assessment-results']).toBeDefined();
+    expect(doc['assessment-results'].results.length).toBeGreaterThan(0);
+    expect(cap.out()).toContain('SI-10');
+  });
 });

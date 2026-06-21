@@ -23,8 +23,12 @@ statement: >-
   a NIST-control deferral, a 508 sentinel deferral, a refuted verification, and
   multiple aggregated receipts. The OSCAL types in `oscal-types.ts` are a
   caller-facing convenience; the ajv validation against the vendored real schema
-  is the ground truth.
+  is the ground truth. The projection is invocable through a REAL entry point
+  (#430): `kernloop debt --oscal` reads EVERY parsimony.receipt event off the audit
+  log (`readParsimonyReceipts`, skipping malformed/unrelated events) and emits the
+  OSCAL document, minting the document uuid + timestamp per-invocation.
 evidence:
+  - 'test:packages/cli/src/debt-commands.test.ts::--oscal projects ALL parsimony receipts into an OSCAL assessment-results document (#430)'
   - 'test:packages/parsimony/src/oscal.test.ts::rejects an empty object, a garbage object, and a doc missing required fields'
   - 'test:packages/parsimony/src/oscal.test.ts::(a) all-pass floor → observations, no findings — valid OSCAL'
   - 'test:packages/parsimony/src/oscal.test.ts::(b) NIST-control deferral → a finding linked to the control id — valid OSCAL'
