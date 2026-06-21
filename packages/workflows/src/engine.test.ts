@@ -69,6 +69,8 @@ function scripted(voteSeq: Array<Verdict['result']> = ['approve']) {
       Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'quality', 'pass')),
     review: (_input, ctx) =>
       Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'review', 'approve')),
+    parsimony: (_input, ctx) =>
+      Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'parsimony', 'pass')),
     integrate: () => Promise.resolve(outcome(task.id)),
     retrospect: (input) => Promise.resolve(input),
   };
@@ -113,13 +115,17 @@ describe('the canonical loop, end to end', () => {
       'implement:task-1.c1',
       'quality:task-1.c1',
       'review:task-1.c1',
+      'parsimony:task-1.c1',
       'implement:task-1.c2',
       'quality:task-1.c2',
       'review:task-1.c2',
+      'parsimony:task-1.c2',
       'integrate',
       'retrospect',
     ]);
-    expect(result.nodeTrace.map((t) => t.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(result.nodeTrace.map((t) => t.seq)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    ]);
   });
 
   it('fan-out trace order is deterministic regardless of executor timing', async () => {

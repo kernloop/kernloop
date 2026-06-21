@@ -104,6 +104,23 @@ function reviewOutput(groundednessReject: boolean): string {
     : JSON.stringify({ findings: [], summary: 'no blocking issues found' });
 }
 
+/** A clean Check-layer parsimony assessment (#411): rung 1 stdlib, only the satisfied
+ * intent floor entry applies — so the advisory gate emits a receipt with no deferral. */
+const CLEAN_PARSIMONY_ASSESSMENT = JSON.stringify({
+  rung: 1,
+  signals: { need: true, stdlib: true, native: false, dep: false, oneLine: false },
+  floorContext: {
+    crossesTrustBoundary: false,
+    risksDataLoss: false,
+    enforcesAccess: false,
+    hasUserInterface: false,
+    acts: false,
+    wasRequested: true,
+  },
+  satisfied: { intent: true },
+  rationale: 'a small typed function reusing the stdlib; no trust boundary crossed',
+});
+
 export function scriptedInvoke(script: {
   vote: () => 'approve' | 'reject';
   files: Array<{ path: string; content: string }>;
@@ -119,7 +136,9 @@ export function scriptedInvoke(script: {
 }): LoopInvoke {
   return (prompt) => {
     let output: string;
-    if (prompt.includes('Diff under review')) {
+    if (prompt.includes('PARSIMONY ASSESSOR')) {
+      output = CLEAN_PARSIMONY_ASSESSMENT;
+    } else if (prompt.includes('Diff under review')) {
       output = reviewOutput(
         script.groundednessReject === true && prompt.includes('groundedness reviewer'),
       );

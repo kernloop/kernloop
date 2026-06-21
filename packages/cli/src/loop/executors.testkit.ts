@@ -42,7 +42,23 @@ export const COST: Cost = { tokens: 3, usd: 0.001 };
 /** Scripted invoke for the direct executor tests (always approves). */
 export const scripted: LoopInvoke = (prompt) => {
   let output = 'Plan: do the thing.';
-  if (prompt.includes('Diff under review')) {
+  if (prompt.includes('PARSIMONY ASSESSOR')) {
+    // A clean restraint assessment (rung 1 stdlib, no floor entry applies but intent).
+    output = JSON.stringify({
+      rung: 1,
+      signals: { need: true, stdlib: true, native: false, dep: false, oneLine: false },
+      floorContext: {
+        crossesTrustBoundary: false,
+        risksDataLoss: false,
+        enforcesAccess: false,
+        hasUserInterface: false,
+        acts: false,
+        wasRequested: true,
+      },
+      satisfied: { intent: true },
+      rationale: 'reuses the stdlib; nothing crosses a trust boundary',
+    });
+  } else if (prompt.includes('Diff under review')) {
     output = JSON.stringify({ findings: [], summary: 'clean' });
   } else if (prompt.includes('Investigate the prior art')) {
     output = 'Research: no prior-art conflicts; the change is self-contained.';

@@ -39,6 +39,7 @@ import { LoopParseError, type ViolationSink } from './invoke.js';
 import { reviewerInvoker } from './seams.js';
 import { type VoteDiversity } from './vote-diversity.js';
 import { labelVoterOutcomes, voteExecutor } from './vote-executor.js';
+import { parsimonyExecutor } from './parsimony-executor.js';
 import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
@@ -363,6 +364,7 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),
       }),
     review: reviewExecutor(b),
+    parsimony: parsimonyExecutor(b),
     integrate: integrateExecutor(b),
     retrospect: retrospectExecutor(b),
   };

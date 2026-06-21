@@ -114,6 +114,9 @@ importers:
       '@kernloop/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@kernloop/parsimony':
+        specifier: workspace:*
+        version: link:../parsimony
       '@kernloop/tracker':
         specifier: workspace:*
         version: link:../tracker

@@ -70,6 +70,9 @@ export function estimateLoopCalls(
     implement: band(c, 2 * c * childAttempts), // ×2: the CLM-0107 parse-retry
     quality: band(0, 0), // mechanical checks — no model call
     review: band(c * reviewPanel, c * reviewPanel * reviewRuns),
+    // The Check-layer parsimony gate (#411, CLM-0172): ONE assessor model call per
+    // child. Advisory and single-pass (it does not re-iterate the child), so min=max=c.
+    parsimony: band(c, c),
     retrospect: band(0, 0),
   };
   const total = Object.values(perNode).reduce(

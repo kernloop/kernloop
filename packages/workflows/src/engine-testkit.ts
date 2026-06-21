@@ -91,6 +91,8 @@ export function scripted(qualityByChild: Record<string, Array<Verdict['result']>
       return Promise.resolve(verdict(id, 'quality', seq[Math.min(n, seq.length - 1)] ?? 'pass'));
     },
     review: (_i, ctx) => Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'review', 'approve')),
+    parsimony: (_i, ctx) =>
+      Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'parsimony', 'pass')),
     integrate: () => Promise.resolve(outcome(task.id)),
     retrospect: (input) => Promise.resolve(input),
   };

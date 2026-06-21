@@ -52,9 +52,11 @@ describe('review-driven child iteration [CLM-0043]', () => {
       'implement:task-1.c1',
       'quality:task-1.c1',
       'review:task-1.c1',
+      'parsimony:task-1.c1',
       'implement:task-1.c2',
       'quality:task-1.c2',
       'review:task-1.c2',
+      'parsimony:task-1.c2',
       'integrate',
       'retrospect',
     ]);
