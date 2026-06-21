@@ -35,9 +35,28 @@ const fixtureRepo = (name: string, overlayYaml?: string): string =>
  * FIXED file on every later attempt, capturing each coder prompt so a test can
  * assert the quality findings were folded into the re-run [CLM-0043].
  */
+/** A clean parsimony assessment (rung 1 stdlib, no applicable floor entry but intent). */
+const CLEAN_PARSIMONY = JSON.stringify({
+  rung: 1,
+  signals: { need: true, stdlib: true, native: false, dep: false, oneLine: false },
+  floorContext: {
+    crossesTrustBoundary: false,
+    risksDataLoss: false,
+    enforcesAccess: false,
+    hasUserInterface: false,
+    acts: false,
+    wasRequested: true,
+  },
+  satisfied: { intent: true },
+  rationale: 'a small typed function reusing the stdlib',
+});
+
 function iteratingInvoke(captured: string[]): LoopInvoke {
   let coderCalls = 0;
   return (prompt) => {
+    if (prompt.includes('PARSIMONY ASSESSOR')) {
+      return Promise.resolve({ output: CLEAN_PARSIMONY, cost: COST });
+    }
     if (prompt.includes('Diff under review')) {
       return Promise.resolve({
         output: JSON.stringify({ findings: [], summary: 'ok' }),
@@ -134,6 +153,9 @@ describe('review-driven child iteration, end to end [CLM-0043]', () => {
  */
 function smallBudgetInvoke(): LoopInvoke {
   return (prompt) => {
+    if (prompt.includes('PARSIMONY ASSESSOR')) {
+      return Promise.resolve({ output: CLEAN_PARSIMONY, cost: COST });
+    }
     if (prompt.includes('Diff under review')) {
       return Promise.resolve({
         output: JSON.stringify({ findings: [], summary: 'ok' }),

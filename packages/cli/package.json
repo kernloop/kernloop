@@ -35,6 +35,7 @@
     "@kernloop/faculty-toolsmith": "workspace:*",
     "@kernloop/faculty-workforce": "workspace:*",
     "@kernloop/kernel": "workspace:*",
+    "@kernloop/parsimony": "workspace:*",
     "@kernloop/tracker": "workspace:*",
     "@kernloop/workflows": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",

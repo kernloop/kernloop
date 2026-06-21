@@ -19,7 +19,7 @@ import type { ContractRef } from '@kernloop/contracts';
 export type LoopNodeKind = 'task' | 'gate' | 'decompose' | 'fanout' | 'integrate' | 'retrospect';
 
 /** The gates the loop invokes. */
-export type LoopGateName = 'vote' | 'quality' | 'review';
+export type LoopGateName = 'vote' | 'quality' | 'review' | 'parsimony';
 
 /**
  * One node of the loop. `consumes` is the contract of the node's primary
@@ -84,8 +84,8 @@ function freezeGraph(graph: LoopGraph): LoopGraph {
  *   to plan (the engine feeds its findings to the plan executor and bounds
  *   the cycle at K re-entries [CLM-0043]);
  * - decompose emits child TaskContracts (element-wise validated);
- * - fanout runs each child through implement → quality and emits the
- *   per-child Verdicts (element-wise validated); child failures travel
+ * - fanout runs each child through implement → quality → review → parsimony
+ *   and emits the per-child Verdicts (element-wise validated); child failures travel
  *   alongside as structured error records — see the engine's ChildResult;
  * - integrate merges child results into an Outcome;
  * - retrospect closes the run with the final Outcome (memory writes and
@@ -117,6 +117,7 @@ export const CANONICAL_LOOP: LoopGraph = freezeGraph({
     { name: 'implement', kind: 'task', consumes: 'TaskContract', emits: 'Outcome' },
     { name: 'quality', kind: 'gate', consumes: 'Outcome', emits: 'Verdict', gate: 'quality' },
     { name: 'review', kind: 'gate', consumes: 'Outcome', emits: 'Verdict', gate: 'review' },
+    { name: 'parsimony', kind: 'gate', consumes: 'Outcome', emits: 'Verdict', gate: 'parsimony' },
   ],
 });
 

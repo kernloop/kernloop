@@ -36,17 +36,9 @@ const fixtureRepo = (name: string, overlayYaml?: string): string =>
   makeFixtureRepo(scratch, name, overlayYaml);
 
 const MAIN_TRACE = [
-  'frame',
-  'research',
-  'plan',
-  'vote',
-  'decompose',
-  'implement',
-  'quality',
-  'review',
-  'integrate',
-  'retrospect',
-];
+  'frame', 'research', 'plan', 'vote', 'decompose',
+  'implement', 'quality', 'review', 'parsimony', 'integrate', 'retrospect',
+]; // prettier-ignore
 
 describe('P2 exit: the full canonical loop on a real feature in a real repo', () => {
   it('runs the full canonical loop on a real feature in a real repo: vote and quality gates, checkpoints, audit, memory', async () => {
@@ -145,6 +137,15 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
         taskId: 'task-loop-pass.1',
         voters: ['correctness', 'security', 'maintainability'],
         ballots: expect.any(Array) as unknown[],
+        wallClockMs: expect.any(Number) as number,
+      },
+      {
+        gate: 'parsimony',
+        result: 'pass',
+        findings: 0,
+        taskId: 'task-loop-pass.1',
+        voters: [],
+        ballots: [],
         wallClockMs: expect.any(Number) as number,
       },
     ]);
@@ -259,6 +260,7 @@ describe('P2 exit: the full canonical loop on a real feature in a real repo', ()
       'implement',
       'quality',
       'review',
+      'parsimony',
       'integrate',
       'retrospect',
     ]);

@@ -1,0 +1,32 @@
+id: CLM-0172
+statement: >-
+  The canonical loop has a `parsimony` GATE NODE (#411/#5, EPIC #407) — the Check
+  layer of the parsimony subsystem — wired into the fan-out child sub-chain AFTER the
+  `review` gate (`CANONICAL_LOOP.childChain` = implement → quality → review →
+  parsimony). Per fan-out child it makes ONE assessor model call over the child's
+  written diff (the same diff the review gate reads) under a STRICT JSON contract,
+  zod-validated — a malformed assessment is a typed clean error (raw output
+  preserved), never a fabricated assessment. It then evaluates the restraint ladder
+  (`evaluateLadder`) and the multi-catalog Control Floor (`evaluateFloor`) over the
+  assessor's reported signals, floor context, and per-entry satisfaction, builds a
+  parsimony Decision Receipt (`buildParsimonyReceipt`, which forces the deferred block
+  + #423 non-control sentinel automatically and starts verification `pending` for the
+  blind verifier #7), and EMITS it as a `parsimony.receipt` event on kernloop's
+  hash-chained, HMAC-keyed audit log (`appendEvent`). It returns an ADVISORY Verdict
+  (`gate: 'parsimony'`): a PASS regardless of deferrals in this increment, surfacing
+  each deferred-floor control risk as a `warn` finding; with no diff stashed (a resume
+  past implement) it abstains honestly and emits no receipt. HONEST SCOPE: this is
+  evidence EMISSION, not enforcement — blocking on a refuted blind verification is #7
+  and intensity gating is #9.
+evidence:
+  - 'test:packages/workflows/src/graph.test.ts::gate nodes declare their gate and emit a Verdict'
+  - 'test:packages/workflows/src/graph.test.ts::declares the spec §6 shape: the chain, the vote branch, and the child sub-chain'
+  - 'test:packages/cli/src/loop/parsimony-executor.test.ts::a CLEAN diff emits a receipt with deferred=null and a PASS Verdict with no findings'
+  - 'test:packages/cli/src/loop/parsimony-executor.test.ts::an applicable-UNSATISFIED floor entry forces a deferred block + a warn finding'
+  - 'test:packages/cli/src/loop/parsimony-executor.test.ts::a MALFORMED assessor output is a typed clean error — NO fabricated receipt'
+  - 'test:packages/cli/src/loop/parsimony-executor.test.ts::emits the receipt as a `parsimony.receipt` event on the hash-chained log'
+  - 'test:packages/cli/src/loop/parsimony-executor.test.ts::abstains honestly when no diff was stashed (a resume past implement)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

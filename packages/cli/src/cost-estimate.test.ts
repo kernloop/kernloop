@@ -32,10 +32,10 @@ const DEFAULT: LoopShape = {
 describe('estimateLoopCalls — arithmetic band (#303)', () => {
   it('default shape, 1 child: min is the happy path, max assumes full iteration + retry', () => {
     const e = estimateLoopCalls(DEFAULT, { childCount: 1 });
-    // min: research1 + plan1 + vote(3×1) + decompose1 + implement(1) + quality0 + review(3×1) = 10
-    expect(e.total.min).toBe(10);
-    // max: 1 + plan(K+1=4) + vote(3×4=12) + 1 + implement(2×1×(Kc+1=4)=8) + 0 + review(3×1) = 29
-    expect(e.total.max).toBe(29);
+    // min: research1 + plan1 + vote(3×1) + decompose1 + implement(1) + quality0 + review(3×1) + parsimony(1) = 11
+    expect(e.total.min).toBe(11);
+    // max: 1 + plan(K+1=4) + vote(3×4=12) + 1 + implement(2×1×(Kc+1=4)=8) + 0 + review(3×1) + parsimony(1) = 30
+    expect(e.total.max).toBe(30);
     expect(e.perNode.quality).toEqual({ min: 0, max: 0 }); // mechanical, no model call
     expect(e.perNode.vote).toEqual({ min: 3, max: 12 });
   });
@@ -44,7 +44,8 @@ describe('estimateLoopCalls — arithmetic band (#303)', () => {
     const e = estimateLoopCalls(DEFAULT, { childCount: 3 });
     expect(e.perNode.implement).toEqual({ min: 3, max: 24 }); // 3 children × [1, 2×4]
     expect(e.perNode.review).toEqual({ min: 9, max: 9 }); // 3 × 3, review runs once/child
-    expect(e.total.min).toBe(18); // 10 happy-path terms but implement+review ×3
+    expect(e.perNode.parsimony).toEqual({ min: 3, max: 3 }); // one assessor call per child
+    expect(e.total.min).toBe(21); // 11 happy-path terms but implement+review+parsimony ×3
   });
 
   it('a panel-7 ratification vote widens the vote band', () => {

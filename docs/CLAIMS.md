@@ -2835,3 +2835,20 @@ The Control Floor (#410, EPIC #407) is a TYPED, MULTI-CATALOG set of non-waivabl
 - [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
 - [`packages/parsimony/src/build.test.ts`](../packages/parsimony/src/build.test.ts)
 - CI `test`
+
+## CLM-0172
+
+**Status:** verified — **source:** [`CLM-0172.yaml`](../claims/registry/CLM-0172.yaml)
+
+The canonical loop has a `parsimony` GATE NODE (#411/#5, EPIC #407) — the Check layer of the parsimony subsystem — wired into the fan-out child sub-chain AFTER the `review` gate (`CANONICAL_LOOP.childChain` = implement → quality → review → parsimony). Per fan-out child it makes ONE assessor model call over the child's written diff (the same diff the review gate reads) under a STRICT JSON contract, zod-validated — a malformed assessment is a typed clean error (raw output preserved), never a fabricated assessment. It then evaluates the restraint ladder (`evaluateLadder`) and the multi-catalog Control Floor (`evaluateFloor`) over the assessor's reported signals, floor context, and per-entry satisfaction, builds a parsimony Decision Receipt (`buildParsimonyReceipt`, which forces the deferred block + #423 non-control sentinel automatically and starts verification `pending` for the blind verifier #7), and EMITS it as a `parsimony.receipt` event on kernloop's hash-chained, HMAC-keyed audit log (`appendEvent`). It returns an ADVISORY Verdict (`gate: 'parsimony'`): a PASS regardless of deferrals in this increment, surfacing each deferred-floor control risk as a `warn` finding; with no diff stashed (a resume past implement) it abstains honestly and emits no receipt. HONEST SCOPE: this is evidence EMISSION, not enforcement — blocking on a refuted blind verification is #7 and intensity gating is #9.
+
+**Enforced by:**
+
+- [`packages/workflows/src/graph.test.ts`](../packages/workflows/src/graph.test.ts)
+- [`packages/workflows/src/graph.test.ts`](../packages/workflows/src/graph.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- CI `test`
