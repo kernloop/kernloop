@@ -2786,3 +2786,19 @@ The parsimony Decision Receipt (#408, EPIC #407) is defined as a typed zod PAYLO
 - [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
 - [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
 - CI `test`
+
+## CLM-0169
+
+**Status:** verified — **source:** [`CLM-0169.yaml`](../claims/registry/CLM-0169.yaml)
+
+The Parsimony Ladder (#409, EPIC #407) is a PURE, deterministic evaluator (`@kernloop/parsimony` `evaluateLadder`) over a POLICY-DATA rung table (`PARSIMONY_LADDER`): an ordered restraint cascade — need → stdlib → native → dep → oneLine → minimal — that stops at the FIRST rung that holds (first-match-wins) and returns the resolving rung + its {@link ParsimonyOutcome} (skip / reuse_stdlib / reuse_native / reuse_dep / one_line / minimal_impl) for the Decision Receipt to record. The ladder is DATA, not code — each rung names a signal key + the value that resolves it (rung 0 `need` resolves on `false`; the last rung is an unconditional fallthrough), so an overlay may supply its own table and the evaluator makes no model call, reads no I/O, and never synthesizes an outcome the table did not declare. A mis-authored ladder with no resolving rung THROWS rather than fabricating an outcome.
+
+**Enforced by:**
+
+- [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
+- [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
+- [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
+- [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
+- [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
+- [`packages/parsimony/src/ladder.test.ts`](../packages/parsimony/src/ladder.test.ts)
+- CI `test`
