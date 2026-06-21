@@ -19,6 +19,7 @@ import {
   chunkDiff,
   unionAssessments,
   DIFF_ASSESS_MAX_CHARS,
+  MAX_ASSESS_CHUNKS,
   type AssessSeam,
   type ParsimonyAssessment,
 } from './parsimony-assess.js';
@@ -205,6 +206,27 @@ describe('assessParsimony — chunk + union [CLM-0175]', () => {
     expect(out.rung).toBe(1); // ladder from chunk 1
     expect(out.signals).toEqual(chunk1.signals);
     expect(cost).toEqual({ tokens: COST.tokens * 2, usd: COST.usd * 2 }); // summed
+  });
+
+  it('a diff over the chunk cap: cost is BOUNDED and the floor FAILS CLOSED (no DoS, no clean pass)', async () => {
+    // A giant diff would otherwise force one model call per chunk (O(diff size)) — a
+    // cost/latency denial. The assessor caps at MAX_ASSESS_CHUNKS calls and fails the
+    // floor closed on the unassessed tail (every guard applies, none satisfied).
+    const valid = JSON.stringify(assessment({ satisfied: { input_validation: true } }));
+    const { invoke, prompts } = scriptedInvoke(
+      Array.from({ length: MAX_ASSESS_CHUNKS + 5 }, () => valid),
+    );
+    const diff = 'x'.repeat(DIFF_ASSESS_MAX_CHARS * (MAX_ASSESS_CHUNKS + 3)); // far over the cap
+    const { assessment: out, cost } = await assessParsimony(seamWith(invoke), diff);
+
+    expect(prompts).toHaveLength(MAX_ASSESS_CHUNKS); // BOUNDED — not one call per chunk
+    expect(cost.tokens).toBe(COST.tokens * MAX_ASSESS_CHUNKS); // bounded spend
+    // fail closed: every boundary applies, nothing is proven satisfied (even the
+    // input_validation the assessed chunks claimed) → evaluateFloor defers all.
+    expect(out.floorContext.crossesTrustBoundary).toBe(true);
+    expect(out.floorContext.acts).toBe(true);
+    expect(out.satisfied).toEqual({});
+    expect(out.rationale).toContain('too large');
   });
 
   it('a malformed chunk emission throws the typed error — NO fabricated assessment (#289 per chunk)', async () => {
