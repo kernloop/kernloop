@@ -51,6 +51,10 @@ export function voteExecutor(b: LoopBindings): NodeExecutor {
       strategy: ctx.config.gates.vote.strategy,
       escalateOnNoConsensus: ctx.config.gates.vote.escalateOnNoConsensus, // #192 opt-in ASK
       ...(weights === undefined ? {} : { weights }),
+      // Correlation-aware aggregation (#369 Inc4, opt-in): discount provider-correlated
+      // ballots toward their effective-independent size. Inert without served identities.
+      correlationAware: ctx.config.gates.vote.correlationAware,
+      correlationForm: ctx.config.gates.vote.correlationForm,
       invokeVoter,
     });
     // Stash the proceeding plan-vote verdict so retrospect can label each voter's

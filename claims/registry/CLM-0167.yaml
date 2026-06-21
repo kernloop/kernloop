@@ -1,0 +1,31 @@
+id: CLM-0167
+statement: >-
+  The vote gate supports CORRELATION-AWARE aggregation (#369 Inc4): voters that
+  share a served model CLASS are not independent evidence, so an opt-in
+  `gates.vote.correlationAware` downweights each member of a class of size K by
+  `correlationDiscount(form, K)` — composed MULTIPLICATIVELY with the Inc3
+  precision weight — so a provider-correlated bloc counts toward its
+  effective-independent size, not its head-count. The discount form is a tunable
+  HEURISTIC (`sqrt` ⇒ 1/√K default, `linear` ⇒ 1/K) whose load-bearing pinned
+  properties are `c(1)=1` (a singleton class is undiscounted) and monotonic
+  non-increasing in K. It is surfaced as a VISIBLE `info` Verdict finding naming
+  the discounted class and its effective votes — never silent. Default OFF and
+  inert on a single-adapter panel (no served identities to group), so an
+  unenabled or single-adapter panel is byte-identical; aggregation stays pure and
+  deterministic (preserves CLM-0037). The grouping keys off the composition-root-
+  filled `served` identity (trusted adapter resolution, never ballot-supplied),
+  so a voter cannot forge diversity to evade the discount. Demonstrated: a 4-voter
+  one-class bloc that out-votes 3 diverse dissenters on raw head-count is FLIPPED
+  to reject once the discount applies.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::c(1) = 1 for both forms — a singleton class is undiscounted'
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::is monotonic NON-INCREASING in K (more correlation ⇒ no more weight each)'
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::DEMONSTRATION: a 4-voter one-class bloc out-votes 3 diverse dissenters — but the discount FLIPS it'
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::surfaces a VISIBLE info finding naming the discounted class and its effective votes'
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::OFF is byte-identical: same panel, correlationAware unset ⇒ approve, no discount finding'
+  - 'test:packages/faculty-gates/src/vote/correlation.test.ts::inert on a single-adapter panel: correlationAware ON but NO served ⇒ unchanged + no finding'
+  - 'test:packages/cli/src/overlay-vote.test.ts::vote correlationAware defaults off with sqrt form, and parses an opt-in (#369 Inc4, CLM-0167)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

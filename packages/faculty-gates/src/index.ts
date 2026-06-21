@@ -70,8 +70,10 @@ export {
 export {
   aggregateVotes,
   precisionWeight,
+  correlationDiscount,
   MIN_LABELED_FOR_WEIGHT,
   type BallotVote,
+  type CorrelationForm,
   type VoteOutcome,
   type VoteStrategy,
 } from './vote/strategies.js';

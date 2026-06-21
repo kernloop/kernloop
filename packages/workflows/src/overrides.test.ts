@@ -180,6 +180,8 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
       panel: 3,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
+      correlationAware: false,
+      correlationForm: 'sqrt',
     });
     expect(parsed.nodeOverrides).toEqual({});
     expect(() => EngineConfigSchema.parse({ k: 5 })).toThrow();
@@ -206,6 +208,8 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
       panel: 7,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
+      correlationAware: false,
+      correlationForm: 'sqrt',
     });
   });
 });

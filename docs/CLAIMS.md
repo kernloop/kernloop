@@ -2749,3 +2749,20 @@ An overlay can PIN a concrete per-tier model onto a built-in CLI adapter via the
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)
 - CI `test`
+
+## CLM-0167
+
+**Status:** verified — **source:** [`CLM-0167.yaml`](../claims/registry/CLM-0167.yaml)
+
+The vote gate supports CORRELATION-AWARE aggregation (#369 Inc4): voters that share a served model CLASS are not independent evidence, so an opt-in `gates.vote.correlationAware` downweights each member of a class of size K by `correlationDiscount(form, K)` — composed MULTIPLICATIVELY with the Inc3 precision weight — so a provider-correlated bloc counts toward its effective-independent size, not its head-count. The discount form is a tunable HEURISTIC (`sqrt` ⇒ 1/√K default, `linear` ⇒ 1/K) whose load-bearing pinned properties are `c(1)=1` (a singleton class is undiscounted) and monotonic non-increasing in K. It is surfaced as a VISIBLE `info` Verdict finding naming the discounted class and its effective votes — never silent. Default OFF and inert on a single-adapter panel (no served identities to group), so an unenabled or single-adapter panel is byte-identical; aggregation stays pure and deterministic (preserves CLM-0037). The grouping keys off the composition-root- filled `served` identity (trusted adapter resolution, never ballot-supplied), so a voter cannot forge diversity to evade the discount. Demonstrated: a 4-voter one-class bloc that out-votes 3 diverse dissenters on raw head-count is FLIPPED to reject once the discount applies.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
+- [`packages/cli/src/overlay-vote.test.ts`](../packages/cli/src/overlay-vote.test.ts)
+- CI `test`

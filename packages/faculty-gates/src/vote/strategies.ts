@@ -159,3 +159,26 @@ export function precisionWeight(precision: number | undefined, labeled: number):
   if (precision === undefined || labeled < MIN_LABELED_FOR_WEIGHT) return 1;
   return Math.min(1.5, Math.max(0.5, 0.5 + precision));
 }
+
+/**
+ * The correlation-discount FORM (#369 Inc4). `sqrt` ⇒ c(K)=1/√K (the
+ * effective-independent-sample heuristic — a class of K correlated voters counts
+ * as ~√K independent votes); `linear` ⇒ c(K)=1/K (one effective vote per class,
+ * maximal discount). Both satisfy the load-bearing invariants below.
+ */
+export type CorrelationForm = 'sqrt' | 'linear';
+
+/**
+ * The per-voter correlation discount c(K) for a served model CLASS of size K
+ * (#369 Inc4): voters that share a served class are NOT independent evidence, so a
+ * bloc of K is downweighted toward its effective-independent size. This is a
+ * deliberately TUNABLE HEURISTIC, not a derived correlation model — the
+ * load-bearing, claim-pinned properties are: (1) `c(1) = 1` (a singleton class is
+ * undiscounted, so a fully-diverse panel is byte-identical), and (2) c is
+ * MONOTONIC NON-INCREASING in K (more correlation ⇒ no more weight each). `sqrt`
+ * (default) is softer than `linear`. K is clamped to ≥1.
+ */
+export function correlationDiscount(form: CorrelationForm, classSize: number): number {
+  const k = Math.max(1, classSize);
+  return form === 'linear' ? 1 / k : 1 / Math.sqrt(k);
+}

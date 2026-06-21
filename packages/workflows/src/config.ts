@@ -20,6 +20,12 @@ const VoteConfigSchema = z.strictObject({
   /** Opt-in precision-weighted voting (#369 Inc3): weight each ballot by the
    * voter's measured calibration. Default off (byte-identical). */
   precisionWeighted: z.boolean().default(false),
+  /** Opt-in correlation-aware aggregation (#369 Inc4): downweight voters that share
+   * a served model class by `correlationDiscount(form, K)`. Default off (byte-identical);
+   * inert on a single-adapter panel. Mirrors the cli overlay's VoteGateSchema. */
+  correlationAware: z.boolean().default(false),
+  /** The `correlationAware` discount form (#369 Inc4): `sqrt` ⇒ 1/√K, `linear` ⇒ 1/K. */
+  correlationForm: z.enum(['sqrt', 'linear']).default('sqrt'),
 });
 
 /** One node override (mirrors the cli overlay's NodeOverrideSchema). */

@@ -72,6 +72,8 @@ describe('initOverlay', () => {
       panel: 3,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
+      correlationAware: false,
+      correlationForm: 'sqrt',
     });
   });
 
@@ -102,9 +104,10 @@ describe('loadOverlay defaults and precedence', () => {
         panel: 3,
         escalateOnNoConsensus: false,
         precisionWeighted: false,
+        correlationAware: false,
+        correlationForm: 'sqrt',
       },
-      // sandbox is default-ON, non-enforcing (#227): generated code is sandboxed when
-      // Docker is available, else falls back to host spawn. diffCoverage/groundedness opt-in.
+      // sandbox default-ON non-enforcing (#227): sandboxed when Docker present, else host spawn; diffCoverage/groundedness opt-in.
       quality: { envAllow: [], sandbox: { enabled: true, enforce: false }, diffCoverage: false },
       review: { groundedness: false },
     });
@@ -264,6 +267,8 @@ describe('loadOverlay defaults and precedence', () => {
       panel: 7,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
+      correlationAware: false,
+      correlationForm: 'sqrt',
     });
     expect(overlay.gates.quality.timeoutMsPerCheck).toBe(60_000);
     expect(overlay.gates.quality.envAllow).toEqual([]); // defaults empty when unset

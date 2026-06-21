@@ -22,7 +22,8 @@ import {
   type Verdict,
   type VoterRecord,
 } from '@kernloop/contracts';
-import { aggregateVotes, type VoteStrategy } from './strategies.js';
+import { aggregateVotes, type CorrelationForm, type VoteStrategy } from './strategies.js';
+import { correlationFindings, correlationWeights, identityKey } from './correlation.js';
 import { PANEL_DEFAULT, type VoterTemplate } from './voters.js';
 
 /**
@@ -84,6 +85,21 @@ export interface RunVoteGateOptions {
    * not a head-count ratio.
    */
   readonly weights?: readonly number[];
+  /**
+   * Correlation-aware aggregation (#369 Inc4, opt-in): when true, voters that share
+   * a served model CLASS are downweighted by {@link correlationDiscount} for the
+   * class size K (composed MULTIPLICATIVELY with {@link weights}), so a
+   * provider-correlated bloc counts toward its effective-independent size rather
+   * than its head-count. Voters with no `served` (a single-adapter panel) are
+   * undiscounted, so an unenabled OR single-adapter panel is byte-identical. The
+   * discount is surfaced as a VISIBLE `info` Verdict finding (raw → effective),
+   * never silent. Requires the composition root to fill `served` from TRUSTED
+   * adapter/registry resolution, never ballot-supplied content (else a voter could
+   * forge diversity to evade the discount).
+   */
+  readonly correlationAware?: boolean;
+  /** The {@link CorrelationForm} for {@link correlationAware} (default `sqrt`). */
+  readonly correlationForm?: CorrelationForm;
   /** The injected model call — see {@link InvokeVoter}. */
   readonly invokeVoter: InvokeVoter;
 }
@@ -194,18 +210,29 @@ export async function runVoteGate(options: RunVoteGateOptions): Promise<Verdict>
       ...(ballot.served === undefined ? {} : { served: ballot.served }),
     };
   });
+  // Correlation-aware aggregation (#369 Inc4, opt-in): fold the per-class discount
+  // into the (precision) weights so a provider-correlated bloc counts toward its
+  // effective-independent size. Off OR a single-adapter panel ⇒ base weights verbatim.
+  const form: CorrelationForm = options.correlationForm ?? 'sqrt';
+  const effectiveWeights = options.correlationAware
+    ? correlationWeights(voters, options.weights, form)
+    : options.weights;
   const outcome = aggregateVotes(
     strategy,
     ballots.map((b) => b.vote),
     options.escalateOnNoConsensus ?? false,
-    options.weights,
+    effectiveWeights,
   );
   return VerdictSchema.parse({
     taskId: options.taskId,
     gate: 'vote',
     result: outcome.result,
     confidence: outcome.confidence,
-    findings: [...dissentFindings(voters), ...diversityFindings(voters)],
+    findings: [
+      ...dissentFindings(voters),
+      ...diversityFindings(voters),
+      ...(options.correlationAware ? correlationFindings(voters, form) : []),
+    ],
     voters,
     cost: sumCosts(ballots, Date.now() - started),
   });
@@ -220,11 +247,6 @@ export async function runVoteGate(options: RunVoteGateOptions): Promise<Verdict>
 function adapterFailureCount(voters: readonly VoterRecord[]): number {
   return voters.filter((v) => v.vote === 'abstain' && v.reasoning.startsWith('voter_error:'))
     .length;
-}
-
-/** The normalized class key for a served {@link ModelIdentity} (#369). */
-function identityKey(id: ModelIdentity): string {
-  return [id.provider, id.family, id.generation, id.tier].join(' ');
 }
 
 /**
