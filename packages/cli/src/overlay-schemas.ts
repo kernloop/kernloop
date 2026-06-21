@@ -50,6 +50,19 @@ export const VoteGateSchema = z.strictObject({
    * labeled outcomes; labeling itself happens regardless of this flag.
    */
   precisionWeighted: z.boolean().default(false),
+  /**
+   * Opt-in correlation-AWARE aggregation (#369 Inc4): when true, voters that share a
+   * served model CLASS are downweighted by `correlationDiscount(form, K)` for the
+   * class size K (composed multiplicatively with any precision weight), so a
+   * provider-correlated bloc on a diverse panel counts toward its effective-
+   * independent size, not its head-count. The discount is surfaced as a VISIBLE
+   * `info` Verdict finding. Default false ⇒ equal/precision weights (byte-identical);
+   * inert on a single-adapter panel (no served identities to group).
+   */
+  correlationAware: z.boolean().default(false),
+  /** The `correlationAware` discount form (#369 Inc4): `sqrt` ⇒ 1/√K (default,
+   * softer), `linear` ⇒ 1/K (one effective vote per class). */
+  correlationForm: z.enum(['sqrt', 'linear']).default('sqrt'),
 });
 
 /** Quality-gate knobs; the per-check timeout has no honest overlay default — the gate owns it. */

@@ -89,6 +89,8 @@ export function ctxFor(panel: 3 | 7): NodeContext {
           panel,
           escalateOnNoConsensus: false,
           precisionWeighted: false,
+          correlationAware: false,
+          correlationForm: 'sqrt' as const,
         },
       },
       nodeOverrides: {},
