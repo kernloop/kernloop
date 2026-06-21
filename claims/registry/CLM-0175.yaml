@@ -1,0 +1,38 @@
+id: CLM-0175
+statement: >-
+  The parsimony assessor (`assessParsimony`, #426, EPIC #407) CHUNKS a child's diff
+  that EXCEEDS the per-chunk budget (`DIFF_ASSESS_MAX_CHARS`, kept as the chunk size)
+  into consecutive budget-sized chunks split on whole code-point boundaries (never
+  mid-surrogate), runs the strict assessor ONCE PER CHUNK — each chunk wrapped in its
+  OWN per-call nonce fence so the #289/#288 prompt-injection + cost-denial defenses are
+  preserved per chunk — and UNIONS the per-chunk assessments into ONE
+  `ParsimonyAssessment`: floorContext is the logical OR across chunks (full
+  trust-boundary coverage — a boundary buried PAST the head can no longer draw a clean
+  floor assessment, the security gap this fix closes before enforcement #7); satisfied
+  is the FAIL-CLOSED AND across chunks (a floor entry is satisfied only if some chunk
+  reported it true AND no chunk reported it false — a guard claimed satisfied in one
+  chunk but unsatisfied in another is NOT satisfied overall); the ladder signals + rung
+  come from the FIRST chunk only (the ladder is the advisory Prime layer — a wrong rung
+  is inefficiency, not a control breach — so a first-chunk view is acceptable while the
+  security-critical FLOOR gets full chunked coverage); the per-chunk rationales are
+  concatenated deterministically (the receipt's `rationaleDigest` reflects every
+  chunk); and the per-chunk costs are SUMMED. A diff that FITS in one chunk (the common
+  case) is ONE call producing an assessment byte-identical to the prior single-call
+  behavior — the executor (`parsimony-executor.ts`) is unchanged. A malformed chunk
+  emission throws a typed `LoopParseError` (raw output preserved) per chunk — never a
+  fabricated or partial assessment (prime directive: the record is what happened).
+evidence:
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::returns one chunk for a diff that fits the budget'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::splits a diff that exceeds the budget into consecutive budget-sized chunks'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::never cuts mid-surrogate — a surrogate pair stays whole in one chunk'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::OR’s floorContext — a flag set in only the second chunk appears in the union'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::fail-closed AND’s satisfied — true in chunk 1 but false in chunk 2 ⇒ not satisfied'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::treats an entry reported true by some chunk and absent in others as satisfied'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::takes ladder signals + rung from the FIRST chunk only'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::single-chunk diff: ONE invoke call, output identical to a direct single assessment'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::multi-chunk diff: invoke per chunk; floorContext OR’d, satisfied AND’d, ladder from chunk 1, cost summed'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::a malformed chunk emission throws the typed error — NO fabricated assessment (#289 per chunk)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

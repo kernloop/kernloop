@@ -2891,3 +2891,23 @@ The parsimony OSCAL projection (#8/#414, EPIC #407) maps parsimony Decision Rece
 - [`packages/parsimony/src/oscal.test.ts`](../packages/parsimony/src/oscal.test.ts)
 - [`packages/parsimony/src/oscal.test.ts`](../packages/parsimony/src/oscal.test.ts)
 - CI `test`
+
+## CLM-0175
+
+**Status:** verified — **source:** [`CLM-0175.yaml`](../claims/registry/CLM-0175.yaml)
+
+The parsimony assessor (`assessParsimony`, #426, EPIC #407) CHUNKS a child's diff that EXCEEDS the per-chunk budget (`DIFF_ASSESS_MAX_CHARS`, kept as the chunk size) into consecutive budget-sized chunks split on whole code-point boundaries (never mid-surrogate), runs the strict assessor ONCE PER CHUNK — each chunk wrapped in its OWN per-call nonce fence so the #289/#288 prompt-injection + cost-denial defenses are preserved per chunk — and UNIONS the per-chunk assessments into ONE `ParsimonyAssessment`: floorContext is the logical OR across chunks (full trust-boundary coverage — a boundary buried PAST the head can no longer draw a clean floor assessment, the security gap this fix closes before enforcement #7); satisfied is the FAIL-CLOSED AND across chunks (a floor entry is satisfied only if some chunk reported it true AND no chunk reported it false — a guard claimed satisfied in one chunk but unsatisfied in another is NOT satisfied overall); the ladder signals + rung come from the FIRST chunk only (the ladder is the advisory Prime layer — a wrong rung is inefficiency, not a control breach — so a first-chunk view is acceptable while the security-critical FLOOR gets full chunked coverage); the per-chunk rationales are concatenated deterministically (the receipt's `rationaleDigest` reflects every chunk); and the per-chunk costs are SUMMED. A diff that FITS in one chunk (the common case) is ONE call producing an assessment byte-identical to the prior single-call behavior — the executor (`parsimony-executor.ts`) is unchanged. A malformed chunk emission throws a typed `LoopParseError` (raw output preserved) per chunk — never a fabricated or partial assessment (prime directive: the record is what happened).
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
+- CI `test`
