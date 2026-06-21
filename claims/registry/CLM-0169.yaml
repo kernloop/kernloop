@@ -1,0 +1,25 @@
+id: CLM-0169
+statement: >-
+  The Parsimony Ladder (#409, EPIC #407) is a PURE, deterministic evaluator
+  (`@kernloop/parsimony` `evaluateLadder`) over a POLICY-DATA rung table
+  (`PARSIMONY_LADDER`): an ordered restraint cascade — need → stdlib → native → dep
+  → oneLine → minimal — that stops at the FIRST rung that holds (first-match-wins)
+  and returns the resolving rung + its {@link ParsimonyOutcome} (skip / reuse_stdlib
+  / reuse_native / reuse_dep / one_line / minimal_impl) for the Decision Receipt to
+  record. The ladder is DATA, not code — each rung names a signal key + the value
+  that resolves it (rung 0 `need` resolves on `false`; the last rung is an
+  unconditional fallthrough), so an overlay may supply its own table and the
+  evaluator makes no model call, reads no I/O, and never synthesizes an outcome the
+  table did not declare. A mis-authored ladder with no resolving rung THROWS rather
+  than fabricating an outcome.
+evidence:
+  - 'test:packages/parsimony/src/ladder.test.ts::rung 0: need=false ⇒ skip — and short-circuits even if lower rungs would hold'
+  - 'test:packages/parsimony/src/ladder.test.ts::rung 1: stdlib ⇒ reuse_stdlib (wins over native/dep/oneLine also true)'
+  - 'test:packages/parsimony/src/ladder.test.ts::rung 5: nothing holds ⇒ minimal_impl (the unconditional fallthrough)'
+  - 'test:packages/parsimony/src/ladder.test.ts::is deterministic — identical signals always resolve the identical rung'
+  - 'test:packages/parsimony/src/ladder.test.ts::THROWS on a mis-authored ladder with no fallthrough — never a fabricated outcome'
+  - 'test:packages/parsimony/src/ladder.test.ts::accepts an overlay-supplied ladder (policy data, not code)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

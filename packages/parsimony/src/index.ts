@@ -26,3 +26,10 @@ export {
   type ParsimonyOutcome,
   type ParsimonyReceipt,
 } from './receipt.js';
+export {
+  PARSIMONY_LADDER,
+  evaluateLadder,
+  type LadderSignals,
+  type LadderRung,
+  type LadderResult,
+} from './ladder.js';
