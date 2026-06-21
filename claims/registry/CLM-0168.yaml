@@ -1,0 +1,28 @@
+id: CLM-0168
+statement: >-
+  The parsimony Decision Receipt (#408, EPIC #407) is defined as a typed zod PAYLOAD
+  (`@kernloop/parsimony` `ParsimonyReceiptSchema`) for a new `parsimony.receipt`
+  audit EVENT — NOT a sixth Frozen-Five contract: it rides kernloop's existing
+  hash-chained audit log, so the chain fields (prevHash/hash/seq) are added by the
+  audit envelope and are deliberately ABSENT from the payload schema. A receipt
+  records the resolving ladder rung + outcome, the Control Floor checks (each typed
+  by CATALOG — the floor is multi-catalog: nist-800-53r5, section-508, wcag, or
+  intent — so a non-NIST entry with no control id is valid), a deferred shortcut as
+  a first-class block carrying its `controlRisk` (when an applicable floor entry is
+  unsatisfied), and the blind-verification verdict (method fixed to
+  `blind_independent`). The agent's prose is stored only as a `rationaleDigest`
+  (content hash), never raw, so blind verification stays unbiased. The schema is
+  strict (an unknown field or catalog, or a rung outside 0..5, THROWS) and
+  round-trips losslessly through parse.
+evidence:
+  - 'test:packages/parsimony/src/receipt.test.ts::round-trips a valid receipt through parse without mutation'
+  - 'test:packages/parsimony/src/receipt.test.ts::the event type rides the existing hash-chained audit log'
+  - 'test:packages/parsimony/src/receipt.test.ts::is MULTI-CATALOG — accepts a Section-508 floor entry with NO 800-53 control id'
+  - 'test:packages/parsimony/src/receipt.test.ts::THROWS on an unknown catalog — a floor entry cannot lie about its catalog'
+  - 'test:packages/parsimony/src/receipt.test.ts::THROWS on an unknown field (strict) and a rung out of 0..5'
+  - 'test:packages/parsimony/src/receipt.test.ts::a deferred shortcut is a first-class block with its control risk'
+  - 'test:packages/parsimony/src/receipt.test.ts::does not declare prevHash/hash/seq — those come from the audit envelope'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

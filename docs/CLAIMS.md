@@ -1312,7 +1312,7 @@ docs/API.md is DERIVED, never hand-written: render-api-docs mines each gated pac
 
 **Status:** verified — **source:** [`CLM-0091.yaml`](../claims/registry/CLM-0091.yaml)
 
-The doc-coverage gate (#64) requires every VALUE export — function, const, class, enum — on a gated package's public API surface to carry a real, non-placeholder doc-comment, rejecting trivially-empty docs and docs that merely restate the symbol name. The public-API resolver chases the barrel graph RECURSIVELY (#72): it follows named re-exports through NESTED barrels to the real declaration that carries the doc-comment, resolves a RENAME re-export (`export { X as Y }`) by its local name while surfacing the alias (#214), surfaces a BARE local re-export (`export { foo }` with no `from`, #213), and EXPANDS relative `export *` into its named symbols (breaking any cycle, memoizing each file). Only an EXTERNAL `export *` stays opaque — gated in its owning package — and is surfaced as a count, never hidden. So thirteen packages are gated (contracts, kernel, cli, docscan, workflows, faculty-compiler, faculty-gates, faculty-memory, faculty-observer, faculty-scrum, faculty-toolsmith, faculty-workforce, tracker) — the nested-barrel and `export *` packages (cli/workflows/kernel) included, no longer under-reported. A gap exits 1 with a per-package report and the gate runs in CI. The exclusion is by KIND, recorded permanently (never a silent weakening): type aliases/interfaces (incl. z.infer companions) declare no runtime value, so they are not gated — but a VALUE re-exported via `export type` still is (#215). It is a QUALITY gate, not claim evidence — a doc-comment proves a symbol is documented, never that it behaves; tests remain the verified bar.
+The doc-coverage gate (#64) requires every VALUE export — function, const, class, enum — on a gated package's public API surface to carry a real, non-placeholder doc-comment, rejecting trivially-empty docs and docs that merely restate the symbol name. The public-API resolver chases the barrel graph RECURSIVELY (#72): it follows named re-exports through NESTED barrels to the real declaration that carries the doc-comment, resolves a RENAME re-export (`export { X as Y }`) by its local name while surfacing the alias (#214), surfaces a BARE local re-export (`export { foo }` with no `from`, #213), and EXPANDS relative `export *` into its named symbols (breaking any cycle, memoizing each file). Only an EXTERNAL `export *` stays opaque — gated in its owning package — and is surfaced as a count, never hidden. So fourteen packages are gated (contracts, kernel, cli, docscan, parsimony, workflows, faculty-compiler, faculty-gates, faculty-memory, faculty-observer, faculty-scrum, faculty-toolsmith, faculty-workforce, tracker) — the nested-barrel and `export *` packages (cli/workflows/kernel) included, no longer under-reported. A gap exits 1 with a per-package report and the gate runs in CI. The exclusion is by KIND, recorded permanently (never a silent weakening): type aliases/interfaces (incl. z.infer companions) declare no runtime value, so they are not gated — but a VALUE re-exported via `export type` still is (#215). It is a QUALITY gate, not claim evidence — a doc-comment proves a symbol is documented, never that it behaves; tests remain the verified bar.
 
 **Enforced by:**
 
@@ -2766,4 +2766,21 @@ The vote gate supports CORRELATION-AWARE aggregation (#369 Inc4): voters that sh
 - [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
 - [`packages/faculty-gates/src/vote/correlation.test.ts`](../packages/faculty-gates/src/vote/correlation.test.ts)
 - [`packages/cli/src/overlay-vote.test.ts`](../packages/cli/src/overlay-vote.test.ts)
+- CI `test`
+
+## CLM-0168
+
+**Status:** verified — **source:** [`CLM-0168.yaml`](../claims/registry/CLM-0168.yaml)
+
+The parsimony Decision Receipt (#408, EPIC #407) is defined as a typed zod PAYLOAD (`@kernloop/parsimony` `ParsimonyReceiptSchema`) for a new `parsimony.receipt` audit EVENT — NOT a sixth Frozen-Five contract: it rides kernloop's existing hash-chained audit log, so the chain fields (prevHash/hash/seq) are added by the audit envelope and are deliberately ABSENT from the payload schema. A receipt records the resolving ladder rung + outcome, the Control Floor checks (each typed by CATALOG — the floor is multi-catalog: nist-800-53r5, section-508, wcag, or intent — so a non-NIST entry with no control id is valid), a deferred shortcut as a first-class block carrying its `controlRisk` (when an applicable floor entry is unsatisfied), and the blind-verification verdict (method fixed to `blind_independent`). The agent's prose is stored only as a `rationaleDigest` (content hash), never raw, so blind verification stays unbiased. The schema is strict (an unknown field or catalog, or a rung outside 0..5, THROWS) and round-trips losslessly through parse.
+
+**Enforced by:**
+
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
+- [`packages/parsimony/src/receipt.test.ts`](../packages/parsimony/src/receipt.test.ts)
 - CI `test`

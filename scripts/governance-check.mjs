@@ -37,6 +37,7 @@ export const ALLOWED_PACKAGES = new Set([
   'faculty-scrum',
   'faculty-toolsmith',
   'faculty-models',
+  'parsimony',
   'tracker',
   'workflows',
   'cli',
