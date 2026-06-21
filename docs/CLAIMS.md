@@ -2852,3 +2852,21 @@ The canonical loop has a `parsimony` GATE NODE (#411/#5, EPIC #407) — the Chec
 - [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
 - [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
 - CI `test`
+
+## CLM-0173
+
+**Status:** verified — **source:** [`CLM-0173.yaml`](../claims/registry/CLM-0173.yaml)
+
+The parsimony subsystem (#6, EPIC #407) exposes a GREPPABLE `kl:parsimony` marker grammar and a read-only `kl debt` harvest. `parsimonyMarker(receipt)` formats a single-line, space-free marker — `kl:parsimony rung=R outcome=O floor=<id-or-name>:<status>,… defer=none|<debtId> receipt=<receiptId>` — listing every Control Floor check that applied (NOT `na`) and back-referencing the full receipt by id; `parseMarker(line)` tolerantly recovers at least that `receipt=<id>` back-link from any line (or null on a non-marker), so a marker resolves to its receipt on the hash-chained audit log. Writing markers as inline code comments is a SEPARATE future concern (coder-node integration) and is NOT attempted here — this is the grammar + back-link only. The `kl debt` CLI VERB (not a 12th MCP tool) reads `parsimony.receipt` events back off the overlay's audit log via the same envelope reader the `audit` tool uses, validates each payload with `parseParsimonyReceipt`, and lists ONLY the receipts carrying a `deferred` block — an unmitigated shortcut — with its receiptId, subject, rung/outcome, control risk, owner, and ts (a human table by default, structured JSON under `--json`, plus a summary count). It MUTATES NOTHING and appends NO audit event (a harvest is a query), and a non-parsimony or malformed event is skipped, never crashing the harvest.
+
+**Enforced by:**
+
+- [`packages/parsimony/src/marker.test.ts`](../packages/parsimony/src/marker.test.ts)
+- [`packages/parsimony/src/marker.test.ts`](../packages/parsimony/src/marker.test.ts)
+- [`packages/parsimony/src/marker.test.ts`](../packages/parsimony/src/marker.test.ts)
+- [`packages/parsimony/src/marker.test.ts`](../packages/parsimony/src/marker.test.ts)
+- [`packages/cli/src/debt-commands.test.ts`](../packages/cli/src/debt-commands.test.ts)
+- [`packages/cli/src/debt-commands.test.ts`](../packages/cli/src/debt-commands.test.ts)
+- [`packages/cli/src/debt-commands.test.ts`](../packages/cli/src/debt-commands.test.ts)
+- [`packages/cli/src/debt-commands.test.ts`](../packages/cli/src/debt-commands.test.ts)
+- CI `test`

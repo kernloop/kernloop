@@ -1,0 +1,31 @@
+id: CLM-0173
+statement: >-
+  The parsimony subsystem (#6, EPIC #407) exposes a GREPPABLE `kl:parsimony` marker
+  grammar and a read-only `kl debt` harvest. `parsimonyMarker(receipt)` formats a
+  single-line, space-free marker — `kl:parsimony rung=R outcome=O floor=<id-or-name>:<status>,…
+  defer=none|<debtId> receipt=<receiptId>` — listing every Control Floor check that
+  applied (NOT `na`) and back-referencing the full receipt by id; `parseMarker(line)`
+  tolerantly recovers at least that `receipt=<id>` back-link from any line (or null on a
+  non-marker), so a marker resolves to its receipt on the hash-chained audit log.
+  Writing markers as inline code comments is a SEPARATE future concern (coder-node
+  integration) and is NOT attempted here — this is the grammar + back-link only. The
+  `kl debt` CLI VERB (not a 12th MCP tool) reads `parsimony.receipt` events back off the
+  overlay's audit log via the same envelope reader the `audit` tool uses, validates each
+  payload with `parseParsimonyReceipt`, and lists ONLY the receipts carrying a `deferred`
+  block — an unmitigated shortcut — with its receiptId, subject, rung/outcome, control
+  risk, owner, and ts (a human table by default, structured JSON under `--json`, plus a
+  summary count). It MUTATES NOTHING and appends NO audit event (a harvest is a query),
+  and a non-parsimony or malformed event is skipped, never crashing the harvest.
+evidence:
+  - 'test:packages/parsimony/src/marker.test.ts::formats a clean (pass) receipt with defer=none, only applicable checks'
+  - 'test:packages/parsimony/src/marker.test.ts::formats a deferred receipt with defer=<debtId> and a :deferred floor entry'
+  - 'test:packages/parsimony/src/marker.test.ts::round-trips: parseMarker(parsimonyMarker(r)).receiptId === r.receiptId'
+  - 'test:packages/parsimony/src/marker.test.ts::returns null on a non-marker line'
+  - 'test:packages/cli/src/debt-commands.test.ts::lists ONLY the deferred receipt, with its control risk'
+  - 'test:packages/cli/src/debt-commands.test.ts::does not crash on an unrelated or malformed event'
+  - 'test:packages/cli/src/debt-commands.test.ts::emits structured JSON under --json with the deferred row only'
+  - 'test:packages/cli/src/debt-commands.test.ts::is dispatched as the `debt` verb and prints the human table by default'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
