@@ -136,7 +136,10 @@ export function scriptedInvoke(script: {
 }): LoopInvoke {
   return (prompt) => {
     let output: string;
-    if (prompt.includes('PARSIMONY ASSESSOR')) {
+    if (prompt.includes('BLIND PARSIMONY VERIFIER')) {
+      // The blind verifier (#413) CONFIRMS the claimed-pass guards for this clean diff.
+      output = JSON.stringify({ status: 'confirmed', refutedChecks: [], reason: 'guards hold' });
+    } else if (prompt.includes('PARSIMONY ASSESSOR')) {
       output = CLEAN_PARSIMONY_ASSESSMENT;
     } else if (prompt.includes('Diff under review')) {
       output = reviewOutput(

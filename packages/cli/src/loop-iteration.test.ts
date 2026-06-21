@@ -51,9 +51,15 @@ const CLEAN_PARSIMONY = JSON.stringify({
   rationale: 'a small typed function reusing the stdlib',
 });
 
+/** The blind verifier (#413) confirms the claimed-pass guard for the clean diff. */
+const CLEAN_VERIFY = JSON.stringify({ status: 'confirmed', refutedChecks: [], reason: 'ok' });
+
 function iteratingInvoke(captured: string[]): LoopInvoke {
   let coderCalls = 0;
   return (prompt) => {
+    if (prompt.includes('BLIND PARSIMONY VERIFIER')) {
+      return Promise.resolve({ output: CLEAN_VERIFY, cost: COST });
+    }
     if (prompt.includes('PARSIMONY ASSESSOR')) {
       return Promise.resolve({ output: CLEAN_PARSIMONY, cost: COST });
     }
@@ -153,6 +159,9 @@ describe('review-driven child iteration, end to end [CLM-0043]', () => {
  */
 function smallBudgetInvoke(): LoopInvoke {
   return (prompt) => {
+    if (prompt.includes('BLIND PARSIMONY VERIFIER')) {
+      return Promise.resolve({ output: CLEAN_VERIFY, cost: COST });
+    }
     if (prompt.includes('PARSIMONY ASSESSOR')) {
       return Promise.resolve({ output: CLEAN_PARSIMONY, cost: COST });
     }

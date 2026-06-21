@@ -42,7 +42,10 @@ export const COST: Cost = { tokens: 3, usd: 0.001 };
 /** Scripted invoke for the direct executor tests (always approves). */
 export const scripted: LoopInvoke = (prompt) => {
   let output = 'Plan: do the thing.';
-  if (prompt.includes('PARSIMONY ASSESSOR')) {
+  if (prompt.includes('BLIND PARSIMONY VERIFIER')) {
+    // The blind verifier (#413) confirms the claimed-pass guards for the clean diff.
+    output = JSON.stringify({ status: 'confirmed', refutedChecks: [], reason: 'guards hold' });
+  } else if (prompt.includes('PARSIMONY ASSESSOR')) {
     // A clean restraint assessment (rung 1 stdlib, no floor entry applies but intent).
     output = JSON.stringify({
       rung: 1,

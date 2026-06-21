@@ -2912,3 +2912,25 @@ The parsimony assessor (`assessParsimony`, #426, EPIC #407) CHUNKS a child's dif
 - [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
 - [`packages/cli/src/loop/parsimony-assess.test.ts`](../packages/cli/src/loop/parsimony-assess.test.ts)
 - CI `test`
+
+## CLM-0176
+
+**Status:** verified — **source:** [`CLM-0176.yaml`](../claims/registry/CLM-0176.yaml)
+
+The Check-layer parsimony gate (#413/#7, EPIC #407) runs a SECOND, INDEPENDENT, rationale-BLIND verifier model call (`verifyFloor`, parsimony-verify.ts) per fan-out child AFTER the assessor, and sets the receipt's `verification` verdict to a REAL `confirmed`/`refuted` (with `checkedFloor:true`) instead of `pending`. The verifier is BLIND to the assessor's prose rationale: its prompt (`verifierPrompt`) carries ONLY the child's diff (nonce-fenced UNTRUSTED data, #289, and clamped, #288 — the same fence + clamp the assessor uses) and the NAMES of the floor guards the assessor CLAIMED satisfied (`status === 'pass'`); the assessor's rationale string is never passed (the receipt stores only its `rationaleDigest`). The verifier re-checks whether each claimed-pass guard is ACTUALLY satisfied by the diff and emits a strict JSON verdict `{status:'confirmed'|'refuted', refutedChecks:string[], reason:string}`, zod-parsed by the hardened `parseEmission` (a malformed verdict throws a typed `LoopParseError`, raw output preserved — never a fabricated verdict). It CHUNKS the diff exactly as the assessor does (reusing `chunkDiff`/`MAX_ASSESS_CHUNKS`, the same per-call nonce fence and clamp per chunk) and UNIONs the per-chunk verdicts FAIL- CLOSED: `confirmed` only if EVERY chunk confirms; if ANY chunk refutes (or cannot confirm a claimed guard) the overall verdict is `refuted` with the union of refuting names; per-chunk costs are SUMMED. A diff that EXCEEDS the chunk cap is `refuted` OUTRIGHT (fail-closed — an over-cap diff cannot be fully verified). When the assessor claimed NO floor guard satisfied (zero `pass` checks) the verification CONFIRMS VACUOUSLY WITHOUT a model call (`checkedFloor:true`, nothing to refute). The gate STAYS ADVISORY in this increment: it still returns a PASS Verdict regardless of the verdict; a `refuted` verification adds a `warn` finding naming the refuted guard(s) but does NOT reject/block (the loop completes exactly as before — additive, non-behavior-changing). The verifier's cost is summed into the gate's Verdict cost, and the pre-flight call-count estimate (cost-estimate.ts) models the parsimony node as assessor + verifier (2×c). ENFORCEMENT — rejecting on a refute and intensity gating — is #9, a SEPARATE later PR.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-verify.test.ts`](../packages/cli/src/loop/parsimony-verify.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
+- CI `test`
