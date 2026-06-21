@@ -13,8 +13,7 @@
     }
   },
   "files": [
-    "dist",
-    "schemas"
+    "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
