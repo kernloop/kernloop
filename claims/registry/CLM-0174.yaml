@@ -1,0 +1,41 @@
+id: CLM-0174
+statement: >-
+  The parsimony OSCAL projection (#8/#414, EPIC #407) maps parsimony Decision
+  Receipts to an OSCAL Assessment Results document via the PURE
+  `toOscalAssessmentResults(receipts, meta)` — the caller supplies the document
+  uuid, last-modified timestamp, and oscal-version, so identical inputs yield
+  byte-identical output (deterministic; child observation/finding uuids are
+  derived from the document uuid). Each receipt's applicable (non-`na`) Control
+  Floor checks become OSCAL `observations` (method `TEST`); a `refuted` blind
+  verification and each unmitigated `deferred` control-risk become OSCAL
+  `findings`. A finding links to a NIST 800-53 control (`target.type:
+  objective-id`, `target-id: <control>`, plus a `control-id` property) ONLY for a
+  BARE control-id token; a `<catalog>:<name>` SENTINEL token (#423 — a
+  Section-508 / WCAG / intent deferral with no 800-53 control) is emitted as a
+  finding WITHOUT a NIST control link (`target.type: statement-id`, recorded as a
+  `non-control-risk` property), and the document's `reviewed-controls` names only
+  the bare controls, never a sentinel. The single disambiguation point is
+  `isSentinelRisk(token)` — true exactly when the token contains a `:`. The
+  projection output VALIDATES against the vendored, official, unmodified NIST
+  OSCAL Assessment Results JSON Schema (OSCAL v1.1.3,
+  `packages/parsimony/schemas/oscal_assessment-results_schema.json`) compiled with
+  `ajv` + `ajv-formats` in CI — for an all-pass floor (observations, no findings),
+  a NIST-control deferral, a 508 sentinel deferral, a refuted verification, and
+  multiple aggregated receipts. The OSCAL types in `oscal-types.ts` are a
+  caller-facing convenience; the ajv validation against the vendored real schema
+  is the ground truth.
+evidence:
+  - 'test:packages/parsimony/src/oscal.test.ts::rejects an empty object, a garbage object, and a doc missing required fields'
+  - 'test:packages/parsimony/src/oscal.test.ts::(a) all-pass floor → observations, no findings — valid OSCAL'
+  - 'test:packages/parsimony/src/oscal.test.ts::(b) NIST-control deferral → a finding linked to the control id — valid OSCAL'
+  - 'test:packages/parsimony/src/oscal.test.ts::(c) 508 SENTINEL deferral → a finding WITHOUT a NIST control link — valid OSCAL'
+  - 'test:packages/parsimony/src/oscal.test.ts::(d) refuted verification → control-linked findings — valid OSCAL'
+  - 'test:packages/parsimony/src/oscal.test.ts::(e) multiple receipts → one valid OSCAL document aggregating all'
+  - 'test:packages/parsimony/src/oscal.test.ts::produces deterministic output for identical inputs (pure)'
+  - 'test:packages/parsimony/src/oscal.test.ts::an empty receipt set is still a valid OSCAL document'
+  - 'test:packages/parsimony/src/oscal.test.ts::a bare NIST control id (AC-3) is NOT a sentinel → links to a control'
+  - 'test:packages/parsimony/src/oscal.test.ts::a <catalog>:<name> sentinel token IS a sentinel → no control link'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
