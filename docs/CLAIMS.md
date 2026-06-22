@@ -2965,3 +2965,17 @@ The Check-layer parsimony gate (#9/#415, EPIC #407) has an INTENSITY DIAL + ENFO
 - [`packages/workflows/src/overrides.test.ts`](../packages/workflows/src/overrides.test.ts)
 - [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
 - CI `test`
+
+## CLM-0178
+
+**Status:** verified — **source:** [`CLM-0178.yaml`](../claims/registry/CLM-0178.yaml)
+
+The parsimony subsystem (EPIC #407) carries a VERSIONED threat taxonomy (docs/parsimony-threat-taxonomy.md, schema kernloop.parsimony-threat-taxonomy/v1) whose entry PT-001 names the "YAGNI-as-attack" threat — a coder agent invoking a parsimony / restraint rationale to justify DROPPING an access-enforcement (AC-3, via the `access_enforcement` floor guard) or input-validation (SI-10, via the `input_validation` floor guard) control — and is backed by a LOAD-BEARING adversarial proof. In the proven pass-OVER-claims variant the assessor reports the floor boundaries crossed (`enforcesAccess`/`crossesTrustBoundary` true) AND CLAIMS the controls satisfied (`pass`) while the diff implements neither. The proof exercises the REAL parsimony executor + the REAL blind verifier (`verifyFloor`, parsimony-verify.ts) via a scripted invoke — NOT a mock of `decideVerdict`: the blind verifier (BLIND to the assessor's YAGNI rationale — it receives only the diff and the claimed-pass guard NAMES) REFUTES the claimed-pass AC-3/SI-10 guards, and at intensity `full` (the default, CLM-0177) the parsimony Verdict is `reject` with an error finding NAMING the refuted guards (`input_validation`, `access_enforcement`); the refute verdict rides the hash-chained audit log as the receipt's `verification.status=refuted`. The SAME attack is only advisory (a `warn`, passes) at `lite`. The LOOP-LEVEL consequence is proven against the real engine: a persistently-refuting child (the dropped control never added back) re-iterates through the existing child-iterate back-edge and FAILS its iteration at the Kc bound (escalated, never integrating a control-floor violation), while its clean sibling is untouched. HONEST SCOPE (the documented residual, follow-up #435): the blind verifier is answer-key-anchored — it catches pass-OVER-claims ONLY. PT-001 and these tests deliberately do NOT cover the applicability-UNDER-claims / na-lying variant (an assessor reporting the boundary flag false / a guard `na` when the diff really crosses it), which bypasses both the verifier and the deferral; the taxonomy states this residual explicitly and links it to #435.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/parsimony-attack.test.ts`](../packages/cli/src/loop/parsimony-attack.test.ts)
+- [`packages/cli/src/loop/parsimony-attack.test.ts`](../packages/cli/src/loop/parsimony-attack.test.ts)
+- [`packages/cli/src/loop/parsimony-attack.test.ts`](../packages/cli/src/loop/parsimony-attack.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- CI `test`

@@ -214,6 +214,50 @@ describe('review-driven child iteration [CLM-0043]', () => {
     expect(qualityCalls['task-1.c1']).toBe(1);
   });
 
+  it('a persistently-refuting child (YAGNI-dropped AC-3/SI-10 control) FAILS its iteration at Kc [PT-001/CLM-0178]', async () => {
+    // The loop-level consequence of the PT-001 attack: a child whose diff drops a
+    // control and whose parsimony gate REFUTES on every attempt (never fixed) burns
+    // its Kc budget and ESCALATES — it never integrates a control-floor violation.
+    // Mirrors the quality-reject Kc-exhaustion pattern; the engine routes parsimony
+    // through the SAME child-iterate back-edge when parsimonyDrivesIteration is on.
+    let integrateInput: unknown;
+    const { executors } = scripted({ 'task-1.c1': ['pass'] }); // quality is clean
+    const parsimonies: Record<string, number> = {};
+    executors['parsimony'] = (_i, ctx) => {
+      const id = ctx.child?.id ?? ctx.taskId;
+      parsimonies[id] = (parsimonies[id] ?? 0) + 1;
+      // c1 ALWAYS refutes (the dropped AC-3/SI-10 control is never added back); c2 is clean.
+      return Promise.resolve(verdict(id, 'parsimony', id === 'task-1.c1' ? 'reject' : 'pass'));
+    };
+    executors['integrate'] = (input) => {
+      integrateInput = input;
+      return Promise.resolve(outcome(task.id));
+    };
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { Kc: 2, parsimonyDrivesIteration: true },
+    }).run(task);
+
+    expect(result.status).toBe('completed'); // one stuck child does not sink the sprint
+    // c1 parsimony: initial + Kc=2 re-runs = 3 attempts, all refuting.
+    expect(parsimonies['task-1.c1']).toBe(3);
+    const results = integrateInput as Array<{
+      child: TaskContract;
+      escalated?: boolean;
+      verdict?: Verdict;
+      parsimonyVerdict?: Verdict;
+    }>;
+    const c1 = results.find((r) => r.child.id === 'task-1.c1');
+    const c2 = results.find((r) => r.child.id === 'task-1.c2');
+    // The control-violating child FAILED its iteration: escalated, never a clean pass.
+    expect(c1?.escalated).toBe(true);
+    expect(c1?.parsimonyVerdict?.result).toBe('reject');
+    // The clean sibling is untouched.
+    expect(c2?.escalated).toBeUndefined();
+    expect(c2?.parsimonyVerdict?.result).toBe('pass');
+  });
+
   it('a parsimony escalate verdict halts the child immediately — NOT a re-attempt (#192)', async () => {
     const { executors, qualityCalls, implementCtx } = scripted({ 'task-1.c1': ['pass'] });
     executors['parsimony'] = (_i, ctx) =>
