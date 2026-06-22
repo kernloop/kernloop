@@ -2979,3 +2979,21 @@ The parsimony subsystem (EPIC #407) carries a VERSIONED threat taxonomy (docs/pa
 - [`packages/cli/src/loop/parsimony-attack.test.ts`](../packages/cli/src/loop/parsimony-attack.test.ts)
 - [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
 - CI `test`
+
+## CLM-0179
+
+**Status:** verified — **source:** [`CLM-0179.yaml`](../claims/registry/CLM-0179.yaml)
+
+The compact PARSIMONY (restraint) RULE [#417, EPIC #407 M4] — the agent-facing Prime-layer instruction to climb the restraint ladder, hold the Control Floor, and emit the greppable `kl:parsimony` marker — is SINGLE-SOURCED as the exported const `COMPACT_PARSIMONY_RULE` in `@kernloop/parsimony` (packages/parsimony/src/rule.ts), composed from the canonical PARSIMONY_LADDER / CONTROL_FLOOR / MARKER_TAG so it names the REAL rungs, the REAL floor control ids (AC-3, SI-10, …), and the REAL marker grammar — never a divergent vocabulary. BOTH the implement/coder prompt AND the per-harness copies DERIVE from that one const: the CLI's `coderPrompt` (packages/cli/src/loop/prompts.ts) appends COMPACT_PARSIMONY_RULE on EVERY coder call so the Prime disposition travels with the implement step, and `renderHarnessCopy(harness)` / `renderSkillDoc()` wrap the SAME const with a thin header to GENERATE the per-harness copies (claude/codex/gemini/opencode) and the human-readable SKILL.md under skills/parsimony-restraint/. The generator `scripts/render-parsimony-rule.mjs` writes those copies and, in `--check` mode (wired into CI as the `parsimony:render -- --check` drift gate), EXITS NONZERO the instant any committed copy is hand-edited away from the single source. The `parsimony.receipt` kernel-contract — a NEW typed event on the existing hash-chained/HMAC audit log (NOT a sixth Frozen-Five contract), its full ParsimonyReceiptSchema payload, the deferred-invariant superRefine, the `kl:parsimony` marker grammar, the read-back verification block, and the OSCAL projection pointer — is documented under docs/parsimony-receipt-contract.md.
+
+**Enforced by:**
+
+- [`packages/parsimony/src/rule.test.ts`](../packages/parsimony/src/rule.test.ts)
+- [`packages/parsimony/src/rule.test.ts`](../packages/parsimony/src/rule.test.ts)
+- [`packages/parsimony/src/rule.test.ts`](../packages/parsimony/src/rule.test.ts)
+- [`packages/parsimony/src/rule.test.ts`](../packages/parsimony/src/rule.test.ts)
+- [`packages/parsimony/src/rule.test.ts`](../packages/parsimony/src/rule.test.ts)
+- [`packages/cli/src/loop/prompts.test.ts`](../packages/cli/src/loop/prompts.test.ts)
+- [`scripts/__tests__/render-parsimony-rule.test.mjs`](../scripts/__tests__/render-parsimony-rule.test.mjs)
+- [`docs/parsimony-receipt-contract.md#payload--every-parsimonyreceiptschema-field`](../docs/parsimony-receipt-contract.md#payload--every-parsimonyreceiptschema-field)
+- CI `test`

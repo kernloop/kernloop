@@ -88,6 +88,12 @@ jobs:
       # Stats-drift gate (#189): the README at-a-glance block + every WATCHED
       # prose count must match the value DERIVED from the canonical code const.
       - run: pnpm stats:check
+      # Parsimony-rule drift gate (#417): the per-harness copies + SKILL.md under
+      # skills/parsimony-restraint/ are GENERATED from the single source
+      # `COMPACT_PARSIMONY_RULE` in @kernloop/parsimony — fail if any committed
+      # copy diverges from it.
+      - run: pnpm build
+      - run: pnpm parsimony:render -- --check
 
   governance:
     name: governance
