@@ -43,6 +43,7 @@ import { appendEvent, droppedEnvKeys } from '@kernloop/kernel';
 import type { Kernloop } from './kernel.js';
 import { assembleBrief } from './gather.js';
 import { executeCanonicalLoop, type LoopInvoke, type LoopReport } from './loop/index.js';
+import { verdictDisposition } from '@kernloop/workflows';
 
 /** Per-invocation context handed to an executor by the run tool. */
 export interface ExecutionContext {
@@ -210,7 +211,11 @@ function gateQualityExecutor(kern: Kernloop): CapabilityExecutor {
       sandbox: kern.config.gates.quality.sandbox, // Docker isolation policy (#236)
       ...(checks === undefined ? {} : { checks }),
     });
-    const passed = verdict.result === 'pass';
+    // Route through the single verdict classifier (#192/#361) rather than a raw
+    // `=== 'pass'`: a second `escalate` producer (the parsimony gate's
+    // escalateOnRefute, #415) must read as NOT-passed here, not be silently bucketed
+    // as a plain failure outside the classifier.
+    const passed = verdictDisposition(verdict.result) === 'advance';
     return {
       status: passed ? 'success' : 'failure',
       signals: [

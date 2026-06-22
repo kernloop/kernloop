@@ -2604,7 +2604,7 @@ The Outcome contract carries an optional served:ModelIdentity (the producing mod
 
 **Status:** verified — **source:** [`CLM-0157.yaml`](../claims/registry/CLM-0157.yaml)
 
-The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate, under the opt-in gates.vote.escalateOnNoConsensus, emits `escalate` when a panel DEADLOCKS (neither the approve bar nor the symmetric reject bar clears) instead of defaulting to reject; with the flag off a deadlock still resolves to reject, byte-identical across every strategy. The canonical loop routes an `escalate` verdict to its EXISTING escalated outcome — it HALTS for a human IMMEDIATELY (regardless of the K/Kc bound), with a distinct haltReason 'vote-escalation' so an operator tells a deadlock from K-exhaustion. All verdict routing goes through a single never-exhaustiveness classifier, so a future VerdictResult value is a compile error, never a silent mis-route.
+The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate, under the opt-in gates.vote.escalateOnNoConsensus, emits `escalate` when a panel DEADLOCKS (neither the approve bar nor the symmetric reject bar clears) instead of defaulting to reject; with the flag off a deadlock still resolves to reject, byte-identical across every strategy. The canonical loop routes an `escalate` verdict to its EXISTING escalated outcome — it HALTS for a human IMMEDIATELY (regardless of the K/Kc bound), with a distinct haltReason 'vote-escalation' so an operator tells a deadlock from K-exhaustion. All verdict routing goes through a single never-exhaustiveness classifier, so a future VerdictResult value is a compile error, never a silent mis-route. The non-routing verdict CONSUMERS that once read a raw `result === 'pass'` outside the classifier (#361) now also go through it: the gate.quality executor's success signal maps `advance` → success, and the observe telemetry tallies a verdict by its disposition into pass / fail / escalate buckets — so a SECOND escalate producer (the parsimony gate's escalateOnRefute, #415) is surfaced, never bucketed as a plain failure or dropped.
 
 **Enforced by:**
 
@@ -2613,6 +2613,7 @@ The Verdict contract carries an `escalate` disposition (≈ ASK): the vote gate,
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
 - [`packages/workflows/src/verdict-disposition.test.ts`](../packages/workflows/src/verdict-disposition.test.ts)
+- [`packages/cli/src/tools/observe.test.ts`](../packages/cli/src/tools/observe.test.ts)
 - [`packages/workflows/src/verdict-disposition.ts#verdictDisposition`](../packages/workflows/src/verdict-disposition.ts)
 - CI `test`
 
