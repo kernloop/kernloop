@@ -176,6 +176,61 @@ describe('review-driven child iteration [CLM-0043]', () => {
     // Review drove a re-implement: quality ran twice for c1.
     expect(qualityCalls['task-1.c1']).toBe(2);
   });
+
+  it('with parsimonyDrivesIteration on (intensity full/ultra), a parsimony reject re-runs implement (#9/#415)', async () => {
+    const { executors, qualityCalls } = scripted({ 'task-1.c1': ['pass'] });
+    let parsimonies = 0;
+    executors['parsimony'] = (_i, ctx) => {
+      parsimonies += 1;
+      // First parsimony rejects (a refute), second passes.
+      return Promise.resolve(
+        verdict(ctx.child?.id ?? ctx.taskId, 'parsimony', parsimonies === 1 ? 'reject' : 'pass'),
+      );
+    };
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { parsimonyDrivesIteration: true },
+    }).run(task);
+    expect(result.status).toBe('completed');
+    // Parsimony drove a re-implement for c1: quality (and the whole sub-chain) ran twice.
+    expect(qualityCalls['task-1.c1']).toBe(2);
+    // c1 parsimony ran twice (reject then pass) + c2 once = 3 total.
+    expect(parsimonies).toBe(3);
+  });
+
+  it('with parsimonyDrivesIteration OFF (intensity lite), a parsimony reject does NOT re-run implement', async () => {
+    const { executors, qualityCalls } = scripted({ 'task-1.c1': ['pass'] });
+    executors['parsimony'] = (_i, ctx) =>
+      // A rejecting parsimony verdict — but lite is advisory, so it must NOT re-iterate.
+      Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'parsimony', 'reject'));
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { parsimonyDrivesIteration: false },
+    }).run(task);
+    expect(result.status).toBe('completed');
+    // No re-implement: quality ran exactly once for c1 (the parsimony reject folded in as a hint).
+    expect(qualityCalls['task-1.c1']).toBe(1);
+  });
+
+  it('a parsimony escalate verdict halts the child immediately — NOT a re-attempt (#192)', async () => {
+    const { executors, qualityCalls, implementCtx } = scripted({ 'task-1.c1': ['pass'] });
+    executors['parsimony'] = (_i, ctx) =>
+      Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'parsimony', 'escalate'));
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { parsimonyDrivesIteration: true },
+    }).run(task);
+    // An escalate verdict from a driving gate escalates the child WITHOUT re-running
+    // implement (a human ruling is not a re-attempt, #192) — distinct from a reject,
+    // which DOES re-iterate. c1 implemented exactly once; an escalated child does not
+    // sink its siblings, so the run still finishes.
+    expect(implementCtx.filter((c) => c.childId === 'task-1.c1')).toHaveLength(1);
+    expect(qualityCalls['task-1.c1']).toBe(1);
+    expect(result.status).toBe('completed');
+  });
 });
 
 describe('runtime budget enforcement [CLM-0077]', () => {

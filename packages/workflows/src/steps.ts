@@ -35,6 +35,10 @@ export interface AdvanceOptions {
   readonly kc: number;
   readonly specialists: readonly string[];
   readonly reviewDrivesIteration: boolean;
+  /** Does the parsimony gate drive child re-iteration this run (#9/#415)? True at
+   * intensity full/ultra (a rejecting parsimony verdict re-runs implement), false
+   * at lite/off (advisory or disabled). The CLI derives it from the overlay. */
+  readonly parsimonyDrivesIteration: boolean;
   /** False when a child re-implement would exceed the run budget (Part B). */
   readonly childWithinBudget: boolean;
   /** Fired when a child re-enters implement: {childId, iteration, gate, findingCount}. */
@@ -224,6 +228,8 @@ function advanceChild(
   const subNode = graph.childChain[sub];
   if (subNode?.gate === 'review') {
     result.reviewVerdict = output as Verdict;
+  } else if (subNode?.gate === 'parsimony') {
+    result.parsimonyVerdict = output as Verdict;
   } else if (subNode?.kind === 'gate') {
     result.verdict = output as Verdict;
   } else {
@@ -259,7 +265,12 @@ function advanceChildGate(
   if (state.cursor.phase !== 'fanout') return false;
   const result = state.childResults[state.cursor.childIndex];
   if (result === undefined) return false;
-  if (!gateDrivesIteration(gateNode, opts.reviewDrivesIteration)) {
+  if (
+    !gateDrivesIteration(gateNode, {
+      reviewDrives: opts.reviewDrivesIteration,
+      parsimonyDrives: opts.parsimonyDrivesIteration,
+    })
+  ) {
     foldHints(result, verdict.findings);
     return false;
   }

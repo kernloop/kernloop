@@ -101,6 +101,7 @@ export function ctxFor(panel: 3 | 7): NodeContext {
       K: 3,
       Kc: 1,
       reviewDrivesIteration: false,
+      parsimonyDrivesIteration: false,
       budgetHeadroomFraction: 0,
       gates: {
         vote: {

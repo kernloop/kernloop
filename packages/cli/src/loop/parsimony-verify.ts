@@ -20,10 +20,13 @@
  * the whole verdict, and a diff over the chunk cap is REFUTED outright (it cannot be
  * fully verified). It routes through the SAME review-tier invoke as the assessor.
  *
- * HONEST SCOPE: this PR is the CHECK layer COMPLETING — the receipt's verification
- * verdict is now real evidence (`confirmed`/`refuted` instead of `pending`). The gate
- * STAYS ADVISORY: a refute adds a `warn` finding but does NOT reject/block. Making a
- * refute REJECT (and intensity gating) is #9, a separate later PR.
+ * ENFORCEMENT (#9/#415): the receipt's verification verdict is real evidence
+ * (`confirmed`/`refuted`). At intensity full/ultra (the DEFAULT) a `refuted` verdict
+ * REJECTS the child (→ re-iterate, or escalate); at lite it is advisory (a `warn`
+ * finding only). HONEST SCOPE: this verifier catches pass-OVER-claims (a refuted
+ * claimed-pass guard), NOT applicability-UNDER-claims (an assessor reporting a guard
+ * `na`/a flag false when the diff really crosses that boundary) — see the residual in
+ * parsimony-executor.ts and the follow-up #435.
  */
 import { z } from 'zod';
 import type { FloorCheck } from '@kernloop/parsimony';

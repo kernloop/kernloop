@@ -107,12 +107,12 @@ describe('loadOverlay defaults and precedence', () => {
         correlationAware: false,
         correlationForm: 'sqrt',
       },
-      // sandbox default-ON non-enforcing (#227): sandboxed when Docker present, else host spawn; diffCoverage/groundedness opt-in.
+      // sandbox default-ON non-enforcing (#227); diffCoverage/groundedness opt-in; parsimony DEFAULT FULL (#9/#415).
       quality: { envAllow: [], sandbox: { enabled: true, enforce: false }, diffCoverage: false },
       review: { groundedness: false },
+      parsimony: { intensity: 'full', escalateOnRefute: false },
     });
-    // both router priors are explicit opt-in [CLM-0126, CLM-0128]
-    expect(overlay.router).toEqual({ seedPriors: false, liveFitness: false });
+    expect(overlay.router).toEqual({ seedPriors: false, liveFitness: false }); // priors opt-in [CLM-0126, CLM-0128]
     expect(overlay.nodeOverrides).toEqual({});
     expect(overlay.adapters).toBeUndefined(); // per-tier adapters are opt-in [CLM-0078]
   });

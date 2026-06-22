@@ -2934,3 +2934,34 @@ The Check-layer parsimony gate (#413/#7, EPIC #407) runs a SECOND, INDEPENDENT, 
 - [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
 - [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
 - CI `test`
+
+## CLM-0177
+
+**Status:** verified — **source:** [`CLM-0177.yaml`](../claims/registry/CLM-0177.yaml)
+
+The Check-layer parsimony gate (#9/#415, EPIC #407) has an INTENSITY DIAL + ENFORCEMENT, set per-overlay by `gates.parsimony.intensity` ∈ {off, lite, full, ultra} with `escalateOnRefute` (overlay-schemas.ts `ParsimonyGateSchema`, mirrored as the derived `parsimonyDrivesIteration` engine flag in workflows config.ts, CLM-0045). The DEFAULT is `full` (user-ratified — deliberately NOT byte-identical to the pre-#9 advisory past): a fresh overlay ENFORCES. By intensity the gate's Verdict is: OFF — the gate does NO work: an immediate `abstain` Verdict, NO assessor/verifier model call, NO `parsimony.receipt`. LITE — advisory (the pre-#9 behavior): assess + blind-verify + emit receipt; result `pass`; a refute or a deferral is a `warn` finding only, never a reject. FULL — assess + verify + emit receipt; a REFUTED blind verification → result `reject` (or `escalate` when `escalateOnRefute`); a confirmed verification → `pass`; a DEFERRED floor check stays a `warn` finding (debt ALLOWED at full). ULTRA — full PLUS any DEFERRED floor check (`floorHasDeferral`) also → `reject` (or `escalate`); no debt allowed. The rejecting Verdict carries `findings` NAMING why (the refuted guard names and/or the deferred control risk) so the re-iterating coder gets actionable feedback. A parsimony `reject` DRIVES child re-iteration through the EXISTING child-iterate back-edge (it is a child sub-gate like quality/review): at full/ultra the CLI sets `parsimonyDrivesIteration` on the engine (engine-build.ts `parsimonyGateDrivesIteration`), so `gateDrivesIteration` returns true for the parsimony node and steps.ts `advanceChildGate` → `childBranch` → `reiterateChild` re-runs implement with the floor findings folded in, bounded by Kc (an `escalate` Verdict halts the child for a human, #192); the parsimony verdict is kept in its OWN `ChildResult.parsimonyVerdict` slot so it never clobbers the quality verdict. At lite/off the gate is non-driving (its findings fold in as hints only). The pre-flight call-count estimate (cost-estimate.ts) is intensity-aware: off ⇒ 0 parsimony calls; lite ⇒ 2/child single-pass; full/ultra ⇒ 2/child with the MAX scaling to childAttempts (a refute re-runs the child). HONEST SCOPE (NOT evasion-proof): the blind verifier is answer-key-anchored — it catches pass-OVER-claims (a refuted claimed-pass guard) but NOT applicability-UNDER-claims (an assessor reporting a floor flag false / a guard `na` when the diff really crosses that boundary, which bypasses both the verifier and the deferral). The vacuous-confirm path (zero claimed-pass ⇒ confirm without a model call) cannot whitewash a deferral: the deferral logic is INDEPENDENT of the verification status, so a deferred check still warns at full / still rejects at ultra under a vacuous confirm. The over-cap refute (a diff over MAX_ASSESS_CHUNKS) names its reason distinctly so an operator can tell "too large to verify" from "a guard is actually unmet". The under-claim residual is a filed follow-up (#435). HONEST COST BOUND: a re-iterated reject costs ONE extra child attempt ONLY when the next attempt fixes the refute; a DETERMINISTIC false-refute (the verifier persistently misreading a guard the diff genuinely satisfies — a fixed diff, not transient noise) cannot be fixed by re-iteration and burns the FULL Kc budget, re-charging assessor+verifier each attempt, then terminates with a parsimony reject — bounded (never an infinite wedge) but worst-case Kc×(assess+verify), not one. The blind verifier's false-refute rate is unmeasured; the FP-rate harness that would bound this is a filed follow-up (#436).
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/loop/parsimony-executor.test.ts`](../packages/cli/src/loop/parsimony-executor.test.ts)
+- [`packages/cli/src/overlay-parsimony.test.ts`](../packages/cli/src/overlay-parsimony.test.ts)
+- [`packages/cli/src/overlay-parsimony.test.ts`](../packages/cli/src/overlay-parsimony.test.ts)
+- [`packages/cli/src/overlay-parsimony.test.ts`](../packages/cli/src/overlay-parsimony.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/workflows/src/overrides.test.ts`](../packages/workflows/src/overrides.test.ts)
+- [`packages/cli/src/cost-estimate.test.ts`](../packages/cli/src/cost-estimate.test.ts)
+- CI `test`

@@ -101,12 +101,20 @@ function checkEstimate(raw: unknown): DoctorCheck {
   const posInt = (v: unknown, dflt: number): number =>
     typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : dflt;
   const groundedness = at(raw, 'gates', 'review', 'groundedness') === true;
+  // Parsimony intensity drives both the per-child call count and whether it iterates
+  // (#9/#415). DEFAULT full when unset/invalid (the schema default).
+  const rawIntensity = at(raw, 'gates', 'parsimony', 'intensity');
+  const parsimonyIntensity: LoopShape['parsimonyIntensity'] =
+    rawIntensity === 'off' || rawIntensity === 'lite' || rawIntensity === 'ultra'
+      ? rawIntensity
+      : 'full';
   const shape: LoopShape = {
     K: posInt(at(raw, 'K'), 3),
     Kc: posInt(at(raw, 'Kc'), 3),
     votePanel: at(raw, 'gates', 'vote', 'panel') === 7 ? 7 : 3,
     reviewPanel: groundedness ? 4 : 3,
     reviewDrivesIteration: false, // not overlay-exposed today (EngineConfig default)
+    parsimonyIntensity,
   };
   const estimate = estimateLoopCalls(shape, { childCount: DEFAULT_ASSUMED_CHILDREN });
   return { name: 'loop call estimate', ok: true, detail: formatEstimate(estimate) };
