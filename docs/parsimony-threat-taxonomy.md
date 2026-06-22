@@ -22,14 +22,14 @@ epic:    #407 (Parsimony Invariant + Control-Floor Decision Receipts)
 
 Each entry has the fields:
 
-| field            | meaning                                                                    |
-| ---------------- | -------------------------------------------------------------------------- |
-| `id`             | stable threat id (`PT-NNN`), never reused                                  |
-| `title`          | one-line name of the adversarial behaviour                                 |
-| `description`    | what the agent does                                                        |
-| `attacks`        | the control(s) the behaviour subverts (NIST 800-53r5 / Section 508 ids)    |
-| `kernloop_defense` | the wiring-complete mechanism that catches it, and the proving test       |
-| `residual`       | the variant the defence does NOT yet catch, with its follow-up issue       |
+| field              | meaning                                                                 |
+| ------------------ | ----------------------------------------------------------------------- |
+| `id`               | stable threat id (`PT-NNN`), never reused                               |
+| `title`            | one-line name of the adversarial behaviour                              |
+| `description`      | what the agent does                                                     |
+| `attacks`          | the control(s) the behaviour subverts (NIST 800-53r5 / Section 508 ids) |
+| `kernloop_defense` | the wiring-complete mechanism that catches it, and the proving test     |
+| `residual`         | the variant the defence does NOT yet catch, with its follow-up issue    |
 
 ---
 

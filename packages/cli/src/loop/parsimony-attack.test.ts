@@ -145,7 +145,11 @@ async function runAttackGate(
 describe('PT-001 YAGNI-as-attack: drop an AC-3/SI-10 control [CLM-0178]', () => {
   it('the blind verifier REFUTES a YAGNI-dropped AC-3/SI-10 control and full REJECTS, naming the guards', async () => {
     const invoke = attackInvoke(verifierRefutesControls);
-    const { verdict, auditPath, close } = await runAttackGate('parsimony-attack-full', 'full', invoke);
+    const { verdict, auditPath, close } = await runAttackGate(
+      'parsimony-attack-full',
+      'full',
+      invoke,
+    );
 
     // ENFORCEMENT: at full the pass-OVER-claims attack is REJECTED (the child re-iterates).
     expect(verdict.gate).toBe('parsimony');
