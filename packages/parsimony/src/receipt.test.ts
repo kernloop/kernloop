@@ -4,9 +4,13 @@
  * round-trips, a malformed one THROWS (never coerced), the floor is genuinely
  * multi-catalog (not 800-53-only), and the deferred-floor invariant is detectable.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   PARSIMONY_RECEIPT_EVENT,
+  PARSIMONY_RECEIPT_FIELDS,
   hasDeferredFloor,
   parseParsimonyReceipt,
   type ParsimonyReceipt,
@@ -133,5 +137,35 @@ describe('ParsimonyReceiptSchema is the payload only (chain fields excluded)', (
     expect(() => parseParsimonyReceipt({ ...valid(), prevHash: 'sha256:x' })).toThrow();
     expect(() => parseParsimonyReceipt({ ...valid(), hash: 'sha256:y' })).toThrow();
     expect(() => parseParsimonyReceipt({ ...valid(), seq: 7 })).toThrow();
+  });
+});
+
+// #441: the kernel-contract doc (docs/parsimony-receipt-contract.md) is hand-authored
+// and — unlike the harness copies (generated + parsimony:render --check) — has NO
+// drift gate against the schema. This test is that gate: every payload field a valid
+// receipt carries must be documented, so a future schema field cannot land undocumented
+// (the receipt is the contract; the doc must not lie by omission).
+describe('the receipt contract doc documents every schema field (#441)', () => {
+  const docPath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../../docs/parsimony-receipt-contract.md',
+  );
+  const doc = readFileSync(docPath, 'utf8');
+
+  it('every ParsimonyReceiptSchema payload field appears in the contract doc [CLM-0179]', () => {
+    // Field set comes from the SCHEMA shape (PARSIMONY_RECEIPT_FIELDS), not a fixture
+    // instance — so a future OPTIONAL field a hand-built `valid()` might omit is still
+    // covered (the soundness gap the #417 panel flagged on the fixture-derived version).
+    for (const field of PARSIMONY_RECEIPT_FIELDS) {
+      expect(doc, `field \`${field}\` is undocumented in ${path.basename(docPath)}`).toContain(
+        `\`${field}\``,
+      );
+    }
+  });
+
+  it('the valid() fixture stays complete — it carries every schema field', () => {
+    // Keeps the round-trip fixture honest against the schema, so other tests that build
+    // on valid() exercise a full payload (and the field list above cannot silently shrink).
+    expect(new Set(Object.keys(valid()))).toEqual(new Set(PARSIMONY_RECEIPT_FIELDS));
   });
 });

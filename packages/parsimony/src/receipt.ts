@@ -140,6 +140,17 @@ export const ParsimonyReceiptSchema = ParsimonyReceiptShape.superRefine((r, ctx)
 });
 export type ParsimonyReceipt = z.infer<typeof ParsimonyReceiptSchema>;
 
+/**
+ * The canonical payload field names, read straight from the schema shape (#441) —
+ * the single source for "what fields a receipt carries", so a drift check (e.g. the
+ * contract-doc completeness test) sees every field INCLUDING any future optional one
+ * a hand-built fixture might omit. Derived from {@link ParsimonyReceiptShape}, not a
+ * hand-maintained list, so it cannot fall behind the schema.
+ */
+export const PARSIMONY_RECEIPT_FIELDS = Object.keys(ParsimonyReceiptShape.shape) as ReadonlyArray<
+  keyof ParsimonyReceipt
+>;
+
 /** The audit-event `type` a parsimony receipt rides on the hash-chained log. */
 export const PARSIMONY_RECEIPT_EVENT = 'parsimony.receipt';
 
