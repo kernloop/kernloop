@@ -10,6 +10,8 @@
  */
 import { z } from 'zod';
 import { ADAPTER_NAMES, adapterDefinitions, detectAdapter, verifyChain } from '@kernloop/kernel';
+import { VerdictResultSchema } from '@kernloop/contracts';
+import { verdictDisposition } from '@kernloop/workflows';
 import type {
   DriftSignal,
   FitnessRecord,
@@ -34,7 +36,7 @@ export interface ObserveResult {
     unknownCapability: number;
     explored: number;
   };
-  verdicts: { total: number; pass: number; fail: number };
+  verdicts: { total: number; pass: number; fail: number; escalate: number };
   outcomes: { total: number; byStatus: Record<string, number>; totalWallClockMs: number };
   memory: { episodicTraces: number };
   adapters: Array<{ adapter: string; available: boolean; experimental: boolean }>;
@@ -114,12 +116,30 @@ function observerReport(
   };
 }
 
+/**
+ * Tally one gate verdict into pass / fail / escalate by its DISPOSITION (#192/#361),
+ * routing through the single {@link verdictDisposition} classifier rather than a raw
+ * `result === 'pass'`. A second `escalate` producer (the parsimony gate's
+ * escalateOnRefute, #415) gets its OWN bucket, never silently dropped from pass/fail;
+ * a malformed/unknown `result` is counted in `total` only (observe is read-only and
+ * crash-proof — it never throws on a tampered payload).
+ */
+function tallyVerdict(verdicts: ObserveResult['verdicts'], result: unknown): void {
+  verdicts.total += 1;
+  const parsed = VerdictResultSchema.safeParse(result);
+  if (!parsed.success) return;
+  const disposition = verdictDisposition(parsed.data);
+  if (disposition === 'advance') verdicts.pass += 1;
+  else if (disposition === 'escalate') verdicts.escalate += 1;
+  else verdicts.fail += 1;
+}
+
 /** The `observe` tool. See module docs. */
 export function observeTool(kern: Kernloop, input: ObserveInput = {}): ObserveResult {
   ObserveInputSchema.parse(input);
   const envelopes = readEnvelopes(kern.paths.audit);
   const eventCounts: Record<string, number> = {};
-  const verdicts = { total: 0, pass: 0, fail: 0 };
+  const verdicts = { total: 0, pass: 0, fail: 0, escalate: 0 };
   const outcomes: ObserveResult['outcomes'] = { total: 0, byStatus: {}, totalWallClockMs: 0 };
   const routePayloads: Record<string, unknown>[] = [];
   const gateVerdictPayloads: Record<string, unknown>[] = [];
@@ -129,9 +149,7 @@ export function observeTool(kern: Kernloop, input: ObserveInput = {}): ObserveRe
     if (envelope.type === 'kernel.router.route') routePayloads.push(payload);
     if (envelope.type === 'cli.gate.verdict') {
       gateVerdictPayloads.push(payload);
-      verdicts.total += 1;
-      if (payload.result === 'pass') verdicts.pass += 1;
-      if (payload.result === 'fail') verdicts.fail += 1;
+      tallyVerdict(verdicts, payload.result);
     }
     if (envelope.type === 'cli.run.outcome') {
       outcomes.total += 1;

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { QualityCheck } from '@kernloop/faculty-gates';
+import { appendEvent } from '@kernloop/kernel';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import type { LoopInvoke } from '../loop/invoke.js';
 import { gateTool } from './gate.js';
@@ -62,12 +63,33 @@ describe('observeTool', () => {
     expect(report.audit.length).toBeGreaterThan(0);
     expect(report.routing.decisions).toBe(2);
     expect(report.routing.routed).toBe(2);
-    expect(report.verdicts).toEqual({ total: 1, pass: 1, fail: 0 });
+    expect(report.verdicts).toEqual({ total: 1, pass: 1, fail: 0, escalate: 0 });
     expect(report.outcomes.total).toBe(2);
     expect(report.outcomes.byStatus.success).toBe(2);
     expect(report.outcomes.totalWallClockMs).toBeGreaterThan(0);
     expect(report.eventCounts['kernel.router.route']).toBe(2);
     expect(report.eventCounts['cli.gate.verdict']).toBe(1);
+    kern.close();
+  });
+
+  it('buckets an `escalate` gate verdict via the classifier — never DROPS it (#192/#361)', () => {
+    // A second escalate producer (the parsimony gate's escalateOnRefute, #415) emits a
+    // gate verdict the observe tallies must SURFACE, not silently drop (the pre-#361 raw
+    // `=== 'pass'` / `=== 'fail'` counters counted it in `total` only). Inject one
+    // directly onto the audit log and assert it lands in the `escalate` bucket.
+    const kern = freshKernloop();
+    appendEvent(kern.store, {
+      type: 'cli.gate.verdict',
+      payload: {
+        taskId: 'task-esc',
+        gate: 'parsimony',
+        result: 'escalate',
+        confidence: 1,
+        findings: [],
+        cost: { tokens: 0, usd: 0, wallClockMs: 0 },
+      },
+    });
+    expect(observeTool(kern, {}).verdicts).toEqual({ total: 1, pass: 0, fail: 0, escalate: 1 });
     kern.close();
   });
 

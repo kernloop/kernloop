@@ -124,7 +124,7 @@ describe('P1 exit: one real task end-to-end through the quality gate', () => {
 
     // Observe: the run is visible as real telemetry (spec §8 item 7)
     const report = observeTool(kern, {});
-    expect(report.verdicts).toEqual({ total: 1, pass: 1, fail: 0 });
+    expect(report.verdicts).toEqual({ total: 1, pass: 1, fail: 0, escalate: 0 });
     expect(report.outcomes.byStatus.success).toBe(1);
     kern.close();
   }, 60_000);
@@ -156,7 +156,7 @@ describe('P1 exit: one real task end-to-end through the quality gate', () => {
     expect(status.found && status.trace.status === 'failure').toBe(true);
     expect(verifyChain(kern.store).ok).toBe(true);
     const report = observeTool(kern, {});
-    expect(report.verdicts).toEqual({ total: 1, pass: 0, fail: 1 });
+    expect(report.verdicts).toEqual({ total: 1, pass: 0, fail: 1, escalate: 0 });
     expect(report.outcomes.byStatus.failure).toBe(1);
     kern.close();
   }, 60_000);

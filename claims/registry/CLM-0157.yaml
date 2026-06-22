@@ -9,13 +9,19 @@ statement: >-
   (regardless of the K/Kc bound), with a distinct haltReason 'vote-escalation' so
   an operator tells a deadlock from K-exhaustion. All verdict routing goes through
   a single never-exhaustiveness classifier, so a future VerdictResult value is a
-  compile error, never a silent mis-route.
+  compile error, never a silent mis-route. The non-routing verdict CONSUMERS that
+  once read a raw `result === 'pass'` outside the classifier (#361) now also go
+  through it: the gate.quality executor's success signal maps `advance` → success,
+  and the observe telemetry tallies a verdict by its disposition into pass / fail /
+  escalate buckets — so a SECOND escalate producer (the parsimony gate's
+  escalateOnRefute, #415) is surfaced, never bucketed as a plain failure or dropped.
 evidence:
   - 'test:packages/faculty-gates/src/vote/strategies.test.ts::emits escalate on a deadlock ONLY when the flag is on (else reject)'
   - 'test:packages/faculty-gates/src/vote/strategies.test.ts::is BYTE-IDENTICAL to the prior behavior when the flag is off (every strategy)'
   - 'test:packages/workflows/src/engine.test.ts::a vote `escalate` HALTS immediately for a human — regardless of K (#192)'
   - 'test:packages/workflows/src/child-iterate.test.ts::a quality `escalate` stops the child for a human IMMEDIATELY — regardless of Kc (#192)'
   - 'test:packages/workflows/src/verdict-disposition.test.ts::maps every VerdictResult to its routing disposition'
+  - 'test:packages/cli/src/tools/observe.test.ts::buckets an `escalate` gate verdict via the classifier — never DROPS it (#192/#361)'
   - 'code:packages/workflows/src/verdict-disposition.ts#verdictDisposition'
   - 'ci:test'
 status: verified
