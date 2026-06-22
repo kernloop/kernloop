@@ -21,12 +21,20 @@ statement: >-
   ParsimonyReceiptSchema payload, the deferred-invariant superRefine, the
   `kl:parsimony` marker grammar, the read-back verification block, and the OSCAL
   projection pointer — is documented under docs/parsimony-receipt-contract.md.
+  Two consistency guards close the residual drift surfaces the generated-copy gate
+  does not reach: the rule's hand-typed example marker line is asserted token-by-token
+  against the canonical ladder/outcome/floor (#440, so a rung renumber or outcome
+  rename cannot leave it silently stale), and every ParsimonyReceiptSchema payload
+  field is asserted present in the contract doc (#441, so a future schema field cannot
+  land undocumented).
 evidence:
   - 'test:packages/parsimony/src/rule.test.ts::each committed harness copy is byte-identical to renderHarnessCopy(harness) (drift gate)'
   - 'test:packages/parsimony/src/rule.test.ts::the committed SKILL.md is byte-identical to renderSkillDoc() (drift gate)'
   - 'test:packages/parsimony/src/rule.test.ts::references the real kl:parsimony marker grammar'
   - 'test:packages/parsimony/src/rule.test.ts::names every real ladder rung and its outcome'
   - 'test:packages/parsimony/src/rule.test.ts::names the real floor control ids (AC-3, SI-10) — not an invented vocabulary'
+  - 'test:packages/parsimony/src/rule.test.ts::the example marker line is consistent with the canonical ladder, outcome, and floor [CLM-0179]'
+  - 'test:packages/parsimony/src/receipt.test.ts::every ParsimonyReceiptSchema payload field appears in the contract doc [CLM-0179]'
   - 'test:packages/cli/src/loop/prompts.test.ts::embeds the single-sourced compact parsimony rule on every coder call (Prime layer) [CLM-0179]'
   - 'test:scripts/__tests__/render-parsimony-rule.test.mjs::check mode returns 0 when current and 1 on drift; write mode creates the files'
   - 'doc:docs/parsimony-receipt-contract.md#payload--every-parsimonyreceiptschema-field'

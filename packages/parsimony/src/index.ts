@@ -16,6 +16,7 @@ export {
   ParsimonyOutcomeSchema,
   ParsimonyReceiptSchema,
   PARSIMONY_RECEIPT_EVENT,
+  PARSIMONY_RECEIPT_FIELDS,
   parseParsimonyReceipt,
   hasDeferredFloor,
   type FloorCatalog,

@@ -65,4 +65,34 @@ describe('compact parsimony rule — consistency with the canonical vocabulary',
       expect(COMPACT_PARSIMONY_RULE).toContain(entry.name);
     }
   });
+
+  // #440: the greppable marker EXAMPLE line is a hand-typed literal (unlike the
+  // ladder/floor lines, which are composed). Validate its tokens against the
+  // canonical data so a future ladder reorder / outcome rename / control-id change
+  // cannot leave the example silently stale (the copies still match the source, so
+  // the parsimony:render drift gate would NOT catch it — this test does).
+  it('the example marker line is consistent with the canonical ladder, outcome, and floor [CLM-0179]', () => {
+    const example = COMPACT_PARSIMONY_RULE.split('\n').find((l) =>
+      l.startsWith(`${MARKER_TAG} rung=`),
+    );
+    expect(example, 'the rule must contain a kl:parsimony example marker line').toBeDefined();
+    const line = example as string;
+
+    const rung = Number(/rung=(\d+)/.exec(line)?.[1]);
+    const outcome = /outcome=(\S+)/.exec(line)?.[1];
+    const floorField = /floor=(\S+)/.exec(line)?.[1] ?? '';
+    const exampleControlIds = floorField.split(',').map((tok) => tok.split(':')[0]);
+
+    // The example's rung exists in the ladder AND its outcome is THAT rung's real
+    // outcome — so a renumber/rename desyncs the example here, not silently.
+    const ladderEntry = PARSIMONY_LADDER.find((r) => r.rung === rung);
+    expect(ladderEntry, `example rung=${rung} must exist in PARSIMONY_LADDER`).toBeDefined();
+    expect(outcome).toBe(ladderEntry?.outcome);
+
+    // Every control id in the example's `floor=` field is a real CONTROL_FLOOR id.
+    const realControlIds = new Set(CONTROL_FLOOR.flatMap((e) => e.controlIds));
+    for (const id of exampleControlIds) {
+      expect(realControlIds.has(id), `example floor id ${id} must be a real control id`).toBe(true);
+    }
+  });
 });
