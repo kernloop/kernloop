@@ -10,7 +10,7 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test && vitest run --coverage --config vitest.root.config.mjs",
+    "test": "turbo run test --concurrency=4 && vitest run --coverage --config vitest.root.config.mjs",
     "e2e": "vitest run --config tests/e2e/vitest.config.ts",
     "evals": "vitest run --config packages/cli/vitest.evals.config.ts",
     "lint": "eslint . --max-warnings 0 && node scripts/loc-check.mjs",

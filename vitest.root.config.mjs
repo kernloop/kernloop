@@ -2,6 +2,17 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Bounded forks pool (#420): the per-package configs inherit this same cap
+    // from vitest.shared.ts; this root coverage run scans scripts/*.mjs +
+    // eslint-rules/*.mjs under an 80% branch gate and runs in the SAME
+    // `pnpm test` invocation as `turbo run test`, so it too must not fork-storm.
+    // maxWorkers=4 is a no-op on ≤4-core CI runners; it caps the inner pool on a
+    // high-core dev box where peak = turbo_concurrency × per_package_forks.
+    // (vitest 4 replaced poolOptions.forks.maxForks with top-level maxWorkers.)
+    // (.mjs cannot import the .ts shared config without tsx, so the bound is
+    // mirrored here — keep the two in sync; the regression guard checks both.)
+    pool: 'forks',
+    maxWorkers: 4,
     include: ['scripts/__tests__/**/*.test.mjs'],
     // These scripts tests spawn real subprocesses (eslint, tsc) and scan the
     // whole repo, so vitest's 5s default flakes when they contend for CPU during
