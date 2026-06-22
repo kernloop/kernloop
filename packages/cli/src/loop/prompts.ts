@@ -6,6 +6,7 @@
  * outgrows the 400-line budget.
  */
 import { SHIPPED_TEMPLATES } from '@kernloop/faculty-workforce';
+import { COMPACT_PARSIMONY_RULE } from '@kernloop/parsimony';
 import type { Brief, Finding, TaskContract } from '@kernloop/contracts';
 import { briefText } from './seams.js';
 
@@ -60,11 +61,15 @@ export function decomposePrompt(parent: TaskContract, planText: string): string 
 /**
  * The coder prompt with the strict files contract. On a re-iteration the
  * child's accumulated gate findings are folded in [CLM-0043] so the re-running
- * coder fixes every failed check — the actor reading the critic's notes.
+ * coder fixes every failed check — the actor reading the critic's notes. The
+ * single-sourced {@link COMPACT_PARSIMONY_RULE} is appended on EVERY coder call
+ * [CLM-0179] so the Prime disposition (climb the ladder, hold the control floor,
+ * emit the `kl:parsimony` marker) travels with the implement step.
  */
 export function coderPrompt(child: TaskContract, findings: readonly Finding[] = []): string {
   const parts = [
     shippedTemplate('coder').rolePrompt,
+    COMPACT_PARSIMONY_RULE,
     '## Child task',
     JSON.stringify({ id: child.id, goal: child.goal, constraints: child.constraints }, null, 2),
   ];

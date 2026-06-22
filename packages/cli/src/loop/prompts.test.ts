@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { TaskContractSchema } from '@kernloop/contracts';
-import { decomposePrompt } from './prompts.js';
+import { COMPACT_PARSIMONY_RULE, MARKER_TAG } from '@kernloop/parsimony';
+import { coderPrompt, decomposePrompt } from './prompts.js';
 
 const parent = TaskContractSchema.parse({
   id: 'task-prompts',
@@ -32,5 +33,16 @@ describe('decomposePrompt', () => {
     const prompt = decomposePrompt(parent, 'plan');
     expect(prompt).toContain('ONLY one raw JSON object');
     expect(prompt).toContain('"subtasks"');
+  });
+});
+
+describe('coderPrompt', () => {
+  it('embeds the single-sourced compact parsimony rule on every coder call (Prime layer) [CLM-0179]', () => {
+    const prompt = coderPrompt(parent);
+    // The Prime disposition travels with implement: the whole rule, a ladder
+    // keyword, and the greppable marker grammar are present verbatim.
+    expect(prompt).toContain(COMPACT_PARSIMONY_RULE);
+    expect(prompt).toContain('RESTRAINT LADDER');
+    expect(prompt).toContain(MARKER_TAG);
   });
 });
