@@ -136,9 +136,12 @@ async function verifyChunk(
  * `refuted` and `refutedChecks` is the union of the refuting chunks' names. Per-chunk
  * costs are SUMMED.
  *
- * A diff that needs MORE than {@link MAX_ASSESS_CHUNKS} chunks is REFUTED outright
- * (fail-closed): an over-cap diff cannot be FULLY verified, so the verifier cannot
- * confirm the claimed guards hold across the unverified tail. A malformed chunk
+ * A diff that needs MORE than {@link MAX_ASSESS_CHUNKS} chunks is REFUTED outright at
+ * ZERO model spend (fail-closed, #434): an over-cap diff cannot be FULLY verified, so
+ * the verifier cannot confirm the claimed guards hold across the unverified tail — and
+ * since the verdict is `refuted` regardless of what the in-cap chunks would say, the
+ * verifier short-circuits BEFORE invoking the model rather than spending the first
+ * {@link MAX_ASSESS_CHUNKS} calls only to discard them. A malformed chunk
  * emission throws a typed {@link LoopParseError} (raw output preserved) — never a
  * fabricated verdict (prime directive: the record is what happened).
  */
@@ -153,13 +156,23 @@ export async function verifyFloor(
 }> {
   const claimedPassNames = claimedPassChecks.map((c) => c.name);
   const allChunks = chunkDiff(diff);
-  const overflow = allChunks.length > MAX_ASSESS_CHUNKS;
-  const chunks = overflow ? allChunks.slice(0, MAX_ASSESS_CHUNKS) : allChunks;
+  // Fail closed at ZERO spend (#434): an over-cap diff is REFUTED regardless of any
+  // chunk verdict — the unverified tail could violate any claimed guard, so a
+  // confirm is impossible. Short-circuit BEFORE invoking the model rather than
+  // spending the first MAX_ASSESS_CHUNKS calls only to discard their verdicts. Every
+  // claimed-pass guard goes into refutedChecks (deduped); cost is zero.
+  if (allChunks.length > MAX_ASSESS_CHUNKS) {
+    return {
+      status: 'refuted',
+      refutedChecks: [...new Set(claimedPassNames)],
+      cost: { tokens: 0, usd: 0 },
+    };
+  }
   const refuted = new Set<string>();
   let anyRefuted = false;
   let tokens = 0;
   let usd = 0;
-  for (const chunk of chunks) {
+  for (const chunk of allChunks) {
     const { verdict, cost } = await verifyChunk(seam, chunk, claimedPassNames);
     tokens += cost.tokens;
     usd += cost.usd;
@@ -167,12 +180,6 @@ export async function verifyFloor(
       anyRefuted = true;
       for (const name of verdict.refutedChecks) refuted.add(name);
     }
-  }
-  // Fail closed: an over-cap diff cannot be fully verified, so it is REFUTED — the
-  // verifier cannot confirm the claimed guards hold across the unverified tail.
-  if (overflow) {
-    for (const name of claimedPassNames) refuted.add(name);
-    return { status: 'refuted', refutedChecks: [...refuted], cost: { tokens, usd } };
   }
   return {
     status: anyRefuted ? 'refuted' : 'confirmed',

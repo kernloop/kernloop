@@ -79,14 +79,17 @@ describe('verifyFloor — blind floor re-check [CLM-0176]', () => {
     expect(result.cost.tokens).toBe(COST.tokens * 2); // per-chunk costs summed
   });
 
-  it('REFUTES an over-cap diff outright (fail-closed — cannot be fully verified)', async () => {
+  it('REFUTES an over-cap diff outright at ZERO model spend (fail-closed short-circuit, #434)', async () => {
     // More than MAX_ASSESS_CHUNKS chunks: refuted regardless of (un-run) chunk verdicts.
     const huge = 'a'.repeat(DIFF_ASSESS_MAX_CHARS * (MAX_ASSESS_CHUNKS + 1));
     const { invoke, prompts } = sequenced([CONFIRM]); // every chunk would "confirm"
     const result = await verifyFloor(seamOf(invoke), huge, claimed);
     expect(result.status).toBe('refuted'); // over-cap ⇒ fail-closed refute
     expect(result.refutedChecks).toEqual(expect.arrayContaining(['input_validation', 'intent']));
-    expect(prompts).toHaveLength(MAX_ASSESS_CHUNKS); // bounded: only the cap is verified
+    // #434: the verdict is refuted regardless of the in-cap chunks, so the verifier
+    // short-circuits BEFORE invoking the model — zero calls, zero cost.
+    expect(prompts).toHaveLength(0);
+    expect(result.cost).toEqual({ tokens: 0, usd: 0 });
   });
 
   it('throws a typed LoopParseError on a malformed verdict — NO fabricated verdict', async () => {

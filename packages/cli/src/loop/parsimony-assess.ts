@@ -235,41 +235,49 @@ const ALL_BOUNDARIES: FloorContext = {
  * floorContext OR'd for full trust-boundary coverage, satisfied fail-closed AND'd,
  * ladder from the first chunk). Per-chunk costs are SUMMED.
  *
- * When the diff needs MORE than {@link MAX_ASSESS_CHUNKS} chunks, only the first
- * `MAX_ASSESS_CHUNKS` are assessed (cost stays bounded) and the floor FAILS CLOSED on
- * the unassessed tail: every guard is forced to APPLY and NONE is treated as
- * satisfied, so a too-large diff can never draw a clean floor by burying a boundary
- * past the cap. The ladder (advisory) keeps the first chunk's signals. A malformed
- * chunk emission throws a typed {@link LoopParseError} (raw output preserved) — never
- * a fabricated assessment (prime directive: the record is what happened).
+ * When the diff needs MORE than {@link MAX_ASSESS_CHUNKS} chunks the floor FAILS
+ * CLOSED on the whole diff at ZERO model spend (#434): every guard is forced to APPLY
+ * and NONE is treated as satisfied, so a too-large diff can never draw a clean floor by
+ * burying a boundary past the cap. Because that fail-closed verdict does not depend on
+ * what the in-cap chunks would assess, the assessor short-circuits BEFORE invoking the
+ * model rather than spending the first `MAX_ASSESS_CHUNKS` calls only to discard their
+ * floor findings; the advisory ladder reports the conservative `minimal_impl` (rung 5)
+ * disposition. A malformed chunk emission throws a typed {@link LoopParseError} (raw
+ * output preserved) — never a fabricated assessment (prime directive: the record is
+ * what happened).
  */
 export async function assessParsimony(
   seam: AssessSeam,
   diff: string,
 ): Promise<{ assessment: ParsimonyAssessment; cost: { tokens: number; usd: number } }> {
   const allChunks = chunkDiff(diff);
-  const overflow = allChunks.length > MAX_ASSESS_CHUNKS;
-  const chunks = overflow ? allChunks.slice(0, MAX_ASSESS_CHUNKS) : allChunks;
+  // Fail closed at ZERO spend (#434): an over-cap diff fails the floor closed
+  // REGARDLESS of what the in-cap chunks assess (the over-cap branch overwrites
+  // floorContext + satisfied with the fail-closed values below), so there is no point
+  // spending the first MAX_ASSESS_CHUNKS assessor calls only to discard their floor
+  // findings. Short-circuit BEFORE invoking the model. The ladder is advisory here, so
+  // it reports the CONSERVATIVE disposition — `need` with no reuse rung ⇒ minimal_impl
+  // (rung 5) — rather than a first-chunk rung that cannot characterize the whole diff.
+  if (allChunks.length > MAX_ASSESS_CHUNKS) {
+    return {
+      assessment: {
+        rung: 5,
+        signals: { need: true, stdlib: false, native: false, dep: false, oneLine: false },
+        floorContext: ALL_BOUNDARIES,
+        satisfied: {},
+        rationale: `[diff too large: ${String(allChunks.length)} chunks exceed the ${String(MAX_ASSESS_CHUNKS)}-chunk cap; floor FAILS CLOSED on the unassessed tail (assessed at zero model spend, #434)]`,
+      },
+      cost: { tokens: 0, usd: 0 },
+    };
+  }
   const parts: ParsimonyAssessment[] = [];
   let tokens = 0;
   let usd = 0;
-  for (const chunk of chunks) {
+  for (const chunk of allChunks) {
     const { assessment, cost } = await assessChunk(seam, chunk);
     parts.push(assessment);
     tokens += cost.tokens;
     usd += cost.usd;
   }
-  const union = unionAssessments(parts);
-  if (!overflow) return { assessment: union, cost: { tokens, usd } };
-  // Fail closed: the unassessed tail could touch any boundary and violate any guard,
-  // so force every guard to apply with none satisfied (⇒ evaluateFloor defers all).
-  return {
-    assessment: {
-      ...union,
-      floorContext: ALL_BOUNDARIES,
-      satisfied: {},
-      rationale: `${union.rationale}\n---\n[diff too large: ${String(allChunks.length)} chunks exceed the ${String(MAX_ASSESS_CHUNKS)}-chunk cap; floor FAILS CLOSED on the unassessed tail]`,
-    },
-    cost: { tokens, usd },
-  };
+  return { assessment: unionAssessments(parts), cost: { tokens, usd } };
 }

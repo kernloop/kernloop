@@ -19,11 +19,15 @@ statement: >-
   chunk); and the per-chunk costs are SUMMED. A diff that FITS in one chunk (the common
   case) is ONE call producing an assessment byte-identical to the prior single-call
   behavior — the executor (`parsimony-executor.ts`) is unchanged. Chunking is BOUNDED
-  at `MAX_ASSESS_CHUNKS` calls (≈800k chars): a diff needing more assesses only the
-  first `MAX_ASSESS_CHUNKS` chunks (so an adversarial child cannot force O(diff size)
-  model calls — a cost/latency denial) and the floor FAILS CLOSED on the unassessed
-  tail (every guard is forced to apply with none satisfied, so a too-large diff can
-  never draw a clean floor by burying a boundary past the cap). A malformed chunk
+  at `MAX_ASSESS_CHUNKS` calls (≈800k chars): a diff needing more than the cap fails the
+  floor CLOSED on the whole diff (every guard is forced to apply with none satisfied, so
+  a too-large diff can never draw a clean floor by burying a boundary past the cap) — and
+  because that fail-closed verdict does not depend on what the in-cap chunks assess, the
+  assessor SHORT-CIRCUITS at ZERO model spend (#434) rather than spending the first
+  `MAX_ASSESS_CHUNKS` calls only to discard their floor findings (an adversarial child
+  thus forces neither O(diff size) NOR `MAX_ASSESS_CHUNKS` model calls — zero cost/latency
+  denial surface on the over-cap path); the advisory ladder reports the conservative
+  `minimal_impl` (rung 5) disposition for the unassessable diff. A malformed chunk
   emission throws a typed `LoopParseError` (raw output preserved) per chunk — never a
   fabricated or partial assessment (prime directive: the record is what happened).
 evidence:
@@ -36,7 +40,7 @@ evidence:
   - 'test:packages/cli/src/loop/parsimony-assess.test.ts::takes ladder signals + rung from the FIRST chunk only'
   - 'test:packages/cli/src/loop/parsimony-assess.test.ts::single-chunk diff: ONE invoke call, output identical to a direct single assessment'
   - 'test:packages/cli/src/loop/parsimony-assess.test.ts::multi-chunk diff: invoke per chunk; floorContext OR’d, satisfied AND’d, ladder from chunk 1, cost summed'
-  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::a diff over the chunk cap: cost is BOUNDED and the floor FAILS CLOSED (no DoS, no clean pass)'
+  - 'test:packages/cli/src/loop/parsimony-assess.test.ts::a diff over the chunk cap: ZERO spend and the floor FAILS CLOSED (no DoS, no clean pass, #434)'
   - 'test:packages/cli/src/loop/parsimony-assess.test.ts::a malformed chunk emission throws the typed error — NO fabricated assessment (#289 per chunk)'
   - 'ci:test'
 status: verified
