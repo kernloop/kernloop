@@ -11,11 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Finding, TaskContract, Verdict } from '@kernloop/contracts';
 import { InMemoryCheckpointStore } from './checkpoints.js';
-import {
-  createEngine,
-  type ChildIterateEvent,
-  type NodeExecutor,
-} from './engine.js';
+import { createEngine, type ChildIterateEvent, type NodeExecutor } from './engine.js';
 import { counted, names, outcome, scripted, task, verdict } from './engine-testkit.js';
 
 describe('review-driven child iteration [CLM-0043]', () => {
