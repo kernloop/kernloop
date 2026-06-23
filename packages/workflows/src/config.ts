@@ -26,6 +26,12 @@ const VoteConfigSchema = z.strictObject({
   correlationAware: z.boolean().default(false),
   /** The `correlationAware` discount form (#369 Inc4): `sqrt` ⇒ 1/√K, `linear` ⇒ 1/K. */
   correlationForm: z.enum(['sqrt', 'linear']).default('sqrt'),
+  /** Distinct-class independence quorum (#405/#369 Inc5b): require ≥ this many distinct
+   * served model classes on a diverse panel else the vote ESCALATES to a human instead
+   * of ruling. Absent ⇒ defaults to 2 for a panel-7 RATIFICATION vote (the human-ratified
+   * default-on), off for a panel-3 loop vote; set to 1 to disable it on a ratification
+   * panel. Inert on a single-adapter / endpoint-only panel (no served identities). */
+  minDistinctClasses: z.number().int().min(0).optional(),
 });
 
 /** One node override (mirrors the cli overlay's NodeOverrideSchema). */

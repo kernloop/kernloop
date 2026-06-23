@@ -1,0 +1,43 @@
+id: CLM-0181
+statement: >-
+  The vote gate enforces a DISTINCT-CLASS INDEPENDENCE QUORUM (#405/#369 Inc5b,
+  human-ratified 2026-06-23): when a panel's surviving ballots span FEWER distinct
+  served model classes than required, the gate emits `escalate` (ask a human) instead
+  of ruling — closing the named honesty gap where a single-oracle ratification could
+  still AUTO-APPROVE. The quorum counts distinct served CLASSES (independence) via
+  `identityKey`, NOT raw ballot count: 5/7 ballots of one provider is 1 class, not 5.
+  For a panel-7 RATIFICATION vote (`ratificationProfile`, set by the cli when
+  `gates.vote.panel === 7`) the threshold DEFAULTS to 2 — the ratified default-ON: a
+  single-oracle ratification escalates rather than auto-approving. A panel-3 loop vote
+  is OFF by default (byte-identical), and the overlay's `gates.vote.minDistinctClasses`
+  explicitly overrides the threshold either way (set to 1 to OPT OUT on a ratification
+  panel). The gate is INERT on a single-adapter / endpoint-only panel (no served
+  identities to count) — so an unenabled, single-adapter, or endpoint-only vote is
+  byte-identical. The override replaces ANY tally `result` with `escalate` (not only
+  an `approve`): a panel too correlated to RULE cannot be trusted to reject either, so
+  the symmetric honest move is to escalate regardless of tally, leaving the confidence
+  (the raw approve share) intact for the human to read. The escalation is NOT silent
+  (rule 7): it surfaces a VISIBLE `warn` Verdict finding naming the cause, and the
+  Verdict is published via publishVerdict which appends a `cli.gate.verdict` audit event
+  carrying the `escalate` result. The quorum composes with precision weighting and
+  correlation-aware aggregation: a single-oracle panel escalates even when weights are
+  applied, never silently auto-deciding on a weighted tally. HONEST LIMITATION: the gate
+  measures independence from SERVED identities, so a panel that serves NO identities (an
+  endpoint-only / single-adapter ratification) cannot be checked and stays byte-identical
+  — closing that residual (and the `panel === 7` ratification proxy) is a follow-up.
+evidence:
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::defaults to requiring 2 classes for a ratification profile — single class escalates'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::counts distinct CLASSES, not raw ballots — 3 claude ballots are 1 class, below quorum'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::an explicit minDistinctClasses overrides the ratification default (1 disables it)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::is inert on a single-adapter / endpoint-only panel (no served identities)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::a single-oracle RATIFICATION panel ESCALATES instead of auto-approving'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::a 2-class RATIFICATION panel does NOT escalate (quorum met) — approves'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::WITHOUT a ratification profile a single-class panel is byte-identical (still approves)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::minDistinctClasses:1 opts a ratification panel OUT (single-oracle approves)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::COMPOSED: precision weights × quorum — the quorum still escalates a single-oracle panel'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::DEGRADES a panel-7 with one adapter: ESCALATES (default-on quorum) + single-oracle finding + audit (#405)'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::convenes a PROVIDER-DIVERSE panel-7: distinct served per voter, no single-oracle'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0

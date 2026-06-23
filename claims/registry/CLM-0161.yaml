@@ -14,9 +14,9 @@ statement: >-
   not-installed declared adapter), so the dilution finding catches the residual
   RUNTIME (auth/quota) failures that slip past that probe.
 evidence:
-  - 'test:packages/faculty-gates/src/vote/run.test.ts::emits a DILUTION warn finding when a voter on a diverse panel fails — adapter error (#371)'
-  - 'test:packages/faculty-gates/src/vote/run.test.ts::DILUTION co-occurs with SINGLE-ORACLE: surviving ballots one class + a failure (#371)'
-  - 'test:packages/faculty-gates/src/vote/run.test.ts::no DILUTION finding when every diverse voter succeeds (#371)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::emits a DILUTION warn finding when a voter on a diverse panel fails — adapter error (#371)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::DILUTION co-occurs with SINGLE-ORACLE: surviving ballots one class + a failure (#371)'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::no DILUTION finding when every diverse voter succeeds (#371)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski
