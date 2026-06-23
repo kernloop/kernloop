@@ -24,7 +24,13 @@ statement: >-
   `$TMPDIR` at/above a working tree disables the carve-out's refusal for it, and a
   real repo cloned UNDER the temp dir is likewise treated as throwaway (location ≠
   provenance); deriving the carve-out from a kernloop-OWNED root is the hardening
-  deferred to #332. An unresolvable temp dir fails closed (no carve-out).
+  deferred to #332. That carve-out-masked case is no longer SILENT, though: when the
+  carve-out allows an agentic adapter into a path that is under the temp dir YET has a
+  `.git` at/above it, the loop path AUDITS `cli.adapter.carveout-git-tree`
+  (`carveOutMaskedGitTree`, #332 observability, rule 7) — so an operator can SEE the
+  location-based allow-into-a-git-tree even though the full owned-root provenance fix is
+  deferred; an ordinary `.git`-less scratch dir is not audited (no noise). An
+  unresolvable temp dir fails closed (no carve-out).
 evidence:
   - 'test:packages/kernel/src/adapters/containment.test.ts::REFUSES every agentic adapter in a non-throwaway git tree'
   - 'test:packages/kernel/src/adapters/containment.test.ts::ALLOWS a non-agentic adapter (ollama) in the same real git tree'
@@ -32,6 +38,12 @@ evidence:
   - 'test:packages/kernel/src/adapters/containment.test.ts::resolves symlinks: a symlink INTO a real git tree is still non-throwaway'
   - 'test:packages/kernel/src/adapters/containment.test.ts::is FALSE under the temp root (the hermetic-scratch carve-out, default tmpRoot)'
   - 'test:packages/cli/src/loop/finalize.test.ts::refuses a real agentic run in a git tree and audits cli.adapter.refused (rule 7)'
+  - 'test:packages/kernel/src/adapters/containment.test.ts::is TRUE when the tmp carve-out hid a real git tree (the KNOWN GAP, now observable)'
+  - 'test:packages/kernel/src/adapters/containment.test.ts::is FALSE for an ordinary throwaway scratch dir with no .git (the common case — no noise)'
+  - 'test:packages/cli/src/loop/finalize.test.ts::ALLOWS but AUDITS a git tree the tmp carve-out masked — cli.adapter.carveout-git-tree (#332, rule 7)'
+  - 'test:packages/cli/src/loop/finalize.test.ts::does NOT audit an ordinary throwaway scratch dir with no .git (no noise)'
+  - 'test:packages/cli/src/loop/finalize.test.ts::does NOT audit a NON-agentic adapter (ollama) on a masked workspace — no mislabel (#332 review)'
+  - 'test:packages/kernel/src/adapters/containment.test.ts::detects the $TMPDIR footgun: a .git ABOVE the injected tmpRoot (unbounded upward walk)'
   - 'code:packages/kernel/src/adapters/containment.ts#checkAgenticContainment@doc:/CLM-0145/'
   - 'ci:test'
 status: verified

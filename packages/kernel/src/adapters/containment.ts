@@ -56,6 +56,32 @@ export const AGENTIC_ADAPTERS: ReadonlySet<AdapterName> = new Set([
 /** Adapters that take no cwd (read stdin, return text) — not a filesystem threat. */
 export const NON_AGENTIC_ADAPTERS: ReadonlySet<AdapterName> = new Set(['ollama']);
 
+/** Realpath of `dir` (symlink-resistant), or null when it cannot be resolved. */
+function resolveReal(dir: string): string | null {
+  try {
+    return realpathSync(path.resolve(dir));
+  } catch {
+    return null;
+  }
+}
+
+/** Whether `real` is at or under a `.git` working tree — the upward walk to the
+ * filesystem root, shared by both containment predicates so their git-detection
+ * semantics can never desync (#332 review). */
+function gitTreeAtOrAbove(real: string): boolean {
+  for (let cur = real; ; ) {
+    if (existsSync(path.join(cur, '.git'))) return true;
+    const parent = path.dirname(cur);
+    if (parent === cur) return false; // hit the filesystem root, no .git
+    cur = parent;
+  }
+}
+
+/** Whether `real` resolves at or under `tmpRoot` (the throwaway carve-out region). */
+function underTmp(real: string, tmpRoot: string | null): boolean {
+  return tmpRoot !== null && (real === tmpRoot || real.startsWith(tmpRoot + path.sep));
+}
+
 /**
  * Whether `dir`'s realpath is a NON-throwaway git working tree. THROWAWAY (false)
  * when it resolves under the realpath'd temp dir (the hermetic-test / scratch
@@ -71,21 +97,33 @@ export function isNonThrowawayGitTree(
   dir: string,
   tmpRoot: string | null = resolveTmpRoot(),
 ): boolean {
-  let real: string;
-  try {
-    real = realpathSync(path.resolve(dir));
-  } catch {
-    return false; // a path we cannot resolve is not a tree we can corrupt
-  }
-  if (tmpRoot !== null && (real === tmpRoot || real.startsWith(tmpRoot + path.sep))) {
-    return false; // throwaway scratch
-  }
-  for (let cur = real; ; ) {
-    if (existsSync(path.join(cur, '.git'))) return true; // a real working tree
-    const parent = path.dirname(cur);
-    if (parent === cur) return false; // hit the filesystem root, no .git
-    cur = parent;
-  }
+  const real = resolveReal(dir);
+  if (real === null) return false; // a path we cannot resolve is not a tree we can corrupt
+  if (underTmp(real, tmpRoot)) return false; // throwaway scratch
+  return gitTreeAtOrAbove(real); // a real working tree iff a .git is at/above it
+}
+
+/**
+ * Whether the throwaway carve-out MASKED a real git tree (#332 observability). True
+ * when `dir` resolves UNDER `tmpRoot` — so {@link isNonThrowawayGitTree} treats it as
+ * throwaway and ALLOWS an agentic adapter — YET a `.git` exists at or above it: a real
+ * repo cloned/located under the temp dir, or a `$TMPDIR` a launcher pointed at/above a
+ * working tree. The allow is correct under the LOCATION-based carve-out, but the
+ * decision is otherwise SILENT; the loop path audits this case (rule 7) so an operator
+ * can SEE that an agentic adapter was let into a git tree on the strength of its
+ * location alone (the location ≠ provenance gap, #332). Pure; shares the realpath +
+ * git-walk helpers with {@link isNonThrowawayGitTree} so the two cannot desync. A null
+ * `tmpRoot` (no carve-out) or an unresolvable / non-under-tmp `dir` ⇒ nothing was masked.
+ */
+export function carveOutMaskedGitTree(
+  dir: string,
+  tmpRoot: string | null = resolveTmpRoot(),
+): boolean {
+  if (tmpRoot === null) return false; // no carve-out applied → nothing was masked
+  const real = resolveReal(dir);
+  if (real === null) return false;
+  if (!underTmp(real, tmpRoot)) return false; // not under tmp → the refusal path owns it
+  return gitTreeAtOrAbove(real); // carve-out is hiding a real tree iff a .git is at/above
 }
 
 /**

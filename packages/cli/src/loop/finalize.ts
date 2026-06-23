@@ -7,7 +7,9 @@
  */
 import {
   appendEvent,
+  carveOutMaskedGitTree,
   checkAgenticContainment,
+  AGENTIC_ADAPTERS,
   AgenticRepositoryWorkspaceError,
   type AdapterName,
 } from '@kernloop/kernel';
@@ -45,6 +47,27 @@ export function guardWorkspaceContainment(
       });
     }
     throw error;
+  }
+  // ALLOWED. If the throwaway carve-out MASKED a real git tree (a repo under the temp
+  // dir, or a `$TMPDIR` pointed at/above a working tree, #332), the allow is location-
+  // based and otherwise SILENT — AUDIT it (rule 7) so the trust-boundary decision is
+  // observable, never a silent allow-into-a-git-tree. Gate on AGENTIC_ADAPTERS exactly as
+  // the refusal does: only an agentic adapter is carved out, so a non-agentic adapter
+  // (ollama, no cwd) must NOT mint a mislabeled `agentic-cwd-allowed` event (#332 review).
+  if (
+    AGENTIC_ADAPTERS.has(adapter as AdapterName) &&
+    request.workspaceDir !== undefined &&
+    carveOutMaskedGitTree(request.workspaceDir, tmpRoot)
+  ) {
+    appendEvent(kern.store, {
+      type: 'cli.adapter.carveout-git-tree',
+      payload: {
+        adapter,
+        workspace: request.workspaceDir,
+        reason: 'agentic-cwd-allowed-via-tmp-carveout-over-git-tree',
+        runId,
+      },
+    });
   }
 }
 
