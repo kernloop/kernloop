@@ -3047,3 +3047,22 @@ The vote gate enforces a DISTINCT-CLASS INDEPENDENCE QUORUM (#405/#369 Inc5b, hu
 - [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - [`packages/cli/src/loop/vote-executor.test.ts`](../packages/cli/src/loop/vote-executor.test.ts)
 - CI `test`
+
+## CLM-0182
+
+**Status:** verified — **source:** [`CLM-0182.yaml`](../claims/registry/CLM-0182.yaml)
+
+The vote-gate PARITY EVIDENCE (#348 / #328 Inc3) is operationalized as a structured, tamper-evident ledger (`evals/vote-parity/ledger.jsonl`) + a pure scorer (`scripts/vote-parity-check.mjs`, `pnpm vote-parity`) that mirrors the HUMAN-RATIFIED criteria v2 (#348, 2026-06-19) — it does NOT invent thresholds. Each ledger entry is one PAIRED data point: kernloop's native `gate vote @7` vs the external nexus `consensus_vote @7` on the same proposal. The scorer computes: the COUNTED window size (a point counts toward windowN ONLY when independence is verified AND it is flagged counted, so pre-criteria points stay PROVISIONAL — no teach-to-the-test); the load-bearing ZERO-false-approves gate (a false-approve = native APPROVES while external REJECTS, the self-grading-homework failure; a false-REJECT is safe/conservative and does not fail the window); disposition agreement (≥90% bar); decision-type diversity (≥4); and dangerous-case coverage (≥5 external-reject/split, a MAJORITY organic). `criteriaMet` requires EVERY bar and is explicitly NECESSARY-NOT-SUFFICIENT — the scorer REPORTS progress and never promotes: the #328 Inc3 enforce-tier promotion stays a SEPARATE human-ratified step with an EXTERNAL panel, and the external check + the human merge + the standing canary stay in the loop permanently. The committed ledger's counted window must always carry zero false-approves (a CI test enforces this invariant + the scorer logic); the seeded DP#1–3 are provisional pre-criteria reasoning-parity evidence.
+
+**Enforced by:**
+
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
+- CI `test`
