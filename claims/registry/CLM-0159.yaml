@@ -11,10 +11,10 @@ statement: >-
   audit (rule 7), never silent. Panel-3 loop votes stay single-adapter (no served,
   byte-identical). The faculty stays model-free; the cli owns per-voter routing.
 evidence:
-  - 'test:packages/faculty-gates/src/vote/run.test.ts::records each voter served identity and flags no skew on a fully diverse panel'
-  - 'test:packages/faculty-gates/src/vote/run.test.ts::emits a SINGLE-ORACLE warn finding when all ballots collapse to one class'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::records each voter served identity and flags no skew on a fully diverse panel'
+  - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::emits a SINGLE-ORACLE warn finding when all ballots collapse to one class'
   - 'test:packages/cli/src/loop/vote-executor.test.ts::convenes a PROVIDER-DIVERSE panel-7: distinct served per voter, no single-oracle'
-  - 'test:packages/cli/src/loop/vote-executor.test.ts::DEGRADES a panel-7 with one adapter: single-oracle finding + audit'
+  - 'test:packages/cli/src/loop/vote-executor.test.ts::DEGRADES a panel-7 with one adapter: ESCALATES (default-on quorum) + single-oracle finding + audit (#405)'
   - 'test:packages/cli/src/loop/vote-executor.test.ts::two UNCATALOGUED adapters (codex + opencode) do NOT collapse to a single oracle (#381)'
   - 'test:packages/cli/src/loop/node-seam.test.ts::voterServedIdentity disambiguates an unknown class by ADAPTER so two uncatalogued adapters stay distinct (#381)'
   - 'test:packages/cli/src/loop/vote-executor.test.ts::panel-3 loop votes stay single-adapter (no served) even with diversity available'

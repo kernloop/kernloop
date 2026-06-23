@@ -6,17 +6,55 @@
  * is the producer of that precision: at run end it labels each proceeding plan-vote
  * voter against the run's eventual success.
  */
-import { BriefSchema, type Outcome } from '@kernloop/contracts';
+import { BriefSchema, type Brief, type Outcome } from '@kernloop/contracts';
 import {
   PANEL_DEFAULT,
   PANEL_RATIFICATION,
   precisionWeight,
   runVoteGate,
+  type InvokeVoter,
+  type RunVoteGateOptions,
+  type VoterTemplate,
 } from '@kernloop/faculty-gates';
-import type { NodeExecutor } from '@kernloop/workflows';
+import type { NodeContext, NodeExecutor } from '@kernloop/workflows';
 import { publishVerdict } from '../executors.js';
 import { voteInvokerFor } from './vote-diversity.js';
 import type { LoopBindings } from './executors.js';
+
+/**
+ * Assemble {@link runVoteGate} options from the overlay's `gates.vote.*` knobs:
+ * strategy/panel, #192 escalate-on-deadlock, #369 precision weights + correlation
+ * awareness, and the #405/#369 Inc5b distinct-class independence quorum — a panel-7
+ * RATIFICATION vote DEFAULTS to requiring ≥2 served classes (the human-ratified
+ * default-on: a single-oracle ratification escalates rather than auto-approving), and
+ * the overlay's `minDistinctClasses` overrides it (set 1 to opt out). Inert on a
+ * panel-3 loop vote or a single-adapter / endpoint-only panel (no served identities).
+ */
+function voteGateOptions(
+  b: LoopBindings,
+  ctx: NodeContext,
+  planBrief: Brief,
+  panel: readonly VoterTemplate[],
+  isRatification: boolean,
+  weights: number[] | undefined,
+  invokeVoter: InvokeVoter,
+): RunVoteGateOptions {
+  const v = ctx.config.gates.vote;
+  return {
+    taskId: ctx.taskId,
+    proposal: planBrief.sections.map((s) => s.content).join('\n\n'),
+    brief: b.refs.researchBrief ?? planBrief,
+    panel,
+    strategy: v.strategy,
+    escalateOnNoConsensus: v.escalateOnNoConsensus,
+    ...(weights === undefined ? {} : { weights }),
+    correlationAware: v.correlationAware,
+    correlationForm: v.correlationForm,
+    ratificationProfile: isRatification,
+    ...(v.minDistinctClasses === undefined ? {} : { minDistinctClasses: v.minDistinctClasses }),
+    invokeVoter,
+  };
+}
 
 /** The vote gate node: faculty panel over ONE shared Brief (spec §8.3). A panel-7
  * RATIFICATION vote convenes a PROVIDER-DIVERSE panel where available (#369). */
@@ -43,20 +81,9 @@ export function voteExecutor(b: LoopBindings): NodeExecutor {
           return precisionWeight(rp.precision, rp.labeled);
         })
       : undefined;
-    const verdict = await runVoteGate({
-      taskId: ctx.taskId,
-      proposal: planBrief.sections.map((s) => s.content).join('\n\n'),
-      brief: b.refs.researchBrief ?? planBrief,
-      panel,
-      strategy: ctx.config.gates.vote.strategy,
-      escalateOnNoConsensus: ctx.config.gates.vote.escalateOnNoConsensus, // #192 opt-in ASK
-      ...(weights === undefined ? {} : { weights }),
-      // Correlation-aware aggregation (#369 Inc4, opt-in): discount provider-correlated
-      // ballots toward their effective-independent size. Inert without served identities.
-      correlationAware: ctx.config.gates.vote.correlationAware,
-      correlationForm: ctx.config.gates.vote.correlationForm,
-      invokeVoter,
-    });
+    const verdict = await runVoteGate(
+      voteGateOptions(b, ctx, planBrief, panel, isRatification, weights, invokeVoter),
+    );
     // Stash the proceeding plan-vote verdict so retrospect can label each voter's
     // outcome against the run's eventual success (#369 Inc3a). The LAST vote stashed
     // is the approving one that proceeds (a rejected vote re-plans + re-votes).

@@ -63,6 +63,16 @@ export const VoteGateSchema = z.strictObject({
   /** The `correlationAware` discount form (#369 Inc4): `sqrt` ⇒ 1/√K (default,
    * softer), `linear` ⇒ 1/K (one effective vote per class). */
   correlationForm: z.enum(['sqrt', 'linear']).default('sqrt'),
+  /**
+   * Distinct-class INDEPENDENCE quorum (#405/#369 Inc5b): require at least this many
+   * distinct served model classes on a diverse panel, else the vote ESCALATES to a
+   * human instead of auto-deciding on a correlated panel. Absent ⇒ the human-ratified
+   * DEFAULT-ON for a panel-7 ratification vote (≥2 classes; a single-oracle ratification
+   * escalates rather than auto-approving), and OFF for a panel-3 loop vote. Set to 1 to
+   * disable it on a ratification panel (the opt-out). Inert on a single-adapter /
+   * endpoint-only panel (no served identities to count).
+   */
+  minDistinctClasses: z.number().int().min(0).optional(),
 });
 
 /** Quality-gate knobs; the per-check timeout has no honest overlay default — the gate owns it. */

@@ -36,16 +36,23 @@ describe('vote executor — provider-diverse panel (#369)', () => {
     const families = new Set(verdict.voters?.map((v) => v.served?.family));
     expect(families.size).toBeGreaterThanOrEqual(2); // genuinely independent
     expect(verdict.findings.some((f) => f.message.includes('SINGLE-ORACLE'))).toBe(false);
+    // #405: quorum MET (≥2 classes) ⇒ no escalation, no independence-quorum finding.
+    expect(verdict.result).not.toBe('escalate');
+    expect(verdict.findings.some((f) => f.message.includes('INDEPENDENCE QUORUM'))).toBe(false);
     kern.close();
   });
 
-  it('DEGRADES a panel-7 with one adapter: single-oracle finding + audit', async () => {
+  it('DEGRADES a panel-7 with one adapter: ESCALATES (default-on quorum) + single-oracle finding + audit (#405)', async () => {
     const kern = kernloopFor('vote-degraded');
     const bindings = {
       ...bindingsFor(kern),
       voteDiversity: { adapters: ['claude'] as AdapterName[], seamForAdapter },
     };
     const verdict = (await buildLoopExecutors(bindings)['vote']?.(planBrief, ctxFor(7))) as Verdict;
+    // #405/#369 Inc5b: a single-oracle panel-7 RATIFICATION no longer auto-approves — the
+    // default-on distinct-class quorum escalates it to a human.
+    expect(verdict.result).toBe('escalate');
+    expect(verdict.findings.some((f) => f.message.includes('INDEPENDENCE QUORUM'))).toBe(true);
     expect(verdict.findings.some((f) => f.message.includes('SINGLE-ORACLE'))).toBe(true);
     const events = readEnvelopes(path.join(kern.paths.dir, 'audit.jsonl')).filter(
       (e) => e.type === 'cli.vote.single-oracle-degraded',
