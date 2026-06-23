@@ -18,7 +18,9 @@ statement: >-
   CLOSED: `confirmed` only if EVERY chunk confirms; if ANY chunk refutes (or cannot
   confirm a claimed guard) the overall verdict is `refuted` with the union of refuting
   names; per-chunk costs are SUMMED. A diff that EXCEEDS the chunk cap is `refuted`
-  OUTRIGHT (fail-closed — an over-cap diff cannot be fully verified). When the assessor
+  OUTRIGHT at ZERO model spend (fail-closed — an over-cap diff cannot be fully verified,
+  and since the verdict is `refuted` regardless of the in-cap chunks the verifier
+  short-circuits BEFORE invoking the model, #434). When the assessor
   claimed NO floor guard satisfied (zero `pass` checks) the verification CONFIRMS
   VACUOUSLY WITHOUT a model call (`checkedFloor:true`, nothing to refute). The gate
   STAYS ADVISORY in this increment: it still returns a PASS Verdict regardless of the
@@ -32,7 +34,7 @@ evidence:
   - 'test:packages/cli/src/loop/parsimony-verify.test.ts::CONFIRMS when the verifier confirms the claimed-pass guards'
   - 'test:packages/cli/src/loop/parsimony-verify.test.ts::REFUTES (with the failing guard names) when the verifier refutes'
   - 'test:packages/cli/src/loop/parsimony-verify.test.ts::UNIONs per-chunk verdicts FAIL-CLOSED — any chunk refuting refutes the whole'
-  - 'test:packages/cli/src/loop/parsimony-verify.test.ts::REFUTES an over-cap diff outright (fail-closed — cannot be fully verified)'
+  - 'test:packages/cli/src/loop/parsimony-verify.test.ts::REFUTES an over-cap diff outright at ZERO model spend (fail-closed short-circuit, #434)'
   - 'test:packages/cli/src/loop/parsimony-verify.test.ts::throws a typed LoopParseError on a malformed verdict — NO fabricated verdict'
   - 'test:packages/cli/src/loop/parsimony-verify.test.ts::carries the diff and the claimed-pass guard NAMES, never an assessor rationale'
   - 'test:packages/cli/src/loop/parsimony-verify.test.ts::neutralizes a fence-nonce collision in the UNTRUSTED diff (#289)'

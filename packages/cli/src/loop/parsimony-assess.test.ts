@@ -208,10 +208,10 @@ describe('assessParsimony — chunk + union [CLM-0175]', () => {
     expect(cost).toEqual({ tokens: COST.tokens * 2, usd: COST.usd * 2 }); // summed
   });
 
-  it('a diff over the chunk cap: cost is BOUNDED and the floor FAILS CLOSED (no DoS, no clean pass)', async () => {
+  it('a diff over the chunk cap: ZERO spend and the floor FAILS CLOSED (no DoS, no clean pass, #434)', async () => {
     // A giant diff would otherwise force one model call per chunk (O(diff size)) — a
-    // cost/latency denial. The assessor caps at MAX_ASSESS_CHUNKS calls and fails the
-    // floor closed on the unassessed tail (every guard applies, none satisfied).
+    // cost/latency denial. The over-cap verdict fails the floor closed regardless of
+    // what the in-cap chunks assess, so the assessor short-circuits at ZERO spend.
     const valid = JSON.stringify(assessment({ satisfied: { input_validation: true } }));
     const { invoke, prompts } = scriptedInvoke(
       Array.from({ length: MAX_ASSESS_CHUNKS + 5 }, () => valid),
@@ -219,13 +219,21 @@ describe('assessParsimony — chunk + union [CLM-0175]', () => {
     const diff = 'x'.repeat(DIFF_ASSESS_MAX_CHARS * (MAX_ASSESS_CHUNKS + 3)); // far over the cap
     const { assessment: out, cost } = await assessParsimony(seamWith(invoke), diff);
 
-    expect(prompts).toHaveLength(MAX_ASSESS_CHUNKS); // BOUNDED — not one call per chunk
-    expect(cost.tokens).toBe(COST.tokens * MAX_ASSESS_CHUNKS); // bounded spend
-    // fail closed: every boundary applies, nothing is proven satisfied (even the
-    // input_validation the assessed chunks claimed) → evaluateFloor defers all.
+    expect(prompts).toHaveLength(0); // #434: short-circuits BEFORE invoking the model
+    expect(cost).toEqual({ tokens: 0, usd: 0 }); // zero spend
+    // fail closed: every boundary applies, nothing is proven satisfied → evaluateFloor
+    // defers all. The advisory ladder reports the conservative minimal_impl (rung 5).
     expect(out.floorContext.crossesTrustBoundary).toBe(true);
     expect(out.floorContext.acts).toBe(true);
     expect(out.satisfied).toEqual({});
+    expect(out.rung).toBe(5);
+    expect(out.signals).toEqual({
+      need: true,
+      stdlib: false,
+      native: false,
+      dep: false,
+      oneLine: false,
+    });
     expect(out.rationale).toContain('too large');
   });
 
