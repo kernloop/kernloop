@@ -559,7 +559,7 @@ The canonical loop is declared as data: every edge carries a contract and every 
 
 **Status:** verified — **source:** [`CLM-0043.yaml`](../claims/registry/CLM-0043.yaml)
 
-The vote-iterate cycle is bounded at K iterations (default 3) before escalating to the human; and the child fan-out re-runs implement on a quality reject, bounded by Kc (default 3), folding the gate findings into the coder prompt — at the Kc/budget bound the child escalates without failing the sibling children or the whole run, and each re-iteration is audited.
+The vote-iterate cycle is bounded at K iterations (default 3) before escalating to the human; and the child fan-out re-runs implement on a quality reject, bounded by Kc (default 3), folding the gate findings into the coder prompt — at the Kc/budget bound the child escalates without failing the sibling children or the whole run, and each re-iteration is audited. A sub-gate that drives re-iteration (quality always; review/parsimony when promoted to enforce) re-runs the child BEFORE the cursor reaches the child's LATER sub-gates, so a rejected pass spends no downstream sub-gate model call (e.g. a review-driven reject skips the trailing parsimony gate on that pass, #427).
 
 **Enforced by:**
 
@@ -568,6 +568,7 @@ The vote-iterate cycle is bounded at K iterations (default 3) before escalating 
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - [`packages/workflows/src/resume.test.ts`](../packages/workflows/src/resume.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
 - [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
 - [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
 - [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
@@ -1037,9 +1038,9 @@ Budget enforcement is a run-level MODE, not a contract change: in enforce mode (
 
 **Enforced by:**
 
-- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
-- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
-- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- [`packages/workflows/src/child-budget.test.ts`](../packages/workflows/src/child-budget.test.ts)
+- [`packages/workflows/src/child-budget.test.ts`](../packages/workflows/src/child-budget.test.ts)
+- [`packages/workflows/src/child-budget.test.ts`](../packages/workflows/src/child-budget.test.ts)
 - [`packages/cli/src/loop-iteration.test.ts`](../packages/cli/src/loop-iteration.test.ts)
 - [`packages/cli/src/loop-iteration.test.ts`](../packages/cli/src/loop-iteration.test.ts)
 - [`packages/cli/src/overlay.test.ts`](../packages/cli/src/overlay.test.ts)

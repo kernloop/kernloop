@@ -13,7 +13,6 @@ import type { Finding, TaskContract, Verdict } from '@kernloop/contracts';
 import { InMemoryCheckpointStore } from './checkpoints.js';
 import {
   createEngine,
-  type BudgetGuard,
   type ChildIterateEvent,
   type NodeExecutor,
 } from './engine.js';
@@ -177,6 +176,45 @@ describe('review-driven child iteration [CLM-0043]', () => {
     expect(qualityCalls['task-1.c1']).toBe(2);
   });
 
+  it('a review-driven reject SKIPS the downstream parsimony gate on that pass — no wasted assessor call (#427)', async () => {
+    // #427: parsimony sits AFTER review in the child sub-chain. When review drives
+    // iteration (enforce) and REJECTS, the back-edge re-iterates the child BEFORE the
+    // cursor reaches the parsimony sub-node, so parsimony never spends a model call on a
+    // child that is about to re-run. It runs ONLY on the passing-review pass.
+    const { executors, qualityCalls } = scripted({ 'task-1.c1': ['pass'] });
+    let reviews = 0;
+    executors['review'] = (_i, ctx) => {
+      reviews += 1;
+      // c1: first review rejects (→ re-iterate), second approves; c2 approves.
+      return Promise.resolve(
+        verdict(ctx.child?.id ?? ctx.taskId, 'review', reviews === 1 ? 'reject' : 'approve'),
+      );
+    };
+    let parsimonyCalls = 0;
+    executors['parsimony'] = (_i, ctx) => {
+      parsimonyCalls += 1;
+      return Promise.resolve(verdict(ctx.child?.id ?? ctx.taskId, 'parsimony', 'pass'));
+    };
+    const result = await createEngine({
+      executors,
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { reviewDrivesIteration: true },
+    }).run(task);
+
+    expect(result.status).toBe('completed');
+    expect(qualityCalls['task-1.c1']).toBe(2); // review drove a c1 re-implement
+    // The rejected pass spent NO parsimony call: c1 runs parsimony once (the approving
+    // pass) + c2 once = 2, never 3.
+    expect(parsimonyCalls).toBe(2);
+    // The trace proves the skip: the first review:c1 (the reject) is followed directly
+    // by implement:c1 (the re-run) — there is NO parsimony:c1 in between.
+    const trace = names(result.nodeTrace);
+    const firstReviewC1 = trace.indexOf('review:task-1.c1');
+    expect(trace[firstReviewC1 + 1]).toBe('implement:task-1.c1');
+    // Exactly one parsimony entry per child overall (only the passes that reached it).
+    expect(trace.filter((n) => n === 'parsimony:task-1.c1')).toHaveLength(1);
+  });
+
   it('with parsimonyDrivesIteration on (intensity full/ultra), a parsimony reject re-runs implement (#9/#415)', async () => {
     const { executors, qualityCalls } = scripted({ 'task-1.c1': ['pass'] });
     let parsimonies = 0;
@@ -274,64 +312,6 @@ describe('review-driven child iteration [CLM-0043]', () => {
     expect(implementCtx.filter((c) => c.childId === 'task-1.c1')).toHaveLength(1);
     expect(qualityCalls['task-1.c1']).toBe(1);
     expect(result.status).toBe('completed');
-  });
-});
-
-describe('runtime budget enforcement [CLM-0077]', () => {
-  /** A guard whose spend jumps past the limit after `tripAfter` reads. */
-  function guard(mode: 'enforce' | 'unlimited', limit = 100, tripAfter = 0): BudgetGuard {
-    let reads = 0;
-    return {
-      mode,
-      limit: { tokens: limit, usd: 1 },
-      spent: () => {
-        reads += 1;
-        return { tokens: reads > tripAfter ? limit + 1 : 0, usd: 0 };
-      },
-    };
-  }
-
-  it('a bounded run that exceeds its budget escalates (resumable), not silently continues', async () => {
-    const { executors } = scripted();
-    const result = await createEngine({
-      executors,
-      checkpoints: new InMemoryCheckpointStore(),
-      budget: guard('enforce', 100, 0), // over budget immediately
-    }).run(task, { runId: 'run-overbudget' });
-    expect(result.status).toBe('escalated');
-    expect(result.findings?.some((f) => f.message.includes('exceeded its budget'))).toBe(true);
-  });
-
-  it('an unlimited run that exceeds the nominal budget COMPLETES and never halts on budget', async () => {
-    const { executors } = scripted();
-    const result = await createEngine({
-      executors,
-      checkpoints: new InMemoryCheckpointStore(),
-      budget: guard('unlimited', 100, 0), // would be over budget in enforce mode
-    }).run(task);
-    expect(result.status).toBe('completed');
-    expect(result.outcome).toBeDefined();
-  });
-
-  it('an over-budget enforce run escalates a child before Kc instead of re-iterating', async () => {
-    let integrateInput: unknown;
-    const { executors } = scripted({ 'task-1.c1': ['fail', 'pass'] });
-    executors['integrate'] = (input) => {
-      integrateInput = input;
-      return Promise.resolve(outcome(task.id));
-    };
-    // Budget trips only once the fan-out is underway (after several reads) so
-    // the run reaches a child quality reject, then the child must escalate.
-    const result = await createEngine({
-      executors,
-      checkpoints: new InMemoryCheckpointStore(),
-      budget: guard('enforce', 100, 6),
-    }).run(task);
-    // The run halts at the budget; the child it was on is escalated, not looped.
-    expect(result.status).toBe('escalated');
-    const results = (integrateInput ?? []) as Array<{ child: TaskContract; escalated?: boolean }>;
-    // integrate never ran (the run halted first): the escalation is in findings.
-    expect(results).toEqual([]);
   });
 });
 

@@ -5,9 +5,9 @@ statement: >-
   continuing; in unlimited mode the budget never halts the run, but usage and cost are STILL metered
   and reported identically, and the run is recorded honestly as having run without budget enforcement.
 evidence:
-  - 'test:packages/workflows/src/child-iterate.test.ts::a bounded run that exceeds its budget escalates (resumable), not silently continues'
-  - 'test:packages/workflows/src/child-iterate.test.ts::an unlimited run that exceeds the nominal budget COMPLETES and never halts on budget'
-  - 'test:packages/workflows/src/child-iterate.test.ts::an over-budget enforce run escalates a child before Kc instead of re-iterating'
+  - 'test:packages/workflows/src/child-budget.test.ts::a bounded run that exceeds its budget escalates (resumable), not silently continues'
+  - 'test:packages/workflows/src/child-budget.test.ts::an unlimited run that exceeds the nominal budget COMPLETES and never halts on budget'
+  - 'test:packages/workflows/src/child-budget.test.ts::an over-budget enforce run escalates a child before Kc instead of re-iterating'
   - 'test:packages/cli/src/loop-iteration.test.ts::an UNLIMITED run that exceeds the nominal budget COMPLETES, still reports full cost, and is recorded as unlimited'
   - 'test:packages/cli/src/loop-iteration.test.ts::a bounded (enforce) run that exceeds its budget escalates and is resumable, never silently continuing'
   - 'test:packages/cli/src/overlay.test.ts::loads Kc and budgetMode from the file; rejects an invalid mode [CLM-0043, CLM-0077]'
