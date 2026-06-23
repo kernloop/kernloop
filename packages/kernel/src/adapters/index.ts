@@ -87,6 +87,7 @@ export {
 export {
   checkAgenticContainment,
   isNonThrowawayGitTree,
+  carveOutMaskedGitTree,
   AGENTIC_ADAPTERS,
   NON_AGENTIC_ADAPTERS,
 } from './containment.js';

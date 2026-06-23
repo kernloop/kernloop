@@ -15,6 +15,7 @@ import {
   NON_AGENTIC_ADAPTERS,
   checkAgenticContainment,
   isNonThrowawayGitTree,
+  carveOutMaskedGitTree,
 } from './containment.js';
 import { AgenticRepositoryWorkspaceError } from './errors.js';
 
@@ -78,6 +79,38 @@ describe('isNonThrowawayGitTree (#280 pt2)', () => {
     // A null tmpRoot (e.g. a $TMPDIR pointing nowhere) disables the carve-out, so
     // a real git tree is still refused rather than throwing an untyped ENOENT.
     expect(isNonThrowawayGitTree(scratch(true), null)).toBe(true);
+  });
+});
+
+describe('carveOutMaskedGitTree (#332 observability)', () => {
+  it('is TRUE when the tmp carve-out hid a real git tree (the KNOWN GAP, now observable)', () => {
+    // The exact case isNonThrowawayGitTree silently ALLOWS: a .git under the temp root.
+    expect(carveOutMaskedGitTree(scratch(true))).toBe(true);
+  });
+  it('is TRUE walking UP: a subdir under tmp whose .git is a parent (also under tmp)', () => {
+    const repo = scratch(true);
+    const sub = path.join(repo, 'pkg', 'src');
+    mkdirSync(sub, { recursive: true });
+    expect(carveOutMaskedGitTree(sub)).toBe(true);
+  });
+  it('is FALSE for an ordinary throwaway scratch dir with no .git (the common case — no noise)', () => {
+    expect(carveOutMaskedGitTree(scratch(false))).toBe(false);
+  });
+  it('is FALSE when the path is NOT under the temp root (the refusal path owns that case)', () => {
+    // A real git tree outside the carve-out is refused, not allowed — nothing to observe here.
+    expect(carveOutMaskedGitTree(scratch(true), '/nonexistent-tmproot')).toBe(false);
+  });
+  it('is FALSE when no carve-out applies (null tmpRoot ⇒ nothing was masked)', () => {
+    expect(carveOutMaskedGitTree(scratch(true), null)).toBe(false);
+  });
+  it('detects the $TMPDIR footgun: a .git ABOVE the injected tmpRoot (unbounded upward walk)', () => {
+    // A launcher points $TMPDIR at a dir INSIDE a real working tree: the .git sits ABOVE
+    // tmpRoot, so a bounded-at-tmpRoot walk would miss it. The unbounded walk surfaces it.
+    const repo = scratch(true); // the real working tree (.git at its root)
+    const fakeTmp = path.join(repo, 'fake-tmp');
+    const ws = path.join(fakeTmp, 'ws');
+    mkdirSync(ws, { recursive: true });
+    expect(carveOutMaskedGitTree(ws, fakeTmp)).toBe(true);
   });
 });
 
