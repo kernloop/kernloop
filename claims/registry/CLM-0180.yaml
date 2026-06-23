@@ -1,0 +1,35 @@
+id: CLM-0180
+statement: >-
+  The repo carries a `preflight` aggregate script (#449) that chains the
+  locally-reproducible CI gates (build, typecheck, lint, wiring:check, format, test,
+  claims:check, claims:verify-ran, render-claims --check, docs:render --check,
+  docs:coverage, stats:check, parsimony:render --check, governance:check,
+  audit:selftest, e2e, evals) fail-fast, so a contributor or agent reproduces a green
+  CI run with ONE command. A drift gate (`scripts/check-preflight-sync.mjs`, run in CI
+  as a root-vitest test) keeps `preflight` in LOCKSTEP with `.github/workflows/ci.yml`.
+  It is FAIL-CLOSED: EVERY single-line `run:` command CI executes is a required gate
+  unless it matches the explicit CI-only allowlist (the lockfile install) — there is no
+  gate-FORM allowlist, so a gate spelled `turbo run x` / `bash scripts/x.sh` / `npx y`
+  is required by default and cannot escape by not looking like a pnpm/scripts command.
+  Each required gate is resolved ONE level through the package.json `scripts` map so a
+  `pnpm <alias>` and its raw `node scripts/x.mjs` CI form canonicalize to the same
+  signature, and the check asserts every required gate appears in `preflight`. A
+  multi-line `run:` BLOCK SCALAR (which the single-line parser cannot read) FAILS LOUD
+  rather than silently skipping — closing the one path by which a gate hidden in a block
+  could escape. So adding a CI gate without adding it to `preflight` turns the gate red:
+  `preflight` cannot silently rot into a stale subset that reports green while missing a
+  CI check.
+evidence:
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::the actual package.json preflight covers every CI gate'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::a known pnpm alias resolves to its script definition'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::a `-- <args>` suffix is appended to the resolved definition'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::an alias and its raw equivalent canonicalize identically'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::CI-only commands (install) are excluded'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::a NON-pnpm/scripts gate form is REQUIRED by default (no gate-form allowlist to escape)'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::fails loud (ok=false, no missing) when ci.yml has a multi-line run block'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::a preflight missing a gate reports it (resolved form)'
+  - 'test:scripts/__tests__/check-preflight-sync.test.mjs::the raw CI invocation is matched by the pnpm-alias preflight form'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.6.0
