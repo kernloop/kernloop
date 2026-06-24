@@ -149,6 +149,93 @@ describe('runTool', () => {
     kern.close();
   });
 
+  describe('usd-budget-unenforceable honesty (#462)', () => {
+    const usdBudget = { tokens: 100000, usd: 1, wallClockMin: 30 };
+    const usdEvents = (kern: ReturnType<typeof freshKernloop>) =>
+      readEnvelopes(kern.paths.audit).filter((e) => e.type === 'cli.budget.usd-unenforceable');
+
+    it('AUDITS when a usd budget runs on a non-metering adapter (codex) — never silently inert', async () => {
+      const kern = freshKernloop();
+      await runTool(kern, {
+        goal: 'a run with a usd budget on codex',
+        capability: 'memory.episodic.read',
+        id: 'task-usd-codex',
+        budget: usdBudget,
+        adapter: 'codex',
+      });
+      const events = usdEvents(kern);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.payload).toMatchObject({
+        adapter: 'codex',
+        usdBudget: 1,
+        taskId: 'task-usd-codex',
+        metersTokens: true,
+      });
+      // codex meters tokens, so the reason honestly says the token budget still bounds it.
+      expect((events[0]?.payload as { reason: string }).reason).toContain('TOKEN budget');
+      kern.close();
+    });
+
+    it('audits HONESTLY for a fully-unmetered adapter (agy): NEITHER budget applies, not "token budget still applies" (#462)', async () => {
+      const kern = freshKernloop();
+      await runTool(kern, {
+        goal: 'a run with a usd budget on agy (meters nothing)',
+        capability: 'memory.episodic.read',
+        id: 'task-usd-agy',
+        budget: usdBudget,
+        adapter: 'agy',
+      });
+      const events = usdEvents(kern);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.payload).toMatchObject({ adapter: 'agy', metersTokens: false });
+      const reason = (events[0]?.payload as { reason: string }).reason;
+      // The honesty fix: must NOT claim the token budget bounds a no-usage adapter.
+      expect(reason).toContain('wallClock');
+      expect(reason).not.toContain('TOKEN budget still bounds');
+      kern.close();
+    });
+
+    it('does NOT audit when the adapter meters usd (claude)', async () => {
+      const kern = freshKernloop();
+      await runTool(kern, {
+        goal: 'a run with a usd budget on claude',
+        capability: 'memory.episodic.read',
+        id: 'task-usd-claude',
+        budget: usdBudget,
+        adapter: 'claude',
+      });
+      expect(usdEvents(kern)).toHaveLength(0);
+      kern.close();
+    });
+
+    it('does NOT audit in unlimited mode (the usd budget is not enforced anyway)', async () => {
+      const kern = freshKernloop();
+      await runTool(kern, {
+        goal: 'an unlimited run on codex',
+        capability: 'memory.episodic.read',
+        id: 'task-usd-unlimited',
+        budget: usdBudget,
+        adapter: 'codex',
+        unlimited: true,
+      });
+      expect(usdEvents(kern)).toHaveLength(0);
+      kern.close();
+    });
+
+    it('does NOT audit when there is no usd budget (usd: 0)', async () => {
+      const kern = freshKernloop();
+      await runTool(kern, {
+        goal: 'a token-only budget on codex',
+        capability: 'memory.episodic.read',
+        id: 'task-usd-zero',
+        budget: { tokens: 100000, usd: 0, wallClockMin: 30 },
+        adapter: 'codex',
+      });
+      expect(usdEvents(kern)).toHaveLength(0);
+      kern.close();
+    });
+  });
+
   it('records a synchronous run as a job (running → done) so status --job can inspect it [CLM-0073]', async () => {
     const kern = freshKernloop();
     const result = await runTool(

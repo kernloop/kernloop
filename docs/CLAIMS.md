@@ -1034,10 +1034,17 @@ A component's model demand is a two-axis ModelRequirement — model tier (fronti
 
 **Status:** verified — **source:** [`CLM-0077.yaml`](../claims/registry/CLM-0077.yaml)
 
-Budget enforcement is a run-level MODE, not a contract change: in enforce mode (default) a run whose metered spend exceeds its parent budget escalates and halts (resumable) rather than silently continuing; in unlimited mode the budget never halts the run, but usage and cost are STILL metered and reported identically, and the run is recorded honestly as having run without budget enforcement.
+Budget enforcement is a run-level MODE, not a contract change: in enforce mode (default) a run whose metered spend exceeds its parent budget escalates and halts (resumable) rather than silently continuing; in unlimited mode the budget never halts the run, but usage and cost are STILL metered and reported identically, and the run is recorded honestly as having run without budget enforcement. HONESTY at the metering boundary (#462): a `usd` budget can only be enforced on an adapter that reports per-call dollar cost (`metersUsd: true` — claude via `total_cost_usd`); a CLI adapter that reports only tokens or nothing (codex/agy/opencode/ollama, `metersUsd: false`) would read $0 spend, so an enforce-mode run with a usd budget on such an adapter has a SILENTLY-INERT cap. Rather than lie, the run AUDITS `cli.budget.usd-unenforceable` (rule 7) — surfacing the degradation, not failing closed. The audit reason reflects REALITY per adapter via the companion `metersTokens` fact: codex/opencode meter TOKENS (so the token budget still bounds the run), but agy/ollama meter NEITHER usd NOR tokens (`metersTokens: false`) — for those, BOTH budgets are inert and only wallClock + the Kc iteration cap bound the run, which the audit states honestly rather than falsely claiming a token budget applies. `metersUsd`/`metersTokens` are single-sourced per-adapter facts on the kernel adapter definition; an endpoint adapter has its own `metersUsd` (#393).
 
 **Enforced by:**
 
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- [`packages/kernel/src/adapters/definitions.test.ts`](../packages/kernel/src/adapters/definitions.test.ts)
+- [`packages/cli/src/tools/run.test.ts`](../packages/cli/src/tools/run.test.ts)
+- [`packages/cli/src/tools/run.test.ts`](../packages/cli/src/tools/run.test.ts)
+- [`packages/cli/src/tools/run.test.ts`](../packages/cli/src/tools/run.test.ts)
+- [`packages/cli/src/tools/run.test.ts`](../packages/cli/src/tools/run.test.ts)
+- [`packages/cli/src/tools/run.test.ts`](../packages/cli/src/tools/run.test.ts)
 - [`packages/workflows/src/child-budget.test.ts`](../packages/workflows/src/child-budget.test.ts)
 - [`packages/workflows/src/child-budget.test.ts`](../packages/workflows/src/child-budget.test.ts)
 - [`packages/workflows/src/child-budget.test.ts`](../packages/workflows/src/child-budget.test.ts)

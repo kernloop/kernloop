@@ -22,6 +22,7 @@ import {
   type Verdict,
 } from '@kernloop/contracts';
 import { RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
+import { auditUsdBudgetUnenforceable } from './run-budget-honesty.js';
 import { stopTailOnSettle, tailIf } from '../loop/progress-tail.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import type { Kernloop } from '../kernel.js';
@@ -57,10 +58,9 @@ export const RunInputSchema = z.strictObject({
   authorityCeiling: TierSchema.default('advisory'),
   overlay: z.string().min(1).optional(),
   /**
-   * Adapter the canonical loop's model calls flow through (spec §3.1): a CLI
-   * adapter name OR a registered endpoint id (#392). Validated as CLI-or-endpoint
-   * at run setup (the overlay is known there); an endpoint run adapter needs no
-   * CLI installed. Any non-empty string here; an unknown one fails fast at setup.
+   * Adapter the canonical loop's model calls flow through (spec §3.1): a CLI adapter
+   * name OR a registered endpoint id (#392), validated as CLI-or-endpoint at run setup;
+   * any non-empty string, an unknown one fails fast at setup.
    */
   adapter: z.string().min(1).default('claude'),
   /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
@@ -74,11 +74,9 @@ export const RunInputSchema = z.strictObject({
    */
   unlimited: z.boolean().default(false),
   /**
-   * Run in the background: create a `running` job, kick off the capability
-   * without awaiting, and return its job id immediately [CLM-0074]. The
-   * terminal state is recorded to the job registry when the work settles.
-   * In the resident MCP server the background work genuinely overlaps; the
-   * one-shot CLI still settles the job before the process exits.
+   * Run in the background: create a `running` job, kick off the capability without
+   * awaiting, and return its job id immediately [CLM-0074]; the terminal state is
+   * recorded when the work settles (the one-shot CLI settles before the process exits).
    */
   async: z.boolean().default(false),
   /**
@@ -371,6 +369,10 @@ function dispatchSelected(
   selected: string,
   options: RunToolOptions,
 ): Promise<RunResult> {
+  auditUsdBudgetUnenforceable(kern, task, {
+    adapter: parsed.adapter,
+    unlimited: parsed.unlimited ?? false,
+  });
   if (!kern.executors.has(parsed.capability)) {
     return executeAndRecord(kern, task, parsed.capability, selected, {});
   }

@@ -4,7 +4,25 @@ statement: >-
   whose metered spend exceeds its parent budget escalates and halts (resumable) rather than silently
   continuing; in unlimited mode the budget never halts the run, but usage and cost are STILL metered
   and reported identically, and the run is recorded honestly as having run without budget enforcement.
+  HONESTY at the metering boundary (#462): a `usd` budget can only be enforced on an adapter that
+  reports per-call dollar cost (`metersUsd: true` — claude via `total_cost_usd`); a CLI adapter that
+  reports only tokens or nothing (codex/agy/opencode/ollama, `metersUsd: false`) would read $0 spend,
+  so an enforce-mode run with a usd budget on such an adapter has a SILENTLY-INERT cap. Rather than
+  lie, the run AUDITS `cli.budget.usd-unenforceable` (rule 7) — surfacing the degradation, not failing
+  closed. The audit reason reflects REALITY per adapter via the companion `metersTokens` fact:
+  codex/opencode meter TOKENS (so the token budget still bounds the run), but agy/ollama meter NEITHER
+  usd NOR tokens (`metersTokens: false`) — for those, BOTH budgets are inert and only wallClock + the
+  Kc iteration cap bound the run, which the audit states honestly rather than falsely claiming a token
+  budget applies. `metersUsd`/`metersTokens` are single-sourced per-adapter facts on the kernel adapter
+  definition; an endpoint adapter has its own `metersUsd` (#393).
 evidence:
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::marks only claude as metering USD — the others report tokens-or-nothing (#462)'
+  - 'test:packages/kernel/src/adapters/definitions.test.ts::marks token-metering honestly: claude/codex/opencode yes, ollama/agy no (#462)'
+  - 'test:packages/cli/src/tools/run.test.ts::audits HONESTLY for a fully-unmetered adapter (agy): NEITHER budget applies, not "token budget still applies" (#462)'
+  - 'test:packages/cli/src/tools/run.test.ts::AUDITS when a usd budget runs on a non-metering adapter (codex) — never silently inert'
+  - 'test:packages/cli/src/tools/run.test.ts::does NOT audit when the adapter meters usd (claude)'
+  - 'test:packages/cli/src/tools/run.test.ts::does NOT audit in unlimited mode (the usd budget is not enforced anyway)'
+  - 'test:packages/cli/src/tools/run.test.ts::does NOT audit when there is no usd budget (usd: 0)'
   - 'test:packages/workflows/src/child-budget.test.ts::a bounded run that exceeds its budget escalates (resumable), not silently continues'
   - 'test:packages/workflows/src/child-budget.test.ts::an unlimited run that exceeds the nominal budget COMPLETES and never halts on budget'
   - 'test:packages/workflows/src/child-budget.test.ts::an over-budget enforce run escalates a child before Kc instead of re-iterating'
