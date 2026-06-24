@@ -107,6 +107,7 @@ export function ctxFor(panel: 3 | 7): NodeContext {
         vote: {
           strategy: 'unanimous',
           panel,
+          providerDiverse: false,
           escalateOnNoConsensus: false,
           precisionWeighted: false,
           correlationAware: false,

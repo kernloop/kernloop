@@ -70,6 +70,7 @@ describe('initOverlay', () => {
     expect(parsed.gates.vote).toEqual({
       strategy: 'simple_majority',
       panel: 3,
+      providerDiverse: false,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
       correlationAware: false,
@@ -102,6 +103,7 @@ describe('loadOverlay defaults and precedence', () => {
       vote: {
         strategy: 'simple_majority',
         panel: 3,
+        providerDiverse: false,
         escalateOnNoConsensus: false,
         precisionWeighted: false,
         correlationAware: false,
@@ -220,8 +222,7 @@ describe('loadOverlay defaults and precedence', () => {
         .ratifiedEnforce,
     ).toBe('consensus_vote:42');
     expect(() => loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: ""\n')).toThrow();
-    // The ref must name its provenance source so an audit reader can tell an
-    // attested promotion from a #350-verified one (#351 review finding).
+    // The ref must name its provenance source (#351 review finding).
     expect(() => loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: "x"\n')).toThrow();
     expect(
       loadFrom('id: x\ngates:\n  review:\n    ratifiedEnforce: "human:williamz"\n').gates.review
@@ -265,6 +266,7 @@ describe('loadOverlay defaults and precedence', () => {
     expect(overlay.gates.vote).toEqual({
       strategy: 'supermajority',
       panel: 7,
+      providerDiverse: false,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
       correlationAware: false,
@@ -326,10 +328,8 @@ describe('loadOverlay defaults and precedence', () => {
   });
 
   it('REJECTS a tier→endpoint that serves no model for the routed tier — fails fast [CLM-0084]', () => {
-    // QA-P1: the `small` tier is routed to an endpoint that only serves
-    // `frontier`. resolveTierModel degrades DOWNWARD only, so a small request
-    // finds no model at or below it → empty model id → fatal for an api
-    // endpoint. It must fail at PARSE, not mid-loop, naming tier + endpoint.
+    // QA-P1: `small` routes to a frontier-only endpoint; resolveTierModel degrades
+    // DOWNWARD only → empty id → must fail at PARSE (naming tier + endpoint), not mid-loop.
     let caught: unknown;
     try {
       loadFrom(

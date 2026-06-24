@@ -126,20 +126,22 @@ function childIterateAudit(
  * overlay; the per-iteration audit hook wires re-entries to the chain [CLM-0043].
  */
 /**
- * Provider-diverse panel-7 ratification voting (#369): the default (non-injected)
- * path round-robins voters across the overlay's distinct adapters; the injected
- * path (tests/sampling) has no CLI adapters to diversify, so panel-7 stays single.
+ * Provider-diverse panel-7 ratification voting (#369), OPT-IN since #461. When the
+ * overlay sets `gates.vote.providerDiverse: true`, the default (non-injected) path
+ * round-robins voters across the overlay's distinct adapters; the injected path
+ * (tests/sampling) has no CLI adapters to diversify. Default FALSE (#461 evidence:
+ * roles-on-one-model matched a 3-family diverse panel on every test proposal), so a
+ * panel-7 vote runs roles-on-the-run-adapter and needs no second authed adapter.
  */
-function voteDiversityFor(
+export function voteDiversityFor(
   kern: Kernloop,
   request: LoopRequest,
   adapter: string,
   totals: { tokens: number; usd: number },
   fitness: ModelFitnessWiring | undefined,
 ): VoteDiversity | undefined {
-  return request.invoke === undefined
-    ? buildVoteDiversity(kern.config, adapter, totals, fitness)
-    : undefined;
+  if (!kern.config.gates.vote.providerDiverse || request.invoke !== undefined) return undefined;
+  return buildVoteDiversity(kern.config, adapter, totals, fitness);
 }
 
 export function buildLoopEngine(

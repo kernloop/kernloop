@@ -1,16 +1,26 @@
 id: CLM-0159
 statement: >-
-  A panel-7 RATIFICATION vote convenes a PROVIDER-DIVERSE panel (#369): the
-  composition root round-robins the voters across the overlay's distinct available
-  adapters (stable-sorted, deterministic) and binds each voter to its OWN adapter's
-  seam, so the panel is not one model role-playing N personas (the correlated-oracle
-  weakness). Each ballot records the normalized served:ModelIdentity that cast it on
-  the VoterRecord, so independence is VERIFIABLE. When fewer than 2 distinct adapters
-  are available the panel runs single-oracle but surfaces it honestly — a visible
-  single-oracle WARN finding on the Verdict AND a cli.vote.single-oracle-degraded
-  audit (rule 7), never silent. Panel-3 loop votes stay single-adapter (no served,
-  byte-identical). The faculty stays model-free; the cli owns per-voter routing.
+  A panel-7 RATIFICATION vote can convene a PROVIDER-DIVERSE panel (#369) — OPT-IN via
+  `gates.vote.providerDiverse`, DEFAULT OFF since #461 (a live experiment found three
+  independent model families gave identical verdicts to a single strong model on every
+  test proposal, so the adversarial ROLES carry the signal; by default a panel-7 vote
+  runs roles-on-the-run-adapter and needs no second authed adapter). WHEN ENABLED: the
+  composition root (`voteDiversityFor`, gated on the flag) round-robins the voters across
+  the overlay's distinct available adapters (stable-sorted, deterministic) and binds each
+  voter to its OWN adapter's seam, so the panel is not one model role-playing N personas
+  (the correlated-oracle weakness). Each ballot records the normalized served:ModelIdentity
+  that cast it on the VoterRecord, so independence is VERIFIABLE; when fewer than 2 distinct
+  adapters are available the panel runs single-oracle but surfaces it honestly — a visible
+  single-oracle WARN finding AND a cli.vote.single-oracle-degraded audit (rule 7), never
+  silent. WHEN OFF (default) or on an INJECTED run or a panel-3 loop vote, no diverse panel
+  is built (no served identities — the #405 quorum + diversity findings are inert),
+  byte-identical to single-model voting. The human merge stays the ratifier for
+  protected-path/spec/tier decisions either way (spec §11, #348). The faculty stays
+  model-free; the cli owns per-voter routing.
 evidence:
+  - 'test:packages/cli/src/loop/engine-build.test.ts::returns UNDEFINED by default (providerDiverse: false) — panel-7 runs roles-on-one-model'
+  - 'test:packages/cli/src/loop/engine-build.test.ts::builds the diverse panel only when providerDiverse is opted in'
+  - 'test:packages/cli/src/loop/engine-build.test.ts::stays single (undefined) on an INJECTED run (tests/sampling) regardless of the flag'
   - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::records each voter served identity and flags no skew on a fully diverse panel'
   - 'test:packages/faculty-gates/src/vote/run-diversity.test.ts::emits a SINGLE-ORACLE warn finding when all ballots collapse to one class'
   - 'test:packages/cli/src/loop/vote-executor.test.ts::convenes a PROVIDER-DIVERSE panel-7: distinct served per voter, no single-oracle'
