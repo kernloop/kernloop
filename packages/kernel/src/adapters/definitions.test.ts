@@ -59,6 +59,7 @@ describe('uniform adapter interface (CLM-0021)', () => {
       expect(definition.command.length).toBeGreaterThan(0);
       expect(typeof definition.experimental).toBe('boolean');
       expect(typeof definition.requiresModel).toBe('boolean');
+      expect(typeof definition.metersUsd).toBe('boolean');
       expect(typeof definition.buildCommand).toBe('function');
       expect(typeof definition.parseOutput).toBe('function');
     }
@@ -68,6 +69,23 @@ describe('uniform adapter interface (CLM-0021)', () => {
     const experimental = new Set(['ollama', 'agy']);
     for (const name of ADAPTER_NAMES) {
       expect(adapterDefinitions[name].experimental).toBe(experimental.has(name));
+    }
+  });
+
+  it('marks only claude as metering USD — the others report tokens-or-nothing (#462)', () => {
+    // A usd BUDGET can only be enforced on a metersUsd adapter; the rest surface a
+    // warning instead of silently treating $0 as real spend.
+    for (const name of ADAPTER_NAMES) {
+      expect(adapterDefinitions[name].metersUsd).toBe(name === 'claude');
+    }
+  });
+
+  it('marks token-metering honestly: claude/codex/opencode yes, ollama/agy no (#462)', () => {
+    // ollama/agy emit plain text (usage: null) — they meter NEITHER usd nor tokens, so a
+    // token budget cannot bound them either; the #462 audit must say so, not claim it does.
+    const metersTokens = new Set(['claude', 'codex', 'opencode']);
+    for (const name of ADAPTER_NAMES) {
+      expect(adapterDefinitions[name].metersTokens).toBe(metersTokens.has(name));
     }
   });
 

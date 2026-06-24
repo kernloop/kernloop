@@ -198,6 +198,23 @@ export interface AdapterDefinition {
   readonly experimental: boolean;
   /** True when the CLI cannot run without an explicit model (ollama). */
   readonly requiresModel: boolean;
+  /**
+   * True when the CLI reports per-call DOLLAR cost (e.g. claude's `total_cost_usd`);
+   * false when it reports only tokens or nothing (codex/agy/opencode/ollama). A `usd`
+   * BUDGET cannot be enforced on a `metersUsd: false` adapter — its spend reads as $0,
+   * so the cap would be silently inert (#462); the run surfaces a warning instead of
+   * lying. A token budget still applies WHEN {@link metersTokens} is true. Single source
+   * of the per-adapter cost-reporting fact, parallel to the endpoint `metersUsd` (#393).
+   */
+  readonly metersUsd: boolean;
+  /**
+   * True when the CLI reports TOKEN usage (claude/codex/opencode); false when it reports
+   * nothing at all (ollama/agy — plain text). With `metersTokens: false` AND
+   * `metersUsd: false`, NEITHER a usd nor a token budget can bound the run — only
+   * wallClock + the Kc iteration cap do — so the #462 audit says so honestly rather than
+   * claiming the token budget still applies.
+   */
+  readonly metersTokens: boolean;
   /** Shape argv/stdin for one prompt. */
   readonly buildCommand: (request: AdapterCommandRequest) => AdapterCommand;
   /** Read response text + usage out of captured stdout. */
@@ -235,6 +252,8 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     command: 'claude',
     experimental: false,
     requiresModel: false,
+    metersUsd: true, // `--output-format json` reports `total_cost_usd`
+    metersTokens: true,
     // Prompt via stdin to avoid argv escaping issues (v1 evidence).
     buildCommand: ({ prompt, model, effort, pureCompletion }) => ({
       args: [
@@ -266,6 +285,8 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     command: 'codex',
     experimental: false,
     requiresModel: false,
+    metersUsd: false, // reports token usage only, no dollar cost
+    metersTokens: true,
     // Read-only sandbox + skip-git-repo-check ported from v1 as safe
     // non-interactive defaults; prompt is positional (v1 evidence).
     buildCommand: ({ prompt, model, effort }) => ({
@@ -308,6 +329,8 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     command: 'opencode',
     experimental: false,
     requiresModel: false,
+    metersUsd: false, // no per-call dollar cost in its output
+    metersTokens: true,
     // Prompt via stdin (v1 evidence).
     buildCommand: ({ prompt, model }) => ({
       args: ['run', '--format', 'json', ...modelArgs('-m', model)],
@@ -328,6 +351,8 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     experimental: true,
     // `ollama run` has no default model; the caller must name one.
     requiresModel: true,
+    metersUsd: false, // local models; no dollar cost
+    metersTokens: false, // plain text; no usage at all
     buildCommand: ({ prompt, model }) => ({
       args: ['run', ...(model === undefined ? [] : [model])],
       stdin: prompt,
@@ -347,6 +372,8 @@ export const adapterDefinitions: Readonly<Record<AdapterName, AdapterDefinition>
     // experimental (self-updates in the background → `adapters:smoke` is the backstop).
     experimental: true,
     requiresModel: false,
+    metersUsd: false, // plain-text output; no dollar cost
+    metersTokens: false, // plain text; no usage at all
     // Print mode `agy -p <prompt>` prints PLAIN TEXT (no JSON); `--model` takes the
     // verbatim `agy models` name. No pure-completion flag is applied (`--sandbox`
     // blocks exec/net, not fs, #387 → coverage `none`); effort is baked into the
