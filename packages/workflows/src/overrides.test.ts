@@ -181,6 +181,7 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
     expect(parsed.gates.vote).toEqual({
       strategy: 'simple_majority',
       panel: 3,
+      providerDiverse: false,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
       correlationAware: false,
@@ -209,6 +210,7 @@ describe('overlay-shaped overrides against the same graph [CLM-0045]', () => {
     expect(seen).toEqual({
       strategy: 'unanimous',
       panel: 7,
+      providerDiverse: false,
       escalateOnNoConsensus: false,
       precisionWeighted: false,
       correlationAware: false,

@@ -12,6 +12,15 @@ import { z } from 'zod';
 const VoteConfigSchema = z.strictObject({
   strategy: z.enum(['simple_majority', 'supermajority', 'unanimous']).default('simple_majority'),
   panel: z.union([z.literal(3), z.literal(7)]).default(3),
+  /** Opt-in PROVIDER-DIVERSE panel-7 voting (#369). Default FALSE (#461): a live
+   * experiment found 3 independent model families gave identical verdicts to a
+   * single strong model on every test proposal — the adversarial ROLES carry the
+   * signal, so a panel-7 ratification vote runs roles-on-the-run-adapter by default
+   * (one model, N personas) and does not require ≥2 authed adapters. Set true to
+   * route voters across the overlay's distinct CLI adapters for genuine model
+   * independence (the #405 distinct-class quorum + diversity findings then engage);
+   * off ⇒ no served identities, so the quorum/findings are inert. */
+  providerDiverse: z.boolean().default(false),
   /** Opt-in ASK (#192): a deadlocked panel emits `escalate` → the loop halts as
    * escalated for a human, instead of auto-rejecting. Default off (byte-identical).
    * Liveness tradeoff (#364): in an UNATTENDED loop there is no "next interaction",

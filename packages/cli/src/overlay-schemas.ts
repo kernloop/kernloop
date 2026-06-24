@@ -29,6 +29,22 @@ export const VoteGateSchema = z.strictObject({
   strategy: z.enum(VOTE_STRATEGIES).default('simple_majority'),
   panel: z.union([z.literal(3), z.literal(7)]).default(3),
   /**
+   * Opt-in PROVIDER-DIVERSE panel-7 voting (#369). Default FALSE (#461): a live
+   * experiment found three independent model families (anthropic/openai/google) gave
+   * IDENTICAL verdicts to a single strong model on every test proposal — the adversarial
+   * ROLES carry the signal, not the model. So a panel-7 ratification vote runs
+   * roles-on-the-run-adapter by default (one model, N personas) and no longer requires
+   * ≥2 authed adapters. Set true to route voters across the overlay's distinct CLI
+   * adapters for genuine model independence (the #405 distinct-class quorum + the
+   * single-oracle/skew/dilution findings then engage); off ⇒ a single-model panel has no
+   * served identities, so the quorum/findings are inert. Re-enable it for the
+   * highest-stakes ratifications, or if a proposal ever surfaces model-driven
+   * disagreement — the #461 evidence was all-agree, so diversity's insurance value is
+   * untested, not disproven (the trigger to revisit is tracked in #467). The human merge
+   * stays the ratifier for protected-path/spec/tier decisions either way (spec §11, #348).
+   */
+  providerDiverse: z.boolean().default(false),
+  /**
    * Opt-in human-decision ASK (#192): when true, a DEADLOCKED panel (neither the
    * approve bar nor the symmetric reject bar clears) emits `escalate` instead of
    * `reject`, so the loop HALTS as escalated for a human to rule on the next
