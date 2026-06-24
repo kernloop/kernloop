@@ -372,6 +372,7 @@ function dispatchSelected(
   auditUsdBudgetUnenforceable(kern, task, {
     adapter: parsed.adapter,
     unlimited: parsed.unlimited ?? false,
+    capability: parsed.capability,
   });
   if (!kern.executors.has(parsed.capability)) {
     return executeAndRecord(kern, task, parsed.capability, selected, {});

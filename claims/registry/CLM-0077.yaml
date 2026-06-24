@@ -14,8 +14,13 @@ statement: >-
   usd NOR tokens (`metersTokens: false`) — for those, BOTH budgets are inert and only wallClock + the
   Kc iteration cap bound the run, which the audit states honestly rather than falsely claiming a token
   budget applies. `metersUsd`/`metersTokens` are single-sourced per-adapter facts on the kernel adapter
-  definition; an endpoint adapter has its own `metersUsd` (#393).
+  definition; an endpoint adapter has its own `metersUsd` (#393). The audit is GATED to the
+  `workflow.canonical` capability (#469): only the canonical loop wires the runtime budget guard and
+  makes adapter model calls, so only there is a usd budget actually consulted — a non-loop capability
+  (memory read / gate.quality / brief.compile) consults no budget, and auditing it inert would be a
+  misleading record, exactly the lie this audit exists to prevent.
 evidence:
+  - 'test:packages/cli/src/tools/run.test.ts::does NOT audit for a non-loop capability — it consults NO budget, so the record would mislead (#469)'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::marks only claude as metering USD — the others report tokens-or-nothing (#462)'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::marks token-metering honestly: claude/codex/opencode yes, ollama/agy no (#462)'
   - 'test:packages/cli/src/tools/run.test.ts::audits HONESTLY for a fully-unmetered adapter (agy): NEITHER budget applies, not "token budget still applies" (#462)'

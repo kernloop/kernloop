@@ -21,13 +21,19 @@ import type { Kernloop } from '../kernel.js';
  * BOTH the usd AND token budgets are inert and only wallClock + the Kc iteration cap
  * bound the run — the audit must not claim a token budget applies when it does not. An
  * endpoint adapter has its own `metersUsd` handling (#393) and is skipped here.
+ *
+ * GATED to `workflow.canonical` (#469): only the canonical loop wires the runtime budget
+ * guard and makes adapter model calls, so only there is a usd budget actually consulted.
+ * A non-loop capability (memory.read, gate.quality, brief.compile) consults NO budget, so
+ * auditing "the usd budget is inert" for it would be a misleading record — exactly the
+ * lie this audit exists to prevent.
  */
 export function auditUsdBudgetUnenforceable(
   kern: Kernloop,
   task: TaskContract,
-  opts: { readonly adapter: string; readonly unlimited: boolean },
+  opts: { readonly adapter: string; readonly unlimited: boolean; readonly capability: string },
 ): void {
-  if (opts.unlimited || task.budget.usd <= 0) return;
+  if (opts.capability !== 'workflow.canonical' || opts.unlimited || task.budget.usd <= 0) return;
   const adapter = opts.adapter;
   if (!(ADAPTER_NAMES as readonly string[]).includes(adapter)) return; // endpoint or unknown
   const def = adapterDefinitions[adapter as AdapterName];
