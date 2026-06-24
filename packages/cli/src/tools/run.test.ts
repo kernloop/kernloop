@@ -10,8 +10,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { verifyChain } from '@kernloop/kernel';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { ExecutionError } from '../executors.js';
+import type { TaskContract } from '@kernloop/contracts';
 import { readEnvelopes } from './audit.js';
 import { runTool } from './run.js';
+import { auditUsdBudgetUnenforceable } from './run-budget-honesty.js';
 
 const dirs: string[] = [];
 function freshKernloop(): Kernloop {
@@ -149,19 +151,21 @@ describe('runTool', () => {
     kern.close();
   });
 
-  describe('usd-budget-unenforceable honesty (#462)', () => {
-    const usdBudget = { tokens: 100000, usd: 1, wallClockMin: 30 };
+  describe('usd-budget-unenforceable honesty (#462, gated to workflow.canonical #469)', () => {
+    // Unit-test the audit helper directly: it is the single place the degradation is
+    // recorded, and exercising it here keeps each case to one cheap call (no routing).
+    const taskWith = (id: string, usd: number): TaskContract =>
+      ({ id, budget: { tokens: 100000, usd, wallClockMin: 30 } }) as unknown as TaskContract;
+    const LOOP = 'workflow.canonical';
     const usdEvents = (kern: ReturnType<typeof freshKernloop>) =>
       readEnvelopes(kern.paths.audit).filter((e) => e.type === 'cli.budget.usd-unenforceable');
 
-    it('AUDITS when a usd budget runs on a non-metering adapter (codex) — never silently inert', async () => {
+    it('AUDITS when a usd budget runs on a non-metering adapter (codex) — never silently inert', () => {
       const kern = freshKernloop();
-      await runTool(kern, {
-        goal: 'a run with a usd budget on codex',
-        capability: 'memory.episodic.read',
-        id: 'task-usd-codex',
-        budget: usdBudget,
+      auditUsdBudgetUnenforceable(kern, taskWith('task-usd-codex', 1), {
         adapter: 'codex',
+        unlimited: false,
+        capability: LOOP,
       });
       const events = usdEvents(kern);
       expect(events).toHaveLength(1);
@@ -176,14 +180,12 @@ describe('runTool', () => {
       kern.close();
     });
 
-    it('audits HONESTLY for a fully-unmetered adapter (agy): NEITHER budget applies, not "token budget still applies" (#462)', async () => {
+    it('audits HONESTLY for a fully-unmetered adapter (agy): NEITHER budget applies, not "token budget still applies" (#462)', () => {
       const kern = freshKernloop();
-      await runTool(kern, {
-        goal: 'a run with a usd budget on agy (meters nothing)',
-        capability: 'memory.episodic.read',
-        id: 'task-usd-agy',
-        budget: usdBudget,
+      auditUsdBudgetUnenforceable(kern, taskWith('task-usd-agy', 1), {
         adapter: 'agy',
+        unlimited: false,
+        capability: LOOP,
       });
       const events = usdEvents(kern);
       expect(events).toHaveLength(1);
@@ -195,40 +197,62 @@ describe('runTool', () => {
       kern.close();
     });
 
-    it('does NOT audit when the adapter meters usd (claude)', async () => {
+    it('does NOT audit for a non-loop capability — it consults NO budget, so the record would mislead (#469)', () => {
       const kern = freshKernloop();
-      await runTool(kern, {
-        goal: 'a run with a usd budget on claude',
-        capability: 'memory.episodic.read',
-        id: 'task-usd-claude',
-        budget: usdBudget,
+      for (const capability of ['memory.episodic.read', 'gate.quality', 'brief.compile']) {
+        auditUsdBudgetUnenforceable(kern, taskWith('task-usd-nonloop', 1), {
+          adapter: 'codex',
+          unlimited: false,
+          capability,
+        });
+      }
+      expect(usdEvents(kern)).toHaveLength(0);
+      kern.close();
+    });
+
+    it('does NOT audit when the adapter meters usd (claude)', () => {
+      const kern = freshKernloop();
+      auditUsdBudgetUnenforceable(kern, taskWith('task-usd-claude', 1), {
         adapter: 'claude',
+        unlimited: false,
+        capability: LOOP,
       });
       expect(usdEvents(kern)).toHaveLength(0);
       kern.close();
     });
 
-    it('does NOT audit in unlimited mode (the usd budget is not enforced anyway)', async () => {
+    it('does NOT audit in unlimited mode (the usd budget is not enforced anyway)', () => {
       const kern = freshKernloop();
-      await runTool(kern, {
-        goal: 'an unlimited run on codex',
-        capability: 'memory.episodic.read',
-        id: 'task-usd-unlimited',
-        budget: usdBudget,
+      auditUsdBudgetUnenforceable(kern, taskWith('task-usd-unlimited', 1), {
         adapter: 'codex',
         unlimited: true,
+        capability: LOOP,
       });
       expect(usdEvents(kern)).toHaveLength(0);
       kern.close();
     });
 
-    it('does NOT audit when there is no usd budget (usd: 0)', async () => {
+    it('does NOT audit when there is no usd budget (usd: 0)', () => {
+      const kern = freshKernloop();
+      auditUsdBudgetUnenforceable(kern, taskWith('task-usd-zero', 0), {
+        adapter: 'codex',
+        unlimited: false,
+        capability: LOOP,
+      });
+      expect(usdEvents(kern)).toHaveLength(0);
+      kern.close();
+    });
+
+    it('end-to-end: dispatchSelected threads the real parsed.capability so a non-loop run never audits (#469 wiring)', async () => {
+      // Drives the full runTool path (not the helper directly) to prove the
+      // `capability: parsed.capability` plumb in dispatchSelected reaches the gate —
+      // a non-loop capability on codex with a usd budget must emit no degradation record.
       const kern = freshKernloop();
       await runTool(kern, {
-        goal: 'a token-only budget on codex',
+        goal: 'a non-loop run with a usd budget on codex',
         capability: 'memory.episodic.read',
-        id: 'task-usd-zero',
-        budget: { tokens: 100000, usd: 0, wallClockMin: 30 },
+        id: 'task-usd-wiring',
+        budget: { tokens: 100000, usd: 1, wallClockMin: 30 },
         adapter: 'codex',
       });
       expect(usdEvents(kern)).toHaveLength(0);
