@@ -16,7 +16,7 @@ jobs:
     name: secrets (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # The gitleaks GitHub Action requires a paid license for org repos; the
@@ -31,7 +31,7 @@ jobs:
     name: dependencies (pnpm audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -46,7 +46,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Explicit rulesets (not --config auto, which requires metrics on);
       # deterministic and tokenless.
       - run: semgrep scan --config p/typescript --config p/javascript --config p/secrets --error --metrics=off
