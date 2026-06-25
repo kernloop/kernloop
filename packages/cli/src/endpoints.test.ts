@@ -6,7 +6,12 @@
  * key) and the tier→model map.
  */
 import { describe, expect, it } from 'vitest';
-import { EndpointSchema, apiDefinitionFor, looksLikeSecret } from './endpoints.js';
+import {
+  EndpointSchema,
+  apiDefinitionFor,
+  looksLikeSecret,
+  ownKeyedEndpoints,
+} from './endpoints.js';
 
 const valid = {
   baseUrl: 'https://api.example.com/v1',
@@ -115,5 +120,20 @@ describe('apiDefinitionFor — builds a key-free kernel definition', () => {
     );
     expect(def.metersUsd).toBe(true);
     expect(def.maxUsdPerCall).toBe(0.25);
+  });
+});
+
+describe('ownKeyedEndpoints — null-proto membership safety (#474)', () => {
+  it('returns undefined for a prototype-inherited key, so === undefined membership is sound', () => {
+    const map = ownKeyedEndpoints({ real: EndpointSchema.parse(valid) });
+    const asRecord = map as Record<string, unknown>;
+    expect(map['real']).toBeDefined();
+    // A plain object would return Object.prototype members for these — null-proto returns undefined.
+    expect(asRecord['constructor']).toBeUndefined();
+    expect(asRecord['toString']).toBeUndefined();
+    expect(asRecord['valueOf']).toBeUndefined();
+    expect(asRecord['__proto__']).toBeUndefined();
+    // Own keys still iterate normally.
+    expect(Object.keys(map)).toEqual(['real']);
   });
 });

@@ -26,7 +26,7 @@ import { ADAPTER_NAMES, resolveTierModel } from '@kernloop/kernel';
 import { BudgetModeSchema } from '@kernloop/workflows';
 import { z } from 'zod';
 import YAML from 'yaml';
-import { EndpointsSchema } from './endpoints.js';
+import { EndpointsSchema, ownKeyedEndpoints } from './endpoints.js';
 import { TrackerSchema } from './tracker-config.js';
 import { overlayTemplate } from './overlay-template.js';
 
@@ -162,7 +162,12 @@ export const OverlaySchema = z
      * into the run budget. The key VALUE is NEVER stored here — only the NAME of
      * an env var (`apiKeyEnv`); a literal key is rejected at parse (see endpoints.ts).
      */
-    endpoints: EndpointsSchema.default({}),
+    // Null-prototype the registered-endpoint map (#474) so `endpoints[name]` membership
+    // checks across the cli cannot be defeated by a prototype-inherited adapter name
+    // (`constructor`, `toString`, …) — a lexical `=== undefined` on a plain object would
+    // misclassify such a name as a registered endpoint. The transform runs on BOTH the
+    // parsed map and the `{}` default, so every consumer reads an own-keys-only object.
+    endpoints: EndpointsSchema.default({}).transform(ownKeyedEndpoints),
     /**
      * Extra env-var NAMES handed to a spawned model-CLI child beyond the benign
      * base allowlist (#227, CLM-0122). A spawned CLI receives ONLY the kernel's

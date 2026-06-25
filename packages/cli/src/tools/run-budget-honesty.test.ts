@@ -186,6 +186,23 @@ describe('usd-budget-unenforceable honesty (#462, gated to workflow.canonical #4
     kern.close();
   });
 
+  it('does NOT lie for a PROTOTYPE-INHERITED adapter name (constructor/toString) — null-proto endpoints map (#474)', () => {
+    // A plain object would return Object.prototype.constructor for endpoints['constructor'],
+    // misclassifying it as a registered endpoint and emitting a FALSE inert-cap audit. The
+    // null-proto endpoints map (#474) makes the membership check structurally sound.
+    const kern = freshKernloopWithEndpoints();
+    for (const adapter of ['constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
+      const finding = auditUsdBudgetUnenforceable(kern, taskWith('task-usd-proto', 1), {
+        adapter,
+        unlimited: false,
+        capability: LOOP,
+      });
+      expect(finding).toBeNull();
+    }
+    expect(usdEvents(kern)).toHaveLength(0);
+    kern.close();
+  });
+
   it('end-to-end: dispatchSelected threads the real parsed.capability so a non-loop run never audits (#469 wiring)', async () => {
     // Drives the full runTool path (not the helper directly) to prove the
     // `capability: parsed.capability` plumb in dispatchSelected reaches the gate —
