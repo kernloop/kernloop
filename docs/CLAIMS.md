@@ -3100,3 +3100,16 @@ The review-gate enforce promotion (#328 Inc2) is EVIDENCE-VERIFIED (#350): kerne
 - [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
 - [`packages/cli/src/calibrate-command.test.ts`](../packages/cli/src/calibrate-command.test.ts)
 - CI `test`
+
+## CLM-0184
+
+**Status:** verified — **source:** [`CLM-0184.yaml`](../claims/registry/CLM-0184.yaml)
+
+The vote gate's authority TIER governs RATIFICATION authority — whether its verdict may ratify a protected/spec/tier decision (the #328/#348 native-ratifier role, today still external via consensus_vote + human merge) — DECOUPLED from the gate's LOOP role. The plan-iterate loop role (a rejecting vote re-enters plan, bounded by K, then escalates the run) is STRUCTURAL in the canonical graph and TIER-INDEPENDENT: it is driven solely by the verdict disposition and K, there is no voteGateDrivesIteration flag (in contrast to the review gate, whose enforce promotion DOES flip child re-iteration, #328 Inc1), and the loop EngineConfig cannot even EXPRESS a vote authority tier. So the gate's `advisory` tier is honest — it drives the loop but does NOT yet ratify external decisions — and promoting its tier (a future #348 step, gated on parity evidence + human sign-off) would change ratification authority, not loop mechanics (#480).
+
+**Enforced by:**
+
+- [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
+- [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
+- [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
+- CI `test`
