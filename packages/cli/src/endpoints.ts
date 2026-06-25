@@ -114,6 +114,19 @@ export const EndpointsSchema = z.record(z.string().min(1), EndpointSchema);
 export type Endpoints = z.infer<typeof EndpointsSchema>;
 
 /**
+ * Re-key a parsed endpoints map onto a NULL-PROTOTYPE object (#474). A plain object
+ * carries `Object.prototype`, so `map[name]` for an inherited key (`constructor`,
+ * `toString`, `valueOf`, …) returns the inherited member, not `undefined` — which would
+ * let such an adapter name slip past every `endpoints[name] === undefined` membership
+ * check (a lying budget audit, a skipped containment guard). A null-proto map returns
+ * `undefined` for any non-own key, so the lexical checks become structurally sound.
+ * Own-key iteration and spread are unaffected.
+ */
+export function ownKeyedEndpoints(map: Endpoints): Endpoints {
+  return Object.assign(Object.create(null) as Endpoints, map);
+}
+
+/**
  * Build a kernel {@link ApiAdapterDefinition} from a registered endpoint. The
  * definition carries the env-var NAME (never a key), the tier→model map, the
  * `reasoning_effort` body profile, and the optional spend cap — everything the

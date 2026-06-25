@@ -12,7 +12,7 @@ import { AgenticRepositoryWorkspaceError } from '@kernloop/kernel';
 import { createKernloop, type Kernloop } from '../kernel.js';
 import { readEnvelopes } from '../tools/audit.js';
 import { guardWorkspaceContainment } from './finalize.js';
-import type { LoopRequest } from './index.js';
+import { executeCanonicalLoop, type LoopRequest } from './index.js';
 
 const FAKE_TMP = '/nonexistent-tmp-root-for-tests';
 const dirs: string[] = [];
@@ -102,6 +102,35 @@ describe('guardWorkspaceContainment (#280 pt2, CLM-0145)', () => {
     expect(
       readEnvelopes(kern.paths.audit).filter((e) => e.type === 'cli.adapter.carveout-git-tree'),
     ).toHaveLength(0);
+    kern.close();
+  });
+});
+
+describe('endpoints membership is null-proto-safe at the run setup gates (#474)', () => {
+  it('the loaded config.endpoints has a NULL prototype — the standing invariant the safety rests on', () => {
+    // Guards against a future change dropping the ownKeyedEndpoints transform (or
+    // re-spreading endpoints into a plain object), which would silently re-open the
+    // prototype-inherited-key membership bypass.
+    const kern = freshKern();
+    expect(Object.getPrototypeOf(kern.config.endpoints)).toBeNull();
+    kern.close();
+  });
+
+  it('a prototype-inherited adapter name is REJECTED by the validation gate, not treated as a registered endpoint', async () => {
+    // A real (non-injected) run on `--adapter constructor`: with a plain endpoints map
+    // `endpoints["constructor"]` would be truthy and prepareRunAdapter would early-return,
+    // silently bypassing validation (and the containment gate at line 358). Null-proto makes
+    // the membership check sound, so the unknown adapter fails fast with a clear error.
+    const kern = freshKern();
+    const repo = scratch(); // no .git ⇒ the containment guard does not fire first
+    const request = {
+      adapter: 'constructor',
+      workspaceDir: repo,
+      runId: 'run-proto',
+    } as LoopRequest;
+    await expect(executeCanonicalLoop(kern, request)).rejects.toThrow(
+      /neither a CLI adapter .* nor a registered endpoint/,
+    );
     kern.close();
   });
 });

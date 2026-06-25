@@ -25,8 +25,13 @@ statement: >-
   a misleading record, exactly the lie this audit exists to prevent. Beyond the durable audit, the
   degradation is ALSO surfaced as a VISIBLE `warn` finding on the run result (#463) — prepended to the
   canonical-loop Outcome/escalation findings — so an operator who set a $-cap sees at decision time that it
-  is not enforced, rather than only on later inspection of the audit log.
+  is not enforced, rather than only on later inspection of the audit log. The endpoint membership check is
+  structurally sound (#474): the registered-endpoint map is NULL-PROTOTYPE, so a prototype-inherited adapter
+  name (`constructor`, `toString`, …) reads `undefined` rather than an inherited member and is treated as an
+  unknown adapter — it does NOT emit a false inert-cap audit for a nonexistent endpoint.
 evidence:
+  - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT lie for a PROTOTYPE-INHERITED adapter name (constructor/toString) — null-proto endpoints map (#474)'
+  - 'test:packages/cli/src/endpoints.test.ts::returns undefined for a prototype-inherited key, so === undefined membership is sound'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit for a non-loop capability — it consults NO budget, so the record would mislead (#469)'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::AUDITS the ENDPOINT half: a metersUsd:false endpoint has the same silently-inert usd cap (#470)'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit a metersUsd:true endpoint (its own #393 handling enforces the cap)'
