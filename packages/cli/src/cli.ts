@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { OVERLAY_DIR_NAME, initOverlay } from './overlay.js';
 import { runCommand } from './run-command.js';
+import { calibrateReview } from './calibrate-command.js';
 import { doctor } from './doctor.js';
 import { createProductionKernloop, type Kernloop } from './kernel.js';
 import { serveStdio } from './mcp.js';
@@ -238,6 +239,12 @@ const HANDLERS: Record<string, Handler> = {
   manifest: (args, io) => {
     const v = flags(args, { op: S, name: S, version: S, file: S });
     return withKernloop(io, v.dir, (kern) => manifestOp(kern, io, v));
+  },
+  calibrate: (args, io) => {
+    const v = flags(args, { adapter: S, source: S });
+    const adapter = AdapterFlagSchema.parse(str(v.adapter) ?? 'claude');
+    const source = str(v.source) ?? `calibrate:${adapter}`;
+    return withKernloop(io, v.dir, (kern) => calibrateReview(kern, { adapter, source }));
   },
   audit: (args, io) => {
     const v = flags(args, { op: S, from: S, to: S, type: S });

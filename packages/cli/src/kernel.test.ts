@@ -13,6 +13,7 @@ import {
   SCRUM_MANIFESTS,
 } from './kernel.js';
 import { reviewGateDrivesIteration } from './loop/engine-build.js';
+import { REVIEW_CALIBRATION_FILE, reviewEvalSetHash } from './review-calibration.js';
 import { readEnvelopes } from './tools/audit.js';
 
 const dirs: string[] = [];
@@ -22,15 +23,33 @@ function freshKernloop() {
   return createKernloop({ overlayDir: path.join(repo, '.kernloop'), rng: () => 0.99 });
 }
 
-/** A kernloop assembled over an overlay.yaml written from `yaml` (#328 Inc2). */
-function kernloopWithOverlay(yaml: string) {
+/**
+ * A kernloop assembled over an overlay.yaml written from `yaml` (#328 Inc2). An optional
+ * `calibration` artifact is written into the overlay first (#350) so an enforce promotion has
+ * verifiable evidence — without it, a declared `ratifiedEnforce` is REFUSED (stays advisory).
+ */
+function kernloopWithOverlay(yaml: string, calibration?: unknown) {
   const repo = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-kernel-'));
   dirs.push(repo);
   const overlayDir = path.join(repo, '.kernloop');
   mkdirSync(overlayDir, { recursive: true });
   writeFileSync(path.join(overlayDir, 'overlay.yaml'), yaml);
+  if (calibration !== undefined) {
+    writeFileSync(path.join(overlayDir, REVIEW_CALIBRATION_FILE), JSON.stringify(calibration));
+  }
   return createKernloop({ overlayDir, rng: () => 0.99 });
 }
+
+/** A passing review-calibration artifact (precision ≥ 0.8, n ≥ 50, current eval-set hash). */
+const passingCalibration = () => ({
+  metric: 'precision',
+  value: 0.9,
+  n: 50,
+  evalSetHash: reviewEvalSetHash(),
+  adapter: 'claude',
+  generatedAt: '2026-06-25T00:00:00.000Z',
+  source: 'calibrate:claude',
+});
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -170,13 +189,19 @@ describe('ratified gate promotion (#328 Inc2, CLM-0153/CLM-0064)', () => {
     kern.close();
   });
 
-  it('promotes the review gate to enforce when the overlay records a ratification ref, driving iteration', () => {
+  it('promotes the review gate to enforce when the ref is recorded AND the calibration evidence verifies (#350)', () => {
     const kern = kernloopWithOverlay(
       'id: x\ngates:\n  review:\n    ratifiedEnforce: "consensus_vote:2026-06-19"\n',
+      passingCalibration(),
     );
     // The promotion is applied through the ratification-guarded ladder…
     expect(kern.ladder.tierOf(reviewGateManifest.name)).toBe('enforce');
-    // …and audited as a tier_change carrying the ratification ref.
+    // …after the evidence is verified (the #350 marker), audited distinctly…
+    const verified = readEnvelopes(kern.paths.audit).find(
+      (e) => e.type === 'kernel.ladder.promotion-verified',
+    );
+    expect(verified?.payload).toMatchObject({ value: 0.9, n: 50, adapter: 'claude' });
+    // …and the tier_change carries the ratification ref.
     const promotion = readEnvelopes(kern.paths.audit).find(
       (e) =>
         e.type === 'kernel.ladder.tier_change' && (e.payload as { to?: string }).to === 'enforce',
@@ -189,6 +214,39 @@ describe('ratified gate promotion (#328 Inc2, CLM-0153/CLM-0064)', () => {
     // …so the Inc1 wiring now drives child re-iteration.
     expect(reviewGateDrivesIteration(kern)).toBe(true);
     expect(verifyChain(kern.store).ok).toBe(true);
+    kern.close();
+  });
+
+  it('REFUSES the promotion (stays advisory) when the ref is recorded but NO calibration evidence exists (#350)', () => {
+    const kern = kernloopWithOverlay(
+      'id: x\ngates:\n  review:\n    ratifiedEnforce: "consensus_vote:2026-06-19"\n',
+    );
+    // No artifact → enforce is never granted on an unverified attestation.
+    expect(kern.ladder.tierOf(reviewGateManifest.name)).toBe('advisory');
+    expect(reviewGateDrivesIteration(kern)).toBe(false);
+    // The refusal is observable (rule 7), naming the reason.
+    const refused = readEnvelopes(kern.paths.audit).find(
+      (e) => e.type === 'kernel.ladder.promotion-refused',
+    );
+    expect(refused?.payload).toMatchObject({
+      gate: reviewGateManifest.name,
+      ratifiedBy: 'consensus_vote:2026-06-19',
+    });
+    expect((refused?.payload as { reason: string }).reason).toContain('no review-calibration.json');
+    expect(verifyChain(kern.store).ok).toBe(true);
+    kern.close();
+  });
+
+  it('REFUSES the promotion when the calibration is below the sample window (n=10 < 50) — the honest state today (#478)', () => {
+    const kern = kernloopWithOverlay(
+      'id: x\ngates:\n  review:\n    ratifiedEnforce: "consensus_vote:2026-06-19"\n',
+      { ...passingCalibration(), n: 10 },
+    );
+    expect(kern.ladder.tierOf(reviewGateManifest.name)).toBe('advisory');
+    const refused = readEnvelopes(kern.paths.audit).find(
+      (e) => e.type === 'kernel.ladder.promotion-refused',
+    );
+    expect((refused?.payload as { reason: string }).reason).toContain('window');
     kern.close();
   });
 });
