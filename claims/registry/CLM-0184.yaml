@@ -1,0 +1,21 @@
+id: CLM-0184
+statement: >-
+  The vote gate's authority TIER governs RATIFICATION authority — whether its verdict may
+  ratify a protected/spec/tier decision (the #328/#348 native-ratifier role, today still
+  external via consensus_vote + human merge) — DECOUPLED from the gate's LOOP role. The
+  plan-iterate loop role (a rejecting vote re-enters plan, bounded by K, then escalates the
+  run) is STRUCTURAL in the canonical graph and TIER-INDEPENDENT: it is driven solely by the
+  verdict disposition and K, there is no voteGateDrivesIteration flag (in contrast to the
+  review gate, whose enforce promotion DOES flip child re-iteration, #328 Inc1), and the loop
+  EngineConfig cannot even EXPRESS a vote authority tier. So the gate's `advisory` tier is
+  honest — it drives the loop but does NOT yet ratify external decisions — and promoting its
+  tier (a future #348 step, gated on parity evidence + human sign-off) would change
+  ratification authority, not loop mechanics (#480).
+evidence:
+  - 'test:packages/workflows/src/engine.test.ts::the vote gate loop role is tier-INDEPENDENT — driven by disposition + K, never an authority tier (#480, #328)'
+  - 'test:packages/workflows/src/engine.test.ts::a rejected vote re-enters plan with findings and an incremented iteration, then completes on approval'
+  - 'test:packages/workflows/src/engine.test.ts::escalates after exhausting K=1 with the accumulated findings'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.9.0

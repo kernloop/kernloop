@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Brief, Finding, Outcome, TaskContract, Verdict } from '@kernloop/contracts';
 import { InMemoryCheckpointStore } from './checkpoints.js';
-import { createEngine, type NodeContext, type NodeExecutor } from './engine.js';
+import { createEngine, EngineConfigSchema, type NodeContext, type NodeExecutor } from './engine.js';
 import { WorkflowError } from './state.js';
 
 // ── scripted fixtures: honest doubles for the injected work ────────────────
@@ -230,6 +230,26 @@ describe('the K-bounded vote-iterate cycle [CLM-0043]', () => {
     expect(calls['plan']).toBe(4);
     expect(calls['vote']).toBe(4);
     expect(result.findings).toHaveLength(4);
+  });
+
+  it('the vote gate loop role is tier-INDEPENDENT — driven by disposition + K, never an authority tier (#480, #328)', async () => {
+    // The vote gate's plan-iterate (reject → re-plan → escalate-at-K) is STRUCTURAL in the
+    // canonical graph, NOT derived from a tier flag — there is no voteGateDrivesIteration
+    // analog to reviewGateDrivesIteration (#328 Inc1). The loop EngineConfig cannot even
+    // EXPRESS a vote authority tier (strictObject rejects one), so promoting the vote gate's
+    // ladder tier — the #348 native-RATIFIER role — provably cannot change loop mechanics.
+    // Its `advisory` tier therefore scopes RATIFICATION authority, not loop behaviour.
+    expect(() => EngineConfigSchema.parse({ gates: { vote: { tier: 'enforce' } } })).toThrow();
+    expect(() => EngineConfigSchema.parse({ gates: { vote: { ratifiedEnforce: 'x' } } })).toThrow();
+    // …and the always-on plan-iterate floor holds regardless: a rejecting vote escalates at K.
+    const engine = createEngine({
+      executors: scripted(['reject']),
+      checkpoints: new InMemoryCheckpointStore(),
+      config: { K: 1 },
+    });
+    const result = await engine.run(task);
+    expect(result.status).toBe('escalated');
+    expect(names(result.nodeTrace)).toEqual(['frame', 'research', 'plan', 'vote', 'plan', 'vote']);
   });
 
   it('an abstaining panel does not approve — the rejected edge is taken', async () => {
