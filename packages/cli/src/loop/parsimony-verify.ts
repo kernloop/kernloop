@@ -46,12 +46,12 @@ import {
  * claimed-pass guard is NOT actually satisfied by the diff. `reason` is diagnostic
  * prose (it is NOT stored on the receipt — only the verdict status is).
  */
-export const FloorVerdictSchema = z.strictObject({
+const FloorVerdictSchema = z.strictObject({
   status: z.enum(['confirmed', 'refuted']),
   refutedChecks: z.array(z.string()),
   reason: z.string(),
 });
-export type FloorVerdict = z.infer<typeof FloorVerdictSchema>;
+type FloorVerdict = z.infer<typeof FloorVerdictSchema>;
 
 /**
  * The blind-verifier prompt: role + nonce-fenced UNTRUSTED diff + the checklist of

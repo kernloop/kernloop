@@ -11,7 +11,7 @@ import type { Brief, Finding, TaskContract } from '@kernloop/contracts';
 import { briefText } from './seams.js';
 
 /** A shipped workforce template, or a loud failure naming the gap. */
-export function shippedTemplate(name: string) {
+function shippedTemplate(name: string) {
   const template = SHIPPED_TEMPLATES[name];
   if (template === undefined) throw new Error(`workforce template "${name}" is not shipped`);
   return template;
