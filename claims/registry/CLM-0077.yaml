@@ -22,7 +22,10 @@ statement: >-
   audit is GATED to the `workflow.canonical` capability (#469): only the canonical loop wires the runtime
   budget guard and makes adapter model calls, so only there is a usd budget actually consulted — a non-loop
   capability (memory read / gate.quality / brief.compile) consults no budget, and auditing it inert would be
-  a misleading record, exactly the lie this audit exists to prevent.
+  a misleading record, exactly the lie this audit exists to prevent. Beyond the durable audit, the
+  degradation is ALSO surfaced as a VISIBLE `warn` finding on the run result (#463) — prepended to the
+  canonical-loop Outcome/escalation findings — so an operator who set a $-cap sees at decision time that it
+  is not enforced, rather than only on later inspection of the audit log.
 evidence:
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit for a non-loop capability — it consults NO budget, so the record would mislead (#469)'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::AUDITS the ENDPOINT half: a metersUsd:false endpoint has the same silently-inert usd cap (#470)'
@@ -30,8 +33,9 @@ evidence:
   - 'test:packages/kernel/src/adapters/definitions.test.ts::marks only claude as metering USD — the others report tokens-or-nothing (#462)'
   - 'test:packages/kernel/src/adapters/definitions.test.ts::marks token-metering honestly: claude/codex/opencode yes, ollama/agy no (#462)'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::audits HONESTLY for a fully-unmetered adapter (agy): NEITHER budget applies, not "token budget still applies" (#462)'
-  - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::AUDITS when a usd budget runs on a non-metering adapter (codex) — never silently inert'
-  - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit when the adapter meters usd (claude)'
+  - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::AUDITS + RETURNS a warn finding when a usd budget runs on a non-metering adapter (codex) — never silently inert (#463)'
+  - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit (and returns no finding) when the adapter meters usd (claude)'
+  - 'test:packages/cli/src/loop-iteration.test.ts::surfaces the inert-usd-cap as a VISIBLE run finding (not only an audit) on a non-metering adapter [CLM-0077, #463]'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit in unlimited mode (the usd budget is not enforced anyway)'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit when there is no usd budget (usd: 0)'
   - 'test:packages/workflows/src/child-budget.test.ts::a bounded run that exceeds its budget escalates (resumable), not silently continues'

@@ -22,7 +22,7 @@ import {
   type Verdict,
 } from '@kernloop/contracts';
 import { RouterError, appendEvent, type RoutingDecision } from '@kernloop/kernel';
-import { auditUsdBudgetUnenforceable } from './run-budget-honesty.js';
+import { auditUsdBudgetUnenforceable, withBudgetFinding } from './run-budget-honesty.js';
 import { stopTailOnSettle, tailIf } from '../loop/progress-tail.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import type { Kernloop } from '../kernel.js';
@@ -36,9 +36,8 @@ import { runUnderJob } from './run-jobs.js';
 import { routePriors } from './live-fitness-wiring.js';
 
 /**
- * Input to the `run` tool — a goal plus optional TaskContract overrides.
- * `goal` is optional ONLY because `resume` replaces it: a resumed loop run
- * takes its task from the checkpoint (enforced in {@link runTool}).
+ * Input to the `run` tool — a goal plus optional TaskContract overrides. `goal` is optional
+ * ONLY because `resume` replaces it: a resumed run takes its task from the checkpoint.
  */
 export const RunInputSchema = z.strictObject({
   goal: z.string().min(1).optional(),
@@ -59,32 +58,29 @@ export const RunInputSchema = z.strictObject({
   overlay: z.string().min(1).optional(),
   /**
    * Adapter the canonical loop's model calls flow through (spec §3.1): a CLI adapter
-   * name OR a registered endpoint id (#392), validated as CLI-or-endpoint at run setup;
-   * any non-empty string, an unknown one fails fast at setup.
+   * name OR a registered endpoint id (#392), validated CLI-or-endpoint at run setup
+   * (an unknown one fails fast there).
    */
   adapter: z.string().min(1).default('claude'),
   /** Resume the checkpointed canonical-loop run with this id [CLM-0044]. */
   resume: z.string().min(1).optional(),
   /**
-   * Force `unlimited` budget mode for this run [CLM-0077]: the run never halts
-   * on budget (overriding the overlay's `budgetMode`). Usage/cost is STILL
-   * metered and reported — unlimited removes the restriction, never the
-   * tracking — and the run is recorded honestly as having run without budget
-   * enforcement. Kc still bounds child iteration.
+   * Force `unlimited` budget mode [CLM-0077]: the run never halts on budget
+   * (overriding the overlay's `budgetMode`), but usage/cost is STILL metered and
+   * reported and the run is recorded honestly as unenforced. Kc still bounds children.
    */
   unlimited: z.boolean().default(false),
   /**
    * Run in the background: create a `running` job, kick off the capability without
    * awaiting, and return its job id immediately [CLM-0074]; the terminal state is
-   * recorded when the work settles (the one-shot CLI settles before the process exits).
+   * recorded when the work settles.
    */
   async: z.boolean().default(false),
   /**
-   * Progress-stream verbosity (#336 P3): `milestones` (default) streams only
-   * turning points — routing, gate verdicts, spend, iterations, outcome;
-   * `verbose` ALSO streams the per-node lifecycle heartbeat (now planning / now
-   * reviewing). Only affects the MCP progress notifications (a progressToken
-   * must be present); never includes adapter payloads, prompts, or finding text.
+   * Progress-stream verbosity (#336 P3): `milestones` (default) streams turning
+   * points (routing, gate verdicts, spend, iterations, outcome); `verbose` ALSO
+   * streams the per-node lifecycle heartbeat. Only affects MCP progress
+   * notifications; never includes adapter payloads, prompts, or finding text.
    */
   progress: z.enum(['milestones', 'verbose']).default('milestones'),
 });
@@ -112,7 +108,15 @@ export type RunResult =
       selected: string;
       error: { code: 'no_run_executor'; message: string };
     }
-  | { kind: 'outcome'; task: TaskContract; outcome: Outcome; verdict?: Verdict; data?: unknown }
+  | {
+      kind: 'outcome';
+      task: TaskContract;
+      outcome: Outcome;
+      verdict?: Verdict;
+      data?: unknown;
+      /** Visible run-level warnings the operator should see at decision time (inert usd cap, #463). */
+      findings?: readonly Finding[];
+    }
   | {
       /** `run --async` accepted: the job is `running` in the resident process
        * and its terminal state lands in the job registry — inspect it with
@@ -166,10 +170,9 @@ export function buildTask(kern: Kernloop, input: z.output<typeof RunInputSchema>
 }
 
 /**
- * Required tier for a capability: the declared tier of its registered
- * manifest (P1 registers exactly one manifest per capability). Falls back to
- * the ladder floor when nothing is registered — the router then records and
- * rejects the unknown capability honestly.
+ * Required tier for a capability: its registered manifest's declared tier (P1 registers
+ * one manifest per capability), or the ladder floor when nothing is registered — the
+ * router then records and rejects the unknown capability honestly.
  */
 function requiredTierFor(kern: Kernloop, capability: string): Tier {
   const matches = kern.registry.findByCapability(capability);
@@ -266,10 +269,9 @@ async function executeAndRecord(
 }
 
 /**
- * The task a run operates on: built from the input, or — on `--resume` —
- * loaded from the run's checkpoint (the checkpointed task is the truth; a
- * freshly built one would lie about what resumes). Resume is a
- * canonical-loop concern only.
+ * The task a run operates on: built from the input, or — on `--resume` — loaded from the
+ * run's checkpoint (the checkpointed task is the truth; a freshly built one would lie about
+ * what resumes). Resume is a canonical-loop concern only.
  */
 async function resolveTask(
   kern: Kernloop,
@@ -296,11 +298,10 @@ export interface RunToolOptions {
   signal?: AbortSignal;
   /** Job id generator, injected so async/cross-session tests are deterministic. */
   newJobId?: () => string;
-  /** Receives an async run's background settle promise so a one-shot host (the
-   * CLI) can drain it before tearing down the overlay. */
+  /** Receives an async run's background settle promise so a one-shot host (the CLI) can drain it. */
   onBackground?: (settled: Promise<void>) => void;
-  /** Per-milestone progress sink (#336 P1, CLM-0148): each SIGNIFICANT audit
-   * event of this run is forwarded (read-only, best-effort) for MCP progress. */
+  /** Per-milestone progress sink (#336 P1, CLM-0148): each SIGNIFICANT audit event of
+   * this run is forwarded (read-only, best-effort) for MCP progress. */
   onProgress?: (message: string) => void;
 }
 
@@ -357,10 +358,9 @@ export async function runTool(
 }
 
 /**
- * Execute the routed capability. An unwired capability ran no work, so it
- * returns its honest result without recording a job (a job row implies a run
- * actually started). A wired capability runs under a recorded job (sync or
- * `--async`, see {@link runUnderJob}).
+ * Execute the routed capability. An unwired capability ran no work, so it returns its honest
+ * result without recording a job (a job row implies a run actually started); a wired capability
+ * runs under a recorded job (sync or `--async`, see {@link runUnderJob}).
  */
 function dispatchSelected(
   kern: Kernloop,
@@ -369,7 +369,7 @@ function dispatchSelected(
   selected: string,
   options: RunToolOptions,
 ): Promise<RunResult> {
-  auditUsdBudgetUnenforceable(kern, task, {
+  const budgetFinding = auditUsdBudgetUnenforceable(kern, task, {
     adapter: parsed.adapter,
     unlimited: parsed.unlimited ?? false,
     capability: parsed.capability,
@@ -396,5 +396,5 @@ function dispatchSelected(
       ...(options.onBackground === undefined ? {} : { onBackground: options.onBackground }),
     },
     () => executeAndRecord(kern, task, parsed.capability, selected, executorOptions),
-  );
+  ).then((result) => withBudgetFinding(result, budgetFinding));
 }

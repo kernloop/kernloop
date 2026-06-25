@@ -59,9 +59,9 @@ describe('usd-budget-unenforceable honesty (#462, gated to workflow.canonical #4
   const usdEvents = (kern: Kernloop) =>
     readEnvelopes(kern.paths.audit).filter((e) => e.type === 'cli.budget.usd-unenforceable');
 
-  it('AUDITS when a usd budget runs on a non-metering adapter (codex) — never silently inert', () => {
+  it('AUDITS + RETURNS a warn finding when a usd budget runs on a non-metering adapter (codex) — never silently inert (#463)', () => {
     const kern = freshKernloop();
-    auditUsdBudgetUnenforceable(kern, taskWith('task-usd-codex', 1), {
+    const finding = auditUsdBudgetUnenforceable(kern, taskWith('task-usd-codex', 1), {
       adapter: 'codex',
       unlimited: false,
       capability: LOOP,
@@ -76,6 +76,10 @@ describe('usd-budget-unenforceable honesty (#462, gated to workflow.canonical #4
     });
     // codex meters tokens, so the reason honestly says the token budget still bounds it.
     expect((events[0]?.payload as { reason: string }).reason).toContain('TOKEN budget');
+    // #463: the degradation is also returned as a visible warn finding for the run result.
+    expect(finding?.severity).toBe('warn');
+    expect(finding?.message).toContain('NOT enforced');
+    expect(finding?.message).toContain('codex');
     kern.close();
   });
 
@@ -109,14 +113,15 @@ describe('usd-budget-unenforceable honesty (#462, gated to workflow.canonical #4
     kern.close();
   });
 
-  it('does NOT audit when the adapter meters usd (claude)', () => {
+  it('does NOT audit (and returns no finding) when the adapter meters usd (claude)', () => {
     const kern = freshKernloop();
-    auditUsdBudgetUnenforceable(kern, taskWith('task-usd-claude', 1), {
+    const finding = auditUsdBudgetUnenforceable(kern, taskWith('task-usd-claude', 1), {
       adapter: 'claude',
       unlimited: false,
       capability: LOOP,
     });
     expect(usdEvents(kern)).toHaveLength(0);
+    expect(finding).toBeNull(); // #463: nothing to surface when the cap IS enforceable
     kern.close();
   });
 

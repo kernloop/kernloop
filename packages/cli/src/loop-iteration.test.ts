@@ -293,4 +293,38 @@ describe('budget mode + always-on reporting [CLM-0077]', () => {
     expect(resumedReport.unlimited).toBe(true);
     kern.close();
   }, 120_000);
+
+  it('surfaces the inert-usd-cap as a VISIBLE run finding (not only an audit) on a non-metering adapter [CLM-0077, #463]', async () => {
+    // A usd budget on codex (metersUsd:false) cannot be enforced; with ample headroom
+    // the run COMPLETES, and the degradation must be visible on the result, not buried.
+    const repo = fixtureRepo('usd-finding', 'id: fixture-usd-finding\n');
+    const kern = kernloopFor(repo);
+    const result = await runTool(
+      kern,
+      {
+        goal: 'add a greet feature',
+        capability: 'workflow.canonical',
+        workspaceDir: repo,
+        id: 'task-usd-finding',
+        budget: { tokens: 100_000, usd: 1, wallClockMin: 30 }, // ample → no halt, run completes
+        adapter: 'codex',
+      },
+      { checks: [typecheck], invoke: smallBudgetInvoke() },
+    );
+
+    expect(result.kind).toBe('outcome');
+    if (result.kind !== 'outcome') throw new Error('expected outcome');
+    // The operator sees the inert cap at decision time, as a warn finding on the result.
+    const budgetWarn = result.findings?.find(
+      (f) =>
+        f.severity === 'warn' && f.message.includes('NOT enforced') && f.message.includes('codex'),
+    );
+    expect(budgetWarn).toBeDefined();
+    // The same degradation is still durably audited (the finding does not replace it).
+    const audited = readEnvelopes(kern.paths.audit).filter(
+      (e) => e.type === 'cli.budget.usd-unenforceable',
+    );
+    expect(audited).toHaveLength(1);
+    kern.close();
+  }, 120_000);
 });
