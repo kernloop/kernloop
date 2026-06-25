@@ -25,6 +25,7 @@ import {
   Ladder,
   ManifestRegistry,
   Router,
+  appendEvent,
   createAuditStore,
   defaultAuditKeyringPath,
   type AuditStore,
@@ -38,6 +39,7 @@ import { scrumManifest } from '@kernloop/faculty-scrum';
 import { workflowsManifest } from '@kernloop/workflows';
 import type { Manifest } from '@kernloop/contracts';
 import { loadOverlay, overlayPaths, type Overlay, type OverlayPaths } from './overlay.js';
+import { verifyReviewPromotion } from './review-calibration.js';
 import { buildExecutors, type CapabilityExecutor } from './executors.js';
 import { createJobStore, type JobStore } from './jobs.js';
 import { createProgramStore, type ProgramStore } from './program-store.js';
@@ -143,19 +145,47 @@ function registerFaculties(registry: ManifestRegistry, ladder: Ladder): void {
 }
 
 /**
- * Apply an overlay's RATIFIED gate promotions (#328 Inc2). When the overlay
- * records a ratification ref for the review gate (`gates.review.ratifiedEnforce`),
- * promote it advisory→enforce through the ladder — audited as
- * `kernel.ladder.tier_change` with that ref as `ratifiedBy` (the ladder itself
- * refuses an enforce promotion without one, constitutional rule 6). The promotion
- * then drives behaviour via {@link reviewGateDrivesIteration} (#328 Inc1). This is
- * PER-OVERLAY and opt-in: a fresh clone declares nothing and stays advisory, so the
- * CLM-0064 honesty guard holds by default — never a default upward [CLM-0153].
+ * Apply an overlay's RATIFIED gate promotions (#328 Inc2), now EVIDENCE-VERIFIED (#350).
+ * When the overlay records a ratification ref (`gates.review.ratifiedEnforce`), the promotion
+ * is granted ONLY when the committed review-calibration artifact proves the gate met its
+ * PROMOTION_CRITERION (precision ≥ 0.8 over n ≥ 50) AND was measured over the current eval-set
+ * ({@link verifyReviewPromotion}). On success: audit `kernel.ladder.promotion-verified`, then
+ * promote advisory→enforce (the ladder records `kernel.ladder.tier_change` with that ref as
+ * `ratifiedBy`, refusing enforce without one — constitutional rule 6). On missing/insufficient/
+ * stale evidence: REFUSE — the gate STAYS ADVISORY and we audit `kernel.ladder.promotion-refused`
+ * (rule 7), never granting enforce on unverified evidence and never crashing assembly. The
+ * composition root verifies the committed numbers meet the bar; it does NOT measure precision
+ * (rule 4 — that runs out-of-band via `kernloop calibrate`). PER-OVERLAY + opt-in: a fresh clone
+ * declares nothing and stays advisory (CLM-0064 honesty guard) [CLM-0153, CLM-0183].
  */
-function promoteRatifiedGates(ladder: Ladder, config: Overlay): void {
+function promoteRatifiedGates(
+  ladder: Ladder,
+  config: Overlay,
+  paths: OverlayPaths,
+  store: AuditStore,
+): void {
   const ratifiedBy = config.gates.review.ratifiedEnforce;
   if (ratifiedBy === undefined) return;
-  ladder.setTier(reviewGateManifest.name, 'advisory', 'enforce', { ratifiedBy });
+  const gate = reviewGateManifest.name;
+  const evidence = verifyReviewPromotion(paths.dir);
+  if (!evidence.ok) {
+    appendEvent(store, {
+      type: 'kernel.ladder.promotion-refused',
+      payload: {
+        gate,
+        ratifiedBy,
+        criterion: 'precision>=0.8 over n>=50',
+        reason: evidence.reason,
+      },
+    });
+    return; // stay advisory — enforce is never granted on unverified evidence (#350)
+  }
+  const { value, n, adapter, evalSetHash } = evidence.artifact;
+  appendEvent(store, {
+    type: 'kernel.ladder.promotion-verified',
+    payload: { gate, ratifiedBy, value, n, adapter, evalSetHash },
+  });
+  ladder.setTier(gate, 'advisory', 'enforce', { ratifiedBy });
 }
 
 /**
@@ -188,7 +218,7 @@ export function createKernloop(options: CreateKernloopOptions): Kernloop {
   // a decomposed program is recorded here, so a fresh handle resumes it.
   const programs = createProgramStore(paths.programs, msClockOption(clock));
   registerFaculties(registry, ladder);
-  promoteRatifiedGates(ladder, config);
+  promoteRatifiedGates(ladder, config, paths, store);
   const kernloop: Kernloop = {
     paths,
     config,

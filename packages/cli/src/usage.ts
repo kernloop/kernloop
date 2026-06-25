@@ -25,6 +25,7 @@ export const USAGE = [
   '            sweep                                       decay unused tools toward removal',
   '            list                                        live workshop tools + their ladder tier',
   '  manifest  --op list|get|register [--name N] [--version V] [--file J]',
+  '  calibrate [--adapter A] [--source REF]           measure review-gate precision → review-calibration.json (#350)',
   '  audit     [--op verify|query] [--from N] [--to N] [--type T]',
   '  observe',
   '  debt      [--json] [--oscal]                     harvest parsimony deferrals; --oscal emits OSCAL assessment-results (#6/#8)',

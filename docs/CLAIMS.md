@@ -3082,3 +3082,21 @@ The vote-gate PARITY EVIDENCE (#348 / #328 Inc3) is operationalized as a structu
 - [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
 - [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
 - CI `test`
+
+## CLM-0183
+
+**Status:** verified — **source:** [`CLM-0183.yaml`](../claims/registry/CLM-0183.yaml)
+
+The review-gate enforce promotion (#328 Inc2) is EVIDENCE-VERIFIED (#350): kernel assembly grants enforce only when a committed review-calibration artifact proves the gate met its PROMOTION_CRITERION (precision >= threshold over n >= windowN) AND was measured over the CURRENT review eval-set (bound by a hash, so a grown or changed set invalidates a stale measurement). A missing, malformed, stale, under-threshold, or under-window artifact is REFUSED — the gate STAYS ADVISORY and the refusal is audited (kernel.ladder.promotion-refused), so enforce is never granted on unverified or stale evidence. The composition root VERIFIES that the committed numbers meet the bar; it does NOT measure precision (constitutional rule 4) — that runs out-of-band via `kernloop calibrate`, which evaluates the default reviewer panel over the labeled eval-set and writes the artifact bound to the eval-set hash plus the adapter it was measured against. The eval-set is currently n=10 < windowN=50, so a real artifact honestly reports n below the window and kernloop's own review gate is not yet promotable (#478) — the mechanism is correct even while inert.
+
+**Enforced by:**
+
+- [`packages/cli/src/review-calibration.test.ts`](../packages/cli/src/review-calibration.test.ts)
+- [`packages/cli/src/review-calibration.test.ts`](../packages/cli/src/review-calibration.test.ts)
+- [`packages/cli/src/review-calibration.test.ts`](../packages/cli/src/review-calibration.test.ts)
+- [`packages/cli/src/review-calibration.test.ts`](../packages/cli/src/review-calibration.test.ts)
+- [`packages/cli/src/review-calibration.test.ts`](../packages/cli/src/review-calibration.test.ts)
+- [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
+- [`packages/cli/src/kernel.test.ts`](../packages/cli/src/kernel.test.ts)
+- [`packages/cli/src/calibrate-command.test.ts`](../packages/cli/src/calibrate-command.test.ts)
+- CI `test`

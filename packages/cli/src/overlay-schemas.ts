@@ -128,9 +128,10 @@ export const ReviewGateSchema = z.strictObject({
    * `ratifiedBy` on the audited `kernel.ladder.tier_change`. Presence flips the gate
    * to enforce so a rejecting review DRIVES child re-iteration ([CLM-0064] honesty
    * guard); ABSENT ⇒ the gate stays advisory (a fresh clone never promotes — never a
-   * default). The ratifier attests the gate met its promotion criterion (precision
-   * ≥ 0.8 over n=50, the review manifest's PROMOTION_CRITERION) before setting this;
-   * AUTO-verifying that bar from the fitness ledger at assembly is deferred (#350).
+   * default). The promotion is EVIDENCE-VERIFIED at assembly (#350, CLM-0183): a committed
+   * `review-calibration.json` must prove the gate met its PROMOTION_CRITERION (precision
+   * ≥ 0.8 over n=50) over the current eval-set, else the promotion is REFUSED (stays
+   * advisory, audited) — this ref no longer promotes on attestation alone.
    * The ref MUST name its provenance source (`<source>:<detail>`, e.g.
    * `consensus_vote:2026-06-19` or `human:williamz`) so an audit reader can tell
    * an attested promotion from a future #350-verified one — they share the
