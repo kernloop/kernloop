@@ -3,11 +3,13 @@
  * budget. A `usd` budget can only be enforced on an adapter that reports per-call
  * dollar cost; on a CLI adapter that does not (`metersUsd: false`) OR a registered
  * endpoint with `metersUsd: false` (the default), the cap is silently inert (reads $0,
- * no ceiling) — so we audit the degradation rather than lie.
+ * no ceiling) — so we audit the degradation rather than lie, AND surface it as a visible
+ * run finding (#463) so an operator who set a $-cap sees at decision time that it is inert.
  */
 import { ADAPTER_NAMES, adapterDefinitions, appendEvent, type AdapterName } from '@kernloop/kernel';
-import type { TaskContract } from '@kernloop/contracts';
+import type { Finding, TaskContract } from '@kernloop/contracts';
 import type { Kernloop } from '../kernel.js';
+import type { RunResult } from './run.js';
 
 /** Why a usd budget is unenforceable on this adapter, or null if it IS enforceable. */
 interface Unenforceable {
@@ -57,15 +59,19 @@ function unenforceableUsdReason(kern: Kernloop, adapter: string): Unenforceable 
  * A non-loop capability (memory.read, gate.quality, brief.compile) consults NO budget, so
  * auditing "the usd budget is inert" for it would be a misleading record — exactly the
  * lie this audit exists to prevent.
+ *
+ * Returns the visible `warn` Finding it emitted (#463) so the run can surface the inert cap
+ * on its result, or null when the usd budget IS enforceable / not applicable (no degradation).
  */
 export function auditUsdBudgetUnenforceable(
   kern: Kernloop,
   task: TaskContract,
   opts: { readonly adapter: string; readonly unlimited: boolean; readonly capability: string },
-): void {
-  if (opts.capability !== 'workflow.canonical' || opts.unlimited || task.budget.usd <= 0) return;
+): Finding | null {
+  if (opts.capability !== 'workflow.canonical' || opts.unlimited || task.budget.usd <= 0)
+    return null;
   const reason = unenforceableUsdReason(kern, opts.adapter);
-  if (reason === null) return;
+  if (reason === null) return null;
   appendEvent(kern.store, {
     type: 'cli.budget.usd-unenforceable',
     payload: {
@@ -76,4 +82,25 @@ export function auditUsdBudgetUnenforceable(
       reason: reason.text,
     },
   });
+  return {
+    severity: 'warn',
+    message: `usd budget ($${String(task.budget.usd)}) is NOT enforced on adapter "${opts.adapter}": ${reason.text}`,
+  };
+}
+
+/**
+ * Surface the inert-usd-budget warning (#463) on the run result so an operator sees it at
+ * decision time, not only in the audit log. Prepends to a sync outcome/escalated result; an
+ * async `job` result settles in the registry (the audit already carries the degradation), and
+ * the other RunResult kinds never reached the budget gate.
+ */
+export function withBudgetFinding(result: RunResult, finding: Finding | null): RunResult {
+  if (finding === null) return result;
+  if (result.kind === 'outcome') {
+    return { ...result, findings: [finding, ...(result.findings ?? [])] };
+  }
+  if (result.kind === 'escalated') {
+    return { ...result, findings: [finding, ...result.findings] };
+  }
+  return result;
 }
