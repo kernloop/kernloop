@@ -18,7 +18,12 @@ statement: >-
   human merge + the standing canary stay in the loop permanently. The committed ledger's
   counted window must always carry zero false-approves (a CI test enforces this invariant
   + the scorer logic); the seeded DP#1–3 are provisional pre-criteria reasoning-parity
-  evidence.
+  evidence. Independence-from-external (the counting precondition) is satisfied by a
+  SINGLE-MODEL native panel on a family DISJOINT from `consensus_vote` (agy/google vs its
+  {anthropic,openai}) — NOT by an internally-diverse native panel (diversity is opt-in for
+  vote QUALITY since #468) — so counted DPs accrue with no 2nd adapter and no criterion
+  relaxation; DP4 is the first (a genuine native-vs-external model-DISAGREEMENT that, by
+  surfacing real divergence #461 could not, kept the independence precondition a HARD gate).
 evidence:
   - 'test:scripts/__tests__/vote-parity-check.test.mjs::flags a false-approve: native APPROVES while external REJECTS'
   - 'test:scripts/__tests__/vote-parity-check.test.mjs::a false-REJECT (native rejects, external approves) is SAFE — not a false-approve'
@@ -28,7 +33,8 @@ evidence:
   - 'test:scripts/__tests__/vote-parity-check.test.mjs::a full window meeting all bars is met; one short bar fails it'
   - 'test:scripts/__tests__/vote-parity-check.test.mjs::dangerous cases must be a MAJORITY organic'
   - 'test:scripts/__tests__/vote-parity-check.test.mjs::has ZERO false-approves in the counted window (the load-bearing invariant)'
-  - 'test:scripts/__tests__/vote-parity-check.test.mjs::seeds the 3 pre-criteria data points as PROVISIONAL (not counted)'
+  - 'test:scripts/__tests__/vote-parity-check.test.mjs::keeps the 3 pre-criteria data points PROVISIONAL (independence unverified)'
+  - 'test:scripts/__tests__/vote-parity-check.test.mjs::accrues independence-verified counted DPs (DP4+: agy/google native vs consensus_vote)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski
