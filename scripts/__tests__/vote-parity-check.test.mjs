@@ -114,9 +114,17 @@ describe('the real committed ledger', () => {
   test('has ZERO false-approves in the counted window (the load-bearing invariant)', () => {
     expect(s.falseApproves).toHaveLength(0);
   });
-  test('seeds the 3 pre-criteria data points as PROVISIONAL (not counted)', () => {
-    expect(s.counted).toBe(0);
+  test('keeps the 3 pre-criteria data points PROVISIONAL (independence unverified)', () => {
+    // DP1–3 were gathered before criteria-v2 with unverified independence, so they never
+    // count — preventing pre-registration drift even as real counted DPs accrue.
     expect(s.provisional).toBe(3);
+  });
+  test('accrues independence-verified counted DPs (DP4+: agy/google native vs consensus_vote)', () => {
+    // The block was illusory: a single-model agy(google) native panel is independent from
+    // consensus_vote's {anthropic,openai} (no diverse panel / 2nd adapter needed) — so
+    // counted DPs accrue. DP4 is the first, and it is honestly a SAFE disagreement (native
+    // more conservative), not a false-approve, so the hard gate still holds.
+    expect(s.counted).toBeGreaterThanOrEqual(1);
   });
   test('renders an honest scorecard naming the human-ratified, necessary-not-sufficient framing', () => {
     const text = renderScorecard(s);
