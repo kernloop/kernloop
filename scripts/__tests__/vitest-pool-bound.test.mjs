@@ -42,18 +42,14 @@ test('vitest.root.config.mjs mirrors the bounded forks pool', () => {
   expect(maxWorkers).toBeLessThanOrEqual(MAX_FORKS_CEILING);
 });
 
-// Every editable per-package config must merge the shared base so the bound is
-// inherited from ONE source. contracts + kernel are protected paths (#420 is a
-// test-infra change and may not touch them) — excluded here, tracked as a
-// follow-up; they are small (few test files) so their unbounded pool is
-// self-bounded by test-file count.
-const PROTECTED = new Set(['contracts', 'kernel']);
-
-test('every editable package vitest config merges the shared bound', () => {
+// EVERY package config must merge the shared base so the bound is inherited from
+// ONE source. contracts + kernel were initially excluded (#420 was a test-infra
+// PR and could not touch those protected paths) but are now bound at source via
+// the #443 human-review PR — so the guard enforces ALL packages, no exclusions.
+test('every package vitest config merges the shared bound', () => {
   const pkgDir = path.join(repoRoot, 'packages');
   const offenders = [];
   for (const pkg of readdirSync(pkgDir)) {
-    if (PROTECTED.has(pkg)) continue;
     const cfg = path.join(pkgDir, pkg, 'vitest.config.ts');
     let src;
     try {
