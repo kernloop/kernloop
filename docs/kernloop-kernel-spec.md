@@ -238,7 +238,10 @@ review with per-voter precision recorded into the fitness ledger — **advisory
 tier by default; promotable to `enforce` per-overlay via a ratified ladder
 transition (`gates.review.ratifiedEnforce`, #328), at which point a rejecting
 review drives child re-iteration**; the n=10 eval set and labeling rubric port
-from v1 as the seed).
+from v1 as the seed), and `parsimony` (the fourth child gate, #9/#415, EPIC
+#407 — assesses restraint against the Control Floor and emits a Decision
+Receipt; at `full`/`ultra` intensity a rejecting parsimony verdict re-runs
+implement within Kc, CLM-0177).
 
 > **As-realized note (ratified 2026-06-11).** The quality gate ships
 > typecheck/lint/test (coverage rides the test exit code); it does **not** run
@@ -451,7 +454,7 @@ Frame ──► Research ──► Plan ──► VOTE ◄──┐
                             PM Decompose
                                   ▼
                     Fan-out: Coder ─ Documenter ─ Specialist…
-                       each child: implement ──► quality gate ──► review gate
+                       each child: implement ──► quality gate ──► review gate ──► parsimony gate
                                   ▼
                               Integrate
                                   ▼
