@@ -12,8 +12,14 @@ statement: >-
   projection is only the caller's own explicit rate × this count. The arithmetic
   is BOUND TO ACTUAL loop behavior: a real hermetic canonical-loop run counts its
   model calls and they equal the estimate's min (the happy path) and never exceed
-  its max — proving the estimate tracks the loop, not only itself.
+  its max — proving the estimate tracks the loop, not only itself. The same estimator
+  is surfaced per-invocation by `kernloop run --estimate` (#305), which prints the band
+  for THIS overlay's loop shape (its K/Kc, vote panel, review groundedness, the live
+  review-drives-iteration tier, and parsimony intensity) and exits WITHOUT running.
 evidence:
+  - 'test:packages/cli/src/run-command.test.ts::returns a per-node + total call band for the default overlay, with stated assumptions, no $'
+  - 'test:packages/cli/src/run-command.test.ts::reflects the overlay vote panel: panel 7 yields a larger vote band than the default 3'
+  - 'test:packages/cli/src/run-command.test.ts::reflects parsimony intensity: `off` zeroes the parsimony band, default `full` does not'
   - 'test:packages/cli/src/cost-estimate.test.ts::default shape, 1 child: min is the happy path, max assumes full iteration + retry'
   - 'test:packages/cli/src/cost-estimate.test.ts::a real happy-path canonical-loop run makes exactly total.min model calls, ≤ total.max'
   - 'test:packages/cli/src/cost-estimate.test.ts::NEVER invents a dollar figure — the band is calls only, with an explicit-rate note'
