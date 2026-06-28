@@ -205,6 +205,7 @@ pnpm docs:render        # regenerate docs/API.md from package JSDoc (--check dri
 pnpm docs:coverage      # every value export of a gated package carries a doc-comment
 pnpm stats:check        # derived counts (README block + watched prose) match the code consts
 pnpm governance:check   # verify repo structure + charter match reality
+pnpm preflight          # run the locally-reproducible CI gates in one fail-fast chain (#449, CLM-0180) — reproduce green before pushing
 ```
 
 A fresh clone must pass all of the above before and after your change.
