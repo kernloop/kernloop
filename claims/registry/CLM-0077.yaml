@@ -28,8 +28,15 @@ statement: >-
   is not enforced, rather than only on later inspection of the audit log. The endpoint membership check is
   structurally sound (#474): the registered-endpoint map is NULL-PROTOTYPE, so a prototype-inherited adapter
   name (`constructor`, `toString`, …) reads `undefined` rather than an inherited member and is treated as an
-  unknown adapter — it does NOT emit a false inert-cap audit for a nonexistent endpoint.
+  unknown adapter — it does NOT emit a false inert-cap audit for a nonexistent endpoint. The static
+  metersUsd/metersTokens facts are guarded against silent DRIFT (#464): the opt-in `adapters:smoke` harness
+  compares each adapter's static facts to a real call's RUNTIME metered flags and FAILS on divergence — so a
+  CLI output-format change (e.g. claude dropping cost, agy starting to report tokens) cannot leave the static
+  fact stale while cost silently reads $0; the pure `meteringDrift` comparator is unit-tested.
 evidence:
+  - 'test:scripts/__tests__/metering-drift.test.mjs::reports NO drift when the runtime metered flags match each adapter static fact'
+  - 'test:scripts/__tests__/metering-drift.test.mjs::reports usd drift when a metersUsd:true adapter reports no cost (claude went stale)'
+  - 'test:scripts/__tests__/metering-drift.test.mjs::reports tokens drift when a metersTokens:false adapter started reporting tokens (agy)'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT lie for a PROTOTYPE-INHERITED adapter name (constructor/toString) — null-proto endpoints map (#474)'
   - 'test:packages/cli/src/endpoints.test.ts::returns undefined for a prototype-inherited key, so === undefined membership is sound'
   - 'test:packages/cli/src/tools/run-budget-honesty.test.ts::does NOT audit for a non-loop capability — it consults NO budget, so the record would mislead (#469)'
