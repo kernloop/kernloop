@@ -9,6 +9,7 @@ export const USAGE = [
   '  doctor    [--dir <repo>]                        validate the overlay',
   '  serve     [--dir <repo>]                        MCP server on stdio',
   '  run       --goal G --capability C [--workspace D] [--adapter A] [--plan] [--async] [--id I]',
+  '            [--estimate]                                 pre-flight model-call-count band, then exit (#305)',
   '            [--budget tokens=N,usd=N,wallClock=N] [--unlimited]',
   '            --resume RUNID --capability workflow.canonical [--workspace D] [--adapter A]',
   '  status    (--task-id T | --job J)',

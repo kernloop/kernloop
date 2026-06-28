@@ -9,6 +9,14 @@ import { runTool } from './tools/index.js';
 import { withSigintAbort } from './sigint-abort.js';
 import { closeIssueAfterRun } from './run-close.js';
 import { parseBudget } from './cli-flags.js';
+import {
+  estimateLoopCalls,
+  DEFAULT_ASSUMED_CHILDREN,
+  type LoopCallEstimate,
+  type LoopShape,
+} from './cost-estimate.js';
+import { reviewGateDrivesIteration } from './loop/engine-build.js';
+import type { Kernloop } from './kernel.js';
 import type { CliIo } from './cli.js';
 import type { CommandHelpers } from './portability-commands.js';
 
@@ -22,12 +30,39 @@ const STR_FLAGS = [
   'budget',
   'closes-issue',
 ] as const;
-const BOOL_FLAGS = ['plan', 'async', 'unlimited'] as const;
+const BOOL_FLAGS = ['plan', 'async', 'unlimited', 'estimate'] as const;
 
 /** Required string flag or a thrown usage error. */
 function required(value: string | boolean | undefined, flag: string): string {
   if (typeof value !== 'string') throw new Error(`missing required flag ${flag}`);
   return value;
+}
+
+/**
+ * Pre-flight model-CALL-COUNT estimate for `run --estimate` (#305, CLM-0138): the same pure
+ * estimator `doctor` surfaces, but for THIS overlay's actual loop shape — its K/Kc, vote panel,
+ * review groundedness, the LIVE review-drives-iteration tier (#328), and parsimony intensity —
+ * so an operator sees the band a run WILL incur and exits without running. NEVER a $ figure
+ * (per-call cost is metered at runtime, not declared). Child count is an assumed input
+ * (decompose decides it at runtime).
+ */
+export function runEstimate(kern: Kernloop): {
+  readonly kind: 'estimate';
+  readonly estimate: LoopCallEstimate;
+} {
+  const cfg = kern.config;
+  const shape: LoopShape = {
+    K: cfg.K,
+    Kc: cfg.Kc,
+    votePanel: cfg.gates.vote.panel === 7 ? 7 : 3,
+    reviewPanel: cfg.gates.review.groundedness ? 4 : 3,
+    reviewDrivesIteration: reviewGateDrivesIteration(kern),
+    parsimonyIntensity: cfg.gates.parsimony.intensity,
+  };
+  return {
+    kind: 'estimate',
+    estimate: estimateLoopCalls(shape, { childCount: DEFAULT_ASSUMED_CHILDREN }),
+  };
 }
 
 /** The `run` command handler (see {@link COMMANDS} in cli.ts). */
@@ -40,6 +75,9 @@ export function runCommand(args: string[], io: CliIo, h: CommandHelpers): Promis
   // CLI-or-endpoint at run setup (the overlay is known there), not here.
   const adapter = h.str(v.adapter);
   const budget = parseBudget(h.str(v.budget));
+  // --estimate (#305): print the pre-flight call-count band for this overlay's loop shape
+  // and exit WITHOUT running (no goal/capability/adapter needed — it is a shape estimate).
+  if (v.estimate === true) return h.withKernloop(io, v.dir, (kern) => runEstimate(kern));
   return h.withKernloop(io, v.dir, async (kern) => {
     // One-shot CLI: drain an async run's background settle before tear-down.
     let background: Promise<void> | undefined;
