@@ -27,5 +27,13 @@
     "@types/node": "^25.9.3",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kernloop/kernloop.git",
+    "directory": "packages/parsimony"
   }
 }

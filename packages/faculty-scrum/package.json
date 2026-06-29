@@ -23,5 +23,13 @@
   "dependencies": {
     "@kernloop/contracts": "workspace:*",
     "zod": "^4.4.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kernloop/kernloop.git",
+    "directory": "packages/faculty-scrum"
   }
 }

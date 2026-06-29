@@ -28,5 +28,13 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kernloop/kernloop.git",
+    "directory": "packages/faculty-memory"
   }
 }

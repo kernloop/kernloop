@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [
+    [
+      "@kernloop/cli",
+      "@kernloop/contracts",
+      "@kernloop/docscan",
+      "@kernloop/faculty-compiler",
+      "@kernloop/faculty-gates",
+      "@kernloop/faculty-memory",
+      "@kernloop/faculty-models",
+      "@kernloop/faculty-observer",
+      "@kernloop/faculty-scrum",
+      "@kernloop/faculty-toolsmith",
+      "@kernloop/faculty-workforce",
+      "@kernloop/kernel",
+      "@kernloop/parsimony",
+      "@kernloop/tracker",
+      "@kernloop/workflows"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}
