@@ -1,0 +1,58 @@
+# Release: changesets Version PR + npm publish over OIDC trusted publishing (#495).
+#
+# Flow: merge changesets to main → this opens/updates a "Version Packages" PR (bumps
+# versions + writes CHANGELOG). Merge THAT PR → this publishes the bumped @kernloop/*
+# packages to npm with NO NPM_TOKEN (OIDC trusted publishing) and automatic provenance.
+#
+# One-time bootstrap (operator) is required first — see RELEASING.md. OIDC cannot do the
+# FIRST publish of a brand-new package (npm requires the package to exist before a trusted
+# publisher attaches), and `release.yml` is the workflow filename each package's trusted
+# publisher is registered against — DO NOT rename this file without re-registering.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # changesets pushes the Version PR + tags
+      pull-requests: write # changesets opens the Version PR
+      id-token: write # OIDC trusted publishing — no NPM_TOKEN
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      # Node 24 ships npm 11.x — REQUIRED for OIDC trusted publishing. The repo's CI runs
+      # Node 22 (npm 10), which does NOT speak the OIDC handshake and fails publish with a
+      # MISLEADING 404. Do NOT "align" this to 22. Also: NO registry-url — setup-node would
+      # otherwise plant a NODE_AUTH_TOKEN that conflicts with OIDC.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Assert npm supports OIDC trusted publishing (>= 11.5.1)
+        run: |
+          v=$(npm --version)
+          node -e "const [a,b,c]=process.argv[1].split('.').map(Number); if(a<11||(a===11&&(b<5||(b===5&&c<1)))){console.error('npm '+process.argv[1]+' is too old for OIDC trusted publishing (need >= 11.5.1)');process.exit(1)} else console.log('npm '+process.argv[1]+' OK for OIDC')" "$v"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build # turbo build all packages → dist/ before publish
+      - name: Version PR / publish
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          version: pnpm changeset version
+          publish: pnpm changeset publish # OIDC auto-detected; provenance automatic
+          commit: 'chore(release): version packages'
+          title: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No NPM_TOKEN / NODE_AUTH_TOKEN — publishing rides OIDC trusted publishing.
