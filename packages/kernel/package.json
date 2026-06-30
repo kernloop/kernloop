@@ -23,6 +23,8 @@
   "dependencies": {
     "@kernloop/contracts": "workspace:*",
     "better-sqlite3": "^12.11.1",
+    "ipaddr.js": "^1.9.1",
+    "undici": "^7.28.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

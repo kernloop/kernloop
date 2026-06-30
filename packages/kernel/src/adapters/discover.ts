@@ -37,6 +37,7 @@ import { tmpdir } from 'node:os';
 import { z } from 'zod';
 import type { ApiAdapterDefinition } from './api-config.js';
 import { MODELS_PATH, OLLAMA_TAGS_PATH, assertSafeBaseUrl } from './api-url.js';
+import { safeFetch } from './api-net.js';
 import { readCappedBody, scrub } from './api.js';
 import {
   AdapterExecutionError,
@@ -106,7 +107,7 @@ async function getDiscovery(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT_MS);
   try {
-    const response = await fetch(target, {
+    const response = await safeFetch(target, {
       method: 'GET',
       headers,
       redirect: 'error',
