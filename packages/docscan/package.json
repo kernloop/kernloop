@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/docscan",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Kernloop doc-comment scanner — the in-process AST machinery that mines exported symbols and gates language-appropriate doc-comments (TS via the typescript compiler API; Python/Go/Rust/… via vendored tree-sitter WASM grammars). A check-providing LIBRARY consumed by faculty-gates' quality gate (spec §5.3, CLM-0104), not a faculty.",
   "license": "MIT",
   "type": "module",

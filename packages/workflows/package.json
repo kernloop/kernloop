@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/workflows",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Kernloop Layer 3 — the canonical loop as data plus the execution engine (spec §6): one blessed graph, per-node checkpoint/resume, and the K-bounded vote-iterate cycle. All real work (model calls, gates, memory) arrives as injected node executors; checkpoint persistence arrives as an injected storage interface — this package imports contracts and zod only.",
   "license": "MIT",
   "type": "module",

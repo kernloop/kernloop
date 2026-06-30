@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-models",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Kernloop Layer 2 — the models faculty (spec §5.7/§8.4). The SUPPLY dual of ModelRequirement: a pure, layered resolveIdentity (table→rule→unknown) that normalizes a served model alias/id into a ModelIdentity, backed by a vendored models.dev-pattern catalog snapshot. No network, no model call — discovery via /v1/models is a later phase.",
   "license": "MIT",
   "type": "module",
