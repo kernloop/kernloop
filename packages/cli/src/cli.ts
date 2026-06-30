@@ -6,7 +6,7 @@
  * surface over stdio [CLM-0033, CLM-0058].
  */
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
@@ -338,11 +338,31 @@ export async function runCli(argv: string[], io: CliIo): Promise<number> {
   }
 }
 
-/* v8 ignore start -- process entry; runCli is covered directly */
-const invokedDirectly =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
-if (invokedDirectly) {
+/**
+ * True when this module is the process entrypoint. Resolves symlinks via realpath
+ * so the CLI runs when launched through the npm bin shim (`node_modules/.bin/kernloop`
+ * → `dist/cli.js`) — i.e. `npx @kernloop/cli`, a global install, or a local `.bin`
+ * invocation (#502). `path.resolve` alone leaves `argv[1]` as the symlink path, which
+ * never equals the realpath-resolved `import.meta.url`, so `main()` silently never ran.
+ * Falls back to `path.resolve` if `argv[1]` does not exist (e.g. `node -e`). [CLM-0185]
+ */
+export function isProcessEntrypoint(importMetaUrl: string, argv1: string | undefined): boolean {
+  if (argv1 === undefined) return false;
+  const resolved = path.resolve(argv1);
+  // Match EITHER the resolved path or its realpath, so the guard fires regardless of
+  // which form `import.meta.url` takes: the realpath form covers the default case where
+  // the bin shim is a symlink and the loaded module is the real file (#502); the resolved
+  // form covers `--preserve-symlinks[-main]`, where `import.meta.url` is the symlink itself.
+  if (importMetaUrl === pathToFileURL(resolved).href) return true;
+  try {
+    return importMetaUrl === pathToFileURL(realpathSync(resolved)).href;
+  } catch {
+    return false; // argv[1] does not exist (e.g. `node -e`) — the resolved form already missed
+  }
+}
+
+/* v8 ignore start -- process entry; isProcessEntrypoint + runCli are covered directly */
+if (isProcessEntrypoint(import.meta.url, process.argv[1])) {
   const io: CliIo = {
     out: (text) => process.stdout.write(text + '\n'),
     err: (text) => process.stderr.write(text + '\n'),
