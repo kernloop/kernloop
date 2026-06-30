@@ -16,15 +16,13 @@
  *    never logged, and {@link scrub} redacts it from any surfaced string
  *    (error bodies included). A missing/empty env key is a fail-closed
  *    {@link ApiKeyMissingError} naming the env var, never the value.
- *  - BASEURL GUARD (NOT SSRF immunity): {@link assertSafeBaseUrl} validates the
- *    OPERATOR-configured `baseUrl` (scheme/credentials/path) — `https:` (or
- *    `http:` ONLY to an explicit localhost/loopback/private host, for a local
- *    vLLM/LM-Studio), and no embedded `user:pass@` credentials. It trusts the
- *    overlay as operator config; an https baseUrl MAY reach any host the
- *    operator points it at (intended — that is their provider). This is NOT
- *    full SSRF immunity against a hostile overlay. The request path is the
- *    FIXED `/chat/completions`, never user-templated; cross-host redirects are
- *    refused (`redirect: 'error'`).
+ *  - BASEURL GUARD: {@link assertSafeBaseUrl} validates the OPERATOR `baseUrl`
+ *    lexically (scheme `https:`, or `http:` ONLY to a local host; no `user:pass@`),
+ *    and {@link module:kernel/adapters/api-net} adds a RESOLVE-TIME, IP-pinned
+ *    SSRF guard ([CLM-0186], #508) — egress to a non-local host that resolves to a
+ *    private/loopback/link-local/metadata address is blocked at connect (no
+ *    DNS-rebinding TOCTOU). The path is the FIXED `/chat/completions`, never
+ *    user-templated; cross-host redirects refused (`redirect: 'error'`).
  *  - HEADER PRECEDENCE: kernel-controlled `content-type`/`authorization` are
  *    written LAST so a static overlay header can never clobber the real key or
  *    inject one; reserved header NAMES are also rejected at config parse.
@@ -44,6 +42,7 @@ import { CostSchema, type Cost } from '@kernloop/contracts';
 import { z } from 'zod';
 import type { ApiAdapterDefinition } from './api-config.js';
 import { CHAT_PATH, assertSafeBaseUrl } from './api-url.js';
+import { safeFetch } from './api-net.js';
 import {
   ApiEndpointError,
   ApiKeyMissingError,
@@ -179,7 +178,8 @@ function checkInvocation(def: ApiAdapterDefinition, invocation: ApiInvocation): 
  */
 export async function readCappedBody(
   adapter: string,
-  response: Response,
+  // Structural (only .body is read; caller checks ok/status) — accepts global or undici Response.
+  response: { readonly body: ReadableStream<Uint8Array> | null },
   abort: () => void,
 ): Promise<string> {
   const reader = response.body?.getReader();
@@ -385,8 +385,8 @@ async function postChat(
   target: URL,
   key: string,
   signal: AbortSignal,
-): Promise<Response> {
-  return fetch(target, {
+) {
+  return safeFetch(target, {
     method: 'POST',
     headers: {
       ...def.headers,

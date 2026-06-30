@@ -3136,3 +3136,20 @@ The kernloop CLI's process-entry guard recognizes the module as the entrypoint w
 - [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
 - [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
 - CI `test`
+
+## CLM-0186
+
+**Status:** verified — **source:** [`CLM-0186.yaml`](../claims/registry/CLM-0186.yaml)
+
+The api adapter's egress is guarded at RESOLVE TIME, not only lexically (#508). Every request routes through `safeFetch`, whose undici dispatcher uses a custom `connect.lookup` that resolves the host and REJECTS the connection if any resolved address is not public unicast — TOCTOU-safe by construction, because the lookup that VALIDATES the addresses is the SAME lookup the socket connects through (no resolve-then-reconnect window for DNS-rebinding). Address classification is delegated to the vetted `ipaddr.js` (which normalizes every textual spelling): an address is allowed only if `range()` is `unicast`; loopback/private/link-local (incl. 169.254.169.254 metadata)/carrier-grade-NAT/unique-local/ multicast/reserved/broadcast/unspecified are blocked. Embedded-IPv4 tunnels are classified by their embedded IPv4 — IPv4-mapped, NAT64 well-known `64:ff9b::/96`, 6to4 `2002::/16`, and the deprecated IPv4-compatible `::/96` — so `64:ff9b::a9fe:a9fe` (metadata) is blocked while `64:ff9b::8.8.8.8` is allowed. Reject-if-ANY over the full resolved set defeats multi-A / happy-eyeballs; `redirect:'error'` refuses redirect-rebinding; undici pools per-origin (no cross-host socket reuse); unparseable input fails closed. The lexical [CLM-0084] baseUrl guard remains a defense-in-depth pre-check. SCOPE (threat model: attacker controls the endpoint's DNS only): network-specific NAT64 prefixes and ISATAP-tunnelled embeddings require a configured tunnel on the host (hostile NETWORK infra), and the operator-typed local-host escape hatch requires a hostile OVERLAY — both out of the DNS-only model and tracked separately.
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
+- CI `test`

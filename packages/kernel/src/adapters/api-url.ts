@@ -71,8 +71,12 @@ export function assertSafeBaseUrl(adapter: string, baseUrl: string): URL {
   throw new ApiEndpointError(adapter, `baseUrl scheme must be http(s); got "${url.protocol}"`);
 }
 
-/** True for localhost, IPv4/IPv6 loopback, and RFC-1918/link-local private hosts. */
-function isLocalHost(hostname: string): boolean {
+/** True for localhost, IPv4/IPv6 loopback, and RFC-1918/link-local private hosts.
+ * Exported so the resolve-time guard ({@link module:kernel/adapters/api-net}) can
+ * recognize an operator-declared LOCAL endpoint (the http escape hatch) and allow
+ * it to resolve to a loopback/private address, while a non-local hostname that
+ * RESOLVES to such an address is the SSRF/DNS-rebinding case it blocks. */
+export function isLocalHost(hostname: string): boolean {
   const host = hostname.replace(/^\[|\]$/g, '');
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   const ipVersion = isIP(host);
