@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kernloop Layer 2 — the memory faculty (spec §5.2). P1 scope: episodic and semantic stores over repo-local SQLite (one DB file per overlay, spec §3.3, §7). Procedural memory (SKILL.md distillation) arrives in P3; absent here by design.",
   "license": "MIT",
   "type": "module",

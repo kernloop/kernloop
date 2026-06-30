@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-toolsmith",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kernloop Layer 2 — the toolsmith faculty (spec §5.6). Forge with mechanical birth requirements, the ratified Docker sandbox profile, the workshop/* namespace with its 12-tool cap, and the workshop authority ladder (suggest → advisory → enforce) with decay. Model generation arrives via injected invoke; this faculty is model-free.",
   "license": "MIT",
   "type": "module",
