@@ -28,11 +28,23 @@ The `@kernloop/*` packages publish to npm via **changesets** + **OIDC trusted pu
    pnpm -r exec npm pack --dry-run    # review each tarball's file list — dist/ only, no src/tests/secrets
    ```
 
-2. Authenticate for the **one-time** bootstrap only (OIDC can't create new packages):
+2. Authenticate for the **one-time** bootstrap only (OIDC can't create new packages).
+   **If the account has 2FA enabled** (it does), `npm login` then makes every `publish` prompt
+   for a fresh OTP — and a single code **times out partway through** the 15 sequential publishes
+   (`EOTP`). So use a short-lived **granular access token** instead, which bypasses the
+   interactive OTP:
+
+   - npmjs.com → **Access Tokens → Generate New Token → Granular Access Token**
+   - Permissions: **Packages and scopes → Read and write**, scoped to the **@kernloop** scope
+   - Expiration: short (e.g. 1 day — revoke right after, step 5)
+   - Then, in your terminal:
 
    ```sh
-   npm login            # or export a short-lived granular automation token
+   echo "//registry.npmjs.org/:_authToken=<TOKEN>" >> ~/.npmrc
    ```
+
+   (Alternatively `npm login` + pass `--otp=<code>` on the publish, re-running with a fresh code
+   each time it times out — slower, but works.)
 
 3. Bootstrap-publish all 15 at the current `0.1.0`, in dependency order (pnpm rewrites
    `workspace:*` → the concrete version):
