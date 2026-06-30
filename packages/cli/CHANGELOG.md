@@ -1,5 +1,25 @@
 # @kernloop/cli
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [d04062f]
+  - @kernloop/kernel@0.1.3
+  - @kernloop/faculty-gates@0.1.3
+  - @kernloop/faculty-toolsmith@0.1.3
+  - @kernloop/contracts@0.1.3
+  - @kernloop/docscan@0.1.3
+  - @kernloop/faculty-compiler@0.1.3
+  - @kernloop/faculty-memory@0.1.3
+  - @kernloop/faculty-models@0.1.3
+  - @kernloop/faculty-observer@0.1.3
+  - @kernloop/faculty-scrum@0.1.3
+  - @kernloop/faculty-workforce@0.1.3
+  - @kernloop/parsimony@0.1.3
+  - @kernloop/tracker@0.1.3
+  - @kernloop/workflows@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
