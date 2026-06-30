@@ -3120,3 +3120,19 @@ The vote gate's authority TIER governs RATIFICATION authority — whether its ve
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - [`packages/workflows/src/engine.test.ts`](../packages/workflows/src/engine.test.ts)
 - CI `test`
+
+## CLM-0185
+
+**Status:** verified — **source:** [`CLM-0185.yaml`](../claims/registry/CLM-0185.yaml)
+
+The kernloop CLI's process-entry guard recognizes the module as the entrypoint when `argv[1]` is the npm bin symlink — it matches `import.meta.url` against BOTH the resolved and the realpath-resolved forms of `argv[1]` — so `main()` fires under `npx @kernloop/cli`, a global `npm i -g @kernloop/cli` install, and `node_modules/.bin/kernloop` (and under `--preserve-symlinks`, where `import.meta.url` is itself the symlink). A `path.resolve`-only guard left `argv[1]` as the symlink path and never matched the real module URL, so the published CLI ran nothing via every documented install path (#502). Importing the module (argv[1] mismatched or undefined) does not fire, and a non-existent `argv[1]` falls back without throwing. The guard's behavior is unit-pinned below; the end-to-end spawn of the built binary through a real bin symlink is additionally exercised as a hard invariant in the e2e suite (`tests/e2e`, the `pnpm e2e` job).
+
+**Enforced by:**
+
+- [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
+- [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
+- [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
+- [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
+- [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
+- [`packages/cli/src/cli-entrypoint.test.ts`](../packages/cli/src/cli-entrypoint.test.ts)
+- CI `test`
