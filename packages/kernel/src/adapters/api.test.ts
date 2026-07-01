@@ -153,6 +153,31 @@ describe('invokeApiAdapter — success + metering', () => {
     expect(sent['messages']).toEqual([{ role: 'user', content: 'hello' }]);
     expect(recorded.at(-1)?.authorization).toBe('Bearer k');
   });
+
+  it('sends a caller-supplied system+user messages array VERBATIM (#510)', async () => {
+    handler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(okBody('ok'));
+    };
+    recorded.length = 0;
+    const messages = [
+      { role: 'system' as const, content: 'You are voter A.' },
+      { role: 'user' as const, content: 'Approve or reject this proposal.' },
+    ];
+    await invokeApiAdapter(def(), { ...baseInvocation, messages, env: { TEST_API_KEY: 'k' } });
+    expect((recorded.at(-1)?.body as Record<string, unknown>)['messages']).toEqual(messages);
+  });
+
+  it('rejects an empty messages array with AdapterRequestError, BEFORE reading the key (#510)', async () => {
+    // The ordering invariant (vote condition): checkInvocation is the first step,
+    // so an invalid messages array fails closed even with NO key in the env — if
+    // the key were read first this would be ApiKeyMissingError instead.
+    const err = await invokeApiAdapter(def(), { ...baseInvocation, messages: [], env: {} }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(AdapterRequestError);
+    expect((err as AdapterRequestError).message).toContain('messages');
+  });
 });
 
 describe('invokeApiAdapter — fail-closed secret handling', () => {

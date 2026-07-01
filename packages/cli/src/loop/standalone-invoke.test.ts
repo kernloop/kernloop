@@ -132,4 +132,37 @@ describe('resolveStandaloneInvoke (#395)', () => {
     expect((JSON.parse(lastBody) as { model?: string }).model).toBe('served-large');
     kern.close();
   });
+
+  it('DEFAULTS max_tokens to 4096 when the endpoint declares no maxTokens (#510)', async () => {
+    const kern = kernAtBaseUrl(`${origin}/v1`);
+    const invoke = resolveStandaloneInvoke(kern, 'my-api', { MY_API_KEY: 'k' });
+    lastBody = '';
+    await invoke('a prompt');
+    expect((JSON.parse(lastBody) as { max_tokens?: number }).max_tokens).toBe(4_096);
+    kern.close();
+  });
+
+  it('sends the endpoint-configured maxTokens when declared — per-endpoint ceiling (#510)', async () => {
+    const overlayDir = path.join(scratch, '.kernloop');
+    mkdirSync(overlayDir, { recursive: true });
+    writeFileSync(
+      path.join(overlayDir, 'overlay.yaml'),
+      [
+        'id: maxtokens-test',
+        'endpoints:',
+        '  my-api:',
+        `    baseUrl: ${origin}/v1`,
+        '    apiKeyEnv: MY_API_KEY',
+        '    models: { large: served-large }',
+        '    maxTokens: 8000',
+        '',
+      ].join('\n'),
+    );
+    const kern = createKernloop({ overlayDir });
+    const invoke = resolveStandaloneInvoke(kern, 'my-api', { MY_API_KEY: 'k' });
+    lastBody = '';
+    await invoke('a prompt');
+    expect((JSON.parse(lastBody) as { max_tokens?: number }).max_tokens).toBe(8_000);
+    kern.close();
+  });
 });

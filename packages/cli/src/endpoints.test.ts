@@ -11,6 +11,7 @@ import {
   apiDefinitionFor,
   looksLikeSecret,
   ownKeyedEndpoints,
+  API_MAX_TOKENS_CEILING,
 } from './endpoints.js';
 
 const valid = {
@@ -86,6 +87,38 @@ describe('EndpointSchema — env-var name, never a literal key', () => {
   });
 });
 
+describe('EndpointSchema — maxTokens completion ceiling (#510)', () => {
+  it('accepts a positive integer maxTokens', () => {
+    expect(EndpointSchema.parse({ ...valid, maxTokens: 32_000 }).maxTokens).toBe(32_000);
+  });
+
+  it('accepts the hard cap exactly', () => {
+    expect(EndpointSchema.safeParse({ ...valid, maxTokens: API_MAX_TOKENS_CEILING }).success).toBe(
+      true,
+    );
+  });
+
+  it('REJECTS maxTokens above the hard cap (config cannot inflate the ceiling)', () => {
+    // The unanimous vote condition: a fat-fingered/hostile `maxTokens: 1e9`
+    // must be refused at parse so config can never defeat the spend ceiling.
+    const r = EndpointSchema.safeParse({ ...valid, maxTokens: 1_000_000_000 });
+    expect(r.success).toBe(false);
+    expect(
+      EndpointSchema.safeParse({ ...valid, maxTokens: API_MAX_TOKENS_CEILING + 1 }).success,
+    ).toBe(false);
+  });
+
+  it('REJECTS a non-positive or non-integer maxTokens', () => {
+    expect(EndpointSchema.safeParse({ ...valid, maxTokens: 0 }).success).toBe(false);
+    expect(EndpointSchema.safeParse({ ...valid, maxTokens: -1 }).success).toBe(false);
+    expect(EndpointSchema.safeParse({ ...valid, maxTokens: 4096.5 }).success).toBe(false);
+  });
+
+  it('is optional — an endpoint without maxTokens parses (default applies at the seam)', () => {
+    expect(EndpointSchema.parse(valid).maxTokens).toBeUndefined();
+  });
+});
+
 describe('looksLikeSecret', () => {
   it('flags provider key prefixes and long tokens', () => {
     expect(looksLikeSecret('sk-abc')).toBe(true);
@@ -120,6 +153,17 @@ describe('apiDefinitionFor — builds a key-free kernel definition', () => {
     );
     expect(def.metersUsd).toBe(true);
     expect(def.maxUsdPerCall).toBe(0.25);
+  });
+
+  it('threads the optional maxTokens completion ceiling through to the definition (#510)', () => {
+    const def = apiDefinitionFor('p', EndpointSchema.parse({ ...valid, maxTokens: 16_000 }));
+    expect(def.maxTokens).toBe(16_000);
+  });
+
+  it('omits maxTokens when unset (the seam applies the default)', () => {
+    const def = apiDefinitionFor('p', EndpointSchema.parse(valid));
+    expect(def.maxTokens).toBeUndefined();
+    expect('maxTokens' in def).toBe(false);
   });
 });
 

@@ -59,6 +59,13 @@ export {
   type ApiRawObservation,
 } from './api.js';
 export {
+  ChatMessageSchema,
+  API_MAX_TOKENS_CEILING,
+  MAX_MESSAGES,
+  MAX_MESSAGE_CONTENT_CHARS,
+  type ChatMessage,
+} from './api-body.js';
+export {
   discoverApiModels,
   discoverOllamaModels,
   discoverCliModels,

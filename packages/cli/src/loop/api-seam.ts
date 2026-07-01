@@ -23,9 +23,11 @@ import { type LoopInvoke, type RunTotals, LOOP_INVOKE_TIMEOUT_MS } from './invok
 import { buildNodeSeam, type NodeSeam, type NodeSeamHooks, type ServedModel } from './node-seam.js';
 
 /**
- * The bounded `max_tokens` an api call sends (spend ceiling, spec §3.1). A node
- * carries no explicit token cap in this phase, so the run-level default is used;
- * it is ALWAYS sent so an endpoint can never run unbounded.
+ * The DEFAULT bounded `max_tokens` an api call sends when an endpoint declares
+ * no `maxTokens` (spend ceiling, spec §3.1). A node carries no explicit token
+ * cap in this phase; an endpoint MAY raise the completion ceiling via its
+ * overlay `maxTokens` (clamped to a hard cap at parse, #510), but a bound is
+ * ALWAYS sent so an endpoint can never run unbounded.
  */
 export const API_MAX_TOKENS = 4_096;
 
@@ -71,7 +73,7 @@ export function apiInvoke(
     const result = await invokeApiAdapter(def, {
       prompt,
       model: options.model ?? '',
-      maxTokens: API_MAX_TOKENS,
+      maxTokens: def.maxTokens ?? API_MAX_TOKENS,
       timeoutMs: options.timeoutMs ?? LOOP_INVOKE_TIMEOUT_MS,
       ...(options.effort === undefined ? {} : { effort: options.effort.value }),
       ...(env === undefined ? {} : { env }),

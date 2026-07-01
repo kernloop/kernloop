@@ -29,9 +29,10 @@
  *  - UNTRUSTED RESPONSE: the body is zod-validated defensively and read under a
  *    STREAMED size cap — the stream is aborted past the cap, so an oversized
  *    body is a typed error, never an OOM, crash, or a guess.
- *  - SPEND CEILING: a bounded `max_tokens` is ALWAYS sent; the metered cost
- *    flows into the run budget; an optional per-endpoint `maxUsdPerCall` fails
- *    closed if a call's reported cost would exceed it. An endpoint that declares
+ *  - SPEND CEILING: a bounded `max_tokens` is ALWAYS sent (per-endpoint
+ *    configurable but overlay-clamped to a hard cap — #510); the metered cost
+ *    flows into the run budget (the aggregate backstop); an optional per-endpoint
+ *    `maxUsdPerCall` fails closed if a call's reported cost exceeds it. An endpoint that declares
  *    `metersUsd` but reports NO cost on a 2xx fails closed rather than silently
  *    meter $0 — a report never implies $0 spend when spend is unknown.
  *  - TIMEOUT: ONE {@link AbortController} enforces a wall-clock budget over both
@@ -43,6 +44,7 @@ import { z } from 'zod';
 import type { ApiAdapterDefinition } from './api-config.js';
 import { CHAT_PATH, assertSafeBaseUrl } from './api-url.js';
 import { safeFetch } from './api-net.js';
+import { buildBody, assertMessagesValid, assertMaxTokens, type ChatMessage } from './api-body.js';
 import {
   ApiEndpointError,
   ApiKeyMissingError,
@@ -58,8 +60,12 @@ export const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 /** One api-adapter call: the assembled prompt, a token cap, a wall-clock budget. */
 export interface ApiInvocation {
-  /** Fully assembled prompt — adapters do no prompt assembly (spec §3.1). */
+  /** Fully assembled prompt (spec §3.1); the single user message when
+   * {@link messages} is absent. */
   readonly prompt: string;
+  /** Optional structured turn (system/user/assistant) sent VERBATIM instead of
+   * the `prompt` fallback; fail-closed validated before egress (#510). */
+  readonly messages?: readonly ChatMessage[];
   /** Concrete model id the endpoint serves (resolved by the caller). */
   readonly model: string;
   /** Bounded output-token ceiling sent as `max_tokens` (spend ceiling). */
@@ -134,16 +140,6 @@ export function scrub(text: string, key: string): string {
   return text.split(key).join('[REDACTED]');
 }
 
-/** Build the request body — `max_tokens` is ALWAYS present (spend ceiling). */
-function buildBody(invocation: ApiInvocation): string {
-  return JSON.stringify({
-    model: invocation.model,
-    messages: [{ role: 'user', content: invocation.prompt }],
-    max_tokens: invocation.maxTokens,
-    ...(invocation.effort === undefined ? {} : { reasoning_effort: invocation.effort }),
-  });
-}
-
 /** Read the key from the env at call time, or fail closed naming the env var. */
 function readKey(
   def: ApiAdapterDefinition,
@@ -162,9 +158,11 @@ function checkInvocation(def: ApiAdapterDefinition, invocation: ApiInvocation): 
   if (!Number.isFinite(invocation.timeoutMs) || invocation.timeoutMs <= 0) {
     throw new AdapterRequestError(def.name, 'timeoutMs must be a positive finite number');
   }
-  if (!Number.isInteger(invocation.maxTokens) || invocation.maxTokens <= 0) {
-    throw new AdapterRequestError(def.name, 'maxTokens must be a positive integer (spend ceiling)');
-  }
+  // Fail-closed spend-ceiling + message validation BEFORE the key read and any
+  // egress (checkInvocation is invokeApiAdapter's first step). The maxTokens
+  // ceiling is enforced kernel-side, not only at overlay parse.
+  assertMaxTokens(def.name, invocation.maxTokens);
+  assertMessagesValid(def.name, invocation.messages);
 }
 
 /**
@@ -172,9 +170,9 @@ function checkInvocation(def: ApiAdapterDefinition, invocation: ApiInvocation): 
  * and throwing once {@link MAX_RESPONSE_BYTES} is exceeded — the whole body is
  * never buffered, so a multi-GB body cannot OOM or hang. UNscrubbed (parsed
  * before surfacing). `abort` cancels the underlying request so a slow/oversized
- * stream cannot keep the socket open past the cap. Exported
- * so the discovery path (`discover.ts`) reads its bodies under the SAME cap —
- * one size-limit primitive, not a second prone to drift (spec §5.7 discovery).
+ * stream cannot keep the socket open past the cap. Exported so discovery
+ * (`discover.ts`) reads its bodies under the SAME cap — one size-limit
+ * primitive, not a second prone to drift (spec §5.7 discovery).
  */
 export async function readCappedBody(
   adapter: string,

@@ -3153,3 +3153,25 @@ The api adapter's egress is guarded at RESOLVE TIME, not only lexically (#508). 
 - [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
 - [`packages/kernel/src/adapters/api-net.test.ts`](../packages/kernel/src/adapters/api-net.test.ts)
 - CI `test`
+
+## CLM-0187
+
+**Status:** verified — **source:** [`CLM-0187.yaml`](../claims/registry/CLM-0187.yaml)
+
+The api adapter accepts a caller-supplied chat `messages` array and a per-endpoint completion ceiling (#510). When an invocation carries `messages` (system / user / assistant roles), the adapter sends it VERBATIM as the `chat/completions` body; when it does not, it falls back to the single user message assembled from `prompt` — so every existing caller is byte-for-byte unchanged while a role-aware caller (#509's vote panel) can send a system persona plus a user turn. The messages array is validated fail-closed BEFORE the key read and any egress (`checkInvocation` is `invokeApiAdapter`'s first step): an empty array, an unknown role, or empty content is a typed `AdapterRequestError`, never a malformed POST. The messages array is bounded (≤64 messages, ≤256 KiB content each) as defence-in-depth against an unbounded request body. `max_tokens` is per-endpoint configurable via the overlay `maxTokens` (threaded overlay → `apiDefinitionFor` → api-seam → adapter, defaulting to 4096 when unset) and is ALWAYS sent. The hard cap `API_MAX_TOKENS_CEILING` (128k) is a SINGLE source enforced at BOTH boundaries — the overlay parse AND the kernel invocation check (`assertMaxTokens`) — so neither a fat-fingered or hostile overlay NOR a future ApiInvocation producer (#509) can inflate the completion length past it (a kernel invariant, not a config-layer courtesy). SCOPE/HONESTY: the ceiling bounds COMPLETION tokens only (larger input messages raise input cost inherently, bounded by the message caps above); the run BUDGET [CLM-0077] is the aggregate spend backstop. The secret hygiene, lexical [CLM-0084] and resolve-time [CLM-0186] SSRF guards are untouched — messages/max_tokens are request-BODY fields, not URL/host. Per-node max_tokens override (#523), tool/function-calling passthrough (#524), and a loop node that populates a system role (#509) / real multi-turn history (#522) are out of scope and tracked separately.
+
+**Enforced by:**
+
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/kernel/src/adapters/api.test.ts`](../packages/kernel/src/adapters/api.test.ts)
+- [`packages/kernel/src/adapters/api.test.ts`](../packages/kernel/src/adapters/api.test.ts)
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/kernel/src/adapters/api-body.test.ts`](../packages/kernel/src/adapters/api-body.test.ts)
+- [`packages/cli/src/endpoints.test.ts`](../packages/cli/src/endpoints.test.ts)
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- [`packages/cli/src/loop/standalone-invoke.test.ts`](../packages/cli/src/loop/standalone-invoke.test.ts)
+- CI `test`
