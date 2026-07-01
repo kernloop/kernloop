@@ -187,7 +187,8 @@ The canonical design is
 [`docs/kernloop-kernel-spec.md`](docs/kernloop-kernel-spec.md); the agent
 charter is [`AGENTS.md`](AGENTS.md). Architecture overview:
 [`ARCHITECTURE.md`](ARCHITECTURE.md). Security policy:
-[`SECURITY.md`](SECURITY.md).
+[`SECURITY.md`](SECURITY.md). Routing to a custom OpenAI-compatible endpoint:
+[`docs/ENDPOINTS.md`](docs/ENDPOINTS.md).
 
 ## License
 
