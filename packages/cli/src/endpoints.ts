@@ -18,9 +18,17 @@
  *
  * @module cli/endpoints
  */
-import { API_EFFORT_PROFILE, type ApiAdapterDefinition } from '@kernloop/kernel';
+import {
+  API_EFFORT_PROFILE,
+  API_MAX_TOKENS_CEILING,
+  type ApiAdapterDefinition,
+} from '@kernloop/kernel';
 import { ModelCapabilitySchema, ModelTierSchema, type ModelCapability } from '@kernloop/contracts';
 import { z } from 'zod';
+
+// Re-export the kernel's single-source completion ceiling so config callers and
+// tests reference the SAME constant the kernel invocation check enforces (#510).
+export { API_MAX_TOKENS_CEILING } from '@kernloop/kernel';
 
 /** A plausible env-var NAME — never a key value. Upper snake, no leading digit. */
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
@@ -101,6 +109,12 @@ export const EndpointSchema = z
     capabilities: z.array(ModelCapabilitySchema).optional(),
     metersUsd: z.boolean().optional(),
     maxUsdPerCall: z.number().positive().optional(),
+    maxTokens: z
+      .number()
+      .int()
+      .positive()
+      .max(API_MAX_TOKENS_CEILING, `maxTokens must not exceed ${String(API_MAX_TOKENS_CEILING)}`)
+      .optional(),
   })
   .refine((e) => !(e.maxUsdPerCall !== undefined && e.metersUsd !== true), {
     path: ['maxUsdPerCall'],
@@ -145,5 +159,6 @@ export function apiDefinitionFor(id: string, config: EndpointConfig): ApiAdapter
     capabilities: (config.capabilities ?? ['toolUse', 'jsonMode']) as readonly ModelCapability[],
     metersUsd: config.metersUsd ?? false,
     ...(config.maxUsdPerCall === undefined ? {} : { maxUsdPerCall: config.maxUsdPerCall }),
+    ...(config.maxTokens === undefined ? {} : { maxTokens: config.maxTokens }),
   };
 }

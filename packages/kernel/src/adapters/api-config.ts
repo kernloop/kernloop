@@ -53,6 +53,14 @@ export interface ApiAdapterDefinition {
   readonly metersUsd: boolean;
   /** Optional fail-closed per-call USD cap (spec §3.1 spend ceiling). */
   readonly maxUsdPerCall?: number;
+  /**
+   * Optional per-endpoint `max_tokens` completion ceiling (#510). Declarative:
+   * the composition root (api-seam) uses it as the bound it sends, defaulting
+   * when unset. The overlay clamps it to a hard cap so config can never inflate
+   * the completion length past a sane ceiling. Bounds COMPLETION tokens only —
+   * the run budget is the aggregate spend backstop.
+   */
+  readonly maxTokens?: number;
 }
 
 /** The default effort levels for an OpenAI-compatible endpoint (identity map). */
