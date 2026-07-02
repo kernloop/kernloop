@@ -39,6 +39,18 @@ describe('scoreParity — counted vs provisional', () => {
     expect(s.counted).toBe(1);
     expect(s.provisional).toBe(2);
   });
+
+  test('a #509 model-diverse point is NEVER counted, even if mis-flagged independent', () => {
+    // A per-model endpoint panel is model-NAME diversity within ONE oracle — NOT
+    // cross-provider independence. The guard excludes it from the window even when
+    // independenceVerified + counted are (wrongly) true.
+    const s = scoreParity([
+      dp({ id: 'counted' }),
+      dp({ id: 'model-diverse', withinOracleModelDiverse: true }),
+    ]);
+    expect(s.counted).toBe(1);
+    expect(s.provisional).toBe(1);
+  });
 });
 
 describe('scoreParity — the hard false-approve gate (#348 §2)', () => {

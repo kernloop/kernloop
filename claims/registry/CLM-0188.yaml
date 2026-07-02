@@ -1,0 +1,44 @@
+id: CLM-0188
+statement: >-
+  For an ENDPOINT-ONLY ratification run whose endpoint serves >=2 chat-capable models
+  (discovered via `/v1/models` [CLM-0086]), kernloop convenes a per-MODEL panel-7 instead
+  of one model role-playing N personas (#509): each voter is pinned to a distinct discovered
+  model on the SAME endpoint (via #510's per-invocation model pin), round-robined through the
+  deterministic assignment SHARED with the cross-adapter panel [CLM-0159]. The `/v1/models`
+  set is FILTERED to chat models before seeding (embeddings, moderation, audio, image, and
+  rerankers dropped across OpenAI AND other-provider naming), the panel activates only at >=2
+  chat models (else the honest single-oracle degrade holds), and every dropped id is recorded.
+  HONESTY IS LOAD-BEARING and enforced STRUCTURALLY, not just in prose. This is model-NAME
+  diversity WITHIN ONE ORACLE: the models share one endpoint/operator, so failures are
+  CORRELATED. Each per-model ballot is stamped with a UNIFORM endpoint-scoped served CLASS
+  (`endpoint:<id>` for provider/family/generation; distinct `raw` kept for per-model
+  attribution), so faculty-gates' own independence machinery correctly sees ONE oracle: its
+  single-oracle finding FIRES, the distinct-class quorum ESCALATES a single-oracle ratification
+  (honoring an operator's `minDistinctClasses`), and correlation fully discounts. The panel can
+  NOT be mistaken for N independent providers (a QA round caught the pre-fix version presenting
+  distinct classes to the quorum, the diversity-theater failure mode). On top of that it surfaces
+  TWO VISIBLE Verdict Findings: a `warn` CAVEAT stating it is NOT cross-provider independence, does
+  NOT close [CLM-0164], does not feed the #348 parity precondition, and that NEITHER high nor low
+  disagreement establishes independence (the metric is a divergence signal, not an independence
+  measurement); and an `info` metric of inter-voter disagreement over ONLY the voters that ACTUALLY
+  balloted (a `voter_error:` abstain is a counted shortfall, never silent agreement). A distinct
+  `cli.vote.model-diverse-single-oracle` audit records the posture with the chat ids used and the
+  non-chat ids dropped, and the `vote-parity-check` `isCounted` gate EXCLUDES a
+  `withinOracleModelDiverse` data point from the #348 window even if it is mis-flagged independent.
+  The faculty vote gate stays model-free; this is composition-root plumbing. Cross-provider voting
+  remains THE real oracle-diversity path.
+evidence:
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::builds a per-model panel for ≥2 chat models, dropping non-chat + pinning the model'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::gives every per-model voter ONE uniform class (distinct raw) so the faculty sees a single oracle'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::LOCKSTEP: collapses EXACTLY the fields the real identityKey consults (tripwire vs a leak)'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::partitions chat vs dropped and sorts chat deterministically by id'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::emits a correlated-oracle CAVEAT that refuses the independence overclaim'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::measures divergence + distinct model ids, counting only voters that ACTUALLY balloted'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::active only for a ratification vote with no CLI adapters and ≥2 models'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::takes the per-model path (audits model-diverse-single-oracle) for ≥2 chat models'
+  - 'test:packages/cli/src/loop/vote-model-diversity.test.ts::falls back to the honest single-oracle degrade when no model diversity is available'
+  - 'test:scripts/__tests__/vote-parity-check.test.mjs::a #509 model-diverse point is NEVER counted, even if mis-flagged independent'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.4

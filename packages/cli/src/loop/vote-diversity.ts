@@ -22,11 +22,21 @@ import {
 } from './node-model.js';
 import { ballotInvoker, diverseBallotInvoker } from './seams.js';
 import type { ModelFitnessWiring } from './node-bind.js';
+import {
+  activeModelDiversity,
+  assignRoundRobin,
+  buildModelDiversity,
+  endpointOracleIdentity,
+  type ModelDiversity,
+} from './vote-model-diversity.js';
 
-/** The available adapters + per-adapter vote-seam builder for a diverse panel. */
+/** The available adapters + per-adapter vote-seam builder for a diverse panel.
+ * `modelDiverse` is the endpoint-only per-MODEL arm (#509): present only when the
+ * run adapter is a registered endpoint serving ≥2 chat models. */
 export interface VoteDiversity {
   readonly adapters: readonly AdapterName[];
   readonly seamForAdapter: (name: AdapterName) => NodeSeam;
+  readonly modelDiverse?: ModelDiversity;
 }
 
 /**
@@ -89,16 +99,21 @@ export function buildVoteSeamForAdapter(
   );
 }
 
-/** Assemble the {@link VoteDiversity} for the default (non-injected) loop path. */
+/** Assemble the {@link VoteDiversity} for the default (non-injected) loop path.
+ * When cross-adapter diversity is unavailable (an endpoint-only run) the per-MODEL
+ * arm (#509) is built from the endpoint's discovered `/v1/models`. */
 export function buildVoteDiversity(
   overlay: Overlay,
   runAdapter: string,
+  discovered: DiscoveredCache,
   totals: RunTotals,
   fitness: ModelFitnessWiring = {},
 ): VoteDiversity {
+  const modelDiverse = buildModelDiversity(overlay, runAdapter, discovered, totals, fitness);
   return {
     adapters: diverseVoteAdapters(overlay, runAdapter),
     seamForAdapter: (name) => buildVoteSeamForAdapter(name, overlay, totals, fitness),
+    ...(modelDiverse === undefined ? {} : { modelDiverse }),
   };
 }
 
@@ -130,6 +145,54 @@ function auditSingleOracle(deps: VoteInvokerDeps, adapter: string | null, reason
   });
 }
 
+/** Append a `cli.vote.model-diverse-single-oracle` audit (#509, rule 7): a per-MODEL
+ * endpoint panel is model-NAME diversity WITHIN ONE oracle — correlated, NOT
+ * cross-provider independence — recorded distinctly from the plain single-oracle
+ * degrade, with the count of chat models used and non-chat models dropped. */
+function auditModelDiverse(deps: VoteInvokerDeps, md: ModelDiversity): void {
+  appendEvent(deps.store, {
+    type: 'cli.vote.model-diverse-single-oracle',
+    payload: {
+      runId: deps.runId,
+      endpoint: md.endpointId,
+      models: md.models.length,
+      modelIds: md.models.map((m) => m.raw).slice(0, 32),
+      dropped: md.dropped.length,
+      droppedIds: md.dropped.map((m) => m.raw).slice(0, 32), // non-chat models filtered out (never silent)
+      note: 'model-name diversity within one oracle — correlated, NOT cross-provider independence',
+    },
+  });
+}
+
+/** Build the per-voter model-diverse invoker (#509): round-robin the panel across
+ * the endpoint's chat models, each voter pinned to its distinct model, seams cached
+ * per model id. */
+function modelDiverseInvoker(deps: VoteInvokerDeps, md: ModelDiversity): InvokeVoter {
+  const byVoter = assignRoundRobin(
+    PANEL_RATIFICATION.map((v) => v.name),
+    md.models,
+  );
+  const modelSeams = new Map<string, NodeSeam>();
+  const seamForVoter = (name: string): NodeSeam => {
+    const model = byVoter.get(name) ?? (md.models[0] as ModelDiversity['models'][number]);
+    let seam = modelSeams.get(model.raw);
+    if (seam === undefined) {
+      seam = md.seamForModel(model);
+      modelSeams.set(model.raw, seam);
+    }
+    return seam;
+  };
+  return diverseBallotInvoker({
+    overlayDir: deps.overlayDir,
+    runId: deps.runId,
+    seamForVoter,
+    discovered: deps.discovered,
+    // Stamp every ballot with ONE endpoint-scoped class so the faculty sees a single
+    // oracle (the #509 HIGH-1 honesty fix) — never N independent providers.
+    servedForVoter: (seam) => endpointOracleIdentity(md.endpointId, seam),
+  });
+}
+
 export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
   const single = ballotInvoker({
     overlayDir: deps.overlayDir,
@@ -139,11 +202,18 @@ export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
   const div = deps.voteDiversity;
   // A panel-3 loop vote or the injected path uses the single-seam invoker (no diversity).
   if (!deps.isRatification || div === undefined) return single;
-  // An ENDPOINT-ONLY run (#392): NO CLI voter → diverseVoteAdapters is empty. The
-  // vote runs single-oracle on the node's own (api) seam; AUDIT it (rule 7) before
-  // returning the single invoker — the degradation is never silent, and there is no
-  // served-class finding because the single seam carries no served identity.
+  // An ENDPOINT-ONLY run (#392): NO CLI voter → diverseVoteAdapters is empty. If the
+  // endpoint serves ≥2 chat models, convene a per-MODEL panel (#509, model-NAME
+  // diversity within one oracle — audited distinctly, findings surfaced by the
+  // executor); otherwise the vote runs single-oracle on the node's own (api) seam,
+  // AUDITED (rule 7) — never a silent degrade, and no served-class finding since the
+  // single seam carries no served identity.
   if (div.adapters.length === 0) {
+    const md = activeModelDiversity(div.modelDiverse, 0, deps.isRatification);
+    if (md !== undefined) {
+      auditModelDiverse(deps, md);
+      return modelDiverseInvoker(deps, md);
+    }
     auditSingleOracle(
       deps,
       null,
@@ -151,6 +221,13 @@ export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
     );
     return single;
   }
+  return crossAdapterInvoker(deps, div);
+}
+
+/** The cross-ADAPTER diverse invoker (#369): round-robin the panel across the
+ * distinct CLI adapters (seams cached per adapter). One adapter (length 1) collapses
+ * onto it — the served-class finding fires AND the degrade is audited. */
+function crossAdapterInvoker(deps: VoteInvokerDeps, div: VoteDiversity): InvokeVoter {
   const seamCache = new Map<AdapterName, NodeSeam>();
   const seamFor = (name: AdapterName): NodeSeam => {
     let seam = seamCache.get(name);
@@ -160,14 +237,16 @@ export function voteInvokerFor(deps: VoteInvokerDeps): InvokeVoter {
     }
     return seam;
   };
+  const voterAdapter = assignRoundRobin(
+    PANEL_RATIFICATION.map((v) => v.name),
+    div.adapters,
+  );
   const byVoter = new Map<string, NodeSeam>(
-    PANEL_RATIFICATION.map((voter, i) => [
+    PANEL_RATIFICATION.map((voter) => [
       voter.name,
-      seamFor(div.adapters[i % div.adapters.length] as AdapterName),
+      seamFor(voterAdapter.get(voter.name) as AdapterName),
     ]),
   );
-  // One CLI adapter (length 1): the panel collapses onto it — served-class finding
-  // fires (all ballots one class) AND the audit records the degraded posture.
   if (div.adapters.length < 2) {
     auditSingleOracle(deps, div.adapters[0] ?? null, 'fewer than 2 distinct adapters available');
   }

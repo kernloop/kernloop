@@ -53,9 +53,14 @@ export function loadLedger(text) {
 }
 
 /** A data point is COUNTED toward the formal window iff independence is verified AND it
- * is flagged counted (post-criteria, pre-registered) — never a pre-criteria point. */
-function isCounted(dp) {
-  return dp.independenceVerified === true && dp.counted === true;
+ * is flagged counted (post-criteria, pre-registered) — never a pre-criteria point.
+ * #509 guard: a `withinOracleModelDiverse` point (a per-model endpoint panel — model-
+ * NAME diversity within ONE oracle, NOT cross-provider independence) is NEVER counted,
+ * even if mis-flagged independenceVerified — that signal must not leak into the window. */
+export function isCounted(dp) {
+  return (
+    dp.independenceVerified === true && dp.counted === true && dp.withinOracleModelDiverse !== true
+  );
 }
 
 /** Score a ledger against the ratified criteria. Pure — no I/O, no exit. */
