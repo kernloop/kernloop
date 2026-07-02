@@ -1,5 +1,13 @@
 # @kernloop/faculty-toolsmith
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [b9e17f0]
+  - @kernloop/kernel@0.1.4
+  - @kernloop/contracts@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes
