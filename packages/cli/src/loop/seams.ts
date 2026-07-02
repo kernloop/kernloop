@@ -10,7 +10,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import type { Brief } from '@kernloop/contracts';
+import type { Brief, ModelIdentity } from '@kernloop/contracts';
 import type { DiscoveredCache } from '@kernloop/faculty-models';
 import {
   ReviewFindingSchema,
@@ -110,6 +110,11 @@ export interface DiverseSeamBindings {
    * root's round-robin over the available adapters. */
   readonly seamForVoter: (voterName: string) => NodeSeam;
   readonly discovered?: DiscoveredCache;
+  /** Optional override for the ballot's served CLASS (#509): the per-MODEL endpoint
+   * panel supplies a UNIFORM endpoint-scoped identity so faculty-gates sees ONE oracle
+   * (it is NOT cross-provider independent), not N distinct classes. Default: the
+   * discovered-normalized identity of the assigned seam ({@link voterServedIdentity}). */
+  readonly servedForVoter?: (seam: NodeSeam) => ModelIdentity;
 }
 
 /**
@@ -125,7 +130,10 @@ export function diverseBallotInvoker(b: DiverseSeamBindings): InvokeVoter {
     const { output, cost } = await seam.invoke(voterPrompt(voter.rolePrompt, brief, proposal));
     const sink = { overlayDir: b.overlayDir, runId: b.runId, node: `vote-${voter.name}` };
     const ballot = parseEmission(output, BallotEmissionSchema, 'ballot', sink);
-    return { ...ballot, cost, served: voterServedIdentity(seam.served, b.discovered) };
+    const served = b.servedForVoter
+      ? b.servedForVoter(seam)
+      : voterServedIdentity(seam.served, b.discovered);
+    return { ...ballot, cost, served };
   };
 }
 

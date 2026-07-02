@@ -7,7 +7,7 @@
  * kernel, so each kernel touch (audit append, metered totals) lives here.
  */
 import { appendEvent, type AdapterName } from '@kernloop/kernel';
-import { loadDiscoveredCache } from '@kernloop/faculty-models';
+import { loadDiscoveredCache, type DiscoveredCache } from '@kernloop/faculty-models';
 import { reviewGateManifest } from '@kernloop/faculty-gates';
 import {
   JsonlCheckpointStore,
@@ -137,11 +137,12 @@ export function voteDiversityFor(
   kern: Kernloop,
   request: LoopRequest,
   adapter: string,
+  discovered: DiscoveredCache,
   totals: { tokens: number; usd: number },
   fitness: ModelFitnessWiring | undefined,
 ): VoteDiversity | undefined {
   if (!kern.config.gates.vote.providerDiverse || request.invoke !== undefined) return undefined;
-  return buildVoteDiversity(kern.config, adapter, totals, fitness);
+  return buildVoteDiversity(kern.config, adapter, discovered, totals, fitness);
 }
 
 export function buildLoopEngine(
@@ -159,7 +160,11 @@ export function buildLoopEngine(
     totals: { tokens: number; usd: number };
   },
 ): Engine {
-  const voteDiversity = voteDiversityFor(kern, request, seams.adapter, seams.totals, seams.fitness);
+  // The discovered cache is loaded ONCE per run and shared by provenance
+  // normalization AND the #509 per-model vote panel (a missing cache degrades to empty).
+  const discovered = loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString());
+  const { adapter, totals, fitness } = seams;
+  const voteDiversity = voteDiversityFor(kern, request, adapter, discovered, totals, fitness);
   return createEngine({
     executors: buildLoopExecutors({
       kern,
@@ -169,10 +174,7 @@ export function buildLoopEngine(
       refs: seams.refs,
       // The live spend accumulator → withSpendAudit emits loop.spend per node (#230).
       totals: seams.totals,
-      // The discovered cache is loaded ONCE per run; a synced served model then
-      // normalizes by table in provenance (loadDiscoveredCache degrades a
-      // missing/corrupt cache to empty, so an unsynced run is unaffected).
-      discovered: loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString()),
+      discovered,
       ...(request.checks === undefined ? {} : { checks: request.checks }),
       ...(voteDiversity === undefined ? {} : { voteDiversity }),
     }),

@@ -6,7 +6,7 @@
  * is the producer of that precision: at run end it labels each proceeding plan-vote
  * voter against the run's eventual success.
  */
-import { BriefSchema, type Brief, type Outcome } from '@kernloop/contracts';
+import { BriefSchema, VerdictSchema, type Brief, type Outcome } from '@kernloop/contracts';
 import {
   PANEL_DEFAULT,
   PANEL_RATIFICATION,
@@ -19,6 +19,7 @@ import {
 import type { NodeContext, NodeExecutor } from '@kernloop/workflows';
 import { publishVerdict } from '../executors.js';
 import { voteInvokerFor } from './vote-diversity.js';
+import { activeModelDiversity, modelDiverseFindings } from './vote-model-diversity.js';
 import type { LoopBindings } from './executors.js';
 
 /**
@@ -81,9 +82,25 @@ export function voteExecutor(b: LoopBindings): NodeExecutor {
           return precisionWeight(rp.precision, rp.labeled);
         })
       : undefined;
-    const verdict = await runVoteGate(
+    const raw = await runVoteGate(
       voteGateOptions(b, ctx, planBrief, panel, isRatification, weights, invokeVoter),
     );
+    // #509: when this endpoint-only ratification convened a per-MODEL panel, append
+    // the VISIBLE honest findings — the correlated-oracle caveat + the measured
+    // divergence — onto the Verdict (computed here, where the model-diverse context
+    // and the ballots meet; the faculty gate stays model-free).
+    const md = activeModelDiversity(
+      b.voteDiversity?.modelDiverse,
+      b.voteDiversity?.adapters.length ?? 0,
+      isRatification,
+    );
+    const verdict =
+      md === undefined
+        ? raw
+        : VerdictSchema.parse({
+            ...raw,
+            findings: [...raw.findings, ...modelDiverseFindings(raw, md)],
+          });
     // Stash the proceeding plan-vote verdict so retrospect can label each voter's
     // outcome against the run's eventual success (#369 Inc3a). The LAST vote stashed
     // is the approving one that proceeds (a rejected vote re-plans + re-votes).

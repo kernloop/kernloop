@@ -77,6 +77,11 @@ export {
   type VoteOutcome,
   type VoteStrategy,
 } from './vote/strategies.js';
+// The served-CLASS key (provider/family/generation/tier) every independence check
+// consults. Exported so the #509 per-model panel can pin, in a lockstep test, that its
+// endpoint-scoped collapse covers EXACTLY these fields — if this key grows a field the
+// collapse omits, the leak reopens and that test must fail (CLM-0188).
+export { identityKey } from './vote/correlation.js';
 export {
   FINDING_REASONING_CAP,
   VoterBallotSchema,
