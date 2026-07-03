@@ -16,7 +16,7 @@ import {
 import { type RunResult } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { type RunTotals } from './invoke.js';
-import { type DocArtifactResult } from './doc-artifact.js';
+import { writeDocArtifact, type DocArtifactResult } from './doc-artifact.js';
 import type { LoopReport, LoopRequest } from './index.js';
 
 /**
@@ -69,6 +69,32 @@ export function guardWorkspaceContainment(
       },
     });
   }
+}
+
+/**
+ * Write the derived API-doc artifact for a COMPLETED run [CLM-0105] and audit
+ * the result (`loop.document`); a non-completed run writes nothing. Moved here
+ * from index.ts for line-count headroom (#570) — identical behavior.
+ */
+export function documentDeliverable(
+  kern: Kernloop,
+  runId: string,
+  request: LoopRequest,
+  status: RunResult['status'],
+): DocArtifactResult | undefined {
+  if (status !== 'completed') return undefined;
+  const artifact = writeDocArtifact(request.workspaceDir);
+  appendEvent(kern.store, {
+    type: 'loop.document',
+    payload: {
+      taskId: request.task.id, // both ids so a task.id filter catches the run (#343)
+      runId,
+      written: artifact.written,
+      symbolCount: artifact.symbolCount,
+      documentedCount: artifact.documentedCount,
+    },
+  });
+  return artifact;
 }
 
 /**

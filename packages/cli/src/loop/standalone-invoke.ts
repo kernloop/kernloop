@@ -59,5 +59,9 @@ export function resolveStandaloneInvoke(
     throw new Error(`adapter "${adapter}" is neither a CLI adapter nor a registered endpoint id`);
   }
   ensureAdapterAvailable(adapter, env);
+  // No cwd is pinned here DELIBERATELY (#570): a standalone verb has no declared
+  // workspace — its one-shot call is a pure completion over the prompt, run from
+  // wherever the operator invoked it. The workspace-pinning fix applies only to
+  // the canonical loop path, whose LoopRequest declares a workspaceDir.
   return adapterInvoke(adapter, env, undefined, kern.config.adapterEnvAllow);
 }

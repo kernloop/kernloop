@@ -9,10 +9,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, realpathSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { runSubprocess } from './subprocess.js';
+import { fileURLToPath } from 'node:url';
+import { runSubprocess, sweepChildGroups } from './subprocess.js';
 
 /** Run an inline Node script as a real subprocess. */
 function runNode(
@@ -212,6 +214,110 @@ describe('runSubprocess', () => {
     expect(result.stderrTruncated).toBe(true);
     expect(result.stdout).toBe('ok');
     expect(result.stdoutTruncated).toBe(false);
+  });
+
+  /**
+   * The child-tree fixture (#570): spawns a hanging grandchild, writes
+   * "<ownPid> <grandchildPid>" to the pid file given as its one argument, then
+   * hangs itself — so the test knows both pids while the tree is still LIVE.
+   */
+  const CHILD_TREE_SCRIPT =
+    'const { spawn } = require("node:child_process");' +
+    'const g = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);' +
+    'require("node:fs").writeFileSync(process.argv[1], process.pid + " " + g.pid);' +
+    'setTimeout(() => {}, 30_000);';
+
+  /** Poll a child-tree pid file until it holds both pids (~3s), or fail. */
+  async function readPids(file: string): Promise<{ child: number; grandchild: number }> {
+    for (let i = 0; i < 300; i += 1) {
+      try {
+        const parts = readFileSync(file, 'utf8').trim().split(' ').map(Number);
+        if (parts.length === 2 && parts.every(Number.isInteger)) {
+          return { child: parts[0] as number, grandchild: parts[1] as number };
+        }
+      } catch {
+        // Not written yet.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`pid file ${file} never appeared — the child tree did not start`);
+  }
+
+  it('sweepChildGroups SIGTERMs every live child process group — grandchild included (#570)', async () => {
+    const pidFile = path.join(mkdtempSync(path.join(tmpdir(), 'sweep-')), 'pids');
+    const pending = runSubprocess({
+      command: process.execPath,
+      args: ['-e', CHILD_TREE_SCRIPT, pidFile],
+      timeoutMs: 30_000,
+    });
+    const pids = await readPids(pidFile);
+    sweepChildGroups(); // the run's teardown path: kill(-pid) on every live group
+    const result = await pending;
+    expect(result.signal).toBe('SIGTERM');
+    expect(await waitForProcessGone(pids.grandchild)).toBe(true);
+    expect(await waitForProcessGone(pids.child)).toBe(true);
+    // The settled child was unregistered on close: a second sweep is a no-op.
+    expect(() => sweepChildGroups()).not.toThrow();
+  });
+
+  it('a fatal signal sweeps live child groups before the parent dies (#570)', async () => {
+    // Own SIGHUP so the sweep handler's re-raise defers to us and the vitest
+    // worker survives; `process.emit` drives the handler without a real signal.
+    const keepAlive = (): void => undefined;
+    process.on('SIGHUP', keepAlive);
+    try {
+      const pidFile = path.join(mkdtempSync(path.join(tmpdir(), 'sweep-sig-')), 'pids');
+      const pending = runSubprocess({
+        command: process.execPath,
+        args: ['-e', CHILD_TREE_SCRIPT, pidFile],
+        timeoutMs: 30_000,
+      });
+      const pids = await readPids(pidFile);
+      process.emit('SIGHUP');
+      const result = await pending;
+      expect(result.signal).toBe('SIGTERM');
+      expect(await waitForProcessGone(pids.grandchild)).toBe(true);
+    } finally {
+      process.removeListener('SIGHUP', keepAlive);
+    }
+  });
+
+  it('a SIGTERMed parent takes the whole coder process tree with it (#570)', async () => {
+    // The ACCEPTANCE for #570 defect 2, with a REAL OS signal: a driver process
+    // (standing in for `kernloop run`) spawns a child tree through the BUILT
+    // runSubprocess; SIGTERMing the driver must SIGTERM the child's process
+    // group — no orphaned agentic writer survives its run.
+    const dist = fileURLToPath(new URL('../../dist/adapters/subprocess.js', import.meta.url));
+    // `turbo run test` builds first (turbo.json: test dependsOn build) — fail
+    // with the remedy rather than a cryptic import error in the driver.
+    expect(existsSync(dist), `built kernel missing at ${dist} — run pnpm build first`).toBe(true);
+    const dir = mkdtempSync(path.join(tmpdir(), 'sweep-driver-'));
+    const childFile = path.join(dir, 'child.cjs');
+    writeFileSync(
+      childFile,
+      'const { spawn } = require("node:child_process");\n' +
+        'const g = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);\n' +
+        'require("node:fs").writeFileSync(process.argv[2], process.pid + " " + g.pid);\n' +
+        'setTimeout(() => {}, 30_000);\n',
+    );
+    const driverFile = path.join(dir, 'driver.mjs');
+    writeFileSync(
+      driverFile,
+      `import { runSubprocess } from ${JSON.stringify(String(new URL('../../dist/adapters/subprocess.js', import.meta.url)))};\n` +
+        'void runSubprocess({ command: process.execPath, args: [process.argv[2], process.argv[3]], timeoutMs: 60_000 }).catch(() => {});\n',
+    );
+    const pidFile = path.join(dir, 'pids');
+    const driver = spawn(process.execPath, [driverFile, childFile, pidFile], { stdio: 'ignore' });
+    const pids = await readPids(pidFile);
+    const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) =>
+      driver.once('exit', (code, signal) => resolve({ code, signal })),
+    );
+    driver.kill('SIGTERM');
+    // The sweep handler re-raises after sweeping, so the driver itself dies of
+    // SIGTERM (default disposition preserved) — and the tree dies with it.
+    expect((await exited).signal).toBe('SIGTERM');
+    expect(await waitForProcessGone(pids.grandchild)).toBe(true);
+    expect(await waitForProcessGone(pids.child)).toBe(true);
   });
 
   it('passes a custom environment through to the child', async () => {

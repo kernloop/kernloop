@@ -128,6 +128,11 @@ export interface ModelFitnessWiring {
  * tier lower (#194); `onDowngrade` audits each drop. `fitness` (#66) threads the
  * per-model-call fitness hook + discovered cache into each seam so each node's
  * served identity re-keys the Observer's additive identity-fitness series.
+ * `workspaceDir` (#570, CLM-0195) pins every CLI-adapter subprocess's cwd to the run's
+ * declared workspace — the SAME directory `guardWorkspaceContainment` validated —
+ * so an agentic coder resolves relative paths in the workspace, never in
+ * kernloop's launch repo. Omitted (no workspace) ⇒ the child inherits the launch
+ * cwd, as before.
  */
 export function buildInvokeForNode(
   runAdapter: string,
@@ -136,6 +141,7 @@ export function buildInvokeForNode(
   budget?: BudgetDowngrade['budget'],
   onDowngrade?: OnDowngrade,
   fitness: ModelFitnessWiring = {},
+  workspaceDir?: string,
 ): (node: TieredNode) => NodeSeam {
   const timeoutBase = overlay.invokeTimeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
   const hooks: NodeSeamHooks = {
@@ -153,7 +159,9 @@ export function buildInvokeForNode(
             name as AdapterName,
             adapterModelOverride(overlay.adapterModels, name),
           ),
-          adapterInvoke(name as AdapterName, undefined, undefined, overlay.adapterEnvAllow),
+          // cwd = the run's declared workspace (#570): the agentic child runs IN
+          // the directory containment approved, not the orchestrator's launch dir.
+          adapterInvoke(name as AdapterName, undefined, workspaceDir, overlay.adapterEnvAllow),
           totals,
           timeoutMs,
           hooks,

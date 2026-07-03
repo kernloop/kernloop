@@ -32,18 +32,13 @@ import {
   type AuditStore,
 } from '@kernloop/kernel';
 import { isCliAdapter } from '../overlay-schemas.js';
-import { cleanHalt, guardWorkspaceContainment, report } from './finalize.js';
+import { cleanHalt, documentDeliverable, guardWorkspaceContainment, report } from './finalize.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
-import {
-  JsonlCheckpointStore,
-  type RunResult,
-  type RunState,
-  type TraceEntry,
-} from '@kernloop/workflows';
+import { JsonlCheckpointStore, type RunState, type TraceEntry } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { type LoopRefs } from './executors.js';
-import { writeDocArtifact, type DocArtifactResult } from './doc-artifact.js';
+import { type DocArtifactResult } from './doc-artifact.js';
 import { LoopResumeError, type LoopInvoke, type RunTotals } from './invoke.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
@@ -323,25 +318,36 @@ function prepareRunAdapter(
   auditPureCompletionCoverage(kern.store, adapter, runId); // #355: surface a degraded posture
 }
 
-function documentDeliverable(
+/**
+ * The run's per-node model seam [CLM-0078]. With a real run, each node derives
+ * its requirement and binds the adapter+model that serves it, and every CLI
+ * subprocess's cwd is pinned to the DECLARED workspace — the same directory
+ * `guardWorkspaceContainment` approved, so check and spawn agree (#570,
+ * CLM-0195). An injected invoke routes every node through that one base, but
+ * still resolves each node's SERVED model+effort so provenance stays honest.
+ * Budget-aware downgrade (#194): past the overlay fraction, later nodes route
+ * a tier lower.
+ */
+function invokeSeamFor(
   kern: Kernloop,
-  runId: string,
   request: LoopRequest,
-  status: RunResult['status'],
-): DocArtifactResult | undefined {
-  if (status !== 'completed') return undefined;
-  const artifact = writeDocArtifact(request.workspaceDir);
-  appendEvent(kern.store, {
-    type: 'loop.document',
-    payload: {
-      taskId: request.task.id, // both ids so a task.id filter catches the run (#343)
-      runId,
-      written: artifact.written,
-      symbolCount: artifact.symbolCount,
-      documentedCount: artifact.documentedCount,
-    },
-  });
-  return artifact;
+  adapter: string,
+  totals: RunTotals,
+  onDowngrade: ReturnType<typeof downgradeAudit>,
+  fitness: ReturnType<typeof modelFitness>,
+): (node: TieredNode) => NodeSeam {
+  const budget = { tokens: request.task.budget.tokens, usd: request.task.budget.usd };
+  return request.invoke === undefined
+    ? buildInvokeForNode(
+        adapter,
+        kern.config,
+        totals,
+        budget,
+        onDowngrade,
+        fitness,
+        request.workspaceDir,
+      )
+    : injectedSeamFor(adapter, kern.config, request.invoke, totals, budget, onDowngrade);
 }
 
 /**
@@ -361,19 +367,10 @@ export async function executeCanonicalLoop(
   const refs: LoopRefs = {};
   if (request.resumeRunId !== undefined) await primeFromCheckpoint(kern, checkpoints, runId, refs);
   const totals: RunTotals = { tokens: 0, usd: 0 };
-  // Per-node seams, all metered. With a real run, each node derives its
-  // requirement and binds the adapter+model that serves it [CLM-0078]. An
-  // injected invoke routes every node through that one base, but still resolves
-  // the node's SERVED model+effort against the run adapter so provenance stays
-  // honest about what each node requested.
-  // Budget-aware downgrade (#194): past the overlay fraction, later nodes route a tier lower.
-  const budget = { tokens: request.task.budget.tokens, usd: request.task.budget.usd };
   const onDowngrade = downgradeAudit(kern, runId);
   const fitness = modelFitness(kern);
-  const invokeFor: (node: TieredNode) => NodeSeam =
-    request.invoke === undefined
-      ? buildInvokeForNode(adapter, kern.config, totals, budget, onDowngrade, fitness)
-      : injectedSeamFor(adapter, kern.config, request.invoke, totals, budget, onDowngrade);
+  // Per-node seams, all metered — workspace-pinned subprocess cwd (#570); see invokeSeamFor.
+  const invokeFor = invokeSeamFor(kern, request, adapter, totals, onDowngrade, fitness);
   // Effective budget mode [CLM-0077]: --unlimited forces unlimited; else the
   // overlay's budgetMode (default enforce). An unlimited run is recorded honestly.
   const mode = resolveBudgetMode(kern, request, runId);
