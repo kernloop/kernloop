@@ -18,4 +18,6 @@ paths = [
   '''packages/kernel/src/adapters/discover\.test\.ts''',
   '''packages/cli/src/tools/models\.test\.ts''',
   '''packages/docscan/src/security-scan\.test\.ts''',
+  # #541 scoped-security-check fixtures (PR #538): the same documented AWS example key.
+  '''packages/faculty-gates/src/checks\.test\.ts''',
 ]
