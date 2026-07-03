@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/contracts",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Kernloop Layer 1 — the frozen five contracts (TaskContract, Brief, Verdict, Outcome, Manifest) as zod schemas with inferred TypeScript types (spec §4).",
   "license": "MIT",
   "type": "module",

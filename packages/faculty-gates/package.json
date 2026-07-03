@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-gates",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Kernloop Layer 2 — the gates faculty (spec §5.3). P1 scope: the mechanical quality gate (typecheck/lint/test/coverage over a workspace) emitting uniform Verdicts. The vote gate (P2) and review gate (P3) arrive in later phases; absent here by design, not stubbed.",
   "license": "MIT",
   "type": "module",
