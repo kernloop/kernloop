@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-compiler",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Kernloop Layer 2 — the context compiler faculty (spec §5.1). Deterministically assembles a Brief from a TaskContract plus caller-supplied source material, under hard token budgets with priority-ordered drop and mandatory provenance. Pure function: no file, network, or process I/O — briefs are reproducible artifacts.",
   "license": "MIT",
   "type": "module",
