@@ -62,8 +62,15 @@ describe('gatherRepoProbes', () => {
     // Construct a throwaway git repo so the test is self-contained and runs
     // everywhere git exists (host AND in-sandbox) without relying on the
     // ambient worktree (which is absent in the gate sandbox — no .git).
+    // Null out global/system git config so ambient commit.gpgsign/hooksPath/
+    // templateDir can never flake the fixture — identity rides inline via -c.
     const repo = repoDir();
-    execFileSync('git', ['init', '-b', 'main'], { cwd: repo, stdio: 'ignore' });
+    const gitEnv = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+    };
+    execFileSync('git', ['init', '-b', 'main'], { cwd: repo, stdio: 'ignore', env: gitEnv });
     execFileSync(
       'git',
       [
@@ -76,7 +83,7 @@ describe('gatherRepoProbes', () => {
         '-m',
         'init',
       ],
-      { cwd: repo, stdio: 'ignore' },
+      { cwd: repo, stdio: 'ignore', env: gitEnv },
     );
     const probes = await gatherRepoProbes(repo);
     const names = probes.map((p) => p.name);
