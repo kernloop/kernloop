@@ -20,12 +20,23 @@ statement: >-
   checks test). npm or an absent field is a NO-OP; a declared version missing
   from the host cache FAILS CLOSED as a spawnError naming
   `corepack prepare <name>@<version>` — never silently unsandboxed, never
-  silently green. Fixes the class-3 environmental failure that made every
-  turbo-routed gate check (typecheck/lint/test) fail in the #530 bootstrap
-  dogfood run (#548, second instance after #546).
+  silently green. SECURITY: the `packageManager` field is CHILD-WRITABLE (the
+  gated child edits package.json in the very workspace parsed), making a
+  crafted version a path-traversal read-exfiltration channel into the host
+  filesystem; the defense is two-layer — parseDeclaredPm rejects any
+  non-semver-shaped version (the leading digits-dot-digits-dot-digits anchor is
+  what excludes `..` and path separators; malformed → the same no-op, the gate
+  runs unprovisioned and fails on the tool's own error) AND cachedDistDir
+  asserts the resolved dir stays inside `<cache>/v1`, throwing LOUD otherwise.
+  Fixes the class-3 environmental failure that made every turbo-routed gate
+  check (typecheck/lint/test) fail in the #530 bootstrap dogfood run (#548,
+  second instance after #546).
 evidence:
   - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::parses pnpm@version and strips a +integrity suffix'
   - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::is a no-op (undefined) for npm, absent, or malformed fields'
+  - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::rejects a path-traversal version in the child-writable field (no-op, host FS untouched)'
+  - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::rejects a non-semver-shaped version (slash suffix, v-prefix, wildcard)'
+  - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::throws LOUD on a dist dir escaping <cache>/v1 (belt-and-braces behind the parse)'
   - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::honors COREPACK_HOME, else defaults under ~/.cache/node/corepack'
   - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::resolves the entry from the dist bin field and verifies it exists'
   - 'test:packages/faculty-gates/src/sandbox/provision-pm.test.ts::throws LOUD when the resolved entry file is absent (broken cache)'

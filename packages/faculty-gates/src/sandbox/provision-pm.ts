@@ -41,10 +41,24 @@ export interface ProvisionResult {
 }
 
 /**
+ * SECURITY: the version must be SEMVER-SHAPED — the `packageManager` field is
+ * CHILD-WRITABLE (the gated child edits package.json in the very workspace we
+ * parse), and the version is path.joined into the host corepack cache path. The
+ * leading `\d+\.\d+\.\d+` anchor is what excludes traversal: a bare
+ * `[0-9A-Za-z.-]+` class alone would still admit `..`. No path separators can
+ * ever match.
+ */
+const SEMVER_SHAPE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+
+/**
  * Parse the workspace root `packageManager` field (e.g. `pnpm@10.33.0`).
  * Returns undefined — a legitimate NO-OP — when the field is absent/malformed
  * or names npm (npm ships with node, needs no provisioning). A corepack
- * `+<integrity-hash>` suffix on the version is stripped.
+ * `+<integrity-hash>` suffix on the version is stripped. A version that is not
+ * strictly semver-shaped ({@link SEMVER_SHAPE}) is treated as MALFORMED → the
+ * same no-op: the field is child-writable, so a crafted version (e.g.
+ * `pnpm@../../../../home/user/secrets`) must never reach the host filesystem —
+ * the gate then runs unprovisioned and fails on the tool's own error instead.
  */
 export function parseDeclaredPm(workspaceDir: string): DeclaredPm | undefined {
   let pkg: unknown;
@@ -59,7 +73,7 @@ export function parseDeclaredPm(workspaceDir: string): DeclaredPm | undefined {
   if (at <= 0) return undefined;
   const name = field.slice(0, at);
   const version = (field.slice(at + 1).split('+')[0] ?? '').trim();
-  if (version.length === 0) return undefined;
+  if (!SEMVER_SHAPE.test(version)) return undefined;
   if (name !== 'pnpm' && name !== 'yarn') return undefined;
   return { name, version };
 }
@@ -71,9 +85,22 @@ export function corepackCacheRoot(env: NodeJS.ProcessEnv = process.env): string 
   return path.join(homedir(), '.cache', 'node', 'corepack');
 }
 
-/** The cached dist dir for a declared PM: `<cache>/v1/<name>/<version>`. */
+/**
+ * The cached dist dir for a declared PM: `<cache>/v1/<name>/<version>`.
+ * SECURITY belt-and-braces behind {@link parseDeclaredPm}'s semver shape: the
+ * resolved dir MUST stay inside `<cache>/v1` — a traversal that somehow got
+ * past the parse (a future refactor loosening the shape) throws LOUD here
+ * rather than letting a child-writable field address the host filesystem.
+ */
 export function cachedDistDir(pm: DeclaredPm, env?: NodeJS.ProcessEnv): string {
-  return path.join(corepackCacheRoot(env), 'v1', pm.name, pm.version);
+  const root = path.resolve(corepackCacheRoot(env), 'v1');
+  const dir = path.resolve(path.join(root, pm.name, pm.version));
+  if (!dir.startsWith(root + path.sep)) {
+    throw new Error(
+      `refusing corepack cache path outside ${root}: declared ${pm.name}@${pm.version} resolves to ${dir}`,
+    );
+  }
+  return dir;
 }
 
 /**

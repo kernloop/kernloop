@@ -74,6 +74,25 @@ describe('parseDeclaredPm', () => {
     expect(parseDeclaredPm(workspace())).toBeUndefined();
     expect(parseDeclaredPm(workspace('pnpm'))).toBeUndefined();
   });
+
+  it('rejects a path-traversal version in the child-writable field (no-op, host FS untouched)', () => {
+    // The gated CHILD can edit package.json; a crafted version must never be
+    // path.joined against the host corepack cache (read-exfiltration channel).
+    expect(parseDeclaredPm(workspace('pnpm@../../../../etc'))).toBeUndefined();
+    expect(parseDeclaredPm(workspace('pnpm@..'))).toBeUndefined();
+    expect(parseDeclaredPm(workspace('yarn@1.2.3/../../../etc'))).toBeUndefined();
+  });
+
+  it('rejects a non-semver-shaped version (slash suffix, v-prefix, wildcard)', () => {
+    expect(parseDeclaredPm(workspace('pnpm@10.33.0/evil'))).toBeUndefined();
+    expect(parseDeclaredPm(workspace('pnpm@v10.33.0'))).toBeUndefined();
+    expect(parseDeclaredPm(workspace('pnpm@10.x'))).toBeUndefined();
+    // A legitimate prerelease suffix still parses.
+    expect(parseDeclaredPm(workspace('pnpm@10.33.0-beta.1'))).toEqual({
+      name: 'pnpm',
+      version: '10.33.0-beta.1',
+    });
+  });
 });
 
 describe('corepackCacheRoot / cachedDistDir', () => {
@@ -82,6 +101,15 @@ describe('corepackCacheRoot / cachedDistDir', () => {
     expect(corepackCacheRoot({})).toMatch(/\.cache[/\\]node[/\\]corepack$/);
     expect(cachedDistDir({ name: 'pnpm', version: '1.2.3' }, { COREPACK_HOME: '/x' })).toBe(
       join('/x', 'v1', 'pnpm', '1.2.3'),
+    );
+  });
+
+  it('throws LOUD on a dist dir escaping <cache>/v1 (belt-and-braces behind the parse)', () => {
+    // Only reachable if a future refactor loosens the semver shape — the
+    // containment assert must still refuse a traversal to the host FS.
+    const crafted = { name: 'pnpm', version: '../../../../etc' } as const;
+    expect(() => cachedDistDir(crafted, { COREPACK_HOME: '/x' })).toThrow(
+      /refusing corepack cache path outside/,
     );
   });
 });
