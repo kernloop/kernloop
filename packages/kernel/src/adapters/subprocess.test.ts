@@ -49,13 +49,18 @@ async function waitForProcessGone(pid: number): Promise<boolean> {
       return true; // ESRCH — process is gone
     }
     // Zombie check: /proc/<pid>/stat state field (#551 — no init reaper in sandbox).
-    try {
-      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
-      const lastParen = stat.lastIndexOf(')');
-      const state = lastParen >= 0 ? stat[lastParen + 2] : '';
-      if (state === 'Z' || state === 'X' || state === 'x') return true;
-    } catch {
-      return true; // entry vanished between kill(0) and read — ESRCH-equivalent
+    // Linux-only: on hosts without /proc (macOS) an unconditional read would throw
+    // and misreport a LIVE process as gone, passing the tree-kill test vacuously —
+    // off-Linux the portable kill(0) poll above stays the sole liveness check.
+    if (process.platform === 'linux') {
+      try {
+        const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+        const lastParen = stat.lastIndexOf(')');
+        const state = lastParen >= 0 ? stat[lastParen + 2] : '';
+        if (state === 'Z' || state === 'X' || state === 'x') return true;
+      } catch {
+        return true; // entry vanished between kill(0) and read — ESRCH-equivalent
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
