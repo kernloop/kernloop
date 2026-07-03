@@ -10,6 +10,7 @@ import {
   normalizeCmd,
   preflightGates,
   requiredGates,
+  requiredPnpmGates,
   resolvePnpm,
   runCheck,
 } from '../check-preflight-sync.mjs';
@@ -91,6 +92,31 @@ describe('requiredGates — fail-closed: every non-CI-only run command is requir
   });
 });
 
+describe('requiredPnpmGates — narrow pnpm-only extractor for security.yml', () => {
+  // security.yml's real shape: a block-scalar gitleaks installer + gitleaks/semgrep
+  // scanners (NOT preflight gates) alongside the one pnpm gate that IS reproducible.
+  const securityYaml = [
+    '      - run: |',
+    '          curl -sSL https://example/gitleaks.tar.gz | tar -xz -C /usr/local/bin gitleaks',
+    '      - run: gitleaks detect --source . --redact --no-banner',
+    '      - run: pnpm install --frozen-lockfile',
+    '      - run: pnpm audit --audit-level=high',
+    '      - run: semgrep scan --config p/typescript --config p/javascript --error --metrics=off',
+  ].join('\n');
+  const gates = requiredPnpmGates(securityYaml, SCRIPTS);
+  test('requires the pnpm audit gate spelled exactly as security.yml (no space after --)', () => {
+    expect(gates.has('pnpm audit --audit-level=high')).toBe(true);
+  });
+  test('does NOT require gitleaks, semgrep, the block-scalar install, or the CI-only install', () => {
+    expect([...gates].some((g) => g.includes('gitleaks'))).toBe(false);
+    expect([...gates].some((g) => g.includes('semgrep'))).toBe(false);
+    expect([...gates].some((g) => g.includes('curl'))).toBe(false);
+    expect([...gates].some((g) => g.includes('install'))).toBe(false);
+    // The whole extracted set is exactly the single pnpm gate.
+    expect([...gates]).toEqual(['pnpm audit --audit-level=high']);
+  });
+});
+
 describe('blockScalarRunLines — multi-line run: blocks fail loud, never silently skip', () => {
   test('detects `run: |` and `run: >` block openers (with chomp + indentation indicators)', () => {
     const yaml = [
@@ -153,6 +179,20 @@ describe('runCheck — the real repo is in sync (enforcement)', () => {
     }
   }
 
+  /** Like {@link checkWith} but ALSO writes a security.yml so the pnpm-gate fold-in is exercised. */
+  function checkWithSecurity(preflight, ciYaml, securityYaml) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-sync-sec-'));
+    fs.mkdirSync(path.join(dir, '.github/workflows'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { preflight } }));
+    fs.writeFileSync(path.join(dir, '.github/workflows/ci.yml'), ciYaml);
+    fs.writeFileSync(path.join(dir, '.github/workflows/security.yml'), securityYaml);
+    try {
+      return runCheck(dir);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   test('fails loud (ok=false, no missing) when ci.yml has a multi-line run block', () => {
     const verdict = checkWith('pnpm build', '      - run: |\n          pnpm newgate');
     expect(verdict.ok).toBe(false);
@@ -186,5 +226,40 @@ describe('runCheck — the real repo is in sync (enforcement)', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test('reports drift when preflight omits a security.yml pnpm gate', () => {
+    const verdict = checkWithSecurity(
+      'pnpm build',
+      '      - run: pnpm build',
+      [
+        '      - run: |',
+        '          curl -sSL https://example/gitleaks.tar.gz | tar -xz -C /usr/local/bin gitleaks',
+        '      - run: gitleaks detect --source . --redact --no-banner',
+        '      - run: pnpm install --frozen-lockfile',
+        '      - run: pnpm audit --audit-level=high',
+        '      - run: semgrep scan --config p/typescript --error --metrics=off',
+      ].join('\n'),
+    );
+    expect(verdict.ok).toBe(false);
+    expect(verdict.missing).toContain('pnpm audit --audit-level=high');
+    // The non-pnpm scanners must NOT be demanded — only the pnpm gate drifts.
+    expect(verdict.missing.some((g) => g.includes('gitleaks'))).toBe(false);
+    expect(verdict.missing.some((g) => g.includes('semgrep'))).toBe(false);
+  });
+
+  test('clean when preflight covers the security.yml pnpm gate', () => {
+    const verdict = checkWithSecurity(
+      'pnpm build && pnpm audit --audit-level=high',
+      '      - run: pnpm build',
+      [
+        '      - run: gitleaks detect --source . --redact --no-banner',
+        '      - run: pnpm install --frozen-lockfile',
+        '      - run: pnpm audit --audit-level=high',
+        '      - run: semgrep scan --config p/typescript --error --metrics=off',
+      ].join('\n'),
+    );
+    expect(verdict.ok).toBe(true);
+    expect(verdict.missing).toEqual([]);
   });
 });

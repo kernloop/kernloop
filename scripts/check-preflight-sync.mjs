@@ -13,6 +13,16 @@
  * `node scripts/governance-check.mjs` CI invocation canonicalize to the same gate.
  * Commands that need CI infrastructure (the lockfile install) are CI-only and
  * exempt — they are not gates a local `preflight` should re-run.
+ *
+ * TWO workflows are checked, DELIBERATELY ASYMMETRICALLY:
+ *   - ci.yml       — FULLY fail-closed: EVERY single-line `run:` is a required gate
+ *                    (see {@link requiredGates}), and a multi-line block scalar fails
+ *                    LOUD ({@link blockScalarRunLines}) so no gate can hide in one.
+ *   - security.yml — pnpm SINGLE-LINE gates ONLY (see {@link requiredPnpmGates}). Its
+ *                    non-pnpm scanners (gitleaks / semgrep) and their block-scalar
+ *                    installers are NOT locally-reproducible preflight gates, so the
+ *                    fail-closed requiredGates + block-scalar fail-loud paths are NOT
+ *                    applied to it — only its `pnpm audit`-shaped steps fold in.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -62,6 +72,10 @@ export function ciRunCommands(yaml) {
  * read. We FAIL LOUD on these (rather than silently skip, which would let a gate added
  * inside a block escape the drift check) so the parser's limitation can never become a
  * silent false-negative — extend the parser when CI first needs a multi-line step.
+ *
+ * Applied to ci.yml ONLY. security.yml legitimately uses block scalars for its scanner
+ * installers (gitleaks), which are NOT preflight gates, so failing loud on them there
+ * would be a false positive — see {@link requiredPnpmGates} and the module header.
  */
 export function blockScalarRunLines(yaml) {
   // Matches `run: |`, `run: >`, and the explicit-indentation/chomp forms (`run: |2-`).
@@ -79,6 +93,25 @@ export function blockScalarRunLines(yaml) {
 export function requiredGates(yaml, scripts) {
   const gates = new Set();
   for (const cmd of ciRunCommands(yaml)) {
+    if (CI_ONLY.some((re) => re.test(cmd.trim()))) continue;
+    gates.add(resolvePnpm(cmd, scripts));
+  }
+  return gates;
+}
+
+/**
+ * The NARROW, pnpm-ONLY analogue of {@link requiredGates}, for workflows (security.yml)
+ * whose non-pnpm steps are NOT locally-reproducible preflight gates. Only single-line
+ * `run:` commands that normalize to `pnpm …` (and are not {@link CI_ONLY}) are folded in,
+ * resolved through `scripts` and deduped — so `pnpm audit --audit-level=high` is required
+ * while `gitleaks detect …`, `semgrep scan …`, and the block-scalar gitleaks installer
+ * are all correctly ignored. Do NOT reuse the fail-closed {@link requiredGates} here: it
+ * would wrongly demand gitleaks/semgrep, which have no local-preflight equivalent.
+ */
+export function requiredPnpmGates(yaml, scripts) {
+  const gates = new Set();
+  for (const cmd of ciRunCommands(yaml)) {
+    if (!normalizeCmd(cmd).startsWith('pnpm ')) continue;
     if (CI_ONLY.some((re) => re.test(cmd.trim()))) continue;
     gates.add(resolvePnpm(cmd, scripts));
   }
@@ -113,6 +146,19 @@ export function runCheck(repoRoot = root) {
     };
   }
   const missing = missingGates(preflight, yaml, pkg.scripts);
+
+  // ASYMMETRY (see module header): ci.yml is fully fail-closed on every `run:` above;
+  // security.yml contributes its pnpm SINGLE-LINE gates only — no fail-closed requiredGates
+  // (would demand gitleaks/semgrep) and no block-scalar fail-loud (its installers use blocks).
+  const securityPath = path.join(repoRoot, '.github/workflows/security.yml');
+  if (fs.existsSync(securityPath)) {
+    const securityYaml = fs.readFileSync(securityPath, 'utf8');
+    const covered = preflightGates(preflight, pkg.scripts);
+    for (const gate of requiredPnpmGates(securityYaml, pkg.scripts)) {
+      if (!covered.has(gate) && !missing.includes(gate)) missing.push(gate);
+    }
+  }
+
   return { ok: missing.length === 0, reason: '', missing };
 }
 
