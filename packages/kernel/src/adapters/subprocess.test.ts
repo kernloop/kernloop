@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, realpathSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runSubprocess } from './subprocess.js';
@@ -30,13 +30,32 @@ function runNode(
   });
 }
 
-/** Poll until `pid` no longer exists (ESRCH), or fail after ~2s. */
+/**
+ * Poll until `pid` no longer exists (ESRCH) or is a zombie, or fail after ~2s.
+ *
+ * #551: the ratified gate sandbox has no init reaper (PID 1 = npm), so a
+ * group-killed grandchild stays in state Z forever.  process.kill(pid,0)
+ * succeeds on a zombie (the entry lingers in the process table), so we also
+ * read /proc/<pid>/stat — the state character sits immediately after the LAST
+ * ')' in the line (comm may contain spaces/parens, so we scan from the end).
+ * States Z/X/x mean the process is dead for kill-tree semantics.  If the read
+ * throws, treat it as ESRCH-equivalent (the entry just vanished — gone).
+ */
 async function waitForProcessGone(pid: number): Promise<boolean> {
   for (let i = 0; i < 200; i += 1) {
     try {
       process.kill(pid, 0);
     } catch {
       return true; // ESRCH — process is gone
+    }
+    // Zombie check: /proc/<pid>/stat state field (#551 — no init reaper in sandbox).
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const lastParen = stat.lastIndexOf(')');
+      const state = lastParen >= 0 ? stat[lastParen + 2] : '';
+      if (state === 'Z' || state === 'X' || state === 'x') return true;
+    } catch {
+      return true; // entry vanished between kill(0) and read — ESRCH-equivalent
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }

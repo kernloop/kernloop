@@ -10,6 +10,12 @@ updates:
       # grammars are re-vendored (#247 closed for this reason).
       - dependency-name: web-tree-sitter
         versions: ['>=0.25.0']
+      # turbo 2.10.x native binary has a use-after-free (tokio-rt-worker, musl
+      # mallocng heap-integrity assert) that segfaults ~50% of gate-sandbox runs
+      # (exit 139). 2.9.18 measured 0/6 crashes in the same harness. Pinned
+      # back until the upstream regression is fixed. See #551.
+      - dependency-name: turbo
+        versions: ['~2.10.0']
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
