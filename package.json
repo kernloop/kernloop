@@ -44,7 +44,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.6.0",
-    "globals": "^17.6.0",
+    "globals": "^17.7.0",
     "husky": "^9.1.7",
     "prettier": "^3.9.4",
     "tsx": "^4.22.4",
