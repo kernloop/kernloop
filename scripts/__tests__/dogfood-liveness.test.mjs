@@ -20,6 +20,19 @@ describe('loadLedger', () => {
   });
 });
 
+describe('scoreLiveness — malformed receipt data fails loud', () => {
+  test('a JSON-valid receipt lacking a valid date throws loud rather than NaN-masking staleness', () => {
+    // Without this, a dateless receipt NaNs through the day math, staleness
+    // reads false, and a bad ledger MASKS a real drought — the opposite of
+    // fail-loud. Missing date, non-string date, and a non-date string all throw.
+    expect(() => scoreLiveness([{ id: 'DFX', status: 'success' }], '2026-07-03')).toThrow(
+      /missing or invalid date/,
+    );
+    expect(() => scoreLiveness([{ date: 20260703, status: 'success' }], '2026-07-03')).toThrow();
+    expect(() => scoreLiveness([{ date: 'yesterday', status: 'success' }], '2026-07-03')).toThrow();
+  });
+});
+
 describe('scoreLiveness — empty ledger', () => {
   test('reports an honest no-receipts-yet state, not a warning', () => {
     const s = scoreLiveness([], '2026-07-03');

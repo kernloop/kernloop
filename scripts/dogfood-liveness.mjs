@@ -7,9 +7,12 @@
  * corrected-design comment). Each real dogfood run appends one receipt to
  * `evals/dogfood/ledger.jsonl`; this check computes how long it has been
  * since the last receipt, and since the last SUCCESS receipt, and warns past
- * a threshold. It never gates the build — the issue explicitly asks that a
- * failing gate be a SEPARATE, later ratification decision, not a default
- * upward from observe tier.
+ * a threshold. A LIVENESS FINDING never gates the build (stale/drought
+ * warnings exit 0) — the issue explicitly asks that a failing gate be a
+ * SEPARATE, later ratification decision, not a default upward from observe
+ * tier. MALFORMED ledger data is different: an unparseable line or a receipt
+ * without a valid `YYYY-MM-DD` date fails loud (a bad ledger must never
+ * silently mask a real drought).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,10 +45,30 @@ function daysBetween(aDateStr, bDateStr) {
   return Math.max(0, Math.round(ms / (24 * 60 * 60 * 1000)));
 }
 
+/** Return a receipt's `date`, failing LOUD when it is missing or not a real
+ * `YYYY-MM-DD` date. Without this, a dateless receipt would NaN through
+ * `daysBetween`, staleness would read false, and a bad ledger would MASK a
+ * real drought — the opposite of fail-loud. Malformed ledger data is a
+ * data-integrity error, never a silent skip. */
+function validDate(receipt) {
+  const d = receipt.date;
+  const parses =
+    typeof d === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(d) &&
+    !Number.isNaN(new Date(`${d}T00:00:00Z`).getTime());
+  if (!parses) {
+    throw new Error(
+      `malformed dogfood receipt (id ${String(receipt.id ?? '?')}): missing or invalid date ${JSON.stringify(d)} — expected YYYY-MM-DD`,
+    );
+  }
+  return d;
+}
+
 /**
  * Score a ledger's liveness as of `now` (an injectable `YYYY-MM-DD` string —
  * the CLI `main` below supplies the real clock; tests never do). Pure — no
- * I/O, no exit. An empty ledger returns an honest "no receipts yet" state.
+ * I/O, no exit. An empty ledger returns an honest "no receipts yet" state;
+ * a receipt with a missing/invalid `date` throws (see `validDate`).
  */
 export function scoreLiveness(receipts, now, thresholds = THRESHOLDS) {
   const total = receipts.length;
@@ -61,16 +84,9 @@ export function scoreLiveness(receipts, now, thresholds = THRESHOLDS) {
       hasReceipts: false,
     };
   }
-  const lastReceiptDate = receipts
-    .map((r) => r.date)
-    .sort()
-    .at(-1);
+  const lastReceiptDate = receipts.map(validDate).sort().at(-1);
   const daysSinceReceipt = daysBetween(lastReceiptDate, now);
-  const lastSuccessDate =
-    successes
-      .map((r) => r.date)
-      .sort()
-      .at(-1) ?? null;
+  const lastSuccessDate = successes.map(validDate).sort().at(-1) ?? null;
   const daysSinceSuccess = lastSuccessDate === null ? null : daysBetween(lastSuccessDate, now);
   return {
     total,
@@ -89,7 +105,7 @@ export function renderScorecard(s, thresholds = THRESHOLDS) {
     return [
       'dogfood liveness (#531) — OBSERVE TIER',
       '  no receipts yet in evals/dogfood/ledger.jsonl',
-      '  (this is an honest empty state, not a failure — observe tier never fails the build)',
+      '  (this is an honest empty state, not a failure — a liveness finding never fails the build)',
     ].join('\n');
   }
   const lines = [
@@ -112,8 +128,9 @@ export function renderScorecard(s, thresholds = THRESHOLDS) {
     lines.push('  ✓ within thresholds.');
   }
   lines.push(
-    '  NOTE: observe tier — this NEVER fails the build. Promotion to a failing gate is a',
-    '  separate, future ratification decision (never defaulted upward).',
+    '  NOTE: observe tier — a liveness finding NEVER fails the build. Promotion to a',
+    '  failing gate is a separate, future ratification decision (never defaulted upward).',
+    '  (Malformed ledger data is different: it fails loud — bad data must not mask a drought.)',
   );
   return lines.join('\n');
 }
@@ -128,8 +145,11 @@ export function runCheck(ledgerPath = LEDGER, now = new Date().toISOString().sli
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // OBSERVE TIER: a LIVENESS FINDING never exits nonzero — stale/drought
+  // warnings are printed and the process exits 0. Malformed ledger data
+  // (unparseable line, missing/invalid date) throws out of runCheck and
+  // exits nonzero, loud and by design.
   const s = runCheck();
   console.error(renderScorecard(s));
-  // OBSERVE TIER: always exit 0. Never fail the build on this signal.
   process.exit(0);
 }
