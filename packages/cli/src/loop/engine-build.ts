@@ -142,7 +142,15 @@ export function voteDiversityFor(
   fitness: ModelFitnessWiring | undefined,
 ): VoteDiversity | undefined {
   if (!kern.config.gates.vote.providerDiverse || request.invoke !== undefined) return undefined;
-  return buildVoteDiversity(kern.config, adapter, discovered, totals, fitness);
+  // Diverse-voter subprocesses run in the declared workspace too (#570).
+  return buildVoteDiversity(
+    kern.config,
+    adapter,
+    discovered,
+    totals,
+    fitness,
+    request.workspaceDir,
+  );
 }
 
 export function buildLoopEngine(

@@ -110,6 +110,65 @@ function killTree(child: ChildProcess): void {
   }
 }
 
+/**
+ * Process-group leaders of every LIVE child spawned by {@link runSubprocess}
+ * (#570, CLM-0195). A dying parent sweeps these groups with SIGTERM so a killed
+ * `kernloop run` can never leave an agentic coder running — the #570 incident
+ * was an orphaned coder that outlived its killed parent and kept writing into
+ * the launching repo. A SIGKILLed parent is not interceptable (POSIX); the
+ * sweep covers normal exit, `process.exit()`, SIGTERM, and SIGHUP.
+ */
+const liveChildGroups = new Set<number>();
+
+/**
+ * Fatal signals swept before the parent dies. SIGINT is deliberately ABSENT:
+ * the first Ctrl-C is the CLI's cooperative-abort trigger (CLM-0144) — the run
+ * stays alive and AWAITS its in-flight child, which a sweep would kill mid
+ * flight; the force-quit second Ctrl-C calls `process.exit`, whose `exit`
+ * event fires the sweep anyway.
+ */
+const SWEEP_SIGNALS = ['SIGTERM', 'SIGHUP'] as const;
+
+/**
+ * SIGTERM every live child process group (`kill(-pid)` reaps the whole group,
+ * grandchildren included). Wired to the parent's `exit` event and the
+ * {@link SWEEP_SIGNALS} handlers (#570); exported so a run's own teardown can
+ * sweep explicitly. A group that is already gone is skipped silently.
+ */
+export function sweepChildGroups(): void {
+  for (const pid of liveChildGroups) {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch {
+      liveChildGroups.delete(pid); // group already gone — drop the stale entry
+    }
+  }
+}
+
+let sweepInstalled = false;
+
+/**
+ * Install the parent-death sweep ONCE, lazily on the first spawn (importing
+ * this module never changes the process's signal disposition — only actually
+ * spawning a child does). `exit` covers normal termination and `process.exit`;
+ * each {@link SWEEP_SIGNALS} handler sweeps and then RE-RAISES the signal when
+ * no other listener owns it, preserving the default fatal disposition and the
+ * signal exit status. When another handler exists (an app owning its
+ * lifecycle), the sweep still ran and the app keeps control.
+ */
+function installParentSweep(): void {
+  if (sweepInstalled) return;
+  sweepInstalled = true;
+  process.once('exit', sweepChildGroups);
+  for (const signal of SWEEP_SIGNALS) {
+    process.once(signal, () => {
+      sweepChildGroups();
+      /* v8 ignore next -- the re-raise kills the process; exercised out-of-process by the real-SIGTERM driver test */
+      if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
+    });
+  }
+}
+
 /** Callbacks that settle the {@link runSubprocess} promise exactly once. */
 interface Settle {
   readonly resolve: (result: SubprocessResult) => void;
@@ -139,6 +198,7 @@ function wireLifecycle(
     if (settled) return;
     settled = true;
     clearTimeout(timer);
+    if (child.pid !== undefined) liveChildGroups.delete(child.pid);
     settle.reject(error);
   });
 
@@ -146,6 +206,7 @@ function wireLifecycle(
     if (settled) return;
     settled = true;
     clearTimeout(timer);
+    if (child.pid !== undefined) liveChildGroups.delete(child.pid);
     settle.resolve({
       stdout: captures.stdout.text,
       stderr: captures.stderr.text,
@@ -180,6 +241,12 @@ export function runSubprocess(spec: SubprocessSpec): Promise<SubprocessResult> {
       // Own process group so a timeout can kill the whole tree (POSIX).
       detached: true,
     });
+    // Register the group + arm the parent-death sweep (#570): a dying parent
+    // SIGTERMs every live child group, so a killed run cannot orphan its coder.
+    if (child.pid !== undefined) {
+      liveChildGroups.add(child.pid);
+      installParentSweep();
+    }
     const stdout: StreamCapture = { text: '', bytes: 0, truncated: false };
     const stderr: StreamCapture = { text: '', bytes: 0, truncated: false };
     child.stdout.on('data', (chunk: Buffer) => appendCapture(stdout, chunk, cap));

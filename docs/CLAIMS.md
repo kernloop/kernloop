@@ -3312,3 +3312,21 @@ The repo carries an OBSERVE-TIER dogfooding-liveness check (#531, `scripts/dogfo
 - [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
 - [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
 - CI `test`
+
+## CLM-0195
+
+**Status:** verified — **source:** [`CLM-0195.yaml`](../claims/registry/CLM-0195.yaml)
+
+Agentic CLI children spawned by the canonical loop run WITH their cwd pinned to the run's declared workspaceDir — the SAME directory the agentic-cwd containment validated, carried as one binding from check to spawn so the two can never diverge — and a dying `kernloop run` takes its coder with it: every subprocess child leads its own POSIX process group, a live-group registry is swept with SIGTERM (`kill(-pid)`, grandchildren included) on parent exit and on fatal SIGTERM/SIGHUP, so a killed run leaves no orphaned agentic writer resolving paths against the launching repo (the #570 incident). Standalone verbs (gate/distill/forge) declare no workspace and keep the operator's cwd, unchanged; SIGINT is deliberately not swept — the first Ctrl-C is the cooperative abort (CLM-0144) that awaits the in-flight child, and the force-quit path exits through `process.exit`, which fires the sweep.
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/node-bind-cwd.test.ts`](../packages/cli/src/loop/node-bind-cwd.test.ts)
+- [`packages/cli/src/loop/node-bind-cwd.test.ts`](../packages/cli/src/loop/node-bind-cwd.test.ts)
+- [`packages/cli/src/loop/node-bind-cwd.test.ts`](../packages/cli/src/loop/node-bind-cwd.test.ts)
+- [`packages/kernel/src/adapters/invoke.test.ts`](../packages/kernel/src/adapters/invoke.test.ts)
+- [`packages/kernel/src/adapters/invoke.test.ts`](../packages/kernel/src/adapters/invoke.test.ts)
+- [`packages/kernel/src/adapters/subprocess.test.ts`](../packages/kernel/src/adapters/subprocess.test.ts)
+- [`packages/kernel/src/adapters/subprocess.test.ts`](../packages/kernel/src/adapters/subprocess.test.ts)
+- [`packages/kernel/src/adapters/subprocess.test.ts`](../packages/kernel/src/adapters/subprocess.test.ts)
+- CI `test`

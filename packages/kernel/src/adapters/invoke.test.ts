@@ -8,7 +8,7 @@
  * what was probed — never a stubbed result.
  */
 
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CostSchema } from '@kernloop/contracts';
@@ -20,6 +20,7 @@ import {
   AdapterRequestError,
   AdapterTimeoutError,
   AdapterUnavailableError,
+  AgenticRepositoryWorkspaceError,
 } from './errors.js';
 import { detectAdapter, invokeAdapter, type AdapterInvocation } from './invoke.js';
 
@@ -166,6 +167,38 @@ describe('invokeAdapter — uniform interface across all five (CLM-0021)', () =>
       cwd: ws,
     });
     expect(result.output).toBe(ws); // grounded in the workspace, not process.cwd()
+  });
+
+  it('refuses the agentic spawn for the EXACT dir the child would run in — before any spawn (#570)', async () => {
+    // The #570 same-dir guarantee: the cwd containment validates IS the cwd the
+    // child would receive — one binding, no divergence. A refusal must therefore
+    // happen BEFORE any process starts: the fake CLI proves a spawn by writing a
+    // marker, and the marker must never appear.
+    const binDir = makeDir('contain-bin');
+    const marker = join(binDir, 'spawn-happened');
+    writeFileSync(join(binDir, 'claude'), `#!/bin/sh\ncat > /dev/null\ntouch ${marker}\n`, {
+      mode: 0o755,
+    });
+    const repo = makeDir('contain-repo');
+    mkdirSync(join(repo, '.git'));
+    // Disable the throwaway carve-out deterministically: an unresolvable TMPDIR
+    // makes the containment fail CLOSED (tmpRoot null ⇒ every git tree refused),
+    // so the fixture repo under the real temp dir is refused on every host.
+    const oldTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = '/nonexistent-kernloop-tmp-570';
+    try {
+      const error = await invokeAdapter('claude', invocationFor(binDir, { cwd: repo })).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(AgenticRepositoryWorkspaceError);
+      // The refused workspace is the SAME dir the spawn would have used as cwd.
+      expect((error as AgenticRepositoryWorkspaceError).workspace).toBe(realpathSync(repo));
+      expect(existsSync(marker)).toBe(false); // no process ever ran
+    } finally {
+      if (oldTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = oldTmpdir;
+    }
   });
 
   it('reports zero cost as unmetered, never fabricated (CLM-0020)', async () => {

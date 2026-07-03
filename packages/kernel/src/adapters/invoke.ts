@@ -203,9 +203,12 @@ export async function invokeAdapter(
 ): Promise<AdapterResult> {
   const definition = adapterDefinitions[adapter];
   checkInvocation(adapter, invocation);
+  // The ONE cwd for this call (#570): containment below validates the SAME
+  // binding the spawn receives, so check and child cwd can never diverge.
+  const cwd = invocation.cwd;
   // Refuse an agentic adapter aimed at a real git tree (#280 pt2, CLM-0145) —
   // the single choke point, so no caller (CLI loop, MCP, direct) can bypass it.
-  checkAgenticContainment(adapter, invocation.cwd);
+  checkAgenticContainment(adapter, cwd);
 
   const env = invocation.env ?? process.env;
   const availability = detectAdapter(adapter, env);
@@ -223,7 +226,7 @@ export async function invokeAdapter(
     // declared extras — NOT the full parent env. PATH probing above still used
     // the full `env` (a read, not a hand-off to the third-party binary).
     env: scopedChildEnv(env, invocation.envAllow ?? []),
-    ...(invocation.cwd === undefined ? {} : { cwd: invocation.cwd }),
+    ...(cwd === undefined ? {} : { cwd }), // the dir containment approved (#570)
   });
 
   if (raw.timedOut) throw new AdapterTimeoutError(adapter, invocation.timeoutMs, raw.durationMs);

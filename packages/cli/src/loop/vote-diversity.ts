@@ -79,6 +79,7 @@ export function buildVoteSeamForAdapter(
   overlay: Overlay,
   totals: RunTotals,
   fitness: ModelFitnessWiring = {},
+  workspaceDir?: string,
 ): NodeSeam {
   const req = requirementForNode(overlay, 'vote', nodeRequirement('vote'));
   const timeoutMs = invokeTimeoutForNode(
@@ -91,7 +92,10 @@ export function buildVoteSeamForAdapter(
   };
   return buildNodeSeam(
     resolveServed(req, name, adapterModelOverride(overlay.adapterModels, name)),
-    adapterInvoke(name, undefined, undefined, overlay.adapterEnvAllow),
+    // Voters run tool-free (pure completion), but pin cwd to the run workspace
+    // anyway (#570): an adapter whose pure-completion coverage is degraded must
+    // still never resolve paths against the orchestrator's launch dir.
+    adapterInvoke(name, undefined, workspaceDir, overlay.adapterEnvAllow),
     totals,
     timeoutMs,
     hooks,
@@ -108,11 +112,12 @@ export function buildVoteDiversity(
   discovered: DiscoveredCache,
   totals: RunTotals,
   fitness: ModelFitnessWiring = {},
+  workspaceDir?: string,
 ): VoteDiversity {
   const modelDiverse = buildModelDiversity(overlay, runAdapter, discovered, totals, fitness);
   return {
     adapters: diverseVoteAdapters(overlay, runAdapter),
-    seamForAdapter: (name) => buildVoteSeamForAdapter(name, overlay, totals, fitness),
+    seamForAdapter: (name) => buildVoteSeamForAdapter(name, overlay, totals, fitness, workspaceDir),
     ...(modelDiverse === undefined ? {} : { modelDiverse }),
   };
 }
