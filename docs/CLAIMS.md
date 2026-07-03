@@ -3239,3 +3239,15 @@ Child-iteration findings are DEDUPLICATED on append (#535): all three fold sites
 - [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
 - [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
 - CI `test`
+
+## CLM-0191
+
+**Status:** verified — **source:** [`CLM-0191.yaml`](../claims/registry/CLM-0191.yaml)
+
+The sandbox scratch receives every workspace package's node_modules (root + per-package): copyWorkspaceSource excludes node_modules entries during the filtered source copy; walkAndCopyNodeModules then walks the real workspace tree (skipping descent into node_modules and other EXCLUDED_DIRS) and copies each found node_modules directory to the same relative path in the scratch via cp -a --reflink=auto (with cpSync fallback), so a pnpm monorepo's typecheck/test run inside the network-none sandbox has full module resolution. Symlinks are preserved (never dereferenced); credentials and VCS dirs remain excluded. Fixes the pnpm symlink-farm gap that caused unconvergeable child failures in the #530 bootstrap dogfood run (#546).
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/sandbox/copy.test.ts`](../packages/faculty-gates/src/sandbox/copy.test.ts)
+- [`packages/faculty-gates/src/sandbox/copy.test.ts`](../packages/faculty-gates/src/sandbox/copy.test.ts)
+- CI `test`

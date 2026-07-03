@@ -1,0 +1,19 @@
+id: CLM-0191
+statement: >-
+  The sandbox scratch receives every workspace package's node_modules (root +
+  per-package): copyWorkspaceSource excludes node_modules entries during the
+  filtered source copy; walkAndCopyNodeModules then walks the real workspace
+  tree (skipping descent into node_modules and other EXCLUDED_DIRS) and copies
+  each found node_modules directory to the same relative path in the scratch
+  via cp -a --reflink=auto (with cpSync fallback), so a pnpm monorepo's
+  typecheck/test run inside the network-none sandbox has full module resolution.
+  Symlinks are preserved (never dereferenced); credentials and VCS dirs remain
+  excluded. Fixes the pnpm symlink-farm gap that caused unconvergeable child
+  failures in the #530 bootstrap dogfood run (#546).
+evidence:
+  - 'test:packages/faculty-gates/src/sandbox/copy.test.ts::pnpm workspace fixture — both root and per-package node_modules reach the scratch, symlink is preserved and resolves'
+  - 'test:packages/faculty-gates/src/sandbox/copy.test.ts::nested node_modules inside another node_modules is not separately walked'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.5
