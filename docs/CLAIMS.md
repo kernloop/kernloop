@@ -3289,3 +3289,26 @@ A failed subprocess check's fallback finding carries the TAIL of the tool's comb
 - [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
 - [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
 - CI `test`
+
+## CLM-0194
+
+**Status:** verified — **source:** [`CLM-0194.yaml`](../claims/registry/CLM-0194.yaml)
+
+The repo carries an OBSERVE-TIER dogfooding-liveness check (#531, `scripts/dogfood-liveness.mjs`, `pnpm dogfood:liveness`) that mirrors the vote-parity ledger pattern: it reads the COMMITTED receipts ledger (`evals/dogfood/ledger.jsonl`) — never the gitignored, machine-local, HMAC-keyed overlay audit chain (`.kernloop/audit.jsonl`), which the issue's corrected-design comment ruled out as a liveness source — and computes days-since-last-receipt and days-since-last-SUCCESS-receipt from the receipts' own `date` fields, warning when either exceeds a threshold (14 / 30 days, consts overridable via function args, not ratified as build-failing bars). The scorer takes `now` as an injectable parameter so tests never touch the wall clock; only the CLI `main` guard defaults it to the real clock, which is fine for a script (the no-wall-clock rule binds tests, not runtime scripts). It is OBSERVE TIER: it NEVER exits nonzero on a LIVENESS FINDING — stale/drought warnings are printed to stderr with the scorecard and the process exits 0, never gating a build, per the issue's explicit instruction not to default an authority tier upward; promotion to a failing gate is a separate, future ratification decision. MALFORMED ledger data is the one loud path, by design: an unparseable line (JSON.parse throws, mirroring `vote-parity-check.mjs`'s `loadLedger`) or a JSON-valid receipt whose `date` is missing or not a real `YYYY-MM-DD` date (which would otherwise NaN through the day math, read staleness as false, and silently mask a real drought) throws — a nonzero exit on bad data, never a silent skip. A missing or empty ledger renders an honest "no receipts yet" state (still exit 0). `dogfood:liveness` is intentionally NOT wired into `preflight` or CI — an observe-tier signal, checked by hand or by a future ratified promotion, not a gate.
+
+**Enforced by:**
+
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- [`scripts/__tests__/dogfood-liveness.test.mjs`](../scripts/__tests__/dogfood-liveness.test.mjs)
+- CI `test`
