@@ -1,0 +1,39 @@
+id: CLM-0194
+statement: >-
+  The repo carries an OBSERVE-TIER dogfooding-liveness check (#531,
+  `scripts/dogfood-liveness.mjs`, `pnpm dogfood:liveness`) that mirrors the
+  vote-parity ledger pattern: it reads the COMMITTED receipts ledger
+  (`evals/dogfood/ledger.jsonl`) — never the gitignored, machine-local, HMAC-keyed
+  overlay audit chain (`.kernloop/audit.jsonl`), which the issue's corrected-design
+  comment ruled out as a liveness source — and computes days-since-last-receipt and
+  days-since-last-SUCCESS-receipt from the receipts' own `date` fields, warning when
+  either exceeds a threshold (14 / 30 days, consts overridable via function args, not
+  ratified as build-failing bars). The scorer takes `now` as an injectable parameter
+  so tests never touch the wall clock; only the CLI `main` guard defaults it to the
+  real clock, which is fine for a script (the no-wall-clock rule binds tests, not
+  runtime scripts). It is OBSERVE TIER: the process ALWAYS exits 0, printing the
+  scorecard and any warnings to stderr — it never fails a build, per the issue's
+  explicit instruction not to default an authority tier upward; promotion to a
+  failing gate is a separate, future ratification decision. A missing or empty
+  ledger renders an honest "no receipts yet" state (still exit 0), and a malformed
+  ledger line fails loud (JSON.parse throws, mirroring `vote-parity-check.mjs`'s
+  `loadLedger`) rather than silently dropping bad data. `dogfood:liveness` is
+  intentionally NOT wired into `preflight` or CI — an observe-tier signal, checked by
+  hand or by a future ratified promotion, not a gate.
+evidence:
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::fails loud on a malformed line rather than silently skipping it'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::reports an honest no-receipts-yet state, not a warning'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::renders the empty state without an ⚠'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::a receipt from today with status success warns on nothing'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::warns when days since the last receipt exceeds the threshold'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::does not warn just under the threshold'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::a recent non-success receipt with an old (or no) success warns on drought only'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::no success receipt at all is treated as a drought'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::flags both warnings when both thresholds are exceeded'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::always names the observe-tier, never-fails-the-build stance'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::parses and counts at least the 3 known receipts (DF1-DF3), at least 1 success'
+  - 'test:scripts/__tests__/dogfood-liveness.test.mjs::runCheck on a missing ledger path returns the honest empty state'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.6
