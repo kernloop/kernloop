@@ -324,17 +324,23 @@ describe('resource bounds (untrusted input)', () => {
     expect(findings[0]?.message).toContain('per-file doc-scan limit');
   });
 
-  it('truncates after the cumulative byte budget with one info note', async () => {
-    // Two ~600 KB files: the second pushes past a (temporarily-irrelevant) cap?
-    // Use enough files just under per-file cap to exceed the 32 MB total.
-    const files: string[] = [];
-    const filler = '#'.repeat(900_000);
-    for (let i = 0; i < 40; i += 1) {
-      files.push(write(`f${String(i)}.py`, `def foo():\n    pass\n${filler}\n`));
-    }
-    const findings = await scanTreeSitterFiles(files, dir);
-    expect(findings.some((f) => f.message.includes('truncated'))).toBe(true);
-  });
+  // 180s timeout (#551): 40 × ~900 KB tree-sitter WASM parses are CPU-bound;
+  // under the ratified 2-CPU gate sandbox this exceeded the package's 60s default.
+  it(
+    'truncates after the cumulative byte budget with one info note',
+    { timeout: 180_000 },
+    async () => {
+      // Two ~600 KB files: the second pushes past a (temporarily-irrelevant) cap?
+      // Use enough files just under per-file cap to exceed the 32 MB total.
+      const files: string[] = [];
+      const filler = '#'.repeat(900_000);
+      for (let i = 0; i < 40; i += 1) {
+        files.push(write(`f${String(i)}.py`, `def foo():\n    pass\n${filler}\n`));
+      }
+      const findings = await scanTreeSitterFiles(files, dir);
+      expect(findings.some((f) => f.message.includes('truncated'))).toBe(true);
+    },
+  );
 
   it('returns nothing for a missing file', async () => {
     const findings = await scanTreeSitterFiles([path.join(dir, 'gone.py')], dir);
