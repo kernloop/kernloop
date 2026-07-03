@@ -1,5 +1,41 @@
 # @kernloop/cli
 
+## 0.1.6
+
+### Patch Changes
+
+- 154c357: Security (#570): contain the agentic coder's cwd and its process-tree lifetime.
+
+  - The canonical loop's default per-node seam now pins every CLI-adapter
+    subprocess's cwd to the run's declared `workspaceDir` — the SAME directory
+    the agentic-cwd containment validated (one binding from check to spawn) —
+    so a coder that executes commands resolves relative paths in the throwaway
+    workspace, never in the orchestrating repo. Diverse-voter seams are pinned
+    too; standalone verbs (gate/distill/forge) declare no workspace and keep
+    the operator's cwd, unchanged.
+  - A dying `kernloop run` can no longer orphan its coder: each subprocess
+    child leads its own POSIX process group, live groups are registered, and a
+    parent-death sweep SIGTERMs every group (`kill(-pid)`, grandchildren
+    included) on process exit and on fatal SIGTERM/SIGHUP. SIGINT is not swept:
+    the first Ctrl-C stays the cooperative abort that awaits the in-flight
+    child; force-quit exits through `process.exit`, which fires the sweep.
+
+- Updated dependencies [154c357]
+  - @kernloop/kernel@0.1.6
+  - @kernloop/faculty-gates@0.1.6
+  - @kernloop/faculty-toolsmith@0.1.6
+  - @kernloop/contracts@0.1.6
+  - @kernloop/docscan@0.1.6
+  - @kernloop/faculty-compiler@0.1.6
+  - @kernloop/faculty-memory@0.1.6
+  - @kernloop/faculty-models@0.1.6
+  - @kernloop/faculty-observer@0.1.6
+  - @kernloop/faculty-scrum@0.1.6
+  - @kernloop/faculty-workforce@0.1.6
+  - @kernloop/parsimony@0.1.6
+  - @kernloop/tracker@0.1.6
+  - @kernloop/workflows@0.1.6
+
 ## 0.1.5
 
 ### Patch Changes
