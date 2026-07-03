@@ -12,8 +12,9 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Verdict } from '@kernloop/contracts';
 import type { NodeContext } from '@kernloop/workflows';
-import { buildLoopExecutors } from './executors.js';
-import { boundHelpers, ctxFor, task } from './executors.testkit.js';
+import { buildLoopExecutors, type LoopRefs } from './executors.js';
+import type { LoopInvoke } from './invoke.js';
+import { COST, boundHelpers, ctxFor, task } from './executors.testkit.js';
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-doc-scope-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -99,6 +100,40 @@ describe('child quality gate doc-comment scoping (#534) [CLM-0189]', () => {
     const docs = docFindings(verdict);
     expect(docs.some((m) => m.includes('"legacy"'))).toBe(true);
     expect(docs.some((m) => m.includes('"fresh"'))).toBe(true);
+    kern.close();
+  });
+
+  it('the doc scope is the UNION of the child emissions across iterations — a re-emit cannot narrow it (#534)', async () => {
+    // Iteration 1 writes an UNDOCUMENTED a.ts; iteration 2 re-emits ONLY a
+    // documented b.ts. If the stash were the LAST emission, the child would
+    // converge past its own undocumented a.ts — the scope must be the union.
+    const kern = kernloopFor('doc-scope-union');
+    const ws = path.join(scratch, 'doc-scope-union-ws');
+    mkdirSync(ws, { recursive: true });
+    writeFileSync(path.join(ws, 'pre-existing.ts'), 'export function legacy() {}\n');
+    let calls = 0;
+    const invoke: LoopInvoke = () => {
+      calls += 1;
+      const files =
+        calls === 1
+          ? [{ path: 'src/a.ts', content: 'export function alpha() {}\n' }]
+          : [{ path: 'src/b.ts', content: '/** Beta. */\nexport function beta() {}\n' }];
+      return Promise.resolve({ output: JSON.stringify({ files }), cost: COST });
+    };
+    const refs: LoopRefs = {};
+    const bindings = { ...bindingsFor(kern, refs, invoke), workspaceDir: ws };
+    const executors = buildLoopExecutors(bindings);
+    const implCtx = { ...ctxFor(3), node: 'implement', child: task };
+    await executors['implement']?.(task, implCtx); // iteration 1: writes a.ts
+    await executors['implement']?.(task, implCtx); // iteration 2: re-emits only b.ts
+    const verdict = (await executors['quality']?.(undefined, childCtx())) as Verdict;
+    const docs = docFindings(verdict);
+    // The iteration-1 undocumented write is STILL the child's to own…
+    expect(docs.some((m) => m.includes('"alpha"'))).toBe(true);
+    // …the documented iteration-2 file is clean, and the scope still excludes
+    // the pre-existing repo gap.
+    expect(docs.some((m) => m.includes('"beta"'))).toBe(false);
+    expect(docs.some((m) => m.includes('"legacy"'))).toBe(false);
     kern.close();
   });
 

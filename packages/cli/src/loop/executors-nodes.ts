@@ -68,6 +68,36 @@ export function decomposeExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
+/** Merge one implement emission into the child's written-files stash (#534,
+ * CLM-0189): the stash is the UNION by path of the child's emissions across
+ * its iterations — a re-iteration that re-emits only SOME files must not
+ * narrow the enforcing doc-comment scope past an earlier undocumented write —
+ * with the LAST content winning for a re-emitted path. Stored paths are the
+ * NORMALIZED workspace-relative ones `writeWorkspaceFiles` returned (one per
+ * emitted file, in order), never the raw emitted paths: an absolute-but-inside
+ * emitted path must still match the scan's relative walk keys. Any count
+ * mismatch is a wiring bug and throws — never a silent raw-path fallback. */
+function stashWrittenFiles(
+  refs: LoopBindings['refs'],
+  childId: string,
+  files: ReadonlyArray<{ path: string; content: string }>,
+  written: readonly string[],
+): void {
+  if (written.length !== files.length) {
+    throw new Error(
+      `writeWorkspaceFiles returned ${String(written.length)} paths for ${String(files.length)} emitted files`,
+    );
+  }
+  const stash = (refs.writtenByChild ??= {});
+  const merged = new Map((stash[childId] ?? []).map((f) => [f.path, f.content]));
+  files.forEach((file, i) => {
+    const rel = written[i];
+    if (rel === undefined) throw new Error(`writeWorkspaceFiles returned no path for ${file.path}`);
+    merged.set(rel, file.content);
+  });
+  stash[childId] = [...merged].map(([p, content]) => ({ path: p, content }));
+}
+
 /** The implement child node: coder via invoke → files written for real.
  * On a re-iteration `ctx.findings` carries THIS child's accumulated gate
  * findings (the engine scopes findings to the child inside the fan-out); they
@@ -84,14 +114,10 @@ export function implementExecutor(b: LoopBindings): NodeExecutor {
     );
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
     // Stash what this child wrote — the advisory review gate diffs it and the
-    // quality gate's doc-comment check scopes to it (#534, CLM-0189). Stash the
-    // NORMALIZED workspace-relative paths writeWorkspaceFiles returns (same
-    // order as the emission), not the raw emitted paths: an absolute-but-inside
-    // emitted path must still match the scan's relative walk keys.
-    (b.refs.writtenByChild ??= {})[child.id] = emission.files.map((file, i) => ({
-      path: written[i] ?? file.path,
-      content: file.content,
-    }));
+    // quality gate's doc-comment check scopes to it (#534, CLM-0189): the UNION
+    // across this child's iterations, normalized relative paths (see
+    // {@link stashWrittenFiles}).
+    stashWrittenFiles(b.refs, child.id, emission.files, written);
     const notes = emission.notes === '' ? '' : ` — ${emission.notes}`;
     return OutcomeSchema.parse({
       taskId: child.id,

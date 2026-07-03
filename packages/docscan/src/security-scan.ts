@@ -199,11 +199,24 @@ function scanSecrets(text: string, rel: string): Finding[] {
  * low-false-positive signal, NOT exhaustive SAST. Reads at most {@link
  * MAX_FILE_BYTES} per file and {@link MAX_TOTAL_BYTES} overall, following no
  * symlinks.
+ *
+ * `onlyFiles` (#541, CLM-0189) restricts the scan to those workspace paths —
+ * the child quality gate's scope, exactly as {@link scanDocComments} takes it:
+ * a child is judged on the security smells of what IT wrote, never failed on
+ * pre-existing repo content (e.g. this repo's own detector fixtures). Each
+ * entry is CANONICALIZED against `workspaceDir` (resolve-then-relative), so a
+ * relative, `./`-prefixed, or absolute-but-inside path all match the walk.
+ * Omitted → the whole-tree scan is byte-identical to before.
  */
-export function scanSecuritySmells(workspaceDir: string): Finding[] {
+export function scanSecuritySmells(workspaceDir: string, onlyFiles?: readonly string[]): Finding[] {
+  const scope =
+    onlyFiles === undefined
+      ? undefined
+      : new Set(onlyFiles.map((f) => path.relative(workspaceDir, path.resolve(workspaceDir, f))));
   const findings: Finding[] = [];
   let total = 0;
   for (const file of walkFiles(workspaceDir)) {
+    if (scope !== undefined && !scope.has(path.relative(workspaceDir, file))) continue;
     const ext = path.extname(file);
     if (!TEXT_EXTS.has(ext)) continue;
     let size: number;

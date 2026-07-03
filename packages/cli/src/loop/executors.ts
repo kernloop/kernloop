@@ -57,13 +57,14 @@ export interface LoopRefs {
   researchBrief?: Brief;
   planBrief?: Brief;
   /** Files each child's implement step wrote (workspace-RELATIVE, normalized —
-   * the `writeWorkspaceFiles` return), keyed by child id — the diff the
-   * advisory review gate reads AND the scope of the child quality gate's
-   * ENFORCING doc-comment check (#534, CLM-0189). Not checkpointed: on a
-   * resume that lands after implement, the advisory review abstains honestly,
-   * and the quality gate FAILS CLOSED — an ABSENT stash entry falls back to
-   * the whole-workspace doc scan (over-broad, never silently skipping files
-   * the child really wrote); only a PRESENT entry scopes the check. */
+   * the `writeWorkspaceFiles` return; the UNION across the child's iterations,
+   * so a re-emit never narrows it), keyed by child id — the diff the advisory
+   * review gate reads AND the scope of the child quality gate's ENFORCING
+   * doc-comment + security checks (#534/#541, CLM-0189). Not checkpointed: on
+   * a resume that lands after implement, the advisory review abstains
+   * honestly, and the quality gate FAILS CLOSED — an ABSENT stash entry falls
+   * back to the whole-workspace scans (over-broad, never silently skipping
+   * files the child really wrote); only a PRESENT entry scopes the checks. */
   writtenByChild?: Record<string, ReadonlyArray<{ path: string; content: string }>>;
   /** The proceeding plan-vote Verdict (#369 Inc3a) — its VoterRecords are labeled
    * at retrospect against the run's eventual success. Not checkpointed: a resume
@@ -350,13 +351,10 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
     decompose: decomposeExecutor(b),
     implement: implementExecutor(b),
     quality: (_input, ctx) => {
-      // The files this child wrote: a PRESENT stash entry scopes the doc-comment
-      // check to the child's OWN writes (#534, CLM-0189 — a pre-existing repo doc
-      // gap must not fail a child) and feeds diff-coverage (#226 item 2) under its
-      // opt-in flag. An ABSENT entry (the stash is not checkpointed — a resume
-      // landing after implement) FAILS CLOSED to the whole-workspace scan rather
-      // than a present-but-empty "judge nothing" scope; only a genuinely-empty
-      // emission judges nothing.
+      // A PRESENT stash entry (the union of this child's writes) scopes the
+      // in-process doc + security checks (#534/#541, CLM-0189) and feeds the
+      // opt-in diff-coverage; an ABSENT entry (non-checkpointed stash — a
+      // resume) FAILS CLOSED to the whole-workspace scans (see LoopRefs).
       const stash = ctx.child === undefined ? undefined : b.refs.writtenByChild?.[ctx.child.id];
       return executeQualityGate(b.kern, {
         taskId: ctx.child?.id ?? ctx.taskId,

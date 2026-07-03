@@ -5,12 +5,14 @@
 '@kernloop/cli': patch
 ---
 
-fix(loop): make the child quality gate convergeable (#534, #535). The canonical
-loop's child quality gate now scopes the doc-comment check to the child's OWN
-written files (mirroring diff-coverage), so a pre-existing repo-wide doc gap can
-no longer fail every child; the standalone whole-workspace `gate quality`
-semantics are unchanged when no scope is passed, and a resume with a lost
-written-files stash fails CLOSED to the whole-workspace scan. [CLM-0189]
+fix(loop): make the child quality gate convergeable (#534, #535, #541). The
+canonical loop's child quality gate now scopes its in-process whole-workspace
+scans — the doc-comment check AND the security smell check — to the child's OWN
+written files (the union across its iterations, mirroring diff-coverage), so
+pre-existing repo-wide findings can no longer fail every child; the standalone
+whole-workspace `gate quality` semantics are unchanged when no scope is passed,
+and a resume with a lost written-files stash fails CLOSED to the whole-workspace
+scans. [CLM-0189]
 And the child iteration back-edge deduplicates findings on append at all three
 fold sites (reiterate, escalate, hint-fold), so a gate re-emitting the same
 still-unfixed findings no longer inflates the accumulated set or the audited

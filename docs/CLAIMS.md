@@ -3200,7 +3200,7 @@ For an ENDPOINT-ONLY ratification run whose endpoint serves >=2 chat-capable mod
 
 **Status:** verified — **source:** [`CLM-0189.yaml`](../claims/registry/CLM-0189.yaml)
 
-The canonical loop's CHILD quality gate scopes the doc-comment check to the child's OWN written files (#534), so a pre-existing repo-wide doc-comment gap cannot fail a child on findings outside its file ownership. The loop's quality node passes the child's `writtenByChild` emission into the gate (the same files the diff-coverage check closes over, CLM-0134); `docCommentCheck` / `defaultQualityChecks` accept the optional scope, and `scanDocComments` PARSES only the scoped workspace-relative paths (out-of-scope files are never read — not merely post-filtered), which also excludes out-of-scope tree-sitter files and honest-degradation notes. A PRESENT-but-empty scope (a child that wrote nothing) judges nothing; an ABSENT scope — the standalone `gate quality` path and every non-child gate run — keeps the whole-workspace semantics unchanged. RESUME FAILS CLOSED: the `writtenByChild` stash is not checkpointed, so a resume landing after implement has NO stash entry for the child — the loop passes NO scope in that case (never a present-but-empty one), falling back to the whole-workspace scan: over-broad, but the enforcing check can never silently skip files the child really wrote. Scope entries are CANONICALIZED against the workspace (resolve-then-relative, and the loop stashes the normalized relative paths `writeWorkspaceFiles` returns), so an emitted absolute-but-inside path is still scanned rather than dodging a string compare. Passing the child's files for doc scoping never silently enables the opt-in diff-coverage check (CLM-0134): that stays behind its own `gates.quality.diffCoverage` flag, now threaded as a separate request field.
+The canonical loop's CHILD quality gate scopes its IN-PROCESS whole-workspace scans — the doc-comment check (#534) AND the security smell check (#541) — to the child's OWN written files, so pre-existing repo-wide findings (an undocumented legacy export, a detector fixture secret) cannot fail a child on content outside its file ownership. The loop's quality node passes the child's `writtenByChild` stash into the gate (the same files the diff-coverage check closes over, CLM-0134); `docCommentCheck` / `securityCheck` / `defaultQualityChecks` accept the optional scope, and `scanDocComments` / `scanSecuritySmells` PARSE only the scoped workspace paths (out-of-scope files are never read — not merely post-filtered), which for the doc scan also excludes out-of-scope tree-sitter files and honest-degradation notes. The stash is the UNION of the child's implement emissions across its iterations (last content wins per path) — a re-iteration that re-emits only some files can never narrow the scope past an earlier undocumented or smelly write. A PRESENT-but-empty scope (a child that wrote nothing) judges nothing; an ABSENT scope — the standalone `gate quality` path and every non-child gate run — keeps the whole-workspace semantics unchanged. RESUME FAILS CLOSED: the stash is not checkpointed, so a resume landing after implement has NO stash entry — the loop passes NO scope in that case (never a present-but-empty one), falling back to the whole-workspace scans: over-broad, but the enforcing checks can never silently skip files the child really wrote. Scope entries are CANONICALIZED against the workspace (resolve-then-relative, and the loop stashes the normalized relative paths `writeWorkspaceFiles` returns — a count mismatch throws, never a raw-path fallback), so an emitted absolute-but-inside path is still scanned rather than dodging a string compare. Passing the child's files for scoping never silently enables the opt-in diff-coverage check (CLM-0134): that stays behind its own `gates.quality.diffCoverage` flag, threaded as a separate request field.
 
 **Enforced by:**
 
@@ -3208,14 +3208,21 @@ The canonical loop's CHILD quality gate scopes the doc-comment check to the chil
 - [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
 - [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
 - [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
-- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
-- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
-- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
-- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
-- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
-- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
-- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
 - [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/security-scan.test.ts`](../packages/docscan/src/security-scan.test.ts)
+- [`packages/docscan/src/security-scan.test.ts`](../packages/docscan/src/security-scan.test.ts)
+- [`packages/docscan/src/security-scan.test.ts`](../packages/docscan/src/security-scan.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
 - CI `test`
 
 ## CLM-0190

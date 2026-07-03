@@ -93,9 +93,19 @@ export function docCommentCheck(writtenFiles?: readonly string[]): InProcessChec
  * injection (`exec`/`execSync` with a non-literal command), and known-format
  * hardcoded secrets — emitting advisory `error` Findings. It is a smell detector,
  * NOT exhaustive SAST; the broader external-tool tier is deferred (#276).
+ *
+ * `writtenFiles` (#541, CLM-0189) scopes the scan to those workspace-relative
+ * paths — the child quality gate passes the CHILD's written files, exactly as
+ * {@link docCommentCheck}, so a child is judged on the smells of what IT wrote
+ * and never failed on pre-existing repo content (e.g. detector fixtures).
+ * Omitted → the whole-workspace scan (the standalone `gate quality` semantics)
+ * is unchanged.
  */
-export function securityCheck(): InProcessCheck {
-  return { name: 'security', run: scanSecuritySmells };
+export function securityCheck(writtenFiles?: readonly string[]): InProcessCheck {
+  return {
+    name: 'security',
+    run: (workspaceDir) => scanSecuritySmells(workspaceDir, writtenFiles),
+  };
 }
 
 /**
@@ -123,18 +133,20 @@ export const DEFAULT_TIMEOUT_MS = 120_000;
  * (tsc diagnostics), `pnpm lint` (ESLint stylish), `pnpm test` (vitest;
  * coverage thresholds ride the same exit code) — plus the in-process
  * doc-comment scan (#65). The doc check runs last so a missing-docs `error`
- * sits alongside the tool findings in the same Verdict. `docScope` (#534,
- * CLM-0189) narrows ONLY the doc-comment check to those workspace-relative
- * files (a child gate scoped to the child's writes); omitted, every check
- * keeps its whole-workspace semantics.
+ * sits alongside the tool findings in the same Verdict. `childScope` (#534,
+ * #541; CLM-0189) narrows BOTH in-process whole-workspace scans — doc-comments
+ * AND the security smell check — to those workspace-relative files (a child
+ * gate scoped to the child's writes; the subprocess tool checks judge the
+ * whole workspace regardless, as they must); omitted, every check keeps its
+ * whole-workspace semantics.
  */
-export function defaultQualityChecks(docScope?: readonly string[]): QualityCheck[] {
+export function defaultQualityChecks(childScope?: readonly string[]): QualityCheck[] {
   return [
     { name: 'typecheck', command: 'pnpm', args: ['typecheck'], parse: parseTscOutput },
     { name: 'lint', command: 'pnpm', args: ['lint'], parse: parseEslintOutput },
     { name: 'test', command: 'pnpm', args: ['test'], parse: parseVitestOutput },
-    docCommentCheck(docScope),
-    securityCheck(),
+    docCommentCheck(childScope),
+    securityCheck(childScope),
   ];
 }
 
