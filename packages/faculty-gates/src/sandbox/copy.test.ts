@@ -3,6 +3,10 @@
  * copied into the scratch (positive assertion, not just a denylist claim), and a
  * symlink that escapes the workspace is NOT dereferenced (its target content
  * never lands in the scratch).
+ *
+ * pnpm workspace node_modules propagation (#546): populateScratch copies every
+ * workspace package's node_modules (root + per-package), so a pnpm monorepo's
+ * typecheck/test runs inside the network-none sandbox with full module resolution.
  */
 import {
   mkdtempSync,
@@ -17,7 +21,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isCopyable, copyWorkspaceSource } from './copy.js';
+import { isCopyable, copyWorkspaceSource, populateScratch } from './copy.js';
 
 const dirs: string[] = [];
 function tmp(prefix: string): string {
@@ -103,5 +107,65 @@ describe('copyWorkspaceSource — positive isolation (#236)', () => {
     }
     // The real source file did copy.
     expect(readFileSync(join(scratch, 'real.ts'), 'utf8')).toBe('ok\n');
+  });
+});
+
+describe('populateScratch — pnpm workspace node_modules (#546)', () => {
+  it('pnpm workspace fixture — both root and per-package node_modules reach the scratch, symlink is preserved and resolves', () => {
+    const ws = tmp('kernloop-ws-');
+    // Root node_modules/.pnpm/dep/index.js — real file (the canonical pnpm store location)
+    mkdirSync(join(ws, 'node_modules', '.pnpm', 'dep'), { recursive: true });
+    writeFileSync(join(ws, 'node_modules', '.pnpm', 'dep', 'index.js'), 'module.exports=42;');
+    // packages/a/ source
+    mkdirSync(join(ws, 'packages', 'a', 'src'), { recursive: true });
+    writeFileSync(join(ws, 'packages', 'a', 'src', 'index.ts'), 'export const x = 1;\n');
+    // packages/a/node_modules/dep → relative symlink to ../../../node_modules/.pnpm/dep
+    mkdirSync(join(ws, 'packages', 'a', 'node_modules'), { recursive: true });
+    symlinkSync(
+      '../../../node_modules/.pnpm/dep',
+      join(ws, 'packages', 'a', 'node_modules', 'dep'),
+    );
+
+    const scratch = tmp('kernloop-scratch-');
+    rmSync(scratch, { recursive: true, force: true });
+    populateScratch(ws, scratch);
+
+    // Root node_modules arrived in scratch
+    expect(existsSync(join(scratch, 'node_modules', '.pnpm', 'dep', 'index.js'))).toBe(true);
+    // Per-package node_modules also arrived
+    expect(existsSync(join(scratch, 'packages', 'a', 'node_modules'))).toBe(true);
+    // The per-package dep entry is still a symlink — never dereferenced
+    expect(lstatSync(join(scratch, 'packages', 'a', 'node_modules', 'dep')).isSymbolicLink()).toBe(
+      true,
+    );
+    // Reading through the relative symlink resolves inside the scratch (both sides at same paths)
+    expect(
+      readFileSync(join(scratch, 'packages', 'a', 'node_modules', 'dep', 'index.js'), 'utf8'),
+    ).toBe('module.exports=42;');
+  });
+
+  it('nested node_modules inside another node_modules is not separately walked', () => {
+    const ws = tmp('kernloop-ws-');
+    // Root node_modules with a nested node_modules inside (common in non-flat installs)
+    mkdirSync(join(ws, 'node_modules', 'pkg', 'node_modules', 'dep'), { recursive: true });
+    writeFileSync(join(ws, 'node_modules', 'pkg', 'node_modules', 'dep', 'index.js'), 'nested');
+    // packages/b/ has its own node_modules — the walk must still find and copy it
+    mkdirSync(join(ws, 'packages', 'b', 'node_modules'), { recursive: true });
+    writeFileSync(join(ws, 'packages', 'b', 'node_modules', 'x.js'), 'pkg-b');
+
+    const scratch = tmp('kernloop-scratch-');
+    rmSync(scratch, { recursive: true, force: true });
+    populateScratch(ws, scratch);
+
+    // Nested node_modules content arrived via the root copy (not a separate walk)
+    expect(
+      readFileSync(join(scratch, 'node_modules', 'pkg', 'node_modules', 'dep', 'index.js'), 'utf8'),
+    ).toBe('nested');
+    // Per-package node_modules arrived via the walk of packages/b/
+    expect(readFileSync(join(scratch, 'packages', 'b', 'node_modules', 'x.js'), 'utf8')).toBe(
+      'pkg-b',
+    );
+    // No spurious top-level copy of the inner node_modules' parent
+    expect(existsSync(join(scratch, 'pkg'))).toBe(false);
   });
 });

@@ -5,7 +5,7 @@
  * by a positive test), and symlinks are copied AS symlinks (`dereference:false`)
  * so an escaping link never pulls host content into the scratch.
  */
-import { cpSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -42,15 +42,10 @@ export function copyWorkspaceSource(workspaceDir: string, scratchDir: string): v
 }
 
 /**
- * Copy `node_modules` wholesale (deps must come along — no offline install
- * under `--network none`). `cp -a --reflink=auto` is copy-on-write where the FS
- * supports it (addresses the copy-cost condition), preserves symlinks, and falls
- * back to `cpSync`. A copy (not a mount) lets tools write their caches.
+ * Copy `src` dir to `dest`, preserving symlinks. Uses `cp -a --reflink=auto`
+ * (copy-on-write where the FS supports it) with a cpSync fallback.
  */
-export function copyNodeModules(workspaceDir: string, scratchDir: string): void {
-  const src = path.join(workspaceDir, 'node_modules');
-  if (!existsSync(src)) return;
-  const dest = path.join(scratchDir, 'node_modules');
+function copyDir(src: string, dest: string): void {
   try {
     execFileSync('cp', ['-a', '--reflink=auto', src, dest], { stdio: 'ignore' });
   } catch {
@@ -58,8 +53,37 @@ export function copyNodeModules(workspaceDir: string, scratchDir: string): void 
   }
 }
 
-/** Populate a fresh scratch with the workspace source + its node_modules. */
+/**
+ * Walk `workspaceDir` and copy EVERY `node_modules` directory (root AND per-package)
+ * to the same relative path in `scratchDir`. Does NOT descend into a `node_modules`
+ * dir (its contents come along with the copy) or any other EXCLUDED_DIRS entry.
+ * Fixes pnpm workspaces where each package has its own `packages/<name>/node_modules`
+ * symlink farm (#546).
+ */
+function walkAndCopyNodeModules(workspaceDir: string, scratchDir: string, rel = ''): void {
+  const abs = rel ? path.join(workspaceDir, rel) : workspaceDir;
+  let entries;
+  try {
+    entries = readdirSync(abs, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const entryRel = rel ? path.join(rel, entry.name) : entry.name;
+    if (entry.name === 'node_modules') {
+      const dest = path.join(scratchDir, entryRel);
+      mkdirSync(path.dirname(dest), { recursive: true });
+      copyDir(path.join(workspaceDir, entryRel), dest);
+      // Do NOT recurse — contents come along with the parent copy.
+    } else if (!EXCLUDED_DIRS.has(entry.name)) {
+      walkAndCopyNodeModules(workspaceDir, scratchDir, entryRel);
+    }
+  }
+}
+
+/** Populate a fresh scratch with the workspace source + all node_modules. */
 export function populateScratch(workspaceDir: string, scratchDir: string): void {
   copyWorkspaceSource(workspaceDir, scratchDir);
-  copyNodeModules(workspaceDir, scratchDir);
+  walkAndCopyNodeModules(workspaceDir, scratchDir);
 }
