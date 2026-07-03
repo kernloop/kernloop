@@ -1,0 +1,25 @@
+id: CLM-0190
+statement: >-
+  Child-iteration findings are DEDUPLICATED on append (#535): all three fold
+  sites of the child back-edge — `reiterateChild` (a driving gate's reject),
+  `escalateChild` (the Kc/budget bound), and `foldHints` (a non-driving gate's
+  advisory findings) — drop any finding whose full contract identity
+  (severity + message + optional path) is already in the child's accumulated
+  set, so a gate re-emitting the SAME still-unfixed findings every iteration
+  does not grow `findings` (the June-13 dogfood runs stacked one identical
+  ~108-finding set to 113→221→329) and the audited per-iteration `findingCount`
+  (the `onIterate` ChildIterateEvent) reflects the DISTINCT accumulated set —
+  never a false "regressing child" signal when literally nothing changed.
+  Genuinely new findings (including a same-message finding with a different
+  path or severity) still accumulate, preserving the intentional
+  accumulated-findings-as-coder-hints design; `iteration` still counts every
+  re-entry.
+evidence:
+  - 'test:packages/workflows/src/finding-dedup.test.ts::re-appending an identical finding set does not grow the accumulated findings (#535)'
+  - 'test:packages/workflows/src/finding-dedup.test.ts::genuinely new findings still accumulate alongside deduped repeats (#535)'
+  - 'test:packages/workflows/src/finding-dedup.test.ts::the audited findingCount reflects the DEDUPED accumulated set, not re-appended repeats (#535)'
+  - 'test:packages/workflows/src/child-iterate.test.ts::a child failing Kc times escalates WITHOUT failing its sibling or the run'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.5

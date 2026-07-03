@@ -113,11 +113,24 @@ export interface QualityGateRequest {
   /** Docker sandbox policy for the gate (#236) — the overlay's gates.quality.sandbox. */
   readonly sandbox?: GateSandboxOptions;
   /**
-   * The files THIS child wrote (the implement emission), so the diff-coverage
-   * check (#226 item 2) can flag an untested written module. Empty/absent → the
-   * check is not added (byte-identical to before); a non-loop gate omits it.
+   * The files THIS child wrote (the union of its implement emissions). When
+   * PRESENT they SCOPE the in-process doc-comment AND security-smell checks to
+   * the child's own writes (#534/#541, CLM-0189) — pre-existing repo-wide
+   * findings cannot fail a child; an EMPTY array means the child owns nothing,
+   * so those checks judge nothing. They also feed the diff-coverage check
+   * (#226 item 2) when {@link diffCoverage} opts in. ABSENT → whole-workspace
+   * semantics (byte-identical to before); the standalone `gate quality` path
+   * omits it.
    */
   readonly writtenFiles?: readonly WrittenFile[];
+  /**
+   * Opt-in for the diff-coverage check (#226 item 2; the overlay's
+   * `gates.quality.diffCoverage` knob): only when true AND {@link writtenFiles}
+   * is non-empty is the check added. Kept a SEPARATE flag so passing
+   * `writtenFiles` for doc-comment scoping (#534) never silently enables the
+   * opt-in coverage gate.
+   */
+  readonly diffCoverage?: boolean;
 }
 
 /**
@@ -175,11 +188,18 @@ export async function executeQualityGate(
     workspaceDir: request.workspaceDir,
     // The repo's base checks (or the override) PLUS the task's own acceptance
     // criteria (#226) — a child must pass its definition-of-done, not just `pnpm test`.
+    // A PRESENT writtenFiles (even empty: a child that wrote nothing owns nothing)
+    // scopes the default in-process doc-comment + security checks to the child's
+    // own writes (#534/#541, CLM-0189); an explicit `checks` override is the
+    // caller's to scope.
     checks: [
-      ...(request.checks ?? defaultQualityChecks()),
+      ...(request.checks ?? defaultQualityChecks(request.writtenFiles?.map((f) => f.path))),
       // Diff-coverage runs AFTER the base set so the `test` check has emitted the
-      // coverage report (#226 item 2); only when the child's written files are known.
-      ...(request.writtenFiles !== undefined && request.writtenFiles.length > 0
+      // coverage report (#226 item 2); only under the explicit opt-in flag AND when
+      // the child's written files are known.
+      ...(request.diffCoverage === true &&
+      request.writtenFiles !== undefined &&
+      request.writtenFiles.length > 0
         ? [diffCoverageCheck(request.writtenFiles)]
         : []),
       ...checksFromDefinitionOfDone(request.definitionOfDone ?? []),

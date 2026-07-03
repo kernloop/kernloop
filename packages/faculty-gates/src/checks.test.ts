@@ -9,6 +9,7 @@ import {
   diffCoverageCheck,
   docCommentCheck,
   isInProcessCheck,
+  securityCheck,
 } from './checks.js';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
 
@@ -39,6 +40,78 @@ describe('diffCoverageCheck (#226 item 2)', () => {
   it('adds NO check content for no written files (empty findings, byte-safe)', async () => {
     dir = mkdtempSync(join(tmpdir(), 'kernloop-dcc-'));
     expect(await diffCoverageCheck([]).run(dir)).toEqual([]);
+  });
+});
+
+describe('docCommentCheck scoping (#534) [CLM-0189]', () => {
+  let dir: string;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A workspace with one pre-existing and one child-written undocumented export. */
+  function seed(): string {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-docscope-'));
+    writeFileSync(join(dir, 'pre-existing.ts'), 'export function legacy() {}\n');
+    writeFileSync(join(dir, 'child.ts'), 'export function fresh() {}\n');
+    return dir;
+  }
+
+  it('scoped to writtenFiles, ignores an undocumented export outside them', async () => {
+    const ws = seed();
+    const findings = await docCommentCheck(['child.ts']).run(ws);
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+    expect(findings.some((f) => f.message.includes('"fresh"'))).toBe(true);
+  });
+
+  it('unscoped, keeps the whole-workspace semantics (both exports flagged)', async () => {
+    const ws = seed();
+    const messages = (await docCommentCheck().run(ws)).map((f) => f.message);
+    expect(messages.some((m) => m.includes('"legacy"'))).toBe(true);
+    expect(messages.some((m) => m.includes('"fresh"'))).toBe(true);
+  });
+
+  it('defaultQualityChecks forwards the doc scope to the doc-comments check', async () => {
+    const ws = seed();
+    const doc = defaultQualityChecks(['child.ts']).find((c) => c.name === 'doc-comments');
+    if (doc === undefined || !isInProcessCheck(doc)) throw new Error('doc-comments check missing');
+    const findings = await doc.run(ws);
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+    expect(findings.some((f) => f.message.includes('"fresh"'))).toBe(true);
+  });
+});
+
+describe('securityCheck scoping (#541) [CLM-0189]', () => {
+  let dir: string;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A workspace with a pre-existing fixture secret and a clean child write. */
+  function seedSecrets(): string {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-secscope-'));
+    writeFileSync(join(dir, 'pre-existing.ts'), "const k = 'AKIAIOSFODNN7EXAMPLE';\n");
+    writeFileSync(join(dir, 'child.ts'), 'export const clean = 1;\n');
+    return dir;
+  }
+
+  it('scoped to writtenFiles, ignores a pre-existing secret outside them (#541)', async () => {
+    const ws = seedSecrets();
+    expect(await securityCheck(['child.ts']).run(ws)).toEqual([]);
+  });
+
+  it('unscoped, the security check keeps its whole-workspace semantics', async () => {
+    const ws = seedSecrets();
+    const findings = await securityCheck().run(ws);
+    expect(findings.some((f) => f.message.includes('AWS access key id'))).toBe(true);
+  });
+
+  it('defaultQualityChecks forwards the child scope to the security check too (#541)', async () => {
+    const ws = seedSecrets();
+    const security = defaultQualityChecks(['child.ts']).find((c) => c.name === 'security');
+    if (security === undefined || !isInProcessCheck(security))
+      throw new Error('security check missing');
+    expect(await security.run(ws)).toEqual([]);
   });
 });
 

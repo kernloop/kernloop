@@ -3195,3 +3195,47 @@ For an ENDPOINT-ONLY ratification run whose endpoint serves >=2 chat-capable mod
 - [`packages/cli/src/loop/vote-model-diversity.test.ts`](../packages/cli/src/loop/vote-model-diversity.test.ts)
 - [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
 - CI `test`
+
+## CLM-0189
+
+**Status:** verified — **source:** [`CLM-0189.yaml`](../claims/registry/CLM-0189.yaml)
+
+The canonical loop's CHILD quality gate scopes its IN-PROCESS whole-workspace scans — the doc-comment check (#534) AND the security smell check (#541) — to the child's OWN written files, so pre-existing repo-wide findings (an undocumented legacy export, a detector fixture secret) do not fail a child on content outside its file ownership. The loop's quality node passes the child's `writtenByChild` stash into the gate (the same files the diff-coverage check closes over, CLM-0134); `docCommentCheck` / `securityCheck` / `defaultQualityChecks` accept the optional scope, and `scanDocComments` / `scanSecuritySmells` PARSE only the scoped workspace paths (out-of-scope files are never read — not merely post-filtered), which for the doc scan also excludes out-of-scope tree-sitter files and honest-degradation notes. The stash is the UNION of the child's implement emissions across its iterations WITHIN A PROCESS LIFETIME (last content wins per path), so within one process a re-iteration that re-emits only some files does not narrow the scope past an earlier undocumented or smelly write. The stash is NOT checkpointed; on a RESUME the gate FAILS CLOSED both at the instant and after: an ABSENT stash entry falls back to the whole-workspace scans AND taints that child whole-workspace for the REMAINDER of the run (`scopeTaintedChildren`, itself process-local — a later resume re-taints via the same absent-stash path), so a fresh partial post-resume stash does not re-narrow the scope past pre-crash writes; the durable path-checkpoint fix is tracked as #543. SCOPE CARVE-OUTS, stated honestly: the request-level scope applies only to the DEFAULT check set — an explicit `checks` override is the caller's to scope; and a PRESENT-but-empty scope (a child that wrote nothing) disables BOTH in-process checks for that gate run, INCLUDING the security scan — the child owns no content. An ABSENT scope — the standalone `gate quality` path and every non-child gate run — keeps the whole-workspace semantics unchanged. Scope entries are CANONICALIZED against the workspace (resolve-then-relative, and the loop stashes the normalized relative paths `writeWorkspaceFiles` returns — a count mismatch throws, never a raw-path fallback), so an emitted absolute-but-inside path is still scanned rather than dodging a string compare. Passing the child's files for scoping never silently enables the opt-in diff-coverage check (CLM-0134): that stays behind its own `gates.quality.diffCoverage` flag, threaded as a separate request field.
+
+**Enforced by:**
+
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/security-scan.test.ts`](../packages/docscan/src/security-scan.test.ts)
+- [`packages/docscan/src/security-scan.test.ts`](../packages/docscan/src/security-scan.test.ts)
+- [`packages/docscan/src/security-scan.test.ts`](../packages/docscan/src/security-scan.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- CI `test`
+
+## CLM-0190
+
+**Status:** verified — **source:** [`CLM-0190.yaml`](../claims/registry/CLM-0190.yaml)
+
+Child-iteration findings are DEDUPLICATED on append (#535): all three fold sites of the child back-edge — `reiterateChild` (a driving gate's reject), `escalateChild` (the Kc/budget bound), and `foldHints` (a non-driving gate's advisory findings) — drop any finding whose full contract identity (severity + message + optional path) is already in the child's accumulated set, so a gate re-emitting the SAME still-unfixed findings every iteration does not grow `findings` (the June-13 dogfood runs stacked one identical ~108-finding set to 113→221→329) and the audited per-iteration `findingCount` (the `onIterate` ChildIterateEvent) reflects the DISTINCT accumulated set — never a false "regressing child" signal when literally nothing changed. Genuinely new findings (including a same-message finding with a different path or severity) still accumulate, preserving the intentional accumulated-findings-as-coder-hints design; `iteration` still counts every re-entry.
+
+**Enforced by:**
+
+- [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
+- [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
+- [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- CI `test`

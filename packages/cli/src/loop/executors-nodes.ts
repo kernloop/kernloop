@@ -20,7 +20,7 @@ import { briefText } from './seams.js';
 import { coderPrompt, decomposePrompt } from './prompts.js';
 import { childSignal, reviewConcernSignals, sumChildCosts } from './aggregate.js';
 import { identityRef, servedIdentity, servedRef, type NodeSeam } from './node-seam.js';
-import { sinkFor, writeWorkspaceFiles, type LoopBindings } from './executors.js';
+import { sinkFor, writeWorkspaceFiles, type LoopBindings, type LoopRefs } from './executors.js';
 
 /**
  * Invoke the coder and parse its files emission, RETRYING ONCE on a contract
@@ -68,6 +68,59 @@ export function decomposeExecutor(b: LoopBindings): NodeExecutor {
   };
 }
 
+/**
+ * Resolve the child quality gate's written-files scope (#534/#541, CLM-0189).
+ * A PRESENT stash entry — the union of the child's writes THIS PROCESS — scopes
+ * the in-process doc-comment + security checks. An ABSENT entry (the stash is
+ * not checkpointed, so a resume lands here) FAILS CLOSED to the whole-workspace
+ * scans AND marks the child in {@link LoopRefs.scopeTaintedChildren}: once
+ * tainted, the gate stays whole-workspace for the REST of the run, so a fresh
+ * PARTIAL stash from a post-resume re-iteration cannot re-narrow the scope past
+ * pre-crash writes. The taint set is process-local like the stash — a later
+ * resume re-taints via the same absent-stash path. Durable path checkpointing
+ * is tracked as #543. Returns undefined for a non-child (run-level) gate.
+ */
+export function childGateScope(
+  refs: LoopRefs,
+  childId: string | undefined,
+): ReadonlyArray<{ path: string; content: string }> | undefined {
+  if (childId === undefined) return undefined;
+  const tainted = (refs.scopeTaintedChildren ??= new Set<string>());
+  const stashed = refs.writtenByChild?.[childId];
+  if (stashed === undefined) tainted.add(childId);
+  return tainted.has(childId) ? undefined : stashed;
+}
+
+/** Merge one implement emission into the child's written-files stash (#534,
+ * CLM-0189): the stash is the UNION by path of the child's emissions across
+ * its iterations — a re-iteration that re-emits only SOME files must not
+ * narrow the enforcing doc-comment scope past an earlier undocumented write —
+ * with the LAST content winning for a re-emitted path. Stored paths are the
+ * NORMALIZED workspace-relative ones `writeWorkspaceFiles` returned (one per
+ * emitted file, in order), never the raw emitted paths: an absolute-but-inside
+ * emitted path must still match the scan's relative walk keys. Any count
+ * mismatch is a wiring bug and throws — never a silent raw-path fallback. */
+function stashWrittenFiles(
+  refs: LoopBindings['refs'],
+  childId: string,
+  files: ReadonlyArray<{ path: string; content: string }>,
+  written: readonly string[],
+): void {
+  if (written.length !== files.length) {
+    throw new Error(
+      `writeWorkspaceFiles returned ${String(written.length)} paths for ${String(files.length)} emitted files`,
+    );
+  }
+  const stash = (refs.writtenByChild ??= {});
+  const merged = new Map((stash[childId] ?? []).map((f) => [f.path, f.content]));
+  files.forEach((file, i) => {
+    const rel = written[i];
+    if (rel === undefined) throw new Error(`writeWorkspaceFiles returned no path for ${file.path}`);
+    merged.set(rel, file.content);
+  });
+  stash[childId] = [...merged].map(([p, content]) => ({ path: p, content }));
+}
+
 /** The implement child node: coder via invoke → files written for real.
  * On a re-iteration `ctx.findings` carries THIS child's accumulated gate
  * findings (the engine scopes findings to the child inside the fan-out); they
@@ -83,8 +136,11 @@ export function implementExecutor(b: LoopBindings): NodeExecutor {
       sink,
     );
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
-    // Stash what this child wrote so the advisory review gate can diff it.
-    (b.refs.writtenByChild ??= {})[child.id] = emission.files;
+    // Stash what this child wrote — the advisory review gate diffs it and the
+    // quality gate's doc-comment check scopes to it (#534, CLM-0189): the UNION
+    // across this child's iterations, normalized relative paths (see
+    // {@link stashWrittenFiles}).
+    stashWrittenFiles(b.refs, child.id, emission.files, written);
     const notes = emission.notes === '' ? '' : ` — ${emission.notes}`;
     return OutcomeSchema.parse({
       taskId: child.id,

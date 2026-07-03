@@ -71,9 +71,19 @@ export function isInProcessCheck(check: QualityCheck): check is InProcessCheck {
  * lacks a non-empty doc-comment as an `error` (driving per-child re-iteration),
  * and records one `info` finding per REMAINING source language it cannot yet
  * cover. Presence only, never accuracy. Async (the WASM grammars load asynchronously).
+ *
+ * `writtenFiles` (#534, CLM-0189) scopes the scan to those workspace-relative
+ * paths — the canonical loop passes the CHILD's written files so a child is
+ * judged only on what IT wrote, mirroring {@link diffCoverageCheck}; a
+ * pre-existing repo-wide doc gap can no longer fail every child. Omitted →
+ * the whole-workspace scan (the standalone `gate quality` semantics) is
+ * unchanged.
  */
-export function docCommentCheck(): InProcessCheck {
-  return { name: 'doc-comments', run: scanDocComments };
+export function docCommentCheck(writtenFiles?: readonly string[]): InProcessCheck {
+  return {
+    name: 'doc-comments',
+    run: (workspaceDir) => scanDocComments(workspaceDir, writtenFiles),
+  };
 }
 
 /**
@@ -83,9 +93,19 @@ export function docCommentCheck(): InProcessCheck {
  * injection (`exec`/`execSync` with a non-literal command), and known-format
  * hardcoded secrets — emitting advisory `error` Findings. It is a smell detector,
  * NOT exhaustive SAST; the broader external-tool tier is deferred (#276).
+ *
+ * `writtenFiles` (#541, CLM-0189) scopes the scan to those workspace-relative
+ * paths — the child quality gate passes the CHILD's written files, exactly as
+ * {@link docCommentCheck}, so a child is judged on the smells of what IT wrote
+ * and never failed on pre-existing repo content (e.g. detector fixtures).
+ * Omitted → the whole-workspace scan (the standalone `gate quality` semantics)
+ * is unchanged.
  */
-export function securityCheck(): InProcessCheck {
-  return { name: 'security', run: scanSecuritySmells };
+export function securityCheck(writtenFiles?: readonly string[]): InProcessCheck {
+  return {
+    name: 'security',
+    run: (workspaceDir) => scanSecuritySmells(workspaceDir, writtenFiles),
+  };
 }
 
 /**
@@ -113,15 +133,20 @@ export const DEFAULT_TIMEOUT_MS = 120_000;
  * (tsc diagnostics), `pnpm lint` (ESLint stylish), `pnpm test` (vitest;
  * coverage thresholds ride the same exit code) — plus the in-process
  * doc-comment scan (#65). The doc check runs last so a missing-docs `error`
- * sits alongside the tool findings in the same Verdict.
+ * sits alongside the tool findings in the same Verdict. `childScope` (#534,
+ * #541; CLM-0189) narrows BOTH in-process whole-workspace scans — doc-comments
+ * AND the security smell check — to those workspace-relative files (a child
+ * gate scoped to the child's writes; the subprocess tool checks judge the
+ * whole workspace regardless, as they must); omitted, every check keeps its
+ * whole-workspace semantics.
  */
-export function defaultQualityChecks(): QualityCheck[] {
+export function defaultQualityChecks(childScope?: readonly string[]): QualityCheck[] {
   return [
     { name: 'typecheck', command: 'pnpm', args: ['typecheck'], parse: parseTscOutput },
     { name: 'lint', command: 'pnpm', args: ['lint'], parse: parseEslintOutput },
     { name: 'test', command: 'pnpm', args: ['test'], parse: parseVitestOutput },
-    docCommentCheck(),
-    securityCheck(),
+    docCommentCheck(childScope),
+    securityCheck(childScope),
   ];
 }
 

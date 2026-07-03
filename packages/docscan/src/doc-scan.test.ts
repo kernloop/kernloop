@@ -189,6 +189,53 @@ describe('scanDocComments — honest degradation (remaining languages)', () => {
   });
 });
 
+describe('scanDocComments — scoped to written files (#534) [CLM-0189]', () => {
+  it('ignores an undocumented export OUTSIDE the scoped files', async () => {
+    write('src/pre-existing.ts', 'export function legacy() {}\n');
+    write('src/child.ts', '/** Fresh and documented. */\nexport function fresh() {}\n');
+    expect(await scanDocComments(dir, [path.join('src', 'child.ts')])).toEqual([]);
+  });
+
+  it('still flags an undocumented export INSIDE the scoped files', async () => {
+    write('src/pre-existing.ts', 'export function legacy() {}\n');
+    write('src/child.ts', 'export function fresh() {}\n');
+    const findings = await scanDocComments(dir, [path.join('src', 'child.ts')]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.message).toContain('"fresh"');
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+  });
+
+  it('an omitted scope scans the whole tree (standalone gate semantics unchanged)', async () => {
+    write('src/pre-existing.ts', 'export function legacy() {}\n');
+    write('src/child.ts', 'export function fresh() {}\n');
+    const messages = (await scanDocComments(dir)).map((f) => f.message);
+    expect(messages.some((m) => m.includes('"legacy"'))).toBe(true);
+    expect(messages.some((m) => m.includes('"fresh"'))).toBe(true);
+  });
+
+  it('scoping also excludes out-of-scope tree-sitter files and degradation notes', async () => {
+    write('a.py', 'def f():\n    pass\n'); // would be an error unscoped
+    write('b.dart', 'void g() {}\n'); // would be a degradation info unscoped
+    write('src/child.ts', 'export function fresh() {}\n');
+    const findings = await scanDocComments(dir, [path.join('src', 'child.ts')]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"fresh"');
+  });
+
+  it('an absolute scope entry inside the workspace still scopes correctly (canonicalized, still scanned)', async () => {
+    // writeWorkspaceFiles accepts an absolute path inside the workspace; the
+    // scope canonicalizes each entry against the workspace, so an emitted
+    // absolute path cannot dodge the scan by failing a string compare.
+    write('src/pre-existing.ts', 'export function legacy() {}\n');
+    write('src/child.ts', 'export function fresh() {}\n');
+    const findings = await scanDocComments(dir, [path.join(dir, 'src', 'child.ts')]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"fresh"');
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+  });
+});
+
 describe('mineExportedSymbols (#107)', () => {
   it('returns each file with its exported symbols + doc presence, relative path', () => {
     write('src/a.ts', '/** Adds. */\nexport function add() {}\nexport const k = 1;\n');

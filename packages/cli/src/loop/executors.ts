@@ -44,6 +44,7 @@ import { planPrompt, researcherPrompt, writtenDiff } from './prompts.js';
 import type { TieredNode } from './node-model.js';
 import { identityRef, servedRef, type NodeSeam } from './node-seam.js';
 import {
+  childGateScope,
   decomposeExecutor,
   implementExecutor,
   integrateExecutor,
@@ -56,11 +57,24 @@ export interface LoopRefs {
   framedTask?: TaskContract;
   researchBrief?: Brief;
   planBrief?: Brief;
-  /** Files each child's implement step wrote, keyed by child id — the diff
-   * the advisory review gate reads. Not checkpointed: on a resume that lands
-   * after implement but before review, the stash is empty and review abstains
-   * honestly (it is advisory, so the run is unaffected). */
+  /** Files each child's implement step wrote (workspace-RELATIVE, normalized —
+   * the `writeWorkspaceFiles` return; the UNION across the child's iterations
+   * WITHIN THIS PROCESS, so a re-emit does not narrow it), keyed by child id — the diff the advisory
+   * review gate reads AND the scope of the child quality gate's ENFORCING
+   * doc-comment + security checks (#534/#541, CLM-0189). Not checkpointed: on
+   * a resume that lands after implement, the advisory review abstains
+   * honestly, and the quality gate FAILS CLOSED — an ABSENT stash entry falls
+   * back to the whole-workspace scans (over-broad, never silently skipping
+   * files the child really wrote); only a PRESENT entry scopes the checks. */
   writtenByChild?: Record<string, ReadonlyArray<{ path: string; content: string }>>;
+  /** Child ids whose quality gate ever ran with an ABSENT written-files stash
+   * (a resume landed mid-child): tainted WHOLE-WORKSPACE for the REST of the
+   * run, so a fresh partial stash from a post-resume re-iteration cannot
+   * re-narrow the scope past pre-crash writes (#534/#541, CLM-0189).
+   * Process-local like the stash itself — a later resume re-taints via the
+   * same absent-stash path, so the mechanism is self-consistent. The durable
+   * path-checkpoint fix is #543. */
+  scopeTaintedChildren?: Set<string>;
   /** The proceeding plan-vote Verdict (#369 Inc3a) — its VoterRecords are labeled
    * at retrospect against the run's eventual success. Not checkpointed: a resume
    * landing after the vote simply skips labeling (advisory, run unaffected). */
@@ -111,6 +125,10 @@ export interface LoopBindings {
  *     A model-chosen path through a pre-existing symlink in the workspace
  *     would otherwise escape it. The real workspace root is itself realpath'd
  *     so a workspace that is legitimately under a symlink still works.
+ *
+ * RETURN CONTRACT: exactly ONE normalized workspace-relative path per input
+ * file, in input order — the index-pairing + count assert in the implement
+ * stash (`stashWrittenFiles`, #534) rely on this 1:1 correspondence.
  */
 export function writeWorkspaceFiles(
   workspaceDir: string,
@@ -345,24 +363,26 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
     vote: voteExecutor(b),
     decompose: decomposeExecutor(b),
     implement: implementExecutor(b),
-    quality: (_input, ctx) =>
-      executeQualityGate(b.kern, {
+    quality: (_input, ctx) => {
+      // Written-files scope for the in-process checks + opt-in diff-coverage:
+      // see {@link childGateScope} (#534/#541, CLM-0189 — fail-closed on an
+      // absent stash, sticky taint for the rest of the run).
+      const stash = childGateScope(b.refs, ctx.child?.id);
+      return executeQualityGate(b.kern, {
         taskId: ctx.child?.id ?? ctx.taskId,
         workspaceDir: b.workspaceDir,
         // The child's OWN definition-of-done runs alongside the base checks (#226).
         ...(ctx.child === undefined ? {} : { definitionOfDone: ctx.child.definitionOfDone }),
-        // The files this child wrote, so diff-coverage flags an untested module (#226
-        // item 2) — only under the opt-in flag (default off; a new gate behavior).
-        ...(ctx.child !== undefined && b.kern.config.gates.quality.diffCoverage
-          ? { writtenFiles: b.refs.writtenByChild?.[ctx.child.id] ?? [] }
-          : {}),
+        ...(stash === undefined ? {} : { writtenFiles: stash }),
+        diffCoverage: b.kern.config.gates.quality.diffCoverage,
         ...(b.checks === undefined ? {} : { checks: b.checks }),
         envAllow: b.kern.config.gates.quality.envAllow, // least-privilege check env (#235)
         sandbox: b.kern.config.gates.quality.sandbox, // Docker isolation policy (#236)
         ...(b.kern.config.gates.quality.timeoutMsPerCheck === undefined
           ? {}
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),
-      }),
+      });
+    },
     review: reviewExecutor(b),
     parsimony: parsimonyExecutor(b),
     integrate: integrateExecutor(b),

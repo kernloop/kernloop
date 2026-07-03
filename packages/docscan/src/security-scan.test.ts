@@ -89,6 +89,36 @@ describe('scanSecuritySmells — known-format hardcoded secrets (#277)', () => {
   });
 });
 
+describe('scanSecuritySmells — scoped to written files (#541) [CLM-0189]', () => {
+  const PRE_EXISTING = {
+    // A pre-existing repo file carrying a fixture secret (this repo's own
+    // detector fixtures are exactly this shape) — never the child's to own.
+    'fixtures/pre-existing.ts': "const k = 'AKIAIOSFODNN7EXAMPLE';",
+  };
+
+  it('scoped, ignores a pre-existing secret outside the written files (#541)', () => {
+    scan({ ...PRE_EXISTING, 'src/child.ts': 'export const clean = 1;' });
+    expect(scanSecuritySmells(dir, [join('src', 'child.ts')])).toEqual([]);
+  });
+
+  it('scoped, still flags a secret INSIDE a written file (#541)', () => {
+    scan({
+      ...PRE_EXISTING,
+      'src/child.ts': "const t = 'ghp_0123456789abcdefghijklmnopqrstuvwxyz';",
+    });
+    // Absolute-but-inside scope entry: canonicalized like the doc scan (#534).
+    const findings = scanSecuritySmells(dir, [join(dir, 'src', 'child.ts')]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('GitHub token');
+    expect(findings.some((f) => f.message.includes('AWS access key id'))).toBe(false);
+  });
+
+  it('an omitted scope keeps the whole-workspace security scan unchanged', () => {
+    const findings = scan({ ...PRE_EXISTING, 'src/child.ts': 'export const clean = 1;' });
+    expect(findings.some((f) => f.message.includes('AWS access key id'))).toBe(true);
+  });
+});
+
 describe('scanSecuritySmells — invariants (#277)', () => {
   it('never throws on unparseable generated code, and still scans secrets', () => {
     const out = scan({

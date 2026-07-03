@@ -283,12 +283,29 @@ function degradationFindings(byLang: ReadonlyMap<string, number>): Finding[] {
  * non-code files are skipped. Presence only — never accuracy. Pure read; never
  * spawns a process or calls a model. Async because the WASM grammars load
  * asynchronously (the gate runner awaits and times out the in-process check).
+ *
+ * `onlyFiles` (#534, CLM-0189) restricts the scan to those workspace paths:
+ * only they are parsed (never merely post-filtered — out-of-scope files are
+ * not read), so a child's quality gate judges only what the child wrote and a
+ * pre-existing repo-wide doc gap cannot fail it. Each entry is CANONICALIZED
+ * against `workspaceDir` (resolve-then-relative), so a relative entry, a
+ * `./`-prefixed one, or an ABSOLUTE path inside the workspace all match the
+ * walk — an emitted absolute path cannot dodge the scan by failing a string
+ * compare. Omitted → the whole-tree scan is byte-identical to before.
  */
-export async function scanDocComments(workspaceDir: string): Promise<Finding[]> {
+export async function scanDocComments(
+  workspaceDir: string,
+  onlyFiles?: readonly string[],
+): Promise<Finding[]> {
+  const scope =
+    onlyFiles === undefined
+      ? undefined
+      : new Set(onlyFiles.map((f) => path.relative(workspaceDir, path.resolve(workspaceDir, f))));
   const covered: string[] = [];
   const treeSitter: string[] = [];
   const uncovered = new Map<string, number>();
   for (const file of walkFiles(workspaceDir)) {
+    if (scope !== undefined && !scope.has(path.relative(workspaceDir, file))) continue;
     const ext = path.extname(file).toLowerCase();
     if (COVERED_EXTS.has(ext)) {
       covered.push(file);
