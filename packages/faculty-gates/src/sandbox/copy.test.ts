@@ -16,6 +16,7 @@ import {
   rmSync,
   existsSync,
   readFileSync,
+  readlinkSync,
   lstatSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -107,6 +108,25 @@ describe('copyWorkspaceSource — positive isolation (#236)', () => {
     }
     // The real source file did copy.
     expect(readFileSync(join(scratch, 'real.ts'), 'utf8')).toBe('ok\n');
+  });
+
+  it('preserves a RELATIVE symlink target verbatim — never resolved to an absolute host path (#561)', () => {
+    const ws = tmp('kernloop-ws-');
+    writeFileSync(join(ws, 'AGENTS.md'), '# charter\n');
+    // The repo's own shape: CLAUDE.md is a relative symlink to AGENTS.md.
+    symlinkSync('AGENTS.md', join(ws, 'CLAUDE.md'));
+
+    const scratch = tmp('kernloop-scratch-');
+    rmSync(scratch, { recursive: true, force: true });
+    copyWorkspaceSource(ws, scratch);
+
+    const copied = join(scratch, 'CLAUDE.md');
+    expect(lstatSync(copied).isSymbolicLink()).toBe(true);
+    // The target TEXT is unchanged — 'AGENTS.md', not an absolute path into the
+    // copy source (which would dangle inside the sandbox container).
+    expect(readlinkSync(copied)).toBe('AGENTS.md');
+    // And it resolves inside the scratch tree.
+    expect(readFileSync(copied, 'utf8')).toBe('# charter\n');
   });
 });
 

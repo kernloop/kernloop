@@ -37,6 +37,11 @@ export function copyWorkspaceSource(workspaceDir: string, scratchDir: string): v
   cpSync(workspaceDir, scratchDir, {
     recursive: true,
     dereference: false, // copy symlinks AS symlinks — never read their targets
+    // Keep the link TARGET TEXT verbatim (#561): without this, cpSync resolves a
+    // relative target against the source dir, so CLAUDE.md/GEMINI.md → AGENTS.md
+    // arrive pointing at an absolute HOST path — dangling in the container and
+    // failing the in-sandbox governance-check symlink assertion.
+    verbatimSymlinks: true,
     filter: (src) => isCopyable(src),
   });
 }
@@ -51,7 +56,9 @@ export function copyDir(src: string, dest: string): void {
   try {
     execFileSync('cp', ['-a', '--reflink=auto', src, dest], { stdio: 'ignore' });
   } catch {
-    cpSync(src, dest, { recursive: true, dereference: false });
+    // verbatimSymlinks matches `cp -a` (link target text preserved as written, #561)
+    // so the fallback behaves identically for relative symlink farms.
+    cpSync(src, dest, { recursive: true, dereference: false, verbatimSymlinks: true });
   }
 }
 
