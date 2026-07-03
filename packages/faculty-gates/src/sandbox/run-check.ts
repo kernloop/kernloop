@@ -12,6 +12,7 @@ import { runInSandbox, SandboxUnavailableError } from '@kernloop/kernel';
 import type { SubprocessCheck } from '../checks.js';
 import { RATIFIED_GATE_PROFILE } from './profile.js';
 import { populateScratch } from './copy.js';
+import { provisionPackageManager } from './provision-pm.js';
 
 /**
  * Make the ephemeral scratch accessible to the container's non-root user. The
@@ -41,11 +42,19 @@ export interface SandboxExecution {
   readonly spawnError: string | undefined;
 }
 
+/** A no-run SandboxExecution carrying a spawnError so the caller fails closed. */
+function spawnErrorExecution(spawnError: string): SandboxExecution {
+  return { exitCode: null, stdout: '', stderr: '', timedOut: false, spawnError };
+}
+
 /**
  * Translate a check command for the offline image: `pnpm`/`yarn <script>` →
  * `npm run <script>` (npm ships with node, runs scripts offline via the local
- * .bin); others pass through. Wrapped so node_modules/.bin is on PATH;
- * injection-safe — command/args ride as separate argv (`"$0" "$@"`).
+ * .bin); others pass through. Wrapped so the provisioned PM shim
+ * (`/work/.kernloop-pm/bin`, #548) then node_modules/.bin are on PATH — so a
+ * script that shells out to the DECLARED pnpm/yarn (turbo re-invoking per-package
+ * scripts) resolves the offline-provisioned binary; injection-safe — command/args
+ * ride as separate argv (`"$0" "$@"`).
  */
 export function containerArgv(check: SubprocessCheck): string[] {
   let command = check.command;
@@ -54,7 +63,8 @@ export function containerArgv(check: SubprocessCheck): string[] {
     command = 'npm';
     args = ['run', ...args];
   }
-  return ['sh', '-c', 'PATH="/work/node_modules/.bin:$PATH" exec "$0" "$@"', command, ...args];
+  const setPath = 'PATH="/work/.kernloop-pm/bin:/work/node_modules/.bin:$PATH" exec "$0" "$@"';
+  return ['sh', '-c', setPath, command, ...args];
 }
 
 /**
@@ -92,6 +102,12 @@ export async function runCheckInSandbox(
   const scratch = mkdtempSync(join(tmpdir(), 'kernloop-gate-sbx-'));
   try {
     populateScratch(workspaceDir, scratch);
+    // Provision the DECLARED PM offline (#548) BEFORE opening perms, so the
+    // copied dist is chmod'd for the container user too. Fail CLOSED (as a
+    // spawnError) when the host cache lacks the declared version — never run
+    // half-provisioned (turbo would fail environmentally) or silently green.
+    const provisioned = provisionPackageManager(workspaceDir, scratch);
+    if (!provisioned.ok) return spawnErrorExecution(provisioned.error ?? 'PM provisioning failed');
     openScratchPerms(scratch); // container user (uid 1000) != host uid → grant access
     const result = await runInSandbox({
       scratchDir: scratch,
@@ -108,13 +124,7 @@ export async function runCheckInSandbox(
     };
   } catch (error) {
     if (error instanceof SandboxUnavailableError) {
-      return {
-        exitCode: null,
-        stdout: '',
-        stderr: '',
-        timedOut: false,
-        spawnError: `sandbox unavailable mid-run: ${error.message}`,
-      };
+      return spawnErrorExecution(`sandbox unavailable mid-run: ${error.message}`);
     }
     throw error;
   } finally {

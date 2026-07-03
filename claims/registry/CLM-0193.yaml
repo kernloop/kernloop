@@ -1,0 +1,25 @@
+id: CLM-0193
+statement: >-
+  A failed subprocess check's fallback finding carries the TAIL of the tool's
+  combined stdout+stderr, not the HEAD. Every mainstream tool prints its real
+  error LAST (tsc/vitest diagnostics, turbo's `x Unable to find package manager
+  binary`, npm's failure epilogue) while the HEAD is boilerplate (the
+  `> pkg@ver script` banner, "Packages in scope", telemetry notices); keeping
+  the whole small output buried the one error line under that banner head, so a
+  coder iterating on the finding — and any downstream head-truncating display —
+  saw only boilerplate and converged blind. outputTail now drops the leading
+  banner by keeping the last N lines (default 12) then capping to the last N
+  chars (default 2000), marking dropped output with a leading `…`; the run.ts
+  nonzero-exit fallback (fired only when nothing structured parses) uses it, so
+  the error surfaces within the existing size caps. Fixes the head-truncated
+  findings observed across both #530 bootstrap runs (#549).
+evidence:
+  - 'test:packages/faculty-gates/src/parsers.test.ts::drops a long leading banner and surfaces the trailing error line (#549)'
+  - 'test:packages/faculty-gates/src/parsers.test.ts::returns the trimmed combined output when short'
+  - 'test:packages/faculty-gates/src/parsers.test.ts::keeps only the last maxChars characters of long output'
+  - 'test:packages/faculty-gates/src/run.test.ts::surfaces the TAIL error over a long banner head in the fallback finding (#549)'
+  - 'test:packages/faculty-gates/src/run.test.ts::falls back to an output-tail finding when nothing parses'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.5

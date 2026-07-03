@@ -97,6 +97,29 @@ describe('runQualityGate', () => {
     expect(verdict.findings[0]?.message).toContain('inscrutable explosion');
   });
 
+  it('surfaces the TAIL error over a long banner head in the fallback finding (#549)', async () => {
+    // Mirrors the real turbo failure: a long boilerplate banner on stdout, the
+    // real error last on stderr. The finding must carry the error, not the head.
+    const verdict = await runQualityGate({
+      taskId: 'task-banner',
+      workspaceDir: fixtureDir,
+      checks: [
+        scriptCheck(
+          'typecheck',
+          [
+            'for (let i = 1; i <= 30; i++) process.stdout.write(`BANNER LINE ${i}\\n`);',
+            'process.stderr.write("  x Unable to find package manager binary: cannot find binary path\\n");',
+            'process.exit(1);',
+          ].join('\n'),
+        ),
+      ],
+    });
+    expect(verdict.result).toBe('fail');
+    const message = verdict.findings[0]?.message ?? '';
+    expect(message).toContain('x Unable to find package manager binary');
+    expect(message).not.toContain('BANNER LINE 1');
+  });
+
   it('keeps only non-blocking findings when a check exits zero', async () => {
     const noisy: Finding[] = [
       { severity: 'info', message: 'note' },

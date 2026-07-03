@@ -33,7 +33,7 @@ describe('containerArgv — offline command translation (#236)', () => {
     expect(containerArgv(check('pnpm', ['test']))).toEqual([
       'sh',
       '-c',
-      'PATH="/work/node_modules/.bin:$PATH" exec "$0" "$@"',
+      'PATH="/work/.kernloop-pm/bin:/work/node_modules/.bin:$PATH" exec "$0" "$@"',
       'npm',
       'run',
       'test',
@@ -41,7 +41,7 @@ describe('containerArgv — offline command translation (#236)', () => {
     expect(containerArgv(check('yarn', ['typecheck']))).toEqual([
       'sh',
       '-c',
-      'PATH="/work/node_modules/.bin:$PATH" exec "$0" "$@"',
+      'PATH="/work/.kernloop-pm/bin:/work/node_modules/.bin:$PATH" exec "$0" "$@"',
       'npm',
       'run',
       'typecheck',
@@ -52,7 +52,7 @@ describe('containerArgv — offline command translation (#236)', () => {
     expect(containerArgv(check('tsc', ['--noEmit']))).toEqual([
       'sh',
       '-c',
-      'PATH="/work/node_modules/.bin:$PATH" exec "$0" "$@"',
+      'PATH="/work/.kernloop-pm/bin:/work/node_modules/.bin:$PATH" exec "$0" "$@"',
       'tsc',
       '--noEmit',
     ]);

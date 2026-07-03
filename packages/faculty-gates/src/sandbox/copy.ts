@@ -43,9 +43,11 @@ export function copyWorkspaceSource(workspaceDir: string, scratchDir: string): v
 
 /**
  * Copy `src` dir to `dest`, preserving symlinks. Uses `cp -a --reflink=auto`
- * (copy-on-write where the FS supports it) with a cpSync fallback.
+ * (copy-on-write where the FS supports it) with a cpSync fallback. Exported so
+ * the PM provisioner (#548) reuses the same copy-on-write path for the corepack
+ * dist without re-deriving the fallback.
  */
-function copyDir(src: string, dest: string): void {
+export function copyDir(src: string, dest: string): void {
   try {
     execFileSync('cp', ['-a', '--reflink=auto', src, dest], { stdio: 'ignore' });
   } catch {

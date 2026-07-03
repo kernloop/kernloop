@@ -121,4 +121,17 @@ describe('outputTail', () => {
   it('never returns an empty string', () => {
     expect(outputTail('', '')).toBe('no output');
   });
+
+  it('drops a long leading banner and surfaces the trailing error line (#549)', () => {
+    // The real turbo failure shape: a multi-line banner on stdout, the actual
+    // error last on stderr. The finding must carry the error, not the banner head.
+    const banner = Array.from({ length: 30 }, (_, i) => `BANNER LINE ${String(i + 1)}`).join('\n');
+    const tail = outputTail(
+      banner,
+      '  x Unable to find package manager binary: cannot find binary path',
+    );
+    expect(tail).toContain('x Unable to find package manager binary');
+    expect(tail).not.toContain('BANNER LINE 1');
+    expect(tail.startsWith('…')).toBe(true);
+  });
 });

@@ -112,14 +112,27 @@ export function parseVitestOutput(stdout: string, stderr: string): Finding[] {
 }
 
 /**
- * The salient tail of a check's combined output, used as the fallback
- * finding message when a check fails but nothing structured parses
- * (CLM-0031). Never empty.
+ * The salient TAIL of a check's combined output, used as the fallback finding
+ * message when a check fails but nothing structured parses (CLM-0031). Kept as
+ * the LAST portion by BOTH lines and chars (#549): every mainstream tool prints
+ * its real error LAST (tsc/vitest diagnostics, turbo's `x Unable to find
+ * package manager binary`, npm's epilogue), while the HEAD is boilerplate (the
+ * `> pkg@ver script` banner, "Packages in scope", telemetry notices). Keeping
+ * the whole small output buried the one error line under that banner head — so
+ * a coder (and any downstream head-truncating display) saw only boilerplate.
+ * We drop the leading banner: keep the last `maxLines` lines, then cap to the
+ * last `maxChars`. A leading `…` marks that earlier output was dropped. Never
+ * empty. [CLM-0193]
  */
-export function outputTail(stdout: string, stderr: string, maxChars = 2000): string {
+export function outputTail(stdout: string, stderr: string, maxChars = 2000, maxLines = 12): string {
   const combined = `${stdout}\n${stderr}`.trim();
   if (combined.length === 0) return 'no output';
-  return combined.length <= maxChars ? combined : `…${combined.slice(-maxChars)}`;
+  const lines = combined.split(/\r?\n/);
+  const dropped = lines.length > maxLines;
+  const tailLines = dropped ? lines.slice(-maxLines).join('\n') : combined;
+  const capped = tailLines.length <= maxChars ? tailLines : `${tailLines.slice(-maxChars)}`;
+  const truncated = dropped || capped.length < tailLines.length;
+  return truncated ? `…${capped}` : capped;
 }
 
 /** Split combined stdout/stderr into trimmed-right lines. */
