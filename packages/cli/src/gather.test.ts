@@ -2,6 +2,7 @@
  * Tests for brief-source gathering and the `brief` tool: real claims files,
  * real git probes, real memory reads — and a Brief published on the bus.
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -58,8 +59,33 @@ describe('gatherRepoProbes', () => {
   });
 
   it('probes a real git repository with status and log', async () => {
-    // this package lives in a real git worktree — probe it
-    const probes = await gatherRepoProbes(path.resolve(import.meta.dirname, '..'));
+    // Construct a throwaway git repo so the test is self-contained and runs
+    // everywhere git exists (host AND in-sandbox) without relying on the
+    // ambient worktree (which is absent in the gate sandbox — no .git).
+    // Null out global/system git config so ambient commit.gpgsign/hooksPath/
+    // templateDir can never flake the fixture — identity rides inline via -c.
+    const repo = repoDir();
+    const gitEnv = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+    };
+    execFileSync('git', ['init', '-b', 'main'], { cwd: repo, stdio: 'ignore', env: gitEnv });
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=test',
+        '-c',
+        'user.email=test@kernloop.test',
+        'commit',
+        '--allow-empty',
+        '-m',
+        'init',
+      ],
+      { cwd: repo, stdio: 'ignore', env: gitEnv },
+    );
+    const probes = await gatherRepoProbes(repo);
     const names = probes.map((p) => p.name);
     expect(names).toContain('git-status');
     expect(names).toContain('git-log');

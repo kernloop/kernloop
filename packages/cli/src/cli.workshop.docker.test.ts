@@ -4,13 +4,20 @@
  * stdin contract JSON, emits a stdout contract JSON the CLI prints, and the
  * invocation is audited. Runs an actual container (node:22-alpine, pre-pulled).
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RATIFIED_SANDBOX_PROFILE, registerTool } from '@kernloop/faculty-toolsmith';
 import { runCli, type CliIo } from './cli.js';
+
+// Probe synchronously at import time so describe.skipIf() gets an eager value.
+// Catches ENOENT (binary absent in sandbox) and an unreachable daemon (non-zero exit).
+const DOCKER_AVAILABLE = (() => {
+  const r = spawnSync('docker', ['info'], { stdio: 'ignore', timeout: 5000 });
+  return r.error === undefined && r.status === 0;
+})();
 
 const dirs: string[] = [];
 function repoDir(): string {
@@ -42,14 +49,13 @@ const TOOL = [
   '',
 ].join('\n');
 
-beforeAll(() => {
-  execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
-});
-afterAll(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-});
-
-describe('kernloop workshop run (real docker)', () => {
+describe.skipIf(!DOCKER_AVAILABLE)('kernloop workshop run (real docker)', () => {
+  beforeAll(() => {
+    execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
+  });
+  afterAll(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
   it('invokes a born tool through the CLI and prints its stdout contract', async () => {
     const repo = repoDir();
     await runCli(['init'], capture(repo).io);

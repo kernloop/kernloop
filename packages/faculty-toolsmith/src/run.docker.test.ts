@@ -5,7 +5,7 @@
  * `suggest` to `advisory` (the ladder rung earned through real use). These
  * run actual containers against node:22-alpine (pre-pulled once).
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +13,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { N_CLEAN_RUNS_FOR_ADVISORY, loadLifecycle, registerTool } from './lifecycle.js';
 import { RATIFIED_SANDBOX_PROFILE } from './profile.js';
 import { runWorkshopTool } from './run.js';
+
+// Probe synchronously at import time so describe.skipIf() gets an eager value.
+// Catches ENOENT (binary absent in sandbox) and an unreachable daemon (non-zero exit).
+const DOCKER_AVAILABLE = (() => {
+  const r = spawnSync('docker', ['info'], { stdio: 'ignore', timeout: 5000 });
+  return r.error === undefined && r.status === 0;
+})();
 
 const tmpDirs: string[] = [];
 function overlay(): string {
@@ -42,14 +49,13 @@ function installTool(overlayDir: string, name: string, source: string): void {
   registerTool({ overlayDir, name, at: 1_000 });
 }
 
-beforeAll(() => {
-  execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
-});
-afterAll(() => {
-  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
-});
-
-describe('runWorkshopTool (real docker)', () => {
+describe.skipIf(!DOCKER_AVAILABLE)('runWorkshopTool (real docker)', () => {
+  beforeAll(() => {
+    execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
+  });
+  afterAll(() => {
+    for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+  });
   it('runs a born tool in the sandbox against a stdin contract and parses its stdout contract', async () => {
     const overlayDir = overlay();
     installTool(overlayDir, 'transform', TRANSFORM_TOOL);

@@ -16,6 +16,7 @@ import {
   rmSync,
   existsSync,
   readFileSync,
+  readlinkSync,
   lstatSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -107,6 +108,60 @@ describe('copyWorkspaceSource — positive isolation (#236)', () => {
     }
     // The real source file did copy.
     expect(readFileSync(join(scratch, 'real.ts'), 'utf8')).toBe('ok\n');
+  });
+
+  it('copies a relative UPWARD-traversal link AS a link — escaped content never lands in the scratch (#561)', () => {
+    // Under verbatim semantics an upward relative link stays followable-in-form,
+    // so containment must hold at copy time (content never inlined) and at
+    // consumption time (inside the container the link resolves against the
+    // CONTAINER filesystem — /work/.. — never the host tree).
+    const base = tmp('kernloop-esc-');
+    const ws = join(base, 'ws');
+    mkdirSync(ws);
+    mkdirSync(join(base, 'outside'));
+    writeFileSync(join(base, 'outside', 'secret.txt'), 'TOPSECRET\n');
+    symlinkSync('../outside/secret.txt', join(ws, 'evil'));
+    // Sanity: on the WS side the upward link really does reach the secret.
+    expect(readFileSync(join(ws, 'evil'), 'utf8')).toBe('TOPSECRET\n');
+
+    const scratch = tmp('kernloop-scratch-');
+    rmSync(scratch, { recursive: true, force: true });
+    copyWorkspaceSource(ws, scratch);
+
+    const copied = join(scratch, 'evil');
+    // Copied AS a link with the target text verbatim — never a dereferenced file.
+    expect(lstatSync(copied).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(copied)).toBe('../outside/secret.txt');
+    expect(lstatSync(copied).isFile()).toBe(false);
+    // The secret's CONTENT was never inlined into the scratch tree: following
+    // the link from the scratch must not yield it (here it dangles — nothing
+    // sits at <scratch>/../outside).
+    let leaked = false;
+    try {
+      leaked = readFileSync(copied, 'utf8') === 'TOPSECRET\n';
+    } catch {
+      /* dangling from the scratch side — exactly the point */
+    }
+    expect(leaked).toBe(false);
+  });
+
+  it('preserves a RELATIVE symlink target verbatim — never resolved to an absolute host path (#561)', () => {
+    const ws = tmp('kernloop-ws-');
+    writeFileSync(join(ws, 'AGENTS.md'), '# charter\n');
+    // The repo's own shape: CLAUDE.md is a relative symlink to AGENTS.md.
+    symlinkSync('AGENTS.md', join(ws, 'CLAUDE.md'));
+
+    const scratch = tmp('kernloop-scratch-');
+    rmSync(scratch, { recursive: true, force: true });
+    copyWorkspaceSource(ws, scratch);
+
+    const copied = join(scratch, 'CLAUDE.md');
+    expect(lstatSync(copied).isSymbolicLink()).toBe(true);
+    // The target TEXT is unchanged — 'AGENTS.md', not an absolute path into the
+    // copy source (which would dangle inside the sandbox container).
+    expect(readlinkSync(copied)).toBe('AGENTS.md');
+    // And it resolves inside the scratch tree.
+    expect(readFileSync(copied, 'utf8')).toBe('# charter\n');
   });
 });
 

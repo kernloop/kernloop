@@ -4,7 +4,7 @@
  * for diagnosis; a tool that tries to import kernel internals dies in the
  * sandbox — the physical enforcement behind CLM-0053's isolation clause.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,19 +15,19 @@ import { loadLifecycle } from './lifecycle.js';
 import { RATIFIED_PROFILE_HASH, RATIFIED_SANDBOX_PROFILE } from './profile.js';
 import { listTools } from './workshop.js';
 
+// Probe synchronously at import time so describe.skipIf() gets an eager value.
+// Catches ENOENT (binary absent in sandbox) and an unreachable daemon (non-zero exit).
+const DOCKER_AVAILABLE = (() => {
+  const r = spawnSync('docker', ['info'], { stdio: 'ignore', timeout: 5000 });
+  return r.error === undefined && r.status === 0;
+})();
+
 const tmpDirs: string[] = [];
 function overlay(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'toolsmith-forge-docker-'));
   tmpDirs.push(dir);
   return dir;
 }
-
-beforeAll(() => {
-  execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
-});
-afterAll(() => {
-  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
-});
 
 function spec(name: string): ToolSpec {
   return {
@@ -53,7 +53,14 @@ function spec(name: string): ToolSpec {
 
 const GOOD_SOURCE = 'export function add(a, b) {\n  return a + b;\n}\n';
 
-describe('forge (real docker)', () => {
+describe.skipIf(!DOCKER_AVAILABLE)('forge (real docker)', () => {
+  beforeAll(() => {
+    execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
+  });
+  afterAll(() => {
+    for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it('installs a tool only after its acceptance test passes inside the sandbox', async () => {
     const overlayDir = overlay();
     const result = await forge({
