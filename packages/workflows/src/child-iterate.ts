@@ -83,9 +83,11 @@ export function childBranch(
 
 /** Stable identity of a Finding — every field of the (strict) contract shape:
  * severity + message + optional path. Two findings with the same key are the
- * same finding re-emitted by a later gate run, not new information. */
+ * same finding re-emitted by a later gate run, not new information. The
+ * fields are JSON-encoded so boundaries are unambiguous — no delimiter a
+ * crafted message could collide with. */
 function findingKey(finding: Finding): string {
-  return `${finding.severity}\u0000${finding.message}\u0000${finding.path ?? ''}`;
+  return JSON.stringify([finding.severity, finding.message, finding.path ?? null]);
 }
 
 /** Append `findings` to the child's accumulated set, DROPPING duplicates of

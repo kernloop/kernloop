@@ -56,10 +56,14 @@ export interface LoopRefs {
   framedTask?: TaskContract;
   researchBrief?: Brief;
   planBrief?: Brief;
-  /** Files each child's implement step wrote, keyed by child id — the diff
-   * the advisory review gate reads. Not checkpointed: on a resume that lands
-   * after implement but before review, the stash is empty and review abstains
-   * honestly (it is advisory, so the run is unaffected). */
+  /** Files each child's implement step wrote (workspace-RELATIVE, normalized —
+   * the `writeWorkspaceFiles` return), keyed by child id — the diff the
+   * advisory review gate reads AND the scope of the child quality gate's
+   * ENFORCING doc-comment check (#534, CLM-0189). Not checkpointed: on a
+   * resume that lands after implement, the advisory review abstains honestly,
+   * and the quality gate FAILS CLOSED — an ABSENT stash entry falls back to
+   * the whole-workspace doc scan (over-broad, never silently skipping files
+   * the child really wrote); only a PRESENT entry scopes the check. */
   writtenByChild?: Record<string, ReadonlyArray<{ path: string; content: string }>>;
   /** The proceeding plan-vote Verdict (#369 Inc3a) — its VoterRecords are labeled
    * at retrospect against the run's eventual success. Not checkpointed: a resume
@@ -345,19 +349,21 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
     vote: voteExecutor(b),
     decompose: decomposeExecutor(b),
     implement: implementExecutor(b),
-    quality: (_input, ctx) =>
-      executeQualityGate(b.kern, {
+    quality: (_input, ctx) => {
+      // The files this child wrote: a PRESENT stash entry scopes the doc-comment
+      // check to the child's OWN writes (#534, CLM-0189 — a pre-existing repo doc
+      // gap must not fail a child) and feeds diff-coverage (#226 item 2) under its
+      // opt-in flag. An ABSENT entry (the stash is not checkpointed — a resume
+      // landing after implement) FAILS CLOSED to the whole-workspace scan rather
+      // than a present-but-empty "judge nothing" scope; only a genuinely-empty
+      // emission judges nothing.
+      const stash = ctx.child === undefined ? undefined : b.refs.writtenByChild?.[ctx.child.id];
+      return executeQualityGate(b.kern, {
         taskId: ctx.child?.id ?? ctx.taskId,
         workspaceDir: b.workspaceDir,
         // The child's OWN definition-of-done runs alongside the base checks (#226).
         ...(ctx.child === undefined ? {} : { definitionOfDone: ctx.child.definitionOfDone }),
-        // The files this child wrote: they scope the doc-comment check to the
-        // child's OWN writes (#534, CLM-0189 — a pre-existing repo doc gap must
-        // not fail a child) and feed diff-coverage (#226 item 2) under its
-        // opt-in flag, passed separately below (default off; a new gate behavior).
-        ...(ctx.child !== undefined
-          ? { writtenFiles: b.refs.writtenByChild?.[ctx.child.id] ?? [] }
-          : {}),
+        ...(stash === undefined ? {} : { writtenFiles: stash }),
         diffCoverage: b.kern.config.gates.quality.diffCoverage,
         ...(b.checks === undefined ? {} : { checks: b.checks }),
         envAllow: b.kern.config.gates.quality.envAllow, // least-privilege check env (#235)
@@ -365,7 +371,8 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
         ...(b.kern.config.gates.quality.timeoutMsPerCheck === undefined
           ? {}
           : { timeoutMsPerCheck: b.kern.config.gates.quality.timeoutMsPerCheck }),
-      }),
+      });
+    },
     review: reviewExecutor(b),
     parsimony: parsimonyExecutor(b),
     integrate: integrateExecutor(b),

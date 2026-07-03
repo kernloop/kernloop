@@ -83,8 +83,15 @@ export function implementExecutor(b: LoopBindings): NodeExecutor {
       sink,
     );
     const written = writeWorkspaceFiles(b.workspaceDir, emission.files);
-    // Stash what this child wrote so the advisory review gate can diff it.
-    (b.refs.writtenByChild ??= {})[child.id] = emission.files;
+    // Stash what this child wrote — the advisory review gate diffs it and the
+    // quality gate's doc-comment check scopes to it (#534, CLM-0189). Stash the
+    // NORMALIZED workspace-relative paths writeWorkspaceFiles returns (same
+    // order as the emission), not the raw emitted paths: an absolute-but-inside
+    // emitted path must still match the scan's relative walk keys.
+    (b.refs.writtenByChild ??= {})[child.id] = emission.files.map((file, i) => ({
+      path: written[i] ?? file.path,
+      content: file.content,
+    }));
     const notes = emission.notes === '' ? '' : ` — ${emission.notes}`;
     return OutcomeSchema.parse({
       taskId: child.id,

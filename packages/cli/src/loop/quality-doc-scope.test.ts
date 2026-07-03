@@ -81,4 +81,38 @@ describe('child quality gate doc-comment scoping (#534) [CLM-0189]', () => {
     expect(docs.some((m) => m.includes('"fresh"'))).toBe(true);
     kern.close();
   });
+
+  it('with NO written-files stash (a resume), the child gate falls back to the whole-workspace scan (fail closed)', async () => {
+    // writtenByChild is NOT checkpointed. A resume landing after implement has no
+    // stash entry for the child — that must NOT read as "child owns nothing":
+    // the gate falls back to the whole-workspace scan, never silently skipping
+    // files the child really wrote (the review-round blocking finding).
+    const kern = kernloopFor('doc-scope-resume');
+    const bindings = {
+      ...bindingsFor(kern, {}), // empty refs: no writtenByChild at all
+      workspaceDir: seededWorkspace('doc-scope-resume-ws'),
+    };
+    const verdict = (await buildLoopExecutors(bindings)['quality']?.(
+      undefined,
+      childCtx(),
+    )) as Verdict;
+    const docs = docFindings(verdict);
+    expect(docs.some((m) => m.includes('"legacy"'))).toBe(true);
+    expect(docs.some((m) => m.includes('"fresh"'))).toBe(true);
+    kern.close();
+  });
+
+  it('a PRESENT-but-empty stash entry (the child wrote nothing) judges nothing', async () => {
+    const kern = kernloopFor('doc-scope-empty');
+    const bindings = {
+      ...bindingsFor(kern, { writtenByChild: { [task.id]: [] } }),
+      workspaceDir: seededWorkspace('doc-scope-empty-ws'),
+    };
+    const verdict = (await buildLoopExecutors(bindings)['quality']?.(
+      undefined,
+      childCtx(),
+    )) as Verdict;
+    expect(docFindings(verdict)).toEqual([]);
+    kern.close();
+  });
 });

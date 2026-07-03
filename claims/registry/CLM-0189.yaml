@@ -11,8 +11,16 @@ statement: >-
   and honest-degradation notes. A PRESENT-but-empty scope (a child that wrote
   nothing) judges nothing; an ABSENT scope — the standalone `gate quality` path
   and every non-child gate run — keeps the whole-workspace semantics unchanged.
-  Passing the child's files for doc scoping never silently enables the opt-in
-  diff-coverage check (CLM-0134): that stays behind its own
+  RESUME FAILS CLOSED: the `writtenByChild` stash is not checkpointed, so a
+  resume landing after implement has NO stash entry for the child — the loop
+  passes NO scope in that case (never a present-but-empty one), falling back to
+  the whole-workspace scan: over-broad, but the enforcing check can never
+  silently skip files the child really wrote. Scope entries are CANONICALIZED
+  against the workspace (resolve-then-relative, and the loop stashes the
+  normalized relative paths `writeWorkspaceFiles` returns), so an emitted
+  absolute-but-inside path is still scanned rather than dodging a string
+  compare. Passing the child's files for doc scoping never silently enables the
+  opt-in diff-coverage check (CLM-0134): that stays behind its own
   `gates.quality.diffCoverage` flag, now threaded as a separate request field.
 evidence:
   - 'test:packages/docscan/src/doc-scan.test.ts::ignores an undocumented export OUTSIDE the scoped files'
@@ -24,6 +32,9 @@ evidence:
   - 'test:packages/faculty-gates/src/checks.test.ts::defaultQualityChecks forwards the doc scope to the doc-comments check'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::the child quality gate ignores a pre-existing undocumented export outside the child writes (#534)'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a run-level (no-child) quality gate keeps the whole-workspace doc scan'
+  - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::with NO written-files stash (a resume), the child gate falls back to the whole-workspace scan (fail closed)'
+  - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a PRESENT-but-empty stash entry (the child wrote nothing) judges nothing'
+  - 'test:packages/docscan/src/doc-scan.test.ts::an absolute scope entry inside the workspace still scopes correctly (canonicalized, still scanned)'
   - 'ci:test'
 status: verified
 owner: williamzujkowski

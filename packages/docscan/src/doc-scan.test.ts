@@ -222,6 +222,18 @@ describe('scanDocComments — scoped to written files (#534) [CLM-0189]', () => 
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain('"fresh"');
   });
+
+  it('an absolute scope entry inside the workspace still scopes correctly (canonicalized, still scanned)', async () => {
+    // writeWorkspaceFiles accepts an absolute path inside the workspace; the
+    // scope canonicalizes each entry against the workspace, so an emitted
+    // absolute path cannot dodge the scan by failing a string compare.
+    write('src/pre-existing.ts', 'export function legacy() {}\n');
+    write('src/child.ts', 'export function fresh() {}\n');
+    const findings = await scanDocComments(dir, [path.join(dir, 'src', 'child.ts')]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('"fresh"');
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+  });
 });
 
 describe('mineExportedSymbols (#107)', () => {
