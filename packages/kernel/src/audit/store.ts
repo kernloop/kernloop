@@ -180,8 +180,7 @@ function recoverTip(filePath: string): ChainTip {
  */
 function reconciledTip(db: Database.Database, filePath: string): ChainTip {
   const row = db.prepare('SELECT lastSeq, lastHash, byteLen FROM audit_tip WHERE id = 1').get() as
-    | { lastSeq: number; lastHash: string; byteLen: number }
-    | undefined;
+    { lastSeq: number; lastHash: string; byteLen: number } | undefined;
   const actualSize = existsSync(filePath) ? statSync(filePath).size : 0;
   if (row !== undefined && row.byteLen === actualSize) {
     return { lastSeq: row.lastSeq, lastHash: row.lastHash, byteLen: row.byteLen };

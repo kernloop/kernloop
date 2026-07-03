@@ -69,7 +69,7 @@ function resolveReal(dir: string): string | null {
  * filesystem root, shared by both containment predicates so their git-detection
  * semantics can never desync (#332 review). */
 function gitTreeAtOrAbove(real: string): boolean {
-  for (let cur = real; ; ) {
+  for (let cur = real; ;) {
     if (existsSync(path.join(cur, '.git'))) return true;
     const parent = path.dirname(cur);
     if (parent === cur) return false; // hit the filesystem root, no .git

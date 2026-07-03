@@ -95,8 +95,7 @@ export function proposeIssue(
 /** One persisted proposal by id, or `undefined`. */
 export function getIssue(db: Database.Database, id: number): IssueProposal | undefined {
   const row = db.prepare('SELECT * FROM observer_issues WHERE id = ?').get(id) as
-    | IssueRow
-    | undefined;
+    IssueRow | undefined;
   return row === undefined ? undefined : toProposal(row);
 }
 
