@@ -137,6 +137,41 @@ describe('child quality gate doc-comment scoping (#534) [CLM-0189]', () => {
     kern.close();
   });
 
+  it('an absent-stash gate TAINTS the child whole-workspace for the rest of the run', async () => {
+    // Resume hole (round-4 blocking finding): after the fail-closed whole-
+    // workspace pass, a post-resume re-iteration repopulates the stash with a
+    // FRESH PARTIAL emission that omits pre-crash writes. The taint must keep
+    // the gate whole-workspace for the rest of the run (#543 tracks the
+    // durable checkpoint fix).
+    const kern = kernloopFor('doc-scope-taint');
+    const ws = path.join(scratch, 'doc-scope-taint-ws');
+    mkdirSync(ws, { recursive: true });
+    writeFileSync(path.join(ws, 'pre-existing.ts'), 'export function legacy() {}\n');
+    const invoke: LoopInvoke = () =>
+      Promise.resolve({
+        output: JSON.stringify({
+          files: [{ path: 'src/clean.ts', content: '/** Clean. */\nexport const clean = 1;\n' }],
+        }),
+        cost: COST,
+      });
+    const refs: LoopRefs = {}; // a resume: no stash for the child
+    const executors = buildLoopExecutors({
+      ...bindingsFor(kern, refs, invoke),
+      workspaceDir: ws,
+    });
+    // 1: absent stash → whole-workspace fallback (and the child is tainted).
+    const first = (await executors['quality']?.(undefined, childCtx())) as Verdict;
+    expect(docFindings(first).some((m) => m.includes('"legacy"'))).toBe(true);
+    // 2: the re-iteration stashes a fresh (clean, partial) emission…
+    await executors['implement']?.(task, { ...ctxFor(3), node: 'implement', child: task });
+    expect(refs.writtenByChild?.[task.id]).toHaveLength(1);
+    // 3: …but the tainted child's gate STAYS whole-workspace — the pre-crash
+    // write (represented by pre-existing.ts) is still judged.
+    const second = (await executors['quality']?.(undefined, childCtx())) as Verdict;
+    expect(docFindings(second).some((m) => m.includes('"legacy"'))).toBe(true);
+    kern.close();
+  });
+
   it('a PRESENT-but-empty stash entry (the child wrote nothing) judges nothing', async () => {
     const kern = kernloopFor('doc-scope-empty');
     const bindings = {

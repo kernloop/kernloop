@@ -20,7 +20,7 @@ import { briefText } from './seams.js';
 import { coderPrompt, decomposePrompt } from './prompts.js';
 import { childSignal, reviewConcernSignals, sumChildCosts } from './aggregate.js';
 import { identityRef, servedIdentity, servedRef, type NodeSeam } from './node-seam.js';
-import { sinkFor, writeWorkspaceFiles, type LoopBindings } from './executors.js';
+import { sinkFor, writeWorkspaceFiles, type LoopBindings, type LoopRefs } from './executors.js';
 
 /**
  * Invoke the coder and parse its files emission, RETRYING ONCE on a contract
@@ -66,6 +66,29 @@ export function decomposeExecutor(b: LoopBindings): NodeExecutor {
     const emission = parseEmission(output, SubtasksEmissionSchema, 'subtasks', sink);
     return decomposePlan({ parent, subtasks: emission.subtasks as SubtaskSpec[] });
   };
+}
+
+/**
+ * Resolve the child quality gate's written-files scope (#534/#541, CLM-0189).
+ * A PRESENT stash entry — the union of the child's writes THIS PROCESS — scopes
+ * the in-process doc-comment + security checks. An ABSENT entry (the stash is
+ * not checkpointed, so a resume lands here) FAILS CLOSED to the whole-workspace
+ * scans AND marks the child in {@link LoopRefs.scopeTaintedChildren}: once
+ * tainted, the gate stays whole-workspace for the REST of the run, so a fresh
+ * PARTIAL stash from a post-resume re-iteration cannot re-narrow the scope past
+ * pre-crash writes. The taint set is process-local like the stash — a later
+ * resume re-taints via the same absent-stash path. Durable path checkpointing
+ * is tracked as #543. Returns undefined for a non-child (run-level) gate.
+ */
+export function childGateScope(
+  refs: LoopRefs,
+  childId: string | undefined,
+): ReadonlyArray<{ path: string; content: string }> | undefined {
+  if (childId === undefined) return undefined;
+  const tainted = (refs.scopeTaintedChildren ??= new Set<string>());
+  const stashed = refs.writtenByChild?.[childId];
+  if (stashed === undefined) tainted.add(childId);
+  return tainted.has(childId) ? undefined : stashed;
 }
 
 /** Merge one implement emission into the child's written-files stash (#534,
