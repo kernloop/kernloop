@@ -71,9 +71,19 @@ export function isInProcessCheck(check: QualityCheck): check is InProcessCheck {
  * lacks a non-empty doc-comment as an `error` (driving per-child re-iteration),
  * and records one `info` finding per REMAINING source language it cannot yet
  * cover. Presence only, never accuracy. Async (the WASM grammars load asynchronously).
+ *
+ * `writtenFiles` (#534, CLM-0189) scopes the scan to those workspace-relative
+ * paths — the canonical loop passes the CHILD's written files so a child is
+ * judged only on what IT wrote, mirroring {@link diffCoverageCheck}; a
+ * pre-existing repo-wide doc gap can no longer fail every child. Omitted →
+ * the whole-workspace scan (the standalone `gate quality` semantics) is
+ * unchanged.
  */
-export function docCommentCheck(): InProcessCheck {
-  return { name: 'doc-comments', run: scanDocComments };
+export function docCommentCheck(writtenFiles?: readonly string[]): InProcessCheck {
+  return {
+    name: 'doc-comments',
+    run: (workspaceDir) => scanDocComments(workspaceDir, writtenFiles),
+  };
 }
 
 /**
@@ -113,14 +123,17 @@ export const DEFAULT_TIMEOUT_MS = 120_000;
  * (tsc diagnostics), `pnpm lint` (ESLint stylish), `pnpm test` (vitest;
  * coverage thresholds ride the same exit code) — plus the in-process
  * doc-comment scan (#65). The doc check runs last so a missing-docs `error`
- * sits alongside the tool findings in the same Verdict.
+ * sits alongside the tool findings in the same Verdict. `docScope` (#534,
+ * CLM-0189) narrows ONLY the doc-comment check to those workspace-relative
+ * files (a child gate scoped to the child's writes); omitted, every check
+ * keeps its whole-workspace semantics.
  */
-export function defaultQualityChecks(): QualityCheck[] {
+export function defaultQualityChecks(docScope?: readonly string[]): QualityCheck[] {
   return [
     { name: 'typecheck', command: 'pnpm', args: ['typecheck'], parse: parseTscOutput },
     { name: 'lint', command: 'pnpm', args: ['lint'], parse: parseEslintOutput },
     { name: 'test', command: 'pnpm', args: ['test'], parse: parseVitestOutput },
-    docCommentCheck(),
+    docCommentCheck(docScope),
     securityCheck(),
   ];
 }

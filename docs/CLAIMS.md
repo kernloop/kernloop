@@ -3195,3 +3195,36 @@ For an ENDPOINT-ONLY ratification run whose endpoint serves >=2 chat-capable mod
 - [`packages/cli/src/loop/vote-model-diversity.test.ts`](../packages/cli/src/loop/vote-model-diversity.test.ts)
 - [`scripts/__tests__/vote-parity-check.test.mjs`](../scripts/__tests__/vote-parity-check.test.mjs)
 - CI `test`
+
+## CLM-0189
+
+**Status:** verified — **source:** [`CLM-0189.yaml`](../claims/registry/CLM-0189.yaml)
+
+The canonical loop's CHILD quality gate scopes the doc-comment check to the child's OWN written files (#534), so a pre-existing repo-wide doc-comment gap cannot fail a child on findings outside its file ownership. The loop's quality node passes the child's `writtenByChild` emission into the gate (the same files the diff-coverage check closes over, CLM-0134); `docCommentCheck` / `defaultQualityChecks` accept the optional scope, and `scanDocComments` PARSES only the scoped workspace-relative paths (out-of-scope files are never read — not merely post-filtered), which also excludes out-of-scope tree-sitter files and honest-degradation notes. A PRESENT-but-empty scope (a child that wrote nothing) judges nothing; an ABSENT scope — the standalone `gate quality` path and every non-child gate run — keeps the whole-workspace semantics unchanged. Passing the child's files for doc scoping never silently enables the opt-in diff-coverage check (CLM-0134): that stays behind its own `gates.quality.diffCoverage` flag, now threaded as a separate request field.
+
+**Enforced by:**
+
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/docscan/src/doc-scan.test.ts`](../packages/docscan/src/doc-scan.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- CI `test`
+
+## CLM-0190
+
+**Status:** verified — **source:** [`CLM-0190.yaml`](../claims/registry/CLM-0190.yaml)
+
+Child-iteration findings are DEDUPLICATED on append (#535): all three fold sites of the child back-edge — `reiterateChild` (a driving gate's reject), `escalateChild` (the Kc/budget bound), and `foldHints` (a non-driving gate's advisory findings) — drop any finding whose full contract identity (severity + message + optional path) is already in the child's accumulated set, so a gate re-emitting the SAME still-unfixed findings every iteration does not grow `findings` (the June-13 dogfood runs stacked one identical ~108-finding set to 113→221→329) and the audited per-iteration `findingCount` (the `onIterate` ChildIterateEvent) reflects the DISTINCT accumulated set — never a false "regressing child" signal when literally nothing changed. Genuinely new findings (including a same-message finding with a different path or severity) still accumulate, preserving the intentional accumulated-findings-as-coder-hints design; `iteration` still counts every re-entry.
+
+**Enforced by:**
+
+- [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
+- [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
+- [`packages/workflows/src/finding-dedup.test.ts`](../packages/workflows/src/finding-dedup.test.ts)
+- [`packages/workflows/src/child-iterate.test.ts`](../packages/workflows/src/child-iterate.test.ts)
+- CI `test`

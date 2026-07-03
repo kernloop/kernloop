@@ -81,15 +81,40 @@ export function childBranch(
   return 'reiterate';
 }
 
-/** Fold a non-driving gate's findings into the child as hints (review → next attempt). */
+/** Stable identity of a Finding — every field of the (strict) contract shape:
+ * severity + message + optional path. Two findings with the same key are the
+ * same finding re-emitted by a later gate run, not new information. */
+function findingKey(finding: Finding): string {
+  return `${finding.severity}\u0000${finding.message}\u0000${finding.path ?? ''}`;
+}
+
+/** Append `findings` to the child's accumulated set, DROPPING duplicates of
+ * findings already recorded (#535, CLM-0190). A rejecting gate re-emits the
+ * still-unfixed findings on every iteration; without dedup the identical set
+ * stacks (113→221→329 on June 13) — pure noise to the coder and a false
+ * "regressing" signal to the audited findingCount. Genuinely new findings
+ * still accumulate (the accumulated-hints design, see state.ts `findings`). */
+function appendDistinctFindings(result: ChildResult, findings: readonly Finding[]): void {
+  const seen = new Set(result.findings.map(findingKey));
+  for (const finding of findings) {
+    const key = findingKey(finding);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.findings.push(finding);
+  }
+}
+
+/** Fold a non-driving gate's findings into the child as hints (review → next
+ * attempt); duplicates of already-recorded findings are dropped (#535, CLM-0190). */
 export function foldHints(result: ChildResult, findings: readonly Finding[]): void {
-  result.findings.push(...findings);
+  appendDistinctFindings(result, findings);
 }
 
 /**
- * Re-enter the child's implement sub-node: fold the driving gate's findings,
- * bump the child iteration, reset the sub-cursor to 0 (implement). Mirrors a
- * rejected vote pushing findings and re-entering plan.
+ * Re-enter the child's implement sub-node: fold the driving gate's findings
+ * (deduplicated — #535, CLM-0190), bump the child iteration, reset the
+ * sub-cursor to 0 (implement). Mirrors a rejected vote pushing findings and
+ * re-entering plan.
  */
 export function reiterateChild(
   state: RunState,
@@ -97,13 +122,14 @@ export function reiterateChild(
   findings: readonly Finding[],
 ): void {
   if (state.cursor.phase !== 'fanout') return;
-  result.findings.push(...findings);
+  appendDistinctFindings(result, findings);
   result.iteration += 1;
   state.cursor = { phase: 'fanout', childIndex: state.cursor.childIndex, sub: 0 };
 }
 
-/** Mark a child escalated at the bound: record the findings, never re-attempt. */
+/** Mark a child escalated at the bound: record the findings (deduplicated —
+ * #535, CLM-0190), never re-attempt. */
 export function escalateChild(result: ChildResult, findings: readonly Finding[]): void {
-  result.findings.push(...findings);
+  appendDistinctFindings(result, findings);
   result.escalated = true;
 }

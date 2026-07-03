@@ -88,7 +88,9 @@ describe('review-driven child iteration [CLM-0043]', () => {
     const c1 = results.find((r) => r.child.id === 'task-1.c1');
     const c2 = results.find((r) => r.child.id === 'task-1.c2');
     expect(c1?.escalated).toBe(true);
-    expect(c1?.findings.length).toBe(3); // one finding per failing attempt
+    // Each failing attempt re-emits the SAME finding; the accumulated set holds
+    // it once (#535, CLM-0190), not once per attempt.
+    expect(c1?.findings.length).toBe(1);
     // The sibling is untouched: it passed normally.
     expect(c2?.escalated).toBeUndefined();
     expect(c2?.verdict?.result).toBe('pass');
@@ -310,7 +312,6 @@ describe('review-driven child iteration [CLM-0043]', () => {
     expect(result.status).toBe('completed');
   });
 });
-
 describe('resume mid-child-iteration [CLM-0044]', () => {
   it('a kill mid-child-iteration resumes and completes with zero re-executions of finished sub-nodes', async () => {
     const store = new InMemoryCheckpointStore();

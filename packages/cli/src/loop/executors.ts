@@ -351,11 +351,14 @@ export function buildLoopExecutors(b: LoopBindings): Record<string, NodeExecutor
         workspaceDir: b.workspaceDir,
         // The child's OWN definition-of-done runs alongside the base checks (#226).
         ...(ctx.child === undefined ? {} : { definitionOfDone: ctx.child.definitionOfDone }),
-        // The files this child wrote, so diff-coverage flags an untested module (#226
-        // item 2) — only under the opt-in flag (default off; a new gate behavior).
-        ...(ctx.child !== undefined && b.kern.config.gates.quality.diffCoverage
+        // The files this child wrote: they scope the doc-comment check to the
+        // child's OWN writes (#534, CLM-0189 — a pre-existing repo doc gap must
+        // not fail a child) and feed diff-coverage (#226 item 2) under its
+        // opt-in flag, passed separately below (default off; a new gate behavior).
+        ...(ctx.child !== undefined
           ? { writtenFiles: b.refs.writtenByChild?.[ctx.child.id] ?? [] }
           : {}),
+        diffCoverage: b.kern.config.gates.quality.diffCoverage,
         ...(b.checks === undefined ? {} : { checks: b.checks }),
         envAllow: b.kern.config.gates.quality.envAllow, // least-privilege check env (#235)
         sandbox: b.kern.config.gates.quality.sandbox, // Docker isolation policy (#236)

@@ -42,6 +42,44 @@ describe('diffCoverageCheck (#226 item 2)', () => {
   });
 });
 
+describe('docCommentCheck scoping (#534) [CLM-0189]', () => {
+  let dir: string;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A workspace with one pre-existing and one child-written undocumented export. */
+  function seed(): string {
+    dir = mkdtempSync(join(tmpdir(), 'kernloop-docscope-'));
+    writeFileSync(join(dir, 'pre-existing.ts'), 'export function legacy() {}\n');
+    writeFileSync(join(dir, 'child.ts'), 'export function fresh() {}\n');
+    return dir;
+  }
+
+  it('scoped to writtenFiles, ignores an undocumented export outside them', async () => {
+    const ws = seed();
+    const findings = await docCommentCheck(['child.ts']).run(ws);
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+    expect(findings.some((f) => f.message.includes('"fresh"'))).toBe(true);
+  });
+
+  it('unscoped, keeps the whole-workspace semantics (both exports flagged)', async () => {
+    const ws = seed();
+    const messages = (await docCommentCheck().run(ws)).map((f) => f.message);
+    expect(messages.some((m) => m.includes('"legacy"'))).toBe(true);
+    expect(messages.some((m) => m.includes('"fresh"'))).toBe(true);
+  });
+
+  it('defaultQualityChecks forwards the doc scope to the doc-comments check', async () => {
+    const ws = seed();
+    const doc = defaultQualityChecks(['child.ts']).find((c) => c.name === 'doc-comments');
+    if (doc === undefined || !isInProcessCheck(doc)) throw new Error('doc-comments check missing');
+    const findings = await doc.run(ws);
+    expect(findings.some((f) => f.message.includes('"legacy"'))).toBe(false);
+    expect(findings.some((f) => f.message.includes('"fresh"'))).toBe(true);
+  });
+});
+
 describe('checksFromDefinitionOfDone (#226)', () => {
   it('maps each DoD Check to a no-shell subprocess check, tokenized on whitespace', () => {
     const [check] = checksFromDefinitionOfDone([
