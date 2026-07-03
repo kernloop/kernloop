@@ -1,0 +1,7 @@
+name: extend-preflight-sync-gate
+oneLiner: Add a CI gate to the local preflight chain and extend the drift-check
+  script so any workflow/preflight mismatch fails the check
+sourceTrace: task-bootstrap-452-6
+proposedAt: 2026-07-03T19:02:41.501Z
+tier: suggest
+status: proposed
