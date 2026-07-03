@@ -127,14 +127,20 @@ describe('scanSecuritySmells — invariants (#277)', () => {
     expect(Array.isArray(out)).toBe(true); // no throw
   });
 
-  it('never overflows the stack on a deeply-nested file that TS parses (#277 security round)', () => {
-    // A ~1 MiB left-deep property chain parses fine but its AST is ~490k deep —
-    // an unbounded visitor would RangeError out of the in-process gate. The depth
-    // guard must keep this a normal (empty) scan, not a crash.
-    const deep = `const x = a${'.b'.repeat(490_000)};`;
-    expect(() => scan({ 'deep.ts': deep })).not.toThrow();
-    expect(scan({ 'deep.ts': deep })).toEqual([]);
-  });
+  // 180s timeout (#551): two full parses of a ~490k-deep AST are CPU-bound;
+  // under the ratified 2-CPU gate sandbox this exceeded the package's 60s default.
+  it(
+    'never overflows the stack on a deeply-nested file that TS parses (#277 security round)',
+    { timeout: 180_000 },
+    () => {
+      // A ~1 MiB left-deep property chain parses fine but its AST is ~490k deep —
+      // an unbounded visitor would RangeError out of the in-process gate. The depth
+      // guard must keep this a normal (empty) scan, not a crash.
+      const deep = `const x = a${'.b'.repeat(490_000)};`;
+      expect(() => scan({ 'deep.ts': deep })).not.toThrow();
+      expect(scan({ 'deep.ts': deep })).toEqual([]);
+    },
+  );
 
   it('does NOT scan inside node_modules / build dirs (SKIP_DIRS)', () => {
     const out = scan({ 'node_modules/dep/a.ts': 'export const f = (x: string) => eval(x);' });
