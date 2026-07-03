@@ -3,13 +3,20 @@
  * These run actual containers against node:22-alpine (pre-pulled once;
  * `docker pull` is idempotent). CI runners have docker.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RATIFIED_SANDBOX_PROFILE, SandboxProfileSchema } from './profile.js';
 import { runInSandbox } from './sandbox.js';
+
+// Probe synchronously at import time so describe.skipIf() gets an eager value.
+// Catches ENOENT (binary absent in sandbox) and an unreachable daemon (non-zero exit).
+const DOCKER_AVAILABLE = (() => {
+  const r = spawnSync('docker', ['info'], { stdio: 'ignore', timeout: 5000 });
+  return r.error === undefined && r.status === 0;
+})();
 
 const tmpDirs: string[] = [];
 function tmpDir(): string {
@@ -21,14 +28,13 @@ function tmpDir(): string {
   return dir;
 }
 
-beforeAll(() => {
-  execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
-});
-afterAll(() => {
-  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
-});
-
-describe('runInSandbox (real docker)', () => {
+describe.skipIf(!DOCKER_AVAILABLE)('runInSandbox (real docker)', () => {
+  beforeAll(() => {
+    execFileSync('docker', ['pull', RATIFIED_SANDBOX_PROFILE.image], { stdio: 'ignore' });
+  });
+  afterAll(() => {
+    for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+  });
   it('runs a command in the ratified sandbox and captures its output', async () => {
     const result = await runInSandbox({
       scratchDir: tmpDir(),

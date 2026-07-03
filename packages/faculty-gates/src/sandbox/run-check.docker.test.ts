@@ -6,7 +6,7 @@
  * legitimate native dependency (better-sqlite3, glibc) still loads. Require
  * Docker (the CI test job provides it, as the toolsmith real-docker suites do).
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,29 +15,36 @@ import type { SubprocessCheck } from '../checks.js';
 import { RATIFIED_GATE_PROFILE } from './profile.js';
 import { runCheckInSandbox } from './run-check.js';
 
+// Probe synchronously at import time so describe.skipIf() gets an eager value.
+// Catches ENOENT (binary absent in sandbox) and an unreachable daemon (non-zero exit).
+const DOCKER_AVAILABLE = (() => {
+  const r = spawnSync('docker', ['info'], { stdio: 'ignore', timeout: 5000 });
+  return r.error === undefined && r.status === 0;
+})();
+
 const dirs: string[] = [];
 function tmpWs(): string {
   const d = mkdtempSync(join(tmpdir(), 'kernloop-gate-docker-ws-'));
   dirs.push(d);
   return d;
 }
-afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-});
-
-beforeAll(() => {
-  execFileSync('docker', ['pull', RATIFIED_GATE_PROFILE.image], { stdio: 'ignore' });
-}, 300_000);
-afterAll(() => {
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
-});
 
 /** A check that runs an inline node program inside the sandbox. */
 function nodeCheck(program: string): SubprocessCheck {
   return { name: 'probe', command: 'node', args: ['-e', program], parse: () => [] };
 }
 
-describe('gate sandbox — real docker isolation (#236)', () => {
+describe.skipIf(!DOCKER_AVAILABLE)('gate sandbox — real docker isolation (#236)', () => {
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  beforeAll(() => {
+    execFileSync('docker', ['pull', RATIFIED_GATE_PROFILE.image], { stdio: 'ignore' });
+  }, 300_000);
+  afterAll(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
   it('BLOCKS network egress (--network none)', async () => {
     const ws = tmpWs();
     // Exit 7 only if a fetch SUCCEEDS; under --network none it must throw → exit 3.
