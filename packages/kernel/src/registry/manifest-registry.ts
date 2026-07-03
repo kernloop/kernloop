@@ -29,10 +29,7 @@ import { appendEvent, type AuditStore } from '../audit/index.js';
 
 /** Why the registry rejected an operation. */
 export type ManifestRegistryErrorCode =
-  | 'invalid_manifest'
-  | 'duplicate_manifest'
-  | 'not_found'
-  | 'ratification_required';
+  'invalid_manifest' | 'duplicate_manifest' | 'not_found' | 'ratification_required';
 
 /** Typed rejection at the registry boundary [CLM-0015]. */
 export class ManifestRegistryError extends Error {

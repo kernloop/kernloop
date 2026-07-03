@@ -102,12 +102,7 @@ export interface TrackerSuccess {
  * stdout) was not the expected JSON shape — surfaced as data, never thrown.
  */
 export type TrackerFailureReason =
-  | 'unsupported'
-  | 'invalid-input'
-  | 'spawn-failed'
-  | 'exit-nonzero'
-  | 'io-failed'
-  | 'parse-failed';
+  'unsupported' | 'invalid-input' | 'spawn-failed' | 'exit-nonzero' | 'io-failed' | 'parse-failed';
 
 /** A failed tracker operation: a typed, scrubbed reason — never a thrown error. */
 export interface TrackerFailure {
@@ -127,8 +122,7 @@ export type TrackerResult = TrackerSuccess | TrackerFailure;
  * a mutation, so it is mode-INDEPENDENT: a `dry-run` provider still performs it.
  */
 export type TrackerReadResult =
-  | { readonly ok: true; readonly state: IssueState; readonly ref: string }
-  | TrackerFailure;
+  { readonly ok: true; readonly state: IssueState; readonly ref: string } | TrackerFailure;
 
 /**
  * What a provider can do. A provider that lacks an operation declares it

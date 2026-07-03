@@ -82,8 +82,7 @@ export type ActionDecision =
 
 /** Outcome of {@link Ladder.recordEvidence}. */
 export type EvidenceResult =
-  | { breached: false }
-  | { breached: true; mean: number; from: Tier; demotedTo: Tier };
+  { breached: false } | { breached: true; mean: number; from: Tier; demotedTo: Tier };
 
 /** Pure decision: deny when requiredTier exceeds actor tier or ceiling. */
 function decide(check: ActionCheck): ActionDecision {

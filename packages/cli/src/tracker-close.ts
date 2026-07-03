@@ -20,11 +20,7 @@ import { resolveMode } from './tracker-commands.js';
 
 /** What a single-issue close decided after reading the issue. */
 export type IssueCloseAction =
-  | 'closed'
-  | 'would-close'
-  | 'already-closed'
-  | 'read-failed'
-  | 'close-failed';
+  'closed' | 'would-close' | 'already-closed' | 'read-failed' | 'close-failed';
 
 /** The outcome of one {@link closeOneIssue} attempt. */
 export interface IssueCloseOutcome {

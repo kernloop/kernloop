@@ -32,8 +32,7 @@ export type AuditInput = z.input<typeof AuditInputSchema>;
 
 /** What `audit` returns, per op. */
 export type AuditResult =
-  | { op: 'verify'; result: VerifyResult }
-  | { op: 'query'; events: AuditEnvelope[]; total: number };
+  { op: 'verify'; result: VerifyResult } | { op: 'query'; events: AuditEnvelope[]; total: number };
 
 /** Parse every line of the audit log into envelopes (schema-validated). */
 export function readEnvelopes(auditPath: string): AuditEnvelope[] {

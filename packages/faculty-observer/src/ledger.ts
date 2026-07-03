@@ -123,8 +123,7 @@ export function ingestOutcome(
 /** One subject's fitness, or `undefined` if it has never been observed. */
 export function fitness(db: Database.Database, subject: string): FitnessRecord | undefined {
   const row = db.prepare('SELECT * FROM observer_fitness WHERE subject = ?').get(subject) as
-    | FitnessRow
-    | undefined;
+    FitnessRow | undefined;
   return row === undefined ? undefined : toRecord(row);
 }
 

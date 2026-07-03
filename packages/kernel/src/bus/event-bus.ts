@@ -55,10 +55,7 @@ export const DEFAULT_QUEUE_CAPACITY = 16;
 
 /** Why the bus rejected an operation. */
 export type EventBusErrorCode =
-  | 'unknown_contract'
-  | 'invalid_message'
-  | 'invalid_capacity'
-  | 'replay_overflow';
+  'unknown_contract' | 'invalid_message' | 'invalid_capacity' | 'replay_overflow';
 
 /** Typed rejection at the bus boundary [CLM-0014]. */
 export class EventBusError extends Error {
