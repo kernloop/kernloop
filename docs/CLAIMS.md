@@ -3251,3 +3251,41 @@ The sandbox scratch receives every workspace package's node_modules (root + per-
 - [`packages/faculty-gates/src/sandbox/copy.test.ts`](../packages/faculty-gates/src/sandbox/copy.test.ts)
 - [`packages/faculty-gates/src/sandbox/copy.test.ts`](../packages/faculty-gates/src/sandbox/copy.test.ts)
 - CI `test`
+
+## CLM-0192
+
+**Status:** verified — **source:** [`CLM-0192.yaml`](../claims/registry/CLM-0192.yaml)
+
+The sandbox provisions the workspace's DECLARED package manager into the scratch OFFLINE, so turbo — which re-invokes each package's script through the declared PM (`packageManager: pnpm@X` in the root package.json) — resolves that binary under `--network none` where the ratified image ships only node + npm + corepack (corepack cannot download). provisionPackageManager parses the `packageManager` field (stripping a `+integrity` suffix), locates the pinned dist in the HOST corepack cache (`$COREPACK_HOME` ?? `~/.cache/node/corepack` at `v1/<name>/<version>`), copies it via the shared cp -a --reflink=auto path (cpSync fallback) to `<scratch>/.kernloop-pm/<name>/`, and writes an executable (0755) POSIX shim `<scratch>/.kernloop-pm/bin/<name>` that execs node against the entry RESOLVED from the cached dist's own package.json `bin` field (never hardcoded; the resolved file's existence is verified — a broken cache throws LOUD). runCheckInSandbox calls the provisioner after populateScratch and BEFORE opening scratch perms; containerArgv PATH-prepends `/work/.kernloop-pm/bin` before `/work/node_modules/.bin` while keeping the top-level pnpm/yarn→npm-run translation. We PROVISION, never MUTATE the `packageManager` field (mutating would change the very workspace semantics the checks test). npm or an absent field is a NO-OP; a declared version missing from the host cache FAILS CLOSED as a spawnError naming `corepack prepare <name>@<version>` — never silently unsandboxed, never silently green. SECURITY: the `packageManager` field is CHILD-WRITABLE (the gated child edits package.json in the very workspace parsed), making a crafted version a path-traversal read-exfiltration channel into the host filesystem; the defense is two-layer — parseDeclaredPm rejects any non-semver-shaped version (the leading digits-dot-digits-dot-digits anchor is what excludes `..` and path separators; malformed → the same no-op, the gate runs unprovisioned and fails on the tool's own error) AND cachedDistDir asserts the resolved dir stays inside `<cache>/v1`, throwing LOUD otherwise. Fixes the class-3 environmental failure that made every turbo-routed gate check (typecheck/lint/test) fail in the #530 bootstrap dogfood run (#548, second instance after #546).
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/provision-pm.test.ts`](../packages/faculty-gates/src/sandbox/provision-pm.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.test.ts`](../packages/faculty-gates/src/sandbox/run-check.test.ts)
+- [`packages/faculty-gates/src/sandbox/run-check.test.ts`](../packages/faculty-gates/src/sandbox/run-check.test.ts)
+- CI `test`
+
+## CLM-0193
+
+**Status:** verified — **source:** [`CLM-0193.yaml`](../claims/registry/CLM-0193.yaml)
+
+A failed subprocess check's fallback finding carries the TAIL of the tool's combined stdout+stderr, not the HEAD. Every mainstream tool prints its real error LAST (tsc/vitest diagnostics, turbo's `x Unable to find package manager binary`, npm's failure epilogue) while the HEAD is boilerplate (the `> pkg@ver script` banner, "Packages in scope", telemetry notices); keeping the whole small output buried the one error line under that banner head, so a coder iterating on the finding — and any downstream head-truncating display — saw only boilerplate and converged blind. outputTail now drops the leading banner by keeping the last N lines (default 12) then capping to the last N chars (default 2000), marking dropped output with a leading `…`; the run.ts nonzero-exit fallback (fired only when nothing structured parses) uses it, so the error surfaces within the existing size caps. Fixes the head-truncated findings observed across both #530 bootstrap runs (#549).
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/parsers.test.ts`](../packages/faculty-gates/src/parsers.test.ts)
+- [`packages/faculty-gates/src/parsers.test.ts`](../packages/faculty-gates/src/parsers.test.ts)
+- [`packages/faculty-gates/src/parsers.test.ts`](../packages/faculty-gates/src/parsers.test.ts)
+- [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
+- [`packages/faculty-gates/src/run.test.ts`](../packages/faculty-gates/src/run.test.ts)
+- CI `test`
