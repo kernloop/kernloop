@@ -1,5 +1,11 @@
 # @kernloop/faculty-observer
 
+## 0.1.9
+
+### Patch Changes
+
+- @kernloop/contracts@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes

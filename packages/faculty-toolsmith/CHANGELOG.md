@@ -1,5 +1,12 @@
 # @kernloop/faculty-toolsmith
 
+## 0.1.9
+
+### Patch Changes
+
+- @kernloop/contracts@0.1.9
+- @kernloop/kernel@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
