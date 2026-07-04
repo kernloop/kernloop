@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-workforce",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Kernloop Layer 2 — the workforce faculty (spec §5.4). Agents are configuration, not generation: PM, Coder, Reviewer, Documenter, and Researcher templates instantiate as agentTemplate Manifests, and the PM's plan decomposition is mechanically enforced — child TaskContract budgets must sum within the parent's on every dimension. No model calls: generative work happens through an invoke function injected by the composition root.",
   "license": "MIT",
   "type": "module",
