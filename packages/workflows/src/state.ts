@@ -63,6 +63,19 @@ export const ChildResultSchema = z.strictObject({
    * never clobbers the quality `verdict` (the parsimony node runs after both). */
   parsimonyVerdict: VerdictSchema.optional(),
   error: z.string().min(1).optional(),
+  /**
+   * Workspace-relative paths this child's implement step has written, the
+   * UNION across all of its iterations — PATHS ONLY, never content (#543,
+   * CLM-0199): the content is on disk in the workspace, not duplicated into
+   * the checkpoint. CHECKPOINTED (unlike the CLI's in-process `writtenByChild`
+   * stash, which is process-local), so a `--resume` after a kill can rebuild
+   * the scoped child-quality-gate union from durable state instead of falling
+   * back to the whole-workspace scan + sticky taint (`scopeTaintedChildren`,
+   * still the fallback for a child with neither an in-memory stash NOR a
+   * checkpointed set — e.g. a pre-#543 checkpoint). Set (overwritten with the
+   * latest full union, never appended-to) each time implement completes.
+   */
+  writtenPaths: z.array(z.string().min(1)).optional(),
   /** How many times implement has been re-run for this child (0 on first). */
   iteration: z.number().int().nonnegative().default(0),
   /** Gate findings accumulated across this child's iterations, fed to the coder. */

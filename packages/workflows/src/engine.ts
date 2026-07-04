@@ -57,6 +57,9 @@ class LoopEngine implements Engine {
   private readonly onChildIterate: ((event: ChildIterateEvent) => void) | undefined;
   /** Slices the run-global meter per fan-out child for attribution + halt (#56). */
   private readonly childSpend: ChildSpendTracker;
+  /** Pull-seam for a child's written-paths union, persisted into the checkpoint (#543). */
+  private readonly childWrittenPaths:
+    ((childId: string) => readonly string[] | undefined) | undefined;
 
   constructor(deps: EngineDeps) {
     this.executors = deps.executors;
@@ -66,6 +69,7 @@ class LoopEngine implements Engine {
     this.budget = deps.budget;
     this.childSpend = new ChildSpendTracker(deps.meteredSpend);
     this.onChildIterate = deps.onChildIterate;
+    this.childWrittenPaths = deps.childWrittenPaths;
     // Wiring-complete or absent: every executable node must resolve NOW.
     // The fan-out node is structural (the engine itself runs the sub-chain).
     for (const node of [...this.graph.nodes, ...this.graph.childChain]) {
@@ -201,6 +205,9 @@ class LoopEngine implements Engine {
         !overBudget(this.budget) &&
         this.childSpend.withinOwnBudget(this.budget?.mode === 'enforce', state),
       ...(this.onChildIterate === undefined ? {} : { onIterate: this.onChildIterate }),
+      ...(this.childWrittenPaths === undefined
+        ? {}
+        : { childWrittenPaths: this.childWrittenPaths }),
     };
   }
 

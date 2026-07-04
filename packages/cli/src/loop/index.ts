@@ -15,14 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import {
-  BriefSchema,
-  TaskContractSchema,
-  type Cost,
-  type Finding,
-  type Outcome,
-  type TaskContract,
-} from '@kernloop/contracts';
+import { type Cost, type Finding, type Outcome, type TaskContract } from '@kernloop/contracts';
 import {
   ADAPTER_NAMES,
   appendEvent,
@@ -35,11 +28,12 @@ import { isCliAdapter } from '../overlay-schemas.js';
 import { cleanHalt, documentDeliverable, guardWorkspaceContainment, report } from './finalize.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
-import { JsonlCheckpointStore, type RunState, type TraceEntry } from '@kernloop/workflows';
+import { JsonlCheckpointStore, type TraceEntry } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { type LoopRefs } from './executors.js';
 import { type DocArtifactResult } from './doc-artifact.js';
-import { LoopResumeError, type LoopInvoke, type RunTotals } from './invoke.js';
+import { type LoopInvoke, type RunTotals } from './invoke.js';
+import { primeFromCheckpoint } from './resume-prime.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
 import { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
@@ -160,28 +154,6 @@ export async function loadCheckpointTask(
   const store = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const latest = await store.latest(runId);
   return latest?.state.task;
-}
-
-/** Prime the cross-node refs from a checkpoint so no node re-executes. */
-function primeRefs(refs: LoopRefs, state: RunState): void {
-  const framed = TaskContractSchema.safeParse(state.values['frame']);
-  if (framed.success) refs.framedTask = framed.data;
-  const research = BriefSchema.safeParse(state.values['research']);
-  if (research.success) refs.researchBrief = research.data;
-  const plan = BriefSchema.safeParse(state.values['plan']);
-  if (plan.success) refs.planBrief = plan.data;
-}
-
-/** Load the latest checkpoint for a resumed run and prime the cross-node refs. */
-async function primeFromCheckpoint(
-  kern: Kernloop,
-  checkpoints: JsonlCheckpointStore,
-  runId: string,
-  refs: LoopRefs,
-): Promise<void> {
-  const latest = await checkpoints.latest(runId);
-  if (latest === undefined) throw new LoopResumeError(runId, checkpointFile(kern.paths.dir, runId));
-  primeRefs(refs, latest.state);
 }
 
 /**
@@ -351,6 +323,33 @@ function invokeSeamFor(
 }
 
 /**
+ * Prime the cross-node refs for a resumed run from its latest checkpoint (#543).
+ * A checkpointed written-path that escapes the workspace (a tampered/corrupt
+ * checkpoint, #543 security round) is refused — not read — and AUDITED via
+ * `cli.run.resume-path-refused` so the refusal is never silent (rule 7).
+ */
+async function primeResumeState(
+  kern: Kernloop,
+  request: LoopRequest,
+  checkpoints: JsonlCheckpointStore,
+  runId: string,
+  refs: LoopRefs,
+): Promise<void> {
+  await primeFromCheckpoint(
+    checkpoints,
+    runId,
+    refs,
+    request.workspaceDir,
+    checkpointFile(kern.paths.dir, runId),
+    (refused) =>
+      appendEvent(kern.store, {
+        type: 'cli.run.resume-path-refused',
+        payload: { runId, childId: refused.childId, path: refused.path },
+      }),
+  );
+}
+
+/**
  * Run (or resume) the canonical loop over one assembled kernloop. The
  * default invoke requires the chosen adapter's CLI on PATH — probed up
  * front; unavailable is a typed error, never a stub.
@@ -365,7 +364,9 @@ export async function executeCanonicalLoop(
   prepareRunAdapter(kern, request, adapter, runId);
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};
-  if (request.resumeRunId !== undefined) await primeFromCheckpoint(kern, checkpoints, runId, refs);
+  if (request.resumeRunId !== undefined) {
+    await primeResumeState(kern, request, checkpoints, runId, refs);
+  }
   const totals: RunTotals = { tokens: 0, usd: 0 };
   const onDowngrade = downgradeAudit(kern, runId);
   const fitness = modelFitness(kern);

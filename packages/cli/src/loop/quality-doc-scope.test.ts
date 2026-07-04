@@ -11,9 +11,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Verdict } from '@kernloop/contracts';
-import type { NodeContext } from '@kernloop/workflows';
+import type { NodeContext, RunState } from '@kernloop/workflows';
 import { buildLoopExecutors, type LoopRefs } from './executors.js';
 import type { LoopInvoke } from './invoke.js';
+import { primeWrittenByChild } from './resume-prime.js';
 import { COST, boundHelpers, ctxFor, task } from './executors.testkit.js';
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-doc-scope-'));
@@ -169,6 +170,43 @@ describe('child quality gate doc-comment scoping (#534) [CLM-0189]', () => {
     // write (represented by pre-existing.ts) is still judged.
     const second = (await executors['quality']?.(undefined, childCtx())) as Verdict;
     expect(docFindings(second).some((m) => m.includes('"legacy"'))).toBe(true);
+    kern.close();
+  });
+
+  it('a resume with CHECKPOINTED writtenPaths rebuilds the stash and SCOPES — no whole-workspace fallback (#543, CLM-0199)', async () => {
+    // Mirrors the #538 round-4 resume test above, but this time the run's
+    // checkpoint carries the child's durable writtenPaths (#543): the resume
+    // priming seam rebuilds refs.writtenByChild from it BEFORE the quality
+    // gate ever asks, so childGateScope never sees an absent stash and never
+    // taints the child whole-workspace.
+    const kern = kernloopFor('doc-scope-resume-checkpoint');
+    const ws = seededWorkspace('doc-scope-resume-checkpoint-ws');
+    const refs: LoopRefs = {}; // empty in-memory stash — exactly what a resume starts with
+    const checkpointed: RunState = {
+      task,
+      status: 'running',
+      cursor: { phase: 'fanout', childIndex: 0, sub: 1 },
+      iteration: 0,
+      values: {},
+      findings: [],
+      children: [task],
+      childResults: [
+        { child: task, iteration: 0, findings: [], writtenPaths: [path.join('src', 'child.ts')] },
+      ],
+      trace: [],
+      observedMaxNodeSpend: { tokens: 0, usd: 0 },
+    };
+    primeWrittenByChild(refs, checkpointed, ws);
+    const bindings = { ...bindingsFor(kern, refs), workspaceDir: ws };
+    const verdict = (await buildLoopExecutors(bindings)['quality']?.(
+      undefined,
+      childCtx(),
+    )) as Verdict;
+    const docs = docFindings(verdict);
+    // The child IS still judged on what the checkpoint says it wrote…
+    expect(docs.some((m) => m.includes('"fresh"'))).toBe(true);
+    // …but it is NOT whole-workspace: the pre-existing gap is not the child's to own.
+    expect(docs.some((m) => m.includes('"legacy"'))).toBe(false);
     kern.close();
   });
 
