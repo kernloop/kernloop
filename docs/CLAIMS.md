@@ -3379,3 +3379,24 @@ The review gate tolerates decorative unknown keys in reviewer output (stripping,
 - [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
 - [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
 - CI `test`
+
+## CLM-0198
+
+**Status:** verified — **source:** [`CLM-0198.yaml`](../claims/registry/CLM-0198.yaml)
+
+The canonical loop's CHILD quality gate adds the repo's own derived-artifact drift checks — `render-claims --check`, `docs:render --check`, and `stats:check` (all `preflight`/CI-only until now) — CONDITIONED on the child having actually written one of that render's inputs (`driftChecksFor`, #564): a claims-registry write adds the claims-render check, a gated package's source write adds the docs:render check, and a write to a `stats:check`-derived const or watched-prose file adds the stats check. Each is a whole-repo `--check` subprocess run, but the child gate runs it over a FRESHLY-CLONED, green throwaway sandbox workspace (#236) that carries no pre-existing drift, so a failure there is provably the CHILD's own un-regenerated render — closing the gap that let #562/DF1's claim edit ship a stale `docs/CLAIMS.md` past its own gate. A child that wrote none of these inputs gets none of these checks (zero added cost), and the standalone `gate quality` path (no `writtenFiles`) is unaffected — this is wired only into the loop's per-child gate via `executeQualityGate`'s `composeGateChecks`.
+
+**Enforced by:**
+
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/faculty-gates/src/checks.test.ts`](../packages/faculty-gates/src/checks.test.ts)
+- [`packages/cli/src/loop/quality-drift-scope.test.ts`](../packages/cli/src/loop/quality-drift-scope.test.ts)
+- CI `test`

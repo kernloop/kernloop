@@ -22,13 +22,11 @@
  * `remember` tool and `run`'s own Outcome recording.
  */
 import {
-  checksFromDefinitionOfDone,
-  defaultQualityChecks,
-  diffCoverageCheck,
   runQualityGate,
   type GateSandboxOptions,
   type QualityCheck,
 } from '@kernloop/faculty-gates';
+import { composeGateChecks } from './gate-checks-compose.js';
 import type { WrittenFile } from '@kernloop/docscan';
 import type {
   Check,
@@ -114,13 +112,14 @@ export interface QualityGateRequest {
   readonly sandbox?: GateSandboxOptions;
   /**
    * The files THIS child wrote (the union of its implement emissions). When
-   * PRESENT they SCOPE the in-process doc-comment AND security-smell checks to
-   * the child's own writes (#534/#541, CLM-0189) — pre-existing repo-wide
-   * findings cannot fail a child; an EMPTY array means the child owns nothing,
-   * so those checks judge nothing. They also feed the diff-coverage check
-   * (#226 item 2) when {@link diffCoverage} opts in. ABSENT → whole-workspace
-   * semantics (byte-identical to before); the standalone `gate quality` path
-   * omits it.
+   * PRESENT they SCOPE the in-process doc-comment AND security-smell checks
+   * to the child's own writes (#534/#541, CLM-0189) — pre-existing repo-wide
+   * findings cannot fail a child; an EMPTY array means the child owns
+   * nothing. They also feed the diff-coverage check (#226 item 2, under
+   * {@link diffCoverage}) and the repo's derived-artifact drift checks
+   * (#564, see {@link composeGateChecks}). ABSENT → whole-workspace
+   * semantics (byte-identical to before); the standalone `gate quality`
+   * path omits it.
    */
   readonly writtenFiles?: readonly WrittenFile[];
   /**
@@ -186,24 +185,7 @@ export async function executeQualityGate(
   const verdict = await runQualityGate({
     taskId: request.taskId,
     workspaceDir: request.workspaceDir,
-    // The repo's base checks (or the override) PLUS the task's own acceptance
-    // criteria (#226) — a child must pass its definition-of-done, not just `pnpm test`.
-    // A PRESENT writtenFiles (even empty: a child that wrote nothing owns nothing)
-    // scopes the default in-process doc-comment + security checks to the child's
-    // own writes (#534/#541, CLM-0189); an explicit `checks` override is the
-    // caller's to scope.
-    checks: [
-      ...(request.checks ?? defaultQualityChecks(request.writtenFiles?.map((f) => f.path))),
-      // Diff-coverage runs AFTER the base set so the `test` check has emitted the
-      // coverage report (#226 item 2); only under the explicit opt-in flag AND when
-      // the child's written files are known.
-      ...(request.diffCoverage === true &&
-      request.writtenFiles !== undefined &&
-      request.writtenFiles.length > 0
-        ? [diffCoverageCheck(request.writtenFiles)]
-        : []),
-      ...checksFromDefinitionOfDone(request.definitionOfDone ?? []),
-    ],
+    checks: composeGateChecks(request),
     envAllow,
     ...(request.timeoutMsPerCheck === undefined
       ? {}
