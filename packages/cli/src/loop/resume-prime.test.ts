@@ -5,7 +5,7 @@
  * from the workspace (never checkpointed); `primeFromCheckpoint` wires it
  * alongside the pre-existing main-chain ref priming.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -14,7 +14,11 @@ import { InMemoryCheckpointStore } from '@kernloop/workflows';
 import { task } from './executors.testkit.js';
 import type { LoopRefs } from './executors.js';
 import { LoopResumeError } from './invoke.js';
-import { primeFromCheckpoint, primeWrittenByChild } from './resume-prime.js';
+import {
+  primeFromCheckpoint,
+  primeWrittenByChild,
+  type RefusedResumePath,
+} from './resume-prime.js';
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-resume-prime-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -76,6 +80,87 @@ describe('primeWrittenByChild (#543, CLM-0199)', () => {
     const refs: LoopRefs = {};
     primeWrittenByChild(refs, stateWith([]), ws);
     expect(refs.writtenByChild?.[task.id]).toEqual([]);
+  });
+
+  it('REFUSES a checkpointed writtenPath that escapes the workspace via `..`, still priming the in-workspace ones (#543 security round)', () => {
+    // A tampered/corrupt checkpoint carries a `../`-bearing path pointing at a
+    // file OUTSIDE the workspace; its content must never enter the gate-visible
+    // stash, and the refusal is recorded (not silently dropped).
+    const ws = path.join(scratch, 'ws-escape');
+    mkdirSync(path.join(ws, 'src'), { recursive: true });
+    writeFileSync(path.join(ws, 'src', 'ok.ts'), '/** Ok. */\nexport const ok = 1;\n');
+    // The out-of-workspace secret the `..` path would read.
+    writeFileSync(path.join(scratch, 'outside.ts'), 'const apiKey = "sk-live-XXXX";\n');
+    const refs: LoopRefs = {};
+    const refused: RefusedResumePath[] = [];
+    primeWrittenByChild(
+      refs,
+      stateWith([path.join('..', 'outside.ts'), path.join('src', 'ok.ts')]),
+      ws,
+      (r) => refused.push(r),
+    );
+    // Only the in-workspace path primed; the escaping one never entered the stash.
+    expect(refs.writtenByChild?.[task.id]).toEqual([
+      { path: path.join('src', 'ok.ts'), content: '/** Ok. */\nexport const ok = 1;\n' },
+    ]);
+    expect(refused).toEqual([{ childId: task.id, path: path.join('..', 'outside.ts') }]);
+  });
+
+  it('REFUSES a checkpointed path that is a SYMLINK out of the workspace (realpath re-confinement)', () => {
+    const ws = path.join(scratch, 'ws-symlink');
+    mkdirSync(ws, { recursive: true });
+    const secret = path.join(scratch, 'symlink-secret.ts');
+    writeFileSync(secret, 'const token = "leak";\n');
+    symlinkSync(secret, path.join(ws, 'link.ts')); // an in-name path that resolves OUTSIDE
+    const refs: LoopRefs = {};
+    const refused: RefusedResumePath[] = [];
+    primeWrittenByChild(refs, stateWith(['link.ts']), ws, (r) => refused.push(r));
+    // Every path refused ⇒ the child is LEFT UNSET (fail-closed taint), not scoped to nothing.
+    expect(refs.writtenByChild).toBeUndefined();
+    expect(refused).toEqual([{ childId: task.id, path: 'link.ts' }]);
+  });
+
+  it('leaves a child whose EVERY path was refused UNSET so the fail-closed whole-workspace taint applies', () => {
+    const ws = path.join(scratch, 'ws-poisoned');
+    mkdirSync(ws, { recursive: true });
+    const refs: LoopRefs = {};
+    const refused: RefusedResumePath[] = [];
+    primeWrittenByChild(
+      refs,
+      stateWith([path.join('..', 'a.ts'), path.join('..', '..', 'b.ts')]),
+      ws,
+      (r) => refused.push(r),
+    );
+    expect(refs.writtenByChild).toBeUndefined();
+    expect(refused).toHaveLength(2);
+  });
+
+  it('a genuine (non-ENOENT) read error on an EXISTING path SURFACES rather than yielding empty content', () => {
+    // readFileSync on a DIRECTORY throws EISDIR (not ENOENT): the narrowed catch
+    // must let it surface, never vacuously pass the content scans with '' (#543
+    // review finding 3 — the security-smell fail-open).
+    const ws = path.join(scratch, 'ws-eisdir');
+    mkdirSync(path.join(ws, 'adir'), { recursive: true });
+    expect(() => primeWrittenByChild({}, stateWith(['adir']), ws)).toThrow();
+  });
+
+  it('an ABSENT workspace dir still confines lexically — a `..` path is refused, an in-workspace path yields empty content', () => {
+    // realpathSync on a non-existent workspace throws; the fallback resolves the
+    // path so lexical `..` confinement still applies (the anomaly is honestly
+    // degraded, never fail-open into reading outside a missing root).
+    const ws = path.join(scratch, 'ws-does-not-exist');
+    const refs: LoopRefs = {};
+    const refused: RefusedResumePath[] = [];
+    primeWrittenByChild(
+      refs,
+      stateWith([path.join('..', 'escape.ts'), path.join('src', 'in.ts')]),
+      ws,
+      (r) => refused.push(r),
+    );
+    expect(refs.writtenByChild?.[task.id]).toEqual([
+      { path: path.join('src', 'in.ts'), content: '' },
+    ]);
+    expect(refused).toEqual([{ childId: task.id, path: path.join('..', 'escape.ts') }]);
   });
 });
 

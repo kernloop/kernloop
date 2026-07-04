@@ -58,6 +58,7 @@ evidence:
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::the child quality gate ignores a pre-existing undocumented export outside the child writes (#534)'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a run-level (no-child) quality gate keeps the whole-workspace doc scan'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::with NO written-files stash (a resume), the child gate falls back to the whole-workspace scan (fail closed)'
+  - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a resume with CHECKPOINTED writtenPaths rebuilds the stash and SCOPES — no whole-workspace fallback (#543, CLM-0199)'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::an absent-stash gate TAINTS the child whole-workspace for the rest of the run'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a PRESENT-but-empty stash entry (the child wrote nothing) judges nothing'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::the doc scope is the UNION of the child emissions across iterations — a re-emit cannot narrow it (#534)'

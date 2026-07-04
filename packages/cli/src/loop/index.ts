@@ -323,6 +323,33 @@ function invokeSeamFor(
 }
 
 /**
+ * Prime the cross-node refs for a resumed run from its latest checkpoint (#543).
+ * A checkpointed written-path that escapes the workspace (a tampered/corrupt
+ * checkpoint, #543 security round) is refused — not read — and AUDITED via
+ * `cli.run.resume-path-refused` so the refusal is never silent (rule 7).
+ */
+async function primeResumeState(
+  kern: Kernloop,
+  request: LoopRequest,
+  checkpoints: JsonlCheckpointStore,
+  runId: string,
+  refs: LoopRefs,
+): Promise<void> {
+  await primeFromCheckpoint(
+    checkpoints,
+    runId,
+    refs,
+    request.workspaceDir,
+    checkpointFile(kern.paths.dir, runId),
+    (refused) =>
+      appendEvent(kern.store, {
+        type: 'cli.run.resume-path-refused',
+        payload: { runId, childId: refused.childId, path: refused.path },
+      }),
+  );
+}
+
+/**
  * Run (or resume) the canonical loop over one assembled kernloop. The
  * default invoke requires the chosen adapter's CLI on PATH — probed up
  * front; unavailable is a typed error, never a stub.
@@ -338,13 +365,7 @@ export async function executeCanonicalLoop(
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};
   if (request.resumeRunId !== undefined) {
-    await primeFromCheckpoint(
-      checkpoints,
-      runId,
-      refs,
-      request.workspaceDir,
-      checkpointFile(kern.paths.dir, runId),
-    );
+    await primeResumeState(kern, request, checkpoints, runId, refs);
   }
   const totals: RunTotals = { tokens: 0, usd: 0 };
   const onDowngrade = downgradeAudit(kern, runId);

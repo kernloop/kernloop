@@ -3224,6 +3224,7 @@ The canonical loop's CHILD quality gate scopes its IN-PROCESS whole-workspace sc
 - [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
 - [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
 - [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
+- [`packages/cli/src/loop/quality-doc-scope.test.ts`](../packages/cli/src/loop/quality-doc-scope.test.ts)
 - CI `test`
 
 ## CLM-0190
@@ -3406,7 +3407,7 @@ The canonical loop's CHILD quality gate adds the repo's own derived-artifact dri
 
 **Status:** verified — **source:** [`CLM-0199.yaml`](../claims/registry/CLM-0199.yaml)
 
-The canonical loop's per-child written-file PATHS (not content — it stays on disk in the workspace) are checkpointed onto that child's `ChildResult` (`writtenPaths`, `packages/workflows`), durable across a process kill: the engine's `childWrittenPaths` pull-seam (mirrors the existing `meteredSpend` seam, #56) is asked for the child's CURRENT written-paths union right after its implement sub-node completes, and the result overwrites (never narrower — the CLI-side stash already unions across the child's iterations) the checkpointed set. On `--resume`, `primeWrittenByChild` (`packages/cli/src/loop/resume-prime.ts`) rebuilds the CLI's in-memory `writtenByChild` stash from each child's checkpointed `writtenPaths` BEFORE any gate runs, reading each path's content back from the (unchanged) workspace on disk — so the scoped child quality gate (CLM-0189) resumes with the durable per-child union instead of degrading to the whole-workspace scan + sticky taint (`scopeTaintedChildren`), and the review/parsimony gates reading the same rebuilt stash likewise stop abstaining post-resume. A child with NEITHER a live in-process stash NOR a checkpointed `writtenPaths` set (a pre-#543 checkpoint, or a child whose implement never ran) still falls back to the pre-existing fail-closed whole-workspace-scan-plus-taint degradation — CLM-0189's guarantee is unchanged for that case.
+The canonical loop's per-child written-file PATHS (not content — it stays on disk in the workspace) are checkpointed onto that child's `ChildResult` (`writtenPaths`, `packages/workflows`), durable across a process kill: the engine's `childWrittenPaths` pull-seam (mirrors the existing `meteredSpend` seam, #56) is asked for the child's CURRENT written-paths union right after its implement sub-node completes, and the result overwrites (never narrower — the CLI-side stash already unions across the child's iterations) the checkpointed set. On `--resume`, `primeWrittenByChild` (`packages/cli/src/loop/resume-prime.ts`) rebuilds the CLI's in-memory `writtenByChild` stash from each child's checkpointed `writtenPaths` BEFORE any gate runs, reading each path's content back from the (unchanged) workspace on disk — so the scoped child quality gate (CLM-0189) resumes with the durable per-child union instead of degrading to the whole-workspace scan + sticky taint (`scopeTaintedChildren`), and the review/parsimony gates reading the same rebuilt stash likewise stop abstaining post-resume. A child with NEITHER a live in-process stash NOR a checkpointed `writtenPaths` set (a pre-#543 checkpoint, or a child whose implement never ran) still falls back to the pre-existing fail-closed whole-workspace-scan-plus-taint degradation — CLM-0189's guarantee is unchanged for that case. The checkpoint JSON is UNTRUSTED durable state, so the resume read RE-CONFINES each checkpointed child-origin path to the REAL workspace root (resolve + realpath, mirroring the write side): a `../`-bearing or symlinked path that escapes the workspace is REFUSED — its content never enters the gate-visible stash — and AUDITED (`cli.run.resume-path-refused`), never silently dropped; a child whose EVERY path is refused is left UNSET so the fail-closed taint applies rather than scoping to nothing. Only a genuinely MISSING file (ENOENT) degrades to empty content; a real read error (e.g. EACCES) surfaces rather than vacuously passing the content scans.
 
 **Enforced by:**
 
@@ -3417,6 +3418,10 @@ The canonical loop's per-child written-file PATHS (not content — it stays on d
 - [`packages/workflows/src/child-written-paths.test.ts`](../packages/workflows/src/child-written-paths.test.ts)
 - [`packages/workflows/src/child-written-paths.test.ts`](../packages/workflows/src/child-written-paths.test.ts)
 - [`packages/workflows/src/child-written-paths.test.ts`](../packages/workflows/src/child-written-paths.test.ts)
+- [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)
+- [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)
+- [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)
+- [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)
 - [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)
 - [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)
 - [`packages/cli/src/loop/resume-prime.test.ts`](../packages/cli/src/loop/resume-prime.test.ts)

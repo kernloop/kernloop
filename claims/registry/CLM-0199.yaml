@@ -18,7 +18,16 @@ statement: >-
   with NEITHER a live in-process stash NOR a checkpointed `writtenPaths` set
   (a pre-#543 checkpoint, or a child whose implement never ran) still falls
   back to the pre-existing fail-closed whole-workspace-scan-plus-taint
-  degradation — CLM-0189's guarantee is unchanged for that case.
+  degradation — CLM-0189's guarantee is unchanged for that case. The
+  checkpoint JSON is UNTRUSTED durable state, so the resume read RE-CONFINES
+  each checkpointed child-origin path to the REAL workspace root (resolve +
+  realpath, mirroring the write side): a `../`-bearing or symlinked path that
+  escapes the workspace is REFUSED — its content never enters the gate-visible
+  stash — and AUDITED (`cli.run.resume-path-refused`), never silently dropped;
+  a child whose EVERY path is refused is left UNSET so the fail-closed taint
+  applies rather than scoping to nothing. Only a genuinely MISSING file
+  (ENOENT) degrades to empty content; a real read error (e.g. EACCES) surfaces
+  rather than vacuously passing the content scans.
 evidence:
   - 'test:packages/workflows/src/state.test.ts::round-trips a present writtenPaths set through the schema and a JSON hop'
   - 'test:packages/workflows/src/state.test.ts::is absent (never defaulted to []) when the field was never set — distinct from "wrote nothing"'
@@ -33,6 +42,10 @@ evidence:
   - 'test:packages/cli/src/loop/resume-prime.test.ts::an empty checkpointed writtenPaths set (the child wrote nothing) rebuilds to an empty stash entry'
   - 'test:packages/cli/src/loop/resume-prime.test.ts::throws LoopResumeError when the run has no checkpoint'
   - 'test:packages/cli/src/loop/resume-prime.test.ts::primes BOTH the main-chain refs and the written-files stash from the latest checkpoint'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::REFUSES a checkpointed writtenPath that escapes the workspace via `..`, still priming the in-workspace ones (#543 security round)'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::REFUSES a checkpointed path that is a SYMLINK out of the workspace (realpath re-confinement)'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::leaves a child whose EVERY path was refused UNSET so the fail-closed whole-workspace taint applies'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::a genuine (non-ENOENT) read error on an EXISTING path SURFACES rather than yielding empty content'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a resume with CHECKPOINTED writtenPaths rebuilds the stash and SCOPES — no whole-workspace fallback (#543, CLM-0199)'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::with NO written-files stash (a resume), the child gate falls back to the whole-workspace scan (fail closed)'
   - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::an absent-stash gate TAINTS the child whole-workspace for the rest of the run'
