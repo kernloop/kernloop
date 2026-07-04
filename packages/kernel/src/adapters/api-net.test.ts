@@ -49,6 +49,13 @@ describe('isDisallowedAddress — every internal range is refused', () => {
     ['2001:db8::1', 6], // reserved (IPv6 documentation range)
     ['192.0.2.1', 4], // reserved (TEST-NET-1)
     ['127.1', 4], // IPv4 shorthand — ipaddr 1.x failed to parse (fail closed); 2.x parses as loopback
+    // Parser-differential pins (review-gate warn): the classic SSRF spellings must stay
+    // BLOCKED — via classification matching inet_aton semantics or via parse-fail-closed —
+    // so a future ipaddr major can't silently drift toward an admit-direction differential.
+    ['0177.0.0.1', 4], // octal loopback (inet_aton 127.0.0.1) — ipaddr 2.x classifies loopback
+    ['0x7f.0.0.1', 4], // hex loopback (inet_aton 127.0.0.1) — classifies loopback
+    ['10.1', 4], // 2-part shorthand (inet_aton 10.0.0.1) — classifies private
+    ['192.168.1', 4], // 3-part shorthand (inet_aton 192.168.0.1) — classifies private
   ])('disallows %s (family %i)', (addr) => {
     expect(isDisallowedAddress(addr as string)).toBe(true);
   });
@@ -65,6 +72,10 @@ describe('isDisallowedAddress — every internal range is refused', () => {
     ['2002:0808:0808::', 6], // 6to4 of 8.8.8.8 — public
     ['64:ff9b::0808:0808', 6], // NAT64 of 8.8.8.8 — public destination, allowed
     ['::0808:0808', 6], // IPv4-compatible ::/96 of 8.8.8.8 — the manual gap-closure's allow side
+    // Admit-direction control: '8.8' parses as 8.0.0.8 (public), IDENTICAL to inet_aton /
+    // getaddrinfo semantics — no parser differential. (In production the classifier only
+    // ever sees OS-resolved lookup output, never an attacker-typed spelling.)
+    ['8.8', 4], // 2-part shorthand of a PUBLIC address — pinned so a drift here is loud
   ])('allows public %s (family %i)', (addr) => {
     expect(isDisallowedAddress(addr as string)).toBe(false);
   });

@@ -24,3 +24,11 @@ merge-on-green.
   `Agent`/`connect.lookup`/`fetch` surface typechecks unchanged and the
   standing connect-block regression passes. Guard semantics are exactly
   preserved; CLM-0186 unchanged.
+- Parser-differential pins added for the classic SSRF shorthand spellings
+  (octal `0177.0.0.1`, hex `0x7f.0.0.1`, 2-part `10.1`, 3-part `192.168.1`,
+  and the public `8.8` admit-direction control): ipaddr.js 2.x classifies
+  each identically to inet_aton semantics — blocked where private-embedding,
+  no differential found.
+- `@kernloop/kernel` now declares `engines.node >=22.19.0`, matching the
+  floor undici 8 raised (from `>=20.18.1`), so consumers on early-22.x get a
+  loud install-time engine mismatch instead of a runtime undici rejection.
