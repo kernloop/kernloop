@@ -1,5 +1,11 @@
 # @kernloop/faculty-models
 
+## 0.1.7
+
+### Patch Changes
+
+- @kernloop/contracts@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes
