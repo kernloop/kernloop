@@ -3330,3 +3330,26 @@ Agentic CLI children spawned by the canonical loop run WITH their cwd pinned to 
 - [`packages/kernel/src/adapters/subprocess.test.ts`](../packages/kernel/src/adapters/subprocess.test.ts)
 - [`packages/kernel/src/adapters/subprocess.test.ts`](../packages/kernel/src/adapters/subprocess.test.ts)
 - CI `test`
+
+## CLM-0196
+
+**Status:** verified — **source:** [`CLM-0196.yaml`](../claims/registry/CLM-0196.yaml)
+
+The repo carries an FP-rate measurement harness for the blind parsimony verifier (#436) — the evidence the #415 enforce-by-default safety case was missing: a hand-labeled corpus (evals/parsimony-fp/corpus, 19 cases — real merged-PR excerpts, synthetic controls including the confusable-phrasing deterministic-false-refute risk class, over-claim probes for the false-confirm side, and two #435 na-lying-adjacent cases recorded but OUT-OF-SCOPE for scoring; every case states HOW its ground truth is known, and arguable labels were excluded, documented in the README); an operator-run runner (run-fp-eval.mjs, NOT CI — real model calls) that drives the REAL verifyFloor through the same review-tier seam the gate binds (nodeRequirement('review') → resolveServed → buildNodeSeam over adapterInvoke, tool-free) with N reps per case and records the served model per row; and a deterministic, CI-safe scorer (`pnpm parsimony:fp`) over the committed results ledger (evals/parsimony-fp/results.jsonl) reporting the load-bearing FALSE-REFUTE rate (verifier refutes a truth-satisfied claim — at enforce/full each such verdict rejects a legitimate child), the false-confirm rate, per-case rep stability, and the persistent (Kc-burning) false-refute class, with parse errors reported separately (never counted as a verdict) and a tamper-evidence check failing LOUD when a committed row's expectation drifts from the corpus labels. HONEST LIMITS (documented in the README): the corpus is small (weak statistical bounds), labels are hand-assigned with recorded provenance, nondeterminism is bounded only by the recorded reps (default 3), and rates are per-served-model. The harness is OBSERVE-tier: measured rates report and never gate, and no gate default changes on their basis without a separate human ratification.
+
+**Enforced by:**
+
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`scripts/__tests__/parsimony-fp-check.test.mjs`](../scripts/__tests__/parsimony-fp-check.test.mjs)
+- [`evals/parsimony-fp/results.jsonl`](../evals/parsimony-fp/results.jsonl)
+- [`evals/parsimony-fp/corpus`](../evals/parsimony-fp/corpus)
+- [`evals/parsimony-fp/README.md#honest-limits`](../evals/parsimony-fp/README.md#honest-limits)
+- CI `test`

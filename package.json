@@ -26,6 +26,7 @@
     "governance:check": "node scripts/governance-check.mjs",
     "vote-parity": "node scripts/vote-parity-check.mjs",
     "dogfood:liveness": "node scripts/dogfood-liveness.mjs",
+    "parsimony:fp": "node scripts/parsimony-fp-check.mjs",
     "preflight": "pnpm build && pnpm typecheck && pnpm lint && pnpm wiring:check && pnpm format && pnpm test && pnpm claims:check && pnpm claims:verify-ran && node scripts/render-claims.mjs --check && pnpm docs:render -- --check && pnpm docs:coverage && pnpm stats:check && pnpm parsimony:render -- --check && pnpm governance:check && pnpm audit --audit-level=high && pnpm audit:selftest && pnpm e2e && pnpm evals",
     "preflight:check": "node scripts/check-preflight-sync.mjs",
     "audit:selftest": "node scripts/audit-selftest.mjs",

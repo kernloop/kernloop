@@ -1,0 +1,11 @@
+{
+  "id": "synth-confusable-validation",
+  "source": "synthetic: confusable phrasing (deterministic-false-refute risk class)",
+  "claimedPass": ["input_validation"],
+  "groundTruth": {
+    "input_validation": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized false-refute probe. The guard IS genuinely provided — EnvelopeSchema.parse over a strict, bounded schema rejects any malformed untrusted payload at the boundary — but the prose says \"performs no sanitization and no normalization\", which a shallow reading can mistake for \"performs no validation\". Sanitization (mutating input) and validation (rejecting input) are distinct; the rejection is present in the code.",
+  "diff": "diff --git a/src/ingest/envelope.ts b/src/ingest/envelope.ts\nindex a2b91c0..7e60d13 100644\n--- a/src/ingest/envelope.ts\n+++ b/src/ingest/envelope.ts\n@@ -1,6 +1,22 @@\n import { z } from 'zod';\n\n+const EnvelopeSchema = z.strictObject({\n+  kind: z.enum(['ping', 'delta', 'snapshot']),\n+  seq: z.number().int().nonnegative(),\n+  body: z.string().max(65_536),\n+});\n+export type Envelope = z.infer<typeof EnvelopeSchema>;\n+\n+// NOTE: this module performs no sanitization and no normalization of the\n+// incoming payload — the raw bytes are kept untouched for replay.\n+export function acceptEnvelope(raw: string): Envelope {\n+  const candidate: unknown = JSON.parse(raw);\n+  // strictObject: unknown keys are rejected; every field is bounded.\n+  return EnvelopeSchema.parse(candidate);\n+}\n"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "synth-atomic-write-recovery",
+  "source": "synthetic: clean control",
+  "claimedPass": ["error_recovery"],
+  "groundTruth": {
+    "error_recovery": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized control. The diff converts a direct overwrite into write-temp + fsync + atomic rename with cleanup and a typed error on failure: a failure can no longer corrupt or lose the previous index — error handling / recovery for the data-loss risk, present by construction.",
+  "diff": "diff --git a/src/store/save.ts b/src/store/save.ts\nindex 77aa210..c4e19f2 100644\n--- a/src/store/save.ts\n+++ b/src/store/save.ts\n@@ -8,6 +8,24 @@ import { serialize, type Index } from './serialize.js';\n\n-export function saveIndex(file: string, index: Index): void {\n-  writeFileSync(file, serialize(index));\n+/** Crash-safe save: serialize to a temp file, fsync, then atomically rename\n+ *  over the target. A failure at any step leaves the previous index file\n+ *  intact (the rename is all-or-nothing), and the temp file is removed. */\n+export function saveIndex(file: string, index: Index): void {\n+  const tmp = `${file}.tmp-${process.pid}`;\n+  try {\n+    const fd = openSync(tmp, 'w');\n+    try {\n+      writeSync(fd, serialize(index));\n+      fsyncSync(fd);\n+    } finally {\n+      closeSync(fd);\n+    }\n+    renameSync(tmp, file); // atomic on POSIX: readers see old or new, never a torn write\n+  } catch (err) {\n+    rmSync(tmp, { force: true });\n+    throw new IndexWriteError(file, err);\n+  }\n }\n"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "synth-aria-form",
+  "source": "synthetic: clean control",
+  "claimedPass": ["accessibility"],
+  "groundTruth": {
+    "accessibility": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized control. The diff adds dialog role/aria-modal, a programmatic label, aria-invalid/aria-describedby error wiring, a role=\"alert\" live region, and Escape keyboard handling — concrete accessibility affordances, present by construction.",
+  "diff": "diff --git a/src/ui/rename-dialog.tsx b/src/ui/rename-dialog.tsx\nindex e01aa42..5d7b990 100644\n--- a/src/ui/rename-dialog.tsx\n+++ b/src/ui/rename-dialog.tsx\n@@ -12,12 +12,24 @@ export function RenameDialog({ current, onSubmit, onCancel }: Props) {\n   const [value, setValue] = useState(current);\n   const [error, setError] = useState<string | null>(null);\n+  // Close on Escape so the dialog is fully keyboard-operable.\n+  const onKeyDown = (e: KeyboardEvent) => {\n+    if (e.key === 'Escape') onCancel();\n+  };\n   return (\n-    <div class=\"dialog\">\n-      <input value={value} onInput={(e) => setValue(e.currentTarget.value)} />\n-      {error && <span class=\"error\">{error}</span>}\n+    <div class=\"dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"rename-title\" onKeyDown={onKeyDown}>\n+      <h2 id=\"rename-title\">Rename item</h2>\n+      <label for=\"rename-input\">New name</label>\n+      <input\n+        id=\"rename-input\"\n+        value={value}\n+        aria-invalid={error !== null}\n+        aria-describedby={error !== null ? 'rename-error' : undefined}\n+        onInput={(e) => setValue(e.currentTarget.value)}\n+      />\n+      {error && <span id=\"rename-error\" role=\"alert\" class=\"error\">{error}</span>}\n       <button onClick={() => onSubmit(value)}>Rename</button>\n+      <button onClick={onCancel}>Cancel</button>\n     </div>\n   );\n }\n"
+}

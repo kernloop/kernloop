@@ -1,0 +1,11 @@
+{
+  "id": "synth-log-only",
+  "source": "synthetic: over-claim (false-confirm probe)",
+  "claimedPass": ["input_validation"],
+  "groundTruth": {
+    "input_validation": false
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized over-claim. JSON.parse is parsing, not validation; console.log is logging; nothing checks or rejects any shape/bound before the payload drives a deployment. The \"validated upstream\" comment is an assertion, not a guard the diff provides.",
+  "diff": "diff --git a/src/server/routes/hooks.ts b/src/server/routes/hooks.ts\nindex 0aa41b7..3c9de55 100644\n--- a/src/server/routes/hooks.ts\n+++ b/src/server/routes/hooks.ts\n@@ -5,6 +5,14 @@ import { applyDeployment } from '../deploy/apply.js';\n\n export const webhooksRouter = Router();\n\n+webhooksRouter.post('/hooks/deploy', async (req, res) => {\n+  // Payloads are validated upstream by the gateway (see ops/gateway.yaml).\n+  const payload = JSON.parse(req.body as string);\n+  console.log('deploy hook', payload.kind, payload.ref);\n+  await applyDeployment(payload);\n+  res.status(200).json({ ok: true });\n+});\n"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "synth-swallow-catch",
+  "source": "synthetic: over-claim (false-confirm probe)",
+  "claimedPass": ["error_recovery"],
+  "groundTruth": {
+    "error_recovery": false
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized over-claim. The try/catch SWALLOWS a failed checkpoint write and still reports ok:true — silent data loss dressed as handling. No recovery, no propagation, no fail-safe state: the guard is not provided (a swallowed failure that lies about success is the opposite of SI-11/CP-10).",
+  "diff": "diff --git a/src/engine/checkpoint.ts b/src/engine/checkpoint.ts\nindex 4e0ab77..91d3c05 100644\n--- a/src/engine/checkpoint.ts\n+++ b/src/engine/checkpoint.ts\n@@ -6,8 +6,12 @@ import { serialize, type State } from './state.js';\n\n export function checkpoint(stateFile: string, state: State): CheckpointResult {\n-  writeFileSync(stateFile, serialize(state));\n-  return { ok: true };\n+  try {\n+    writeFileSync(stateFile, serialize(state));\n+  } catch {\n+    // best effort — checkpointing must never slow down the hot path\n+  }\n+  return { ok: true };\n }\n"
+}

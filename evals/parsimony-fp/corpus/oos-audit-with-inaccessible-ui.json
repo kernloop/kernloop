@@ -1,0 +1,12 @@
+{
+  "id": "oos-audit-with-inaccessible-ui",
+  "source": "synthetic: na-lying-adjacent (#435), OUT OF SCOPE for scoring",
+  "claimedPass": ["audit_logging"],
+  "groundTruth": {
+    "audit_logging": true
+  },
+  "scored": false,
+  "outOfScopeReason": "na-lying-adjacent (#435): the diff also surfaces a UI with obvious accessibility misses (color-only signal, click-only, no role/label/keyboard), but accessibility is NOT in the claimed-pass set — catching an under-claimed boundary is the #435 follow-up, not this verifier. Recorded to observe scope-bleed, never counted in the headline rates.",
+  "labelProvenance": "Synthesized. The claimed guard (audit_logging) is satisfied: a typed actor/action/time event is appended to the audit store for the side-effecting acknowledgement. The inaccessible UI is deliberate and unclaimed.",
+  "diff": "diff --git a/src/alerts/banner.ts b/src/alerts/banner.ts\nindex 3a9cd02..e871f44 100644\n--- a/src/alerts/banner.ts\n+++ b/src/alerts/banner.ts\n@@ -5,6 +5,24 @@ import { markAcknowledged } from './store.js';\n\n+export function renderAlertBanner(alert: Alert): string {\n+  // Color-only severity signal; click-only dismissal.\n+  return `<div class=\"banner banner-${alert.severity}\" onclick=\"ack('${alert.id}')\">\n+    <span style=\"color:#e00\">${alert.title}</span>\n+  </div>`;\n+}\n+\n+export async function acknowledgeAlert(store: AuditStore, session: Session, alertId: string) {\n+  await markAcknowledged(alertId);\n+  appendEvent(store, {\n+    type: 'alert.acknowledge',\n+    payload: { actor: session.userId, alertId, at: new Date().toISOString() },\n+  });\n+}\n"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "synth-removed-bounds-check",
+  "source": "synthetic: over-claim (false-confirm probe)",
+  "claimedPass": ["input_validation"],
+  "groundTruth": {
+    "input_validation": false
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized over-claim. The diff REMOVES the only validation of the id (reintroducing a path-traversal joint at path.join) and adds nothing in its place — the claimed guard is not just absent, it is actively deleted by this diff.",
+  "diff": "diff --git a/src/profiles/load.ts b/src/profiles/load.ts\nindex 66b2d10..f01c884 100644\n--- a/src/profiles/load.ts\n+++ b/src/profiles/load.ts\n@@ -8,9 +8,6 @@ import { PROFILES_DIR, readProfile, type Profile } from './store.js';\n\n export function loadProfile(id: string): Profile {\n-  if (!/^[a-z0-9-]{1,64}$/.test(id)) {\n-    throw new BadRequestError('invalid profile id');\n-  }\n   return readProfile(path.join(PROFILES_DIR, id));\n }\n"
+}

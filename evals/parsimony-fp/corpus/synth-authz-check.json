@@ -1,0 +1,11 @@
+{
+  "id": "synth-authz-check",
+  "source": "synthetic: clean control",
+  "claimedPass": ["access_enforcement"],
+  "groundTruth": {
+    "access_enforcement": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized control. The diff adds an explicit session + role check that 403s before the destructive operation — access enforcement at the boundary, present by construction.",
+  "diff": "diff --git a/src/server/routes/projects.ts b/src/server/routes/projects.ts\nindex 1b0d9aa..8f22c31 100644\n--- a/src/server/routes/projects.ts\n+++ b/src/server/routes/projects.ts\n@@ -3,10 +3,17 @@ import { Router } from 'express';\n import { deleteProject } from '../projects/store.js';\n+import { requireRole } from '../auth/roles.js';\n\n export const projectsRouter = Router();\n\n projectsRouter.delete('/projects/:id', async (req, res) => {\n+  // Access enforcement: only an authenticated project admin may delete.\n+  const session = req.session;\n+  if (session === undefined || !requireRole(session, 'project-admin', req.params.id)) {\n+    res.status(403).json({ error: 'forbidden' });\n+    return;\n+  }\n   await deleteProject(req.params.id);\n   res.status(204).end();\n });\n"
+}

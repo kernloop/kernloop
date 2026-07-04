@@ -1,0 +1,11 @@
+{
+  "id": "synth-confusable-recovery",
+  "source": "synthetic: confusable phrasing (deterministic-false-refute risk class)",
+  "claimedPass": ["error_recovery"],
+  "groundTruth": {
+    "error_recovery": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized false-refute probe. The guard IS genuinely provided — the function snapshots the last good bytes and restores them on a failed apply before rethrowing, so a failure cannot leave corrupt state — but the surrounding prose (\"no logging and no retries\", the rethrow) can shallow-read as \"no error handling\". The restore-on-failure is the recovery.",
+  "diff": "diff --git a/src/state/write.ts b/src/state/write.ts\nindex c11f0e3..2ab74d9 100644\n--- a/src/state/write.ts\n+++ b/src/state/write.ts\n@@ -4,6 +4,19 @@ import { readFileSync, writeFileSync } from 'node:fs';\n\n+// fastPathWrite deliberately contains no logging and no retries.\n+export function fastPathWrite(file: string, bytes: Buffer): void {\n+  const before = readFileSync(file); // snapshot of the last good state\n+  try {\n+    writeFileSync(file, bytes);\n+  } catch (err) {\n+    // A failed apply must not leave a torn file behind: the last good\n+    // bytes are put back before the error propagates to the caller.\n+    writeFileSync(file, before);\n+    throw err;\n+  }\n+}\n"
+}
