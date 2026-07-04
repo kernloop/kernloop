@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/cli",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Kernloop composition root (spec §9): the `kernloop` CLI and MCP server. Assembles kernel + faculties over a per-repo overlay (spec §7) and exposes exactly the kernel eleven — run, status, brief, gate, recall, remember, distill, forge, manifest, audit, observe (spec §3.4). Workshop creations register under the workshop/* manifest namespace, never as tool #12.",
   "license": "MIT",
   "type": "module",
