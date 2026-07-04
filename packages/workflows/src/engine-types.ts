@@ -65,6 +65,16 @@ export interface EngineDeps {
    * recorded (the Observer can later read iterations-to-pass as fitness).
    */
   readonly onChildIterate?: (event: ChildIterateEvent) => void;
+  /**
+   * Pull-seam resolving a child's current written-paths union right after its
+   * implement sub-node completes (#543, CLM-0199) — mirrors `meteredSpend`: the
+   * CLI owns the live (process-local) stash, this seam hands back just the
+   * paths, and the engine persists them onto the checkpointed
+   * `ChildResult.writtenPaths` so a `--resume` can rebuild the scoped child
+   * quality gate from durable state. Absent → `writtenPaths` is never set,
+   * byte-identical to the pre-#543 sticky-taint-only behavior.
+   */
+  readonly childWrittenPaths?: (childId: string) => readonly string[] | undefined;
 }
 
 /** Per-run options. */

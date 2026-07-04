@@ -48,6 +48,18 @@ export interface AdvanceOptions {
     gate: string;
     findingCount: number;
   }) => void;
+  /**
+   * Resolve a child's CURRENT written-paths union (#543, CLM-0199) right after
+   * its implement sub-node completes, mirroring the `meteredSpend` pull-seam
+   * pattern (#56): the CLI keeps the live (process-local, path+content) stash
+   * and hands back just the paths, which {@link advanceChild} persists onto the
+   * child's checkpointed `ChildResult.writtenPaths` — durable across a
+   * `--resume`. The resolver already returns the FULL union across the child's
+   * iterations (the CLI stash unions on every emission), so each call OVERWRITES
+   * rather than appends — still a union, never a narrowing. Absent (no seam
+   * injected) → `writtenPaths` is never set, byte-identical to before #543.
+   */
+  readonly childWrittenPaths?: (childId: string) => readonly string[] | undefined;
 }
 
 /** The next unit of work the cursor points at. */
@@ -234,6 +246,11 @@ function advanceChild(
     result.verdict = output as Verdict;
   } else {
     result.output = output;
+    // Implement just completed: checkpoint the child's written-paths UNION
+    // (#543, CLM-0199) so a `--resume` can rebuild the scoped-gate stash from
+    // durable state rather than falling back to the whole-workspace taint.
+    const paths = opts.childWrittenPaths?.(result.child.id);
+    if (paths !== undefined) result.writtenPaths = [...paths];
   }
   if (
     subNode?.kind === 'gate' &&

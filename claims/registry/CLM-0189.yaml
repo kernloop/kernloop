@@ -15,13 +15,18 @@ statement: >-
   emissions across its iterations WITHIN A PROCESS LIFETIME (last content wins
   per path), so within one process a re-iteration that re-emits only some
   files does not narrow the scope past an earlier undocumented or smelly
-  write. The stash is NOT checkpointed; on a RESUME the gate FAILS CLOSED both
-  at the instant and after: an ABSENT stash entry falls back to the
-  whole-workspace scans AND taints that child whole-workspace for the
+  write. The in-process stash itself is NOT checkpointed, but the child's
+  written PATHS now are (`ChildResult.writtenPaths`, #543/CLM-0199): on a
+  RESUME the stash is rebuilt from that durable set BEFORE any gate runs, so
+  the scoped semantics survive a kill/resume in the common case. Only when
+  NEITHER the in-process stash NOR a checkpointed path set exists (a
+  pre-#543 checkpoint, or a child whose implement never ran) does the gate
+  fall back to the ORIGINAL fail-closed degradation: an ABSENT stash entry
+  scans the whole workspace AND taints that child whole-workspace for the
   REMAINDER of the run (`scopeTaintedChildren`, itself process-local — a later
   resume re-taints via the same absent-stash path), so a fresh partial
-  post-resume stash does not re-narrow the scope past pre-crash writes; the
-  durable path-checkpoint fix is tracked as #543. SCOPE CARVE-OUTS, stated
+  post-resume stash does not re-narrow the scope past pre-crash writes.
+  SCOPE CARVE-OUTS, stated
   honestly: the request-level scope applies only to the DEFAULT check set — an
   explicit `checks` override is the caller's to scope; and a PRESENT-but-empty
   scope (a child that wrote nothing) disables BOTH in-process checks for that

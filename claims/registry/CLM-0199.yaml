@@ -1,0 +1,42 @@
+id: CLM-0199
+statement: >-
+  The canonical loop's per-child written-file PATHS (not content — it stays on
+  disk in the workspace) are checkpointed onto that child's `ChildResult`
+  (`writtenPaths`, `packages/workflows`), durable across a process kill: the
+  engine's `childWrittenPaths` pull-seam (mirrors the existing `meteredSpend`
+  seam, #56) is asked for the child's CURRENT written-paths union right after
+  its implement sub-node completes, and the result overwrites (never
+  narrower — the CLI-side stash already unions across the child's iterations)
+  the checkpointed set. On `--resume`, `primeWrittenByChild`
+  (`packages/cli/src/loop/resume-prime.ts`) rebuilds the CLI's in-memory
+  `writtenByChild` stash from each child's checkpointed `writtenPaths` BEFORE
+  any gate runs, reading each path's content back from the (unchanged)
+  workspace on disk — so the scoped child quality gate (CLM-0189) resumes
+  with the durable per-child union instead of degrading to the whole-workspace
+  scan + sticky taint (`scopeTaintedChildren`), and the review/parsimony gates
+  reading the same rebuilt stash likewise stop abstaining post-resume. A child
+  with NEITHER a live in-process stash NOR a checkpointed `writtenPaths` set
+  (a pre-#543 checkpoint, or a child whose implement never ran) still falls
+  back to the pre-existing fail-closed whole-workspace-scan-plus-taint
+  degradation — CLM-0189's guarantee is unchanged for that case.
+evidence:
+  - 'test:packages/workflows/src/state.test.ts::round-trips a present writtenPaths set through the schema and a JSON hop'
+  - 'test:packages/workflows/src/state.test.ts::is absent (never defaulted to []) when the field was never set — distinct from "wrote nothing"'
+  - 'test:packages/workflows/src/state.test.ts::rejects an empty-string path — a checkpointed path is never blank'
+  - 'test:packages/workflows/src/state.test.ts::the full RunState carries writtenPaths through its childResults on a JSON round-trip'
+  - 'test:packages/workflows/src/child-written-paths.test.ts::an implement emission persists the CURRENT written-paths union into ChildResult.writtenPaths'
+  - 'test:packages/workflows/src/child-written-paths.test.ts::accumulates across iterations — the LATER union persists, never narrower than an earlier write'
+  - 'test:packages/workflows/src/child-written-paths.test.ts::with no childWrittenPaths seam injected, writtenPaths is never set — byte-identical to pre-#543'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::rebuilds the stash from checkpointed paths, reading content back from the workspace'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::degrades an unreadable checkpointed path to empty content rather than aborting the resume'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::leaves a child with NO checkpointed writtenPaths untouched (the pre-#543 degradation still applies)'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::an empty checkpointed writtenPaths set (the child wrote nothing) rebuilds to an empty stash entry'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::throws LoopResumeError when the run has no checkpoint'
+  - 'test:packages/cli/src/loop/resume-prime.test.ts::primes BOTH the main-chain refs and the written-files stash from the latest checkpoint'
+  - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::a resume with CHECKPOINTED writtenPaths rebuilds the stash and SCOPES — no whole-workspace fallback (#543, CLM-0199)'
+  - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::with NO written-files stash (a resume), the child gate falls back to the whole-workspace scan (fail closed)'
+  - 'test:packages/cli/src/loop/quality-doc-scope.test.ts::an absent-stash gate TAINTS the child whole-workspace for the rest of the run'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.8

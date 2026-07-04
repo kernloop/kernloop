@@ -15,14 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import {
-  BriefSchema,
-  TaskContractSchema,
-  type Cost,
-  type Finding,
-  type Outcome,
-  type TaskContract,
-} from '@kernloop/contracts';
+import { type Cost, type Finding, type Outcome, type TaskContract } from '@kernloop/contracts';
 import {
   ADAPTER_NAMES,
   appendEvent,
@@ -35,11 +28,12 @@ import { isCliAdapter } from '../overlay-schemas.js';
 import { cleanHalt, documentDeliverable, guardWorkspaceContainment, report } from './finalize.js';
 import type { QualityCheck } from '@kernloop/faculty-gates';
 import { loadDiscoveredCache } from '@kernloop/faculty-models';
-import { JsonlCheckpointStore, type RunState, type TraceEntry } from '@kernloop/workflows';
+import { JsonlCheckpointStore, type TraceEntry } from '@kernloop/workflows';
 import type { Kernloop } from '../kernel.js';
 import { type LoopRefs } from './executors.js';
 import { type DocArtifactResult } from './doc-artifact.js';
-import { LoopResumeError, type LoopInvoke, type RunTotals } from './invoke.js';
+import { type LoopInvoke, type RunTotals } from './invoke.js';
+import { primeFromCheckpoint } from './resume-prime.js';
 import { type TieredNode } from './node-model.js';
 import { type NodeSeam } from './node-seam.js';
 import { buildInvokeForNode, injectedSeamFor } from './node-bind.js';
@@ -160,28 +154,6 @@ export async function loadCheckpointTask(
   const store = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const latest = await store.latest(runId);
   return latest?.state.task;
-}
-
-/** Prime the cross-node refs from a checkpoint so no node re-executes. */
-function primeRefs(refs: LoopRefs, state: RunState): void {
-  const framed = TaskContractSchema.safeParse(state.values['frame']);
-  if (framed.success) refs.framedTask = framed.data;
-  const research = BriefSchema.safeParse(state.values['research']);
-  if (research.success) refs.researchBrief = research.data;
-  const plan = BriefSchema.safeParse(state.values['plan']);
-  if (plan.success) refs.planBrief = plan.data;
-}
-
-/** Load the latest checkpoint for a resumed run and prime the cross-node refs. */
-async function primeFromCheckpoint(
-  kern: Kernloop,
-  checkpoints: JsonlCheckpointStore,
-  runId: string,
-  refs: LoopRefs,
-): Promise<void> {
-  const latest = await checkpoints.latest(runId);
-  if (latest === undefined) throw new LoopResumeError(runId, checkpointFile(kern.paths.dir, runId));
-  primeRefs(refs, latest.state);
 }
 
 /**
@@ -365,7 +337,15 @@ export async function executeCanonicalLoop(
   prepareRunAdapter(kern, request, adapter, runId);
   const checkpoints = new JsonlCheckpointStore(checkpointFile(kern.paths.dir, runId));
   const refs: LoopRefs = {};
-  if (request.resumeRunId !== undefined) await primeFromCheckpoint(kern, checkpoints, runId, refs);
+  if (request.resumeRunId !== undefined) {
+    await primeFromCheckpoint(
+      checkpoints,
+      runId,
+      refs,
+      request.workspaceDir,
+      checkpointFile(kern.paths.dir, runId),
+    );
+  }
   const totals: RunTotals = { tokens: 0, usd: 0 };
   const onDowngrade = downgradeAudit(kern, runId);
   const fitness = modelFitness(kern);

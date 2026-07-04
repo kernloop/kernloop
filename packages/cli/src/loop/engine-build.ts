@@ -153,21 +153,51 @@ export function voteDiversityFor(
   );
 }
 
-export function buildLoopEngine(
-  kern: Kernloop,
-  request: LoopRequest,
-  seams: {
-    runId: string;
-    checkpoints: JsonlCheckpointStore;
-    refs: LoopRefs;
-    adapter: string;
-    invokeFor: (node: TieredNode) => NodeSeam;
-    /** Per-model-call fitness wiring (#66), also threaded into the diverse vote seams (#369). */
-    fitness: ModelFitnessWiring | undefined;
-    mode: BudgetMode;
-    totals: { tokens: number; usd: number };
-  },
-): Engine {
+/** Seams `buildLoopEngine` needs beyond `kern`/`request` — see its own doc. */
+interface EngineSeams {
+  runId: string;
+  checkpoints: JsonlCheckpointStore;
+  refs: LoopRefs;
+  adapter: string;
+  invokeFor: (node: TieredNode) => NodeSeam;
+  /** Per-model-call fitness wiring (#66), also threaded into the diverse vote seams (#369). */
+  fitness: ModelFitnessWiring | undefined;
+  mode: BudgetMode;
+  totals: { tokens: number; usd: number };
+}
+
+/**
+ * The non-executor `EngineDeps` seams: budget guard, per-child spend readout,
+ * the child-iterate audit hook, and the written-paths pull-seam (#543,
+ * CLM-0199) that hands the engine just the PATHS from the live (process-local)
+ * written-files stash right after implement completes, so it can persist them
+ * onto the checkpointed ChildResult — a `--resume` rebuilds the scoped
+ * quality-gate union from durable state instead of the whole-workspace sticky
+ * taint (see `primeWrittenByChild`, resume-prime.ts).
+ */
+function engineDeps(kern: Kernloop, request: LoopRequest, seams: EngineSeams) {
+  return {
+    checkpoints: seams.checkpoints,
+    config: {
+      K: kern.config.K,
+      Kc: kern.config.Kc,
+      gates: { vote: kern.config.gates.vote },
+      nodeOverrides: kern.config.nodeOverrides,
+      reviewDrivesIteration: reviewGateDrivesIteration(kern),
+      parsimonyDrivesIteration: parsimonyGateDrivesIteration(kern),
+      budgetHeadroomFraction: kern.config.budgetHeadroomFraction,
+    },
+    budget: budgetGuardFor(seams.mode, request.task, seams.totals),
+    // Always-on metered readout for per-child attribution (#56) — the same
+    // `totals` the budget guard reads, sliced per child by the engine.
+    meteredSpend: () => ({ tokens: seams.totals.tokens, usd: seams.totals.usd }),
+    onChildIterate: childIterateAudit(kern, seams.runId, request.task.id),
+    childWrittenPaths: (childId: string) =>
+      seams.refs.writtenByChild?.[childId]?.map((f) => f.path),
+  };
+}
+
+export function buildLoopEngine(kern: Kernloop, request: LoopRequest, seams: EngineSeams): Engine {
   // The discovered cache is loaded ONCE per run and shared by provenance
   // normalization AND the #509 per-model vote panel (a missing cache degrades to empty).
   const discovered = loadDiscoveredCache(kern.paths.modelsCache, kern.store.clock().toISOString());
@@ -186,21 +216,7 @@ export function buildLoopEngine(
       ...(request.checks === undefined ? {} : { checks: request.checks }),
       ...(voteDiversity === undefined ? {} : { voteDiversity }),
     }),
-    checkpoints: seams.checkpoints,
-    config: {
-      K: kern.config.K,
-      Kc: kern.config.Kc,
-      gates: { vote: kern.config.gates.vote },
-      nodeOverrides: kern.config.nodeOverrides,
-      reviewDrivesIteration: reviewGateDrivesIteration(kern),
-      parsimonyDrivesIteration: parsimonyGateDrivesIteration(kern),
-      budgetHeadroomFraction: kern.config.budgetHeadroomFraction,
-    },
-    budget: budgetGuardFor(seams.mode, request.task, seams.totals),
-    // Always-on metered readout for per-child attribution (#56) — the same
-    // `totals` the budget guard reads, sliced per child by the engine.
-    meteredSpend: () => ({ tokens: seams.totals.tokens, usd: seams.totals.usd }),
-    onChildIterate: childIterateAudit(kern, seams.runId, request.task.id),
+    ...engineDeps(kern, request, seams),
   });
 }
 
