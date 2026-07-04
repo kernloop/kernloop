@@ -4,14 +4,25 @@ import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_TIMEOUT_MS,
+  DOCS_RENDER_GATED_PACKAGES,
+  STATS_INPUT_DIR_PREFIXES,
+  STATS_INPUT_FILES,
   checksFromDefinitionOfDone,
   defaultQualityChecks,
   diffCoverageCheck,
   docCommentCheck,
+  driftChecksFor,
   isInProcessCheck,
   securityCheck,
 } from './checks.js';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
+import { GATED_PACKAGES } from '../../../scripts/docs-coverage.mjs';
+import { STATS_INPUTS } from '../../../scripts/stats.mjs';
+
+/** Assert two string lists have identical members, ignoring order and dupes. */
+function sameSet(a: readonly string[], b: readonly string[]): void {
+  expect([...new Set(a)].sort()).toEqual([...new Set(b)].sort());
+}
 
 describe('diffCoverageCheck (#226 item 2)', () => {
   let dir: string;
@@ -112,6 +123,120 @@ describe('securityCheck scoping (#541) [CLM-0189]', () => {
     if (security === undefined || !isInProcessCheck(security))
       throw new Error('security check missing');
     expect(await security.run(ws)).toEqual([]);
+  });
+});
+
+describe('driftChecksFor (#564 — closes the #562/DF1 rescue gap)', () => {
+  it('adds the claims-render drift check when a claims/ path was written', () => {
+    // claims/src/ (not claims/registry/) so this exercises ONLY the claims
+    // trigger, not the stats-registry-count trigger too (that overlap is its
+    // own test below).
+    const checks = driftChecksFor(['claims/src/check.ts']);
+    expect(checks).toEqual([
+      {
+        name: 'claims-render-drift',
+        command: 'node',
+        args: ['scripts/render-claims.mjs', '--check'],
+        parse: expect.any(Function),
+      },
+    ]);
+  });
+
+  it('does NOT add the claims-render check for an unrelated write', () => {
+    expect(driftChecksFor(['src/feature.ts'])).toEqual([]);
+  });
+
+  it('adds the docs-render drift check when a gated package src file was written', () => {
+    const checks = driftChecksFor(['packages/faculty-gates/src/checks.ts']);
+    expect(checks).toEqual([
+      {
+        name: 'docs-render-drift',
+        command: 'pnpm',
+        args: ['docs:render', '--', '--check'],
+        parse: expect.any(Function),
+      },
+    ]);
+  });
+
+  it('does NOT add the docs-render check for a non-gated-package or non-src write', () => {
+    expect(driftChecksFor(['packages/faculty-gates/README.md'])).toEqual([]);
+    expect(driftChecksFor(['packages/faculty-gates/vitest.config.ts'])).toEqual([]);
+  });
+
+  it('mirrors scripts/docs-coverage.mjs GATED_PACKAGES exactly — set-EQUAL, both directions (no silent drift)', () => {
+    // BIDIRECTIONAL: script ⊆ local proves the false-negative direction (a
+    // gated package the classifier forgot); local ⊆ script proves the local
+    // mirror can't accrue a stale/extra entry. Equality catches both.
+    sameSet(DOCS_RENDER_GATED_PACKAGES, GATED_PACKAGES);
+    // …and behaviorally: every script-gated package's src triggers docs-render-drift.
+    for (const pkg of GATED_PACKAGES) {
+      const checks = driftChecksFor([`packages/${pkg}/src/index.ts`]);
+      expect(checks.some((c) => c.name === 'docs-render-drift')).toBe(true);
+    }
+  });
+
+  it('mirrors scripts/stats.mjs STATS_INPUTS exactly — the classifier stats set == what stats actually reads', () => {
+    // The one classifier the docs lockstep did not cover: STATS_INPUT_FILES /
+    // STATS_INPUT_DIR_PREFIXES is a hand-maintained mirror of what stats.mjs
+    // reads. stats.mjs now EXPORTS its real input set (derived from the same
+    // CONST_SOURCES/DIR_SOURCES/WATCHED it parses), so a new stats input can't
+    // silently skip the child gate's stats-drift check (#564).
+    sameSet(STATS_INPUT_FILES, STATS_INPUTS.files);
+    // dir prefixes carry a trailing '/'; stats.mjs lists bare dir roots.
+    sameSet(
+      STATS_INPUT_DIR_PREFIXES.map((p) => p.replace(/\/$/, '')),
+      STATS_INPUTS.dirs,
+    );
+    // …and behaviorally: every declared stats input triggers stats-drift.
+    for (const file of STATS_INPUTS.files) {
+      expect(driftChecksFor([file]).some((c) => c.name === 'stats-drift')).toBe(true);
+    }
+    for (const dir of STATS_INPUTS.dirs) {
+      expect(driftChecksFor([`${dir}/anything.ext`]).some((c) => c.name === 'stats-drift')).toBe(
+        true,
+      );
+    }
+  });
+
+  it('adds the stats drift check when a stats-input const file was written', () => {
+    // scripts/docs-coverage.mjs is a pure stats input — not under claims/ and
+    // not under any gated package's packages/<pkg>/src/, so this exercises
+    // ONLY the stats trigger.
+    const checks = driftChecksFor(['scripts/docs-coverage.mjs']);
+    expect(checks).toEqual([
+      { name: 'stats-drift', command: 'pnpm', args: ['stats:check'], parse: expect.any(Function) },
+    ]);
+  });
+
+  it('adds the stats drift check for a written claims-registry file too (its count is a derived stat)', () => {
+    const checks = driftChecksFor(['claims/registry/CLM-0180.yaml']);
+    expect(checks.map((c) => c.name)).toEqual(
+      expect.arrayContaining(['claims-render-drift', 'stats-drift']),
+    );
+  });
+
+  it('does NOT add the stats check for an unrelated write', () => {
+    expect(driftChecksFor(['docs/some-guide.md'])).toEqual([]);
+  });
+
+  it('empty writtenFiles adds no drift checks', () => {
+    expect(driftChecksFor([])).toEqual([]);
+  });
+
+  it('a write touching all three inputs adds all three checks, each a real no-parse subprocess check', () => {
+    const checks = driftChecksFor([
+      'claims/registry/CLM-0180.yaml',
+      'packages/kernel/src/index.ts',
+      'packages/contracts/src/common.ts',
+    ]);
+    expect(checks.map((c) => c.name)).toEqual([
+      'claims-render-drift',
+      'docs-render-drift',
+      'stats-drift',
+    ]);
+    for (const c of checks) {
+      expect(c.parse('anything', 'anything', 1)).toEqual([]);
+    }
   });
 });
 

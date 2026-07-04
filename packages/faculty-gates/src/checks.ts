@@ -151,6 +151,126 @@ export function defaultQualityChecks(childScope?: readonly string[]): QualityChe
 }
 
 /**
+ * Gated packages whose public value-export SOURCE files feed `docs:render`
+ * (docs/API.md, #64/#72) — mirrors `scripts/docs-coverage.mjs`'s
+ * `GATED_PACKAGES`. Duplicated here rather than imported: a faculty package
+ * cannot reach across the package boundary into a repo-root script (there is
+ * no build/publish relationship between them); `checks.test.ts` reads the
+ * script's own list and asserts the two stay identical, so drift between them
+ * fails a test rather than silently under/over-triggering (#564).
+ */
+export const DOCS_RENDER_GATED_PACKAGES: readonly string[] = [
+  'contracts',
+  'kernel',
+  'cli',
+  'docscan',
+  'parsimony',
+  'workflows',
+  'faculty-compiler',
+  'faculty-gates',
+  'faculty-memory',
+  'faculty-observer',
+  'faculty-scrum',
+  'faculty-toolsmith',
+  'faculty-workforce',
+  'tracker',
+];
+
+/**
+ * README-stats INPUTS (`stats:check`, #189/CLM-0113) — the exact files
+ * `scripts/stats.mjs` reads: the const files it derives counts from, the
+ * `WATCHED` prose files it cross-checks, plus the two directories whose file
+ * COUNT is itself a derived stat (`docscan/grammars/*.wasm`,
+ * `claims/registry/*.yaml` — adding or removing a file there moves a count
+ * without touching any const).
+ */
+export const STATS_INPUT_FILES: readonly string[] = [
+  'packages/contracts/src/common.ts',
+  'packages/cli/src/tools/index.ts',
+  'packages/faculty-workforce/src/templates.ts',
+  'scripts/docs-coverage.mjs',
+  'README.md',
+  'AGENTS.md',
+  'claims/registry/CLM-0091.yaml',
+  'claims/registry/CLM-0104.yaml',
+];
+
+/** Directory prefixes whose file COUNT (not content) is a derived stats input. */
+export const STATS_INPUT_DIR_PREFIXES: readonly string[] = [
+  'packages/docscan/grammars/',
+  'claims/registry/',
+];
+
+/** True when `writtenPath` is a claims-registry file — `render-claims --check`'s input. */
+function isClaimsRenderInput(writtenPath: string): boolean {
+  return writtenPath === 'claims' || writtenPath.startsWith('claims/');
+}
+
+/** True when `writtenPath` is a gated package's source — `docs:render --check`'s input. */
+function isDocsRenderInput(writtenPath: string): boolean {
+  return DOCS_RENDER_GATED_PACKAGES.some((pkg) => writtenPath.startsWith(`packages/${pkg}/src/`));
+}
+
+/** True when `writtenPath` is one of `stats:check`'s derived-count or watched-prose inputs. */
+function isStatsInput(writtenPath: string): boolean {
+  return (
+    STATS_INPUT_FILES.includes(writtenPath) ||
+    STATS_INPUT_DIR_PREFIXES.some((prefix) => writtenPath.startsWith(prefix))
+  );
+}
+
+/**
+ * The repo's own derived-artifact drift checks (`render-claims`/`docs:render`/
+ * `stats:check`, all run `--check`-only in `preflight`/CI today), CONDITIONED
+ * on the child having actually written one of that render's inputs (#564,
+ * closing the #562/DF1 rescue gap: a child edited a claim YAML, passed its
+ * quality gate, and left `docs/CLAIMS.md` stale for CI to catch after merge).
+ *
+ * Each `--check` run below is a WHOLE-REPO scan, but the child quality gate
+ * runs it over a FRESHLY-CLONED, green throwaway workspace (#236's sandbox
+ * copy) — the repo carries no pre-existing drift there, so any failure here is
+ * provably the CHILD's own un-regenerated render, never inherited debt. A
+ * child that wrote none of these inputs gets none of these checks: zero added
+ * cost. `parse` returns no findings on its own — a nonzero exit already
+ * becomes an `error` via the runner's generic output-tail fallback
+ * (`findingsForCheck`, CLM-0031), exactly like {@link checksFromDefinitionOfDone}.
+ *
+ * Only wired into the CHILD gate (`writtenFiles` present) by
+ * {@link executeQualityGate} in `packages/cli/src/executors.ts` — the
+ * standalone `gate quality` path never calls this, so its semantics are
+ * unchanged.
+ */
+export function driftChecksFor(writtenFiles: readonly string[]): SubprocessCheck[] {
+  const checks: SubprocessCheck[] = [];
+  const noFindings = (): Finding[] => [];
+  if (writtenFiles.some(isClaimsRenderInput)) {
+    checks.push({
+      name: 'claims-render-drift',
+      command: 'node',
+      args: ['scripts/render-claims.mjs', '--check'],
+      parse: noFindings,
+    });
+  }
+  if (writtenFiles.some(isDocsRenderInput)) {
+    checks.push({
+      name: 'docs-render-drift',
+      command: 'pnpm',
+      args: ['docs:render', '--', '--check'],
+      parse: noFindings,
+    });
+  }
+  if (writtenFiles.some(isStatsInput)) {
+    checks.push({
+      name: 'stats-drift',
+      command: 'pnpm',
+      args: ['stats:check'],
+      parse: noFindings,
+    });
+  }
+  return checks;
+}
+
+/**
  * Map a task's `definitionOfDone` into runnable quality checks (#226): each
  * Check's `command` STRING is tokenized on whitespace into an executable + args
  * and spawned WITH NO SHELL — so a model-supplied command cannot inject shell
