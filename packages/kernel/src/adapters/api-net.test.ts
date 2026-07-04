@@ -42,6 +42,13 @@ describe('isDisallowedAddress — every internal range is refused', () => {
     ['', 4], // empty → fail closed
     ['255.255.255.255', 4], // broadcast (ipaddr non-unicast) — defense-in-depth
     ['ff02::1', 6], // multicast — non-unicast
+    ['224.0.0.1', 4], // IPv4 multicast (undici8/ipaddr2 scrutiny — was only covered via IPv6)
+    ['2002:a9fe:a9fe::', 6], // 6to4 of 169.254.169.254 — embedded metadata via 6to4
+    ['64:ff9b::10.0.0.1', 6], // NAT64 of RFC-1918 private
+    ['2001::1', 6], // teredo — non-unicast
+    ['2001:db8::1', 6], // reserved (IPv6 documentation range)
+    ['192.0.2.1', 4], // reserved (TEST-NET-1)
+    ['127.1', 4], // IPv4 shorthand — ipaddr 1.x failed to parse (fail closed); 2.x parses as loopback
   ])('disallows %s (family %i)', (addr) => {
     expect(isDisallowedAddress(addr as string)).toBe(true);
   });
@@ -57,6 +64,7 @@ describe('isDisallowedAddress — every internal range is refused', () => {
     ['::ffff:0808:0808', 6], // IPv4-mapped 8.8.8.8 (hex) — public
     ['2002:0808:0808::', 6], // 6to4 of 8.8.8.8 — public
     ['64:ff9b::0808:0808', 6], // NAT64 of 8.8.8.8 — public destination, allowed
+    ['::0808:0808', 6], // IPv4-compatible ::/96 of 8.8.8.8 — the manual gap-closure's allow side
   ])('allows public %s (family %i)', (addr) => {
     expect(isDisallowedAddress(addr as string)).toBe(false);
   });
