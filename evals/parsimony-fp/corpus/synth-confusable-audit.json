@@ -1,0 +1,11 @@
+{
+  "id": "synth-confusable-audit",
+  "source": "synthetic: confusable phrasing (deterministic-false-refute risk class)",
+  "claimedPass": ["audit_logging"],
+  "groundTruth": {
+    "audit_logging": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized false-refute probe. The guard IS genuinely provided — a durable (append-only, fsynced, never-rewritten) record of actor/action/subject/time is written for the side-effecting removal, which is an audit trail in substance — but it is framed as an \"analytics feed / activity view\", never using the word audit.",
+  "diff": "diff --git a/src/workspace/members.ts b/src/workspace/members.ts\nindex 5faa802..90d1c47 100644\n--- a/src/workspace/members.ts\n+++ b/src/workspace/members.ts\n@@ -10,6 +10,18 @@ import type { Session, Workspace } from './types.js';\n\n+// Analytics feed: member removals show up on the workspace activity view.\n+export async function removeMember(ws: Workspace, session: Session, memberId: string) {\n+  await ws.members.delete(memberId);\n+  // The activity ledger is append-only and fsynced per record; entries are\n+  // never rewritten or dropped, and each carries actor, action, subject, time.\n+  await ws.activityLedger.append({\n+    action: 'member.remove',\n+    actor: session.userId,\n+    subject: memberId,\n+    at: new Date().toISOString(),\n+  });\n+}\n"
+}

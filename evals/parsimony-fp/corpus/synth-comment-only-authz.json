@@ -1,0 +1,11 @@
+{
+  "id": "synth-comment-only-authz",
+  "source": "synthetic: over-claim (false-confirm probe)",
+  "claimedPass": ["access_enforcement"],
+  "groundTruth": {
+    "access_enforcement": false
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized over-claim. The new admin endpoint performs a privileged mutation with no session/role/permission check anywhere in the diff; the gateway comment is an assertion about other infrastructure, not a guard this diff provides.",
+  "diff": "diff --git a/src/server/routes/admin.ts b/src/server/routes/admin.ts\nindex 2c8de19..7b4f6a2 100644\n--- a/src/server/routes/admin.ts\n+++ b/src/server/routes/admin.ts\n@@ -7,6 +7,13 @@ import { setRetentionPolicy } from '../retention/policy.js';\n\n export const adminRouter = Router();\n\n+// Access to /admin/* is enforced at the API gateway (ops/gateway.yaml), so\n+// handlers in this file do not repeat the check.\n+adminRouter.post('/admin/retention', async (req, res) => {\n+  await setRetentionPolicy(req.body.days);\n+  res.status(204).end();\n+});\n"
+}

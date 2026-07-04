@@ -1,0 +1,11 @@
+{
+  "id": "synth-zod-boundary",
+  "source": "synthetic: clean control",
+  "claimedPass": ["input_validation"],
+  "groundTruth": {
+    "input_validation": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized control. The diff replaces a pass-through of req.body with a strict, bounded zod schema parse that 400s on failure before the payload reaches enqueueImport — textbook input validation at the trust boundary, present by construction.",
+  "diff": "diff --git a/src/server/routes/import.ts b/src/server/routes/import.ts\nindex 3f1c2aa..9b04d11 100644\n--- a/src/server/routes/import.ts\n+++ b/src/server/routes/import.ts\n@@ -1,12 +1,28 @@\n import { Router } from 'express';\n+import { z } from 'zod';\n import { enqueueImport } from '../jobs/import.js';\n\n+/** Contract for the untrusted import request body: unknown keys rejected,\n+ *  every field bounded. Anything else is a 400, never enqueued. */\n+const ImportRequestSchema = z\n+  .object({\n+    sourceUrl: z.string().url().max(2048),\n+    format: z.enum(['csv', 'jsonl']),\n+    rowLimit: z.number().int().min(1).max(100_000),\n+  })\n+  .strict();\n+\n export const importRouter = Router();\n\n importRouter.post('/import', async (req, res) => {\n-  await enqueueImport(req.body);\n-  res.status(202).json({ queued: true });\n+  const parsed = ImportRequestSchema.safeParse(req.body);\n+  if (!parsed.success) {\n+    res.status(400).json({ error: 'invalid import request' });\n+    return;\n+  }\n+  await enqueueImport(parsed.data);\n+  res.status(202).json({ queued: true });\n });\n"
+}

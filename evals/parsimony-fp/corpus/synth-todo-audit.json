@@ -1,0 +1,11 @@
+{
+  "id": "synth-todo-audit",
+  "source": "synthetic: over-claim (false-confirm probe)",
+  "claimedPass": ["audit_logging"],
+  "groundTruth": {
+    "audit_logging": false
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized over-claim. A destructive, side-effecting purge with the audit append explicitly deferred to a TODO — the diff performs the action and records nothing.",
+  "diff": "diff --git a/src/users/purge.ts b/src/users/purge.ts\nindex 8d3fa01..b2c66e9 100644\n--- a/src/users/purge.ts\n+++ b/src/users/purge.ts\n@@ -4,6 +4,11 @@ import type { Db, Session } from '../types.js';\n\n+export async function purgeUser(db: Db, session: Session, userId: string): Promise<void> {\n+  await db.users.delete(userId);\n+  await db.sessions.dropAllFor(userId);\n+  // TODO(#912): append a purge event to the audit log once the event schema lands.\n+}\n"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "synth-audit-append",
+  "source": "synthetic: clean control",
+  "claimedPass": ["audit_logging"],
+  "groundTruth": {
+    "audit_logging": true
+  },
+  "scored": true,
+  "labelProvenance": "Synthesized control. The diff appends a typed actor/action/time event to the audit store for the side-effecting key rotation — audit logging, present by construction.",
+  "diff": "diff --git a/src/keys/rotate.ts b/src/keys/rotate.ts\nindex 90aa1f2..44be7d0 100644\n--- a/src/keys/rotate.ts\n+++ b/src/keys/rotate.ts\n@@ -6,8 +6,16 @@ import { issueKey, revokeKey } from './store.js';\n\n export async function rotateApiKey(store: AuditStore, session: Session, keyId: string) {\n   const next = await issueKey(keyId);\n+  // Every rotation is recorded on the append-only audit log before the old\n+  // key is revoked: who, what, when — replayable, hash-chained upstream.\n+  appendEvent(store, {\n+    type: 'key.rotate',\n+    payload: { actor: session.userId, keyId, at: new Date().toISOString() },\n+  });\n   await revokeKey(keyId);\n   return next;\n }\n"
+}

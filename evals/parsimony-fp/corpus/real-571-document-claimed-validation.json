@@ -1,0 +1,11 @@
+{
+  "id": "real-571-document-claimed-validation",
+  "source": "real: PR #571, commit 154c357, packages/cli/src/loop/finalize.ts (same hunk as real-571-document-audit)",
+  "claimedPass": ["input_validation"],
+  "groundTruth": {
+    "input_validation": false
+  },
+  "scored": true,
+  "labelProvenance": "Same merged diff as real-571-document-audit with a DIFFERENT claimed guard (probes claim-sensitivity). The hunk contains no parsing, bounding, or rejection of untrusted input — input validation is objectively absent from the diff text, so a claimed pass on it is an over-claim the verifier exists to refute.",
+  "diff": "diff --git a/packages/cli/src/loop/finalize.ts b/packages/cli/src/loop/finalize.ts\nindex 8e78d21..9808adc 100644\n--- a/packages/cli/src/loop/finalize.ts\n+++ b/packages/cli/src/loop/finalize.ts\n@@ -71,6 +71,32 @@ export function guardWorkspaceContainment(\n   }\n }\n \n+/**\n+ * Write the derived API-doc artifact for a COMPLETED run [CLM-0105] and audit\n+ * the result (`loop.document`); a non-completed run writes nothing. Moved here\n+ * from index.ts for line-count headroom (#570) — identical behavior.\n+ */\n+export function documentDeliverable(\n+  kern: Kernloop,\n+  runId: string,\n+  request: LoopRequest,\n+  status: RunResult['status'],\n+): DocArtifactResult | undefined {\n+  if (status !== 'completed') return undefined;\n+  const artifact = writeDocArtifact(request.workspaceDir);\n+  appendEvent(kern.store, {\n+    type: 'loop.document',\n+    payload: {\n+      taskId: request.task.id, // both ids so a task.id filter catches the run (#343)\n+      runId,\n+      written: artifact.written,\n+      symbolCount: artifact.symbolCount,\n+      documentedCount: artifact.documentedCount,\n+    },\n+  });\n+  return artifact;\n+}\n+\n /**\n  * Cooperative abort (#304): the engine returns a `failed` result whose error is\n  * `aborted` when the signal fired at a node boundary. Remap it to a CLEAN,\n"
+}
