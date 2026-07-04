@@ -1,5 +1,14 @@
 # @kernloop/faculty-gates
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [b6bdd44]
+  - @kernloop/kernel@0.1.7
+  - @kernloop/contracts@0.1.7
+  - @kernloop/docscan@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes
