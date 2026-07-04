@@ -18,6 +18,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { AdapterUnavailableError } from '@kernloop/kernel';
 import {
   BallotEmissionSchema,
@@ -164,6 +165,71 @@ describe('parseEmission violation capture (diagnosability, no retry)', () => {
     );
     expect(parsed.files).toHaveLength(1);
     expect(existsSync(path.join(overlayDir, 'checkpoints'))).toBe(false);
+  });
+});
+
+describe('parseEmission dropped-key recording (tolerant schemas, #544)', () => {
+  // A tolerant schema in the shape a reviewer-report contract now takes: plain
+  // `z.object` strips unknown top-level keys instead of rejecting them (zod
+  // v4's default — verified against this repo's pinned zod@4.4.3).
+  const TolerantSchema = z.object({ a: z.string() });
+
+  it('parses successfully AND records which top-level keys were stripped', () => {
+    const overlayDir = path.join(scratch, 'overlay-dropped');
+    const sink = { overlayDir, runId: 'run-1', node: 'review-x' };
+    const raw = '{"a":"x","level":"info"}';
+    const parsed = parseEmission(raw, TolerantSchema, 'review-report', sink);
+    expect(parsed).toEqual({ a: 'x' }); // the report is honored, not lost
+
+    const file = path.join(overlayDir, 'checkpoints', 'run-1-review-x-dropped-keys.json');
+    const recorded = JSON.parse(readFileSync(file, 'utf8')) as {
+      contract: string;
+      droppedKeys: string[];
+      raw: string;
+    };
+    expect(recorded).toEqual({ contract: 'review-report', droppedKeys: ['level'], raw });
+  });
+
+  it('records every stripped key when more than one decorates the emission', () => {
+    const overlayDir = path.join(scratch, 'overlay-dropped-multi');
+    const sink = { overlayDir, runId: 'run-2', node: 'review-y' };
+    parseEmission('{"a":"x","level":"info","note":"extra"}', TolerantSchema, 'c', sink);
+    const file = path.join(overlayDir, 'checkpoints', 'run-2-review-y-dropped-keys.json');
+    const recorded = JSON.parse(readFileSync(file, 'utf8')) as { droppedKeys: string[] };
+    expect(recorded.droppedKeys).toEqual(['level', 'note']);
+  });
+
+  it('writes nothing when a tolerant schema had no decoration to strip', () => {
+    const overlayDir = path.join(scratch, 'overlay-dropped-clean');
+    const sink = { overlayDir, runId: 'run-3', node: 'review-z' };
+    const parsed = parseEmission('{"a":"x"}', TolerantSchema, 'c', sink);
+    expect(parsed).toEqual({ a: 'x' });
+    expect(existsSync(path.join(overlayDir, 'checkpoints'))).toBe(false);
+  });
+
+  it('never throws for a tolerant schema even without a sink (dropped-key recording is opt-in via sink)', () => {
+    expect(parseEmission('{"a":"x","level":"info"}', TolerantSchema, 'c')).toEqual({ a: 'x' });
+  });
+
+  it('a STRICT schema still rejects the same decoration wholesale (unchanged behavior)', () => {
+    const StrictSchema = z.strictObject({ a: z.string() });
+    expect(() => parseEmission('{"a":"x","level":"info"}', StrictSchema, 'c')).toThrowError(
+      LoopParseError,
+    );
+  });
+
+  it('a checkpoint-write failure NEVER fails an already-successful parse (the ballot survives, #544)', () => {
+    // Force the diagnostic write to throw: make overlayDir a regular FILE, so
+    // persistDroppedKeys' mkdirSync(<overlayDir>/checkpoints) fails with ENOTDIR.
+    // Without best-effort isolation this would re-throw and lose the decorated
+    // ballot — the exact failure this PR exists to prevent, by a different door.
+    const overlayDir = path.join(scratch, 'overlay-write-fails');
+    writeFileSync(overlayDir, 'not a directory', 'utf8');
+    const sink = { overlayDir, runId: 'run-4', node: 'review-w' };
+    const parsed = parseEmission('{"a":"x","level":"info"}', TolerantSchema, 'review-report', sink);
+    // The parse STILL succeeds and returns the data — the drop-recording hiccup
+    // is swallowed, not propagated.
+    expect(parsed).toEqual({ a: 'x' });
   });
 });
 

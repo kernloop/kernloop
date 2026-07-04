@@ -8,11 +8,17 @@
  * Exercised through the REAL `reviewerInvoker`, so this proves the clamp AND its
  * wiring into the assembled prompt — not a helper in isolation.
  */
-import { describe, expect, it } from 'vitest';
-import type { Cost } from '@kernloop/contracts';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterAll, describe, expect, it } from 'vitest';
+import type { Cost, Verdict } from '@kernloop/contracts';
 import type { ReviewerTemplate } from '@kernloop/faculty-gates';
-import { reviewerInvoker } from './seams.js';
-import type { LoopInvoke } from './invoke.js';
+import { reviewerInvoker, reviewTruncationFinding, withReviewTruncationFinding } from './seams.js';
+import { LoopParseError, type LoopInvoke } from './invoke.js';
+
+const scratch = mkdtempSync(path.join(tmpdir(), 'kernloop-cli-seams-'));
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 const ZERO_COST: Cost = { tokens: 0, usd: 0 };
 const REVIEWER: ReviewerTemplate = {
@@ -191,5 +197,163 @@ describe('reviewerInvoker untrusted-input nonce fence (#289)', () => {
     expect(nonceOf(a)).toMatch(/^[0-9a-f]{16}$/);
     expect(nonceOf(b)).toMatch(/^[0-9a-f]{16}$/);
     expect(nonceOf(a)).not.toBe(nonceOf(b)); // unguessable + per-review
+  });
+});
+
+describe('reviewerInvoker tolerates decorative unknown keys (#544 ballot-loss fix)', () => {
+  it('parses a report decorated with an extra top-level key — findings/summary survive', async () => {
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[{"severity":"warn","message":"m"}],"summary":"ok","level":"info"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({
+      overlayDir: path.join(scratch, 'overlay-decorated-1'),
+      runId: 'r1',
+      invoke,
+    });
+    const report = await review(REVIEWER, 'diff');
+    expect(report.summary).toBe('ok');
+    expect(report.findings).toEqual([{ severity: 'warn', message: 'm' }]);
+  });
+
+  it('tolerates a DIFFERENT decorative key too (`findings_note`, observed live once — #544)', async () => {
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[],"summary":"clean","findings_note":"see above"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({
+      overlayDir: path.join(scratch, 'overlay-decorated-2'),
+      runId: 'r1',
+      invoke,
+    });
+    const report = await review(REVIEWER, 'diff');
+    expect(report.summary).toBe('clean');
+    expect(report.findings).toEqual([]);
+  });
+
+  it('still fails loud when `findings` is missing — tolerance never covers required fields', async () => {
+    const invoke: LoopInvoke = async () => ({
+      output: '{"summary":"ok","level":"info"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({
+      overlayDir: path.join(scratch, 'overlay-missing-findings'),
+      runId: 'r1',
+      invoke,
+    });
+    await expect(review(REVIEWER, 'diff')).rejects.toThrowError(LoopParseError);
+  });
+
+  it('still fails loud when `summary` is malformed (not a string)', async () => {
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[],"summary":123}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({
+      overlayDir: path.join(scratch, 'overlay-bad-summary'),
+      runId: 'r1',
+      invoke,
+    });
+    await expect(review(REVIEWER, 'diff')).rejects.toThrowError(LoopParseError);
+  });
+
+  it('still fails loud on a malformed FINDING severity (per-finding shape stays strict)', async () => {
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[{"severity":"critical","message":"m"}],"summary":"ok"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({
+      overlayDir: path.join(scratch, 'overlay-bad-severity'),
+      runId: 'r1',
+      invoke,
+    });
+    await expect(review(REVIEWER, 'diff')).rejects.toThrowError(LoopParseError);
+  });
+
+  it('still fails loud on a decorated FINDING (no evidence reviewers decorate findings, only the report envelope — #544)', async () => {
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[{"severity":"warn","message":"m","level":"info"}],"summary":"ok"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({
+      overlayDir: path.join(scratch, 'overlay-decorated-finding'),
+      runId: 'r1',
+      invoke,
+    });
+    await expect(review(REVIEWER, 'diff')).rejects.toThrowError(LoopParseError);
+  });
+
+  it('records the stripped key so the drop stays visible — tolerance is not hiding it (#544)', async () => {
+    const overlayDir = path.join(scratch, 'overlay-review-dropped');
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[],"summary":"ok","level":"info"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({ overlayDir, runId: 'run-9', invoke });
+    await review(REVIEWER, 'diff');
+    const file = path.join(overlayDir, 'checkpoints', 'run-9-review-correctness-dropped-keys.json');
+    const recorded = JSON.parse(readFileSync(file, 'utf8')) as {
+      contract: string;
+      droppedKeys: string[];
+    };
+    expect(recorded.contract).toBe('review-report');
+    expect(recorded.droppedKeys).toEqual(['level']);
+  });
+
+  it('records nothing when the report carries no decoration', async () => {
+    const overlayDir = path.join(scratch, 'overlay-review-clean');
+    const invoke: LoopInvoke = async () => ({
+      output: '{"findings":[],"summary":"ok"}',
+      cost: ZERO_COST,
+    });
+    const review = reviewerInvoker({ overlayDir, runId: 'run-10', invoke });
+    await review(REVIEWER, 'diff');
+    expect(existsSync(path.join(overlayDir, 'checkpoints'))).toBe(false);
+  });
+});
+
+describe('reviewTruncationFinding / withReviewTruncationFinding (#544 part 1 — truncation as a first-class Verdict signal)', () => {
+  const BASE_VERDICT: Verdict = {
+    taskId: 't1',
+    gate: 'review',
+    result: 'approve',
+    confidence: 1,
+    findings: [],
+    cost: { tokens: 0, usd: 0 },
+  };
+
+  it('returns undefined when neither diff nor context is truncated', () => {
+    expect(reviewTruncationFinding('small diff', 'small context')).toBeUndefined();
+  });
+
+  it('surfaces an info finding naming the diff truncation and the omitted char count', () => {
+    const diff = 'A'.repeat(150_000);
+    const finding = reviewTruncationFinding(diff);
+    expect(finding?.severity).toBe('info');
+    expect(finding?.message).toContain('#544');
+    expect(finding?.message).toContain('diff: 50000 of 150000 chars omitted');
+  });
+
+  it('surfaces the context truncation independently of the diff', () => {
+    const finding = reviewTruncationFinding('small diff', 'C'.repeat(10_000));
+    expect(finding?.message).toContain('context: 2000 of 10000 chars omitted');
+    expect(finding?.message).not.toContain('diff:');
+  });
+
+  it('reports BOTH when diff and context are truncated together', () => {
+    const finding = reviewTruncationFinding('A'.repeat(150_000), 'C'.repeat(10_000));
+    expect(finding?.message).toContain('diff: 50000 of 150000 chars omitted');
+    expect(finding?.message).toContain('context: 2000 of 10000 chars omitted');
+  });
+
+  it('withReviewTruncationFinding appends the finding without flipping the verdict result', () => {
+    const withFinding = withReviewTruncationFinding(BASE_VERDICT, 'A'.repeat(150_000));
+    expect(withFinding.result).toBe('approve');
+    expect(withFinding.findings).toHaveLength(1);
+    expect(withFinding.findings[0]?.severity).toBe('info');
+  });
+
+  it('withReviewTruncationFinding is a byte-identical no-op when nothing was truncated', () => {
+    expect(withReviewTruncationFinding(BASE_VERDICT, 'small')).toBe(BASE_VERDICT);
   });
 });
