@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/kernel",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Kernloop Layer 0 — the kernel (spec §3). P0 scope: the AuditChain only — an append-only, hash-chained, SIEM-compatible JSONL event log with tamper-evident verification (spec §3.1, §3.3, §10 item 1). Registry, router, ladder, bus, and adapters arrive in P1.",
   "license": "MIT",
   "type": "module",

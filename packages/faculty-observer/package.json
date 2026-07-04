@@ -1,6 +1,6 @@
 {
   "name": "@kernloop/faculty-observer",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Kernloop Layer 2 — the observer faculty (spec §5.5). P3 scope: the tool/skill/template fitness ledger, per-voter precision series, cost-per-governed-decision, drift signals, and the self-issue path at suggest tier. Bus subscription and auditing happen kernel-side at the composition root; this package exposes ingest functions only.",
   "license": "MIT",
   "type": "module",
