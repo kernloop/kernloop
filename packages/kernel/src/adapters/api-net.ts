@@ -64,8 +64,10 @@ export function isDisallowedAddress(address: string): boolean {
   if (r === '6to4') return embeddedV4Disallowed(bytes, 2); // 2002::/16 — v4 in bytes 2..5
   if (r !== 'unicast') return true; // loopback/linkLocal/uniqueLocal/multicast/teredo/reserved/unspecified
   // ipaddr reports the deprecated IPv4-compatible ::/96 as 'unicast' — close that gap.
-  // (:: and ::1 are already handled above via the non-unicast range check, so reaching
-  // here with the first 12 bytes zero means the low 32 bits are an embedded IPv4.)
+  // (Verified still misreported in ipaddr.js 2.x — 2.4.0 probe — so this closure stays
+  // load-bearing, not just belt-and-braces. :: and ::1 are already handled above via the
+  // non-unicast range check, so reaching here with the first 12 bytes zero means the low
+  // 32 bits are an embedded IPv4.)
   if (bytes.slice(0, 12).every((b) => b === 0)) return embeddedV4Disallowed(bytes, 12);
   return false;
 }
