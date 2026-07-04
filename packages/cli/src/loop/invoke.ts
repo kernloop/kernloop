@@ -350,7 +350,19 @@ export function parseEmission<T extends z.ZodType>(
     if (!result.success) throw new LoopParseError(contract, z.prettifyError(result.error));
     if (sink !== undefined) {
       const dropped = droppedTopLevelKeys(parsedRaw, result.data);
-      if (dropped.length > 0) persistDroppedKeys(sink, contract, dropped, raw);
+      // BEST-EFFORT diagnostic (#544): recording the stripped keys must NEVER
+      // fail an already-SUCCESSFUL parse. A checkpoint-write hiccup (ENOSPC,
+      // EACCES, a read-only overlay) is not a LoopParseError, so without this
+      // isolation it would fall to the catch below and re-throw — turning a
+      // decorated-but-VALID ballot into a reviewer_error/abstain, the exact
+      // ballot loss this fix exists to prevent, re-entering by a different door.
+      if (dropped.length > 0) {
+        try {
+          persistDroppedKeys(sink, contract, dropped, raw);
+        } catch {
+          // Diagnostic write failed; the parse still succeeded — return the data.
+        }
+      }
     }
     return result.data as z.output<T>;
   } catch (error) {

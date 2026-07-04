@@ -217,6 +217,20 @@ describe('parseEmission dropped-key recording (tolerant schemas, #544)', () => {
       LoopParseError,
     );
   });
+
+  it('a checkpoint-write failure NEVER fails an already-successful parse (the ballot survives, #544)', () => {
+    // Force the diagnostic write to throw: make overlayDir a regular FILE, so
+    // persistDroppedKeys' mkdirSync(<overlayDir>/checkpoints) fails with ENOTDIR.
+    // Without best-effort isolation this would re-throw and lose the decorated
+    // ballot — the exact failure this PR exists to prevent, by a different door.
+    const overlayDir = path.join(scratch, 'overlay-write-fails');
+    writeFileSync(overlayDir, 'not a directory', 'utf8');
+    const sink = { overlayDir, runId: 'run-4', node: 'review-w' };
+    const parsed = parseEmission('{"a":"x","level":"info"}', TolerantSchema, 'review-report', sink);
+    // The parse STILL succeeds and returns the data — the drop-recording hiccup
+    // is swallowed, not propagated.
+    expect(parsed).toEqual({ a: 'x' });
+  });
 });
 
 describe('meteredInvoke', () => {

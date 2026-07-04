@@ -3375,6 +3375,7 @@ The review gate tolerates decorative unknown keys in reviewer output (stripping,
 - [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
 - [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
 - [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
+- [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
 - [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
 - [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
 - CI `test`
