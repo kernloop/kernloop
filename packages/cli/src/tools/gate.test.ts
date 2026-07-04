@@ -205,6 +205,51 @@ describe('gateTool review', () => {
     ).rejects.toThrow(/exactly one of diff or diffFile/);
     kern.close();
   });
+
+  it('does not lose a reviewer ballot to a decorative unknown key (#544 ballot-loss fix)', async () => {
+    const kern = freshKernloop();
+    let call = 0;
+    const invoke: LoopInvoke = () => {
+      call += 1;
+      // The first reviewer decorates its report with an extra top-level key
+      // (observed live across 5 consecutive review-gate invocations: `level`
+      // x4, `findings_note` x1 — #544); the others report clean and undecorated.
+      const output =
+        call === 1
+          ? '{"findings":[],"summary":"clean but decorated","level":"info"}'
+          : '{"findings":[],"summary":"clean"}';
+      return Promise.resolve({ output, cost: ZERO_COST });
+    };
+    const verdict = await gateTool(
+      kern,
+      { gateName: 'review', taskId: 'task-rev-3', diff: '--- a/a.ts\n+++ b/a.ts\n+ok' },
+      { invoke },
+    );
+    // All three reviewers cast a real vote — none lost to the strict-schema abstain.
+    expect(verdict.voters?.every((v) => v.vote !== 'abstain')).toBe(true);
+    expect(verdict.voters?.some((v) => v.reasoning === 'clean but decorated')).toBe(true);
+    kern.close();
+  });
+
+  it('surfaces truncation as a first-class Verdict finding when the diff is oversized (#544 part 1)', async () => {
+    const kern = freshKernloop();
+    const cleanReport = '{"findings":[],"summary":"clean"}';
+    // Well over the 100_000-char DIFF_REVIEW_MAX_CHARS cap.
+    const hugeDiff = '--- a/a.ts\n+++ b/a.ts\n' + '+x\n'.repeat(60_000);
+    const verdict = await gateTool(
+      kern,
+      { gateName: 'review', taskId: 'task-rev-4', diff: hugeDiff },
+      { invoke: scriptedInvoke(cleanReport) },
+    );
+    // A consumer trusting result/confidence alone must still learn coverage was partial.
+    const truncationFinding = verdict.findings.find((f) => f.message.includes('#544'));
+    expect(truncationFinding).toBeDefined();
+    expect(truncationFinding?.severity).toBe('info');
+    expect(truncationFinding?.message).toContain('diff:');
+    // An info finding never flips an otherwise-clean result.
+    expect(verdict.result).toBe('approve');
+    kern.close();
+  });
 });
 
 describe('gateTool unknown gates', () => {

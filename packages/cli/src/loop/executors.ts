@@ -36,7 +36,7 @@ import { assembleBrief } from '../gather.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
 import { attributeSkillFitness } from './skill-attribution.js';
 import { LoopParseError, type ViolationSink } from './invoke.js';
-import { reviewerInvoker } from './seams.js';
+import { reviewerInvoker, withReviewTruncationFinding } from './seams.js';
 import { type VoteDiversity } from './vote-diversity.js';
 import { labelVoterOutcomes, voteExecutor } from './vote-executor.js';
 import { parsimonyExecutor } from './parsimony-executor.js';
@@ -259,9 +259,10 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
       context === undefined
         ? REVIEW_PANEL_DEFAULT
         : [...REVIEW_PANEL_DEFAULT, REVIEWER_GROUNDEDNESS];
-    const verdict = await runReviewGate({
+    const diff = writtenDiff(files);
+    const raw = await runReviewGate({
       taskId: childId,
-      diff: writtenDiff(files),
+      diff,
       panel,
       ...(context === undefined ? {} : { context }),
       invokeReviewer: reviewerInvoker({
@@ -270,6 +271,8 @@ function reviewExecutor(b: LoopBindings): NodeExecutor {
         invoke: b.invokeFor('review').invoke,
       }),
     });
+    // Truncation is a first-class Verdict signal (#544 part 1), not only prose.
+    const verdict = withReviewTruncationFinding(raw, diff, context);
     await publishVerdict(b.kern, verdict);
     return verdict;
   };

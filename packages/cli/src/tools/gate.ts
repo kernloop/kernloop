@@ -23,7 +23,7 @@ import type { Kernloop } from '../kernel.js';
 import { executeQualityGate, publishVerdict } from '../executors.js';
 import { type LoopInvoke } from '../loop/invoke.js';
 import { resolveStandaloneInvoke } from '../loop/standalone-invoke.js';
-import { ballotInvoker, reviewerInvoker } from '../loop/seams.js';
+import { ballotInvoker, reviewerInvoker, withReviewTruncationFinding } from '../loop/seams.js';
 import { VOTE_STRATEGIES } from '../overlay.js';
 import { briefTool } from './brief.js';
 
@@ -129,7 +129,7 @@ async function reviewGate(
 ): Promise<Verdict> {
   const taskId = input.taskId ?? `gate-review-${randomUUID()}`;
   const diff = input.diff ?? readFileSync(input.diffFile as string, 'utf8');
-  return runReviewGate({
+  const verdict = await runReviewGate({
     taskId,
     diff,
     ...(input.context === undefined ? {} : { context: input.context }),
@@ -139,6 +139,8 @@ async function reviewGate(
       invoke: resolveInvoke(kern, input.adapter, invoke),
     }),
   });
+  // Truncation is a first-class Verdict signal (#544 part 1), not only prose.
+  return withReviewTruncationFinding(verdict, diff, input.context);
 }
 
 /** The `gate` tool. See module docs. */

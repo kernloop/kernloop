@@ -34,7 +34,14 @@ export {
   loadCheckpointTask,
 } from './loop/index.js';
 export type { LoopInvoke, LoopReport, LoopRequest } from './loop/index.js';
-export { ballotInvoker, briefText, reviewerInvoker, ReviewEmissionSchema } from './loop/seams.js';
+export {
+  ballotInvoker,
+  briefText,
+  reviewerInvoker,
+  reviewTruncationFinding,
+  withReviewTruncationFinding,
+  ReviewEmissionSchema,
+} from './loop/seams.js';
 export type { SeamBindings } from './loop/seams.js';
 export {
   OVERLAY_DIR_NAME,

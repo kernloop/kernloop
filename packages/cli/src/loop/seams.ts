@@ -10,7 +10,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import type { Brief, ModelIdentity } from '@kernloop/contracts';
+import type { Brief, Finding, ModelIdentity, Verdict } from '@kernloop/contracts';
 import type { DiscoveredCache } from '@kernloop/faculty-models';
 import {
   ReviewFindingSchema,
@@ -137,8 +137,22 @@ export function diverseBallotInvoker(b: DiverseSeamBindings): InvokeVoter {
   };
 }
 
-/** A reviewer's raw report — the strict reviewer output contract. */
-export const ReviewEmissionSchema = z.strictObject({
+/**
+ * A reviewer's raw report — `findings`/`summary` stay STRICTLY validated
+ * (missing or malformed fails loud, same as before), but the report object
+ * itself TOLERATES decoration: an extra top-level key (observed live:
+ * `level`, `findings_note` — #544) is STRIPPED rather than rejected, so a
+ * reviewer that adds harmless framing no longer loses its entire ballot to
+ * `z.strictObject`'s unrecognized-key rejection. Zod v4's plain `z.object()`
+ * strips unknown keys by default (verified against this repo's pinned
+ * `zod@4.4.3`) — that default IS the fix; it is spelled out explicitly here
+ * rather than relied on silently. `parseEmission` records any keys this
+ * stripped (persisted alongside the raw output) so the drop stays visible
+ * (#544) — tolerance is not the same as hiding what was ignored. Per-finding
+ * shape ({@link ReviewFindingSchema}) stays `z.strictObject`: no evidence yet
+ * that reviewers decorate individual findings, only the report envelope.
+ */
+export const ReviewEmissionSchema = z.object({
   findings: z.array(ReviewFindingSchema),
   summary: z.string(),
 });
@@ -155,17 +169,28 @@ const DIFF_REVIEW_MAX_CHARS = 100_000;
 const CONTEXT_REVIEW_MAX_CHARS = 8_000;
 
 /**
+ * The HEAD-cut index for clamping `text` to `max` chars, honoring the #301
+ * UTF-16 surrogate-pair guard: don't split a pair at the cut, back off one
+ * unit so the head ends on a whole code point. Returns `text.length`
+ * (unchanged) when `text` is already within budget. Shared by
+ * {@link clampReviewInput} (the prompt-facing clamp) and
+ * {@link reviewTruncationFinding} (the Verdict-facing signal, #544) so both
+ * agree on exactly what got cut.
+ */
+function reviewClampCut(text: string, max: number): number {
+  if (text.length <= max) return text.length;
+  const high = text.charCodeAt(max - 1);
+  return high >= 0xd800 && high <= 0xdbff ? max - 1 : max;
+}
+
+/**
  * Truncate `text` to `max` chars, appending a visible marker when it cuts. We
  * keep the HEAD (file headers + the start of the content, where defects show)
  * so the reviewer judges honestly on a bounded, partial input (#288).
  */
 function clampReviewInput(text: string, max: number, label: string): string {
-  if (text.length <= max) return text;
-  // Don't split a UTF-16 surrogate pair at the cut (#301): if `max` lands between
-  // a high and its low surrogate, back off one unit so the head ends on a whole
-  // code point and never emits a lone surrogate into the prompt.
-  const high = text.charCodeAt(max - 1);
-  const cut = high >= 0xd800 && high <= 0xdbff ? max - 1 : max;
+  const cut = reviewClampCut(text, max);
+  if (cut === text.length) return text;
   const omitted = text.length - cut;
   return (
     text.slice(0, cut) +
@@ -250,4 +275,61 @@ export function reviewerInvoker(b: SeamBindings): InvokeReviewer {
     const report = parseEmission(output, ReviewEmissionSchema, 'review-report', sink);
     return { ...report, cost };
   };
+}
+
+/**
+ * A first-class Verdict signal that the reviewer panel's input was clamped
+ * (#544 part 1): today the ONLY trace of `clampReviewInput`'s (#288) cut is
+ * prose — the {@link TRUNCATION_NOTICE} line inside the prompt, which a
+ * reviewer may or may not echo into its `summary`. A consumer reading
+ * `result`/`confidence` off the emitted Verdict has no reliable, structured
+ * way to learn the panel judged a PARTIAL diff or context. This computes the
+ * same clamp decision {@link clampReviewInput} makes (so the two can never
+ * disagree) and, when either input was cut, returns an `info`-severity
+ * {@link Finding} naming what was truncated and by how many characters — a
+ * machine-readable flag, not just prompt text. Returns `undefined` when
+ * neither input was truncated (the common case; nothing to add).
+ */
+export function reviewTruncationFinding(diff: string, context?: string): Finding | undefined {
+  const parts: string[] = [];
+  const diffCut = reviewClampCut(diff, DIFF_REVIEW_MAX_CHARS);
+  if (diffCut < diff.length) {
+    parts.push(
+      `diff: ${String(diff.length - diffCut)} of ${String(diff.length)} chars omitted ` +
+        `(bounded to ${String(DIFF_REVIEW_MAX_CHARS)})`,
+    );
+  }
+  if (context !== undefined) {
+    const contextCut = reviewClampCut(context, CONTEXT_REVIEW_MAX_CHARS);
+    if (contextCut < context.length) {
+      parts.push(
+        `context: ${String(context.length - contextCut)} of ${String(context.length)} chars ` +
+          `omitted (bounded to ${String(CONTEXT_REVIEW_MAX_CHARS)})`,
+      );
+    }
+  }
+  if (parts.length === 0) return undefined;
+  return {
+    severity: 'info',
+    message:
+      `review gate: reviewer input was truncated before judging (#544) — ${parts.join('; ')}. ` +
+      'The panel saw only the retained HEAD; treat this verdict as partial coverage, not full.',
+  };
+}
+
+/**
+ * Attach {@link reviewTruncationFinding} to an already-emitted review
+ * Verdict, when truncation occurred (#544 part 1). Appending an `info`
+ * finding never flips `result` (the review gate's own aggregation only
+ * blocks on `error`/`blocker` severity) — it only makes partial coverage
+ * visible to whatever consumes the Verdict's `findings`. A no-op (returns
+ * `verdict` unchanged) when neither input was truncated.
+ */
+export function withReviewTruncationFinding(
+  verdict: Verdict,
+  diff: string,
+  context?: string,
+): Verdict {
+  const finding = reviewTruncationFinding(diff, context);
+  return finding === undefined ? verdict : { ...verdict, findings: [...verdict.findings, finding] };
 }

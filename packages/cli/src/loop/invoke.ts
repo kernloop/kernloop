@@ -273,24 +273,70 @@ export interface ViolationSink {
   readonly node: string;
 }
 
-/** Persist one violating raw output; returns the file path written. */
-export function persistViolation(sink: ViolationSink, raw: string): string {
+/** The sink's filename-safe path segment (shared by every persisted note). */
+function sinkPath(sink: ViolationSink, suffix: string): string {
   const safe = (part: string): string => part.replace(/[^A-Za-z0-9._-]/g, '_');
-  const file = path.join(
+  return path.join(
     sink.overlayDir,
     'checkpoints',
-    `${safe(sink.runId)}-${safe(sink.node)}-violation.txt`,
+    `${safe(sink.runId)}-${safe(sink.node)}-${suffix}`,
   );
+}
+
+/** Persist one violating raw output; returns the file path written. */
+export function persistViolation(sink: ViolationSink, raw: string): string {
+  const file = sinkPath(sink, 'violation.txt');
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, raw, 'utf8');
   return file;
 }
 
 /**
+ * Persist a note that a TOLERANT schema (one that strips rather than
+ * rejects unknown top-level keys, e.g. the reviewer's `ReviewEmissionSchema`
+ * in `seams.ts` [#544]) silently dropped decoration from an otherwise-valid
+ * emission. The report
+ * itself is honored (the ballot is not lost) — but an honesty repo does not
+ * hide that part of the model's output was ignored, so the drop is recorded
+ * alongside the raw text it was dropped from. Returns the file path written.
+ */
+export function persistDroppedKeys(
+  sink: ViolationSink,
+  contract: string,
+  keys: readonly string[],
+  raw: string,
+): string {
+  const file = sinkPath(sink, 'dropped-keys.json');
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ contract, droppedKeys: keys, raw }, null, 2), 'utf8');
+  return file;
+}
+
+/** Is `value` a JSON plain object (not an array, not null)? */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Top-level keys present in the raw parsed emission but absent from the
+ * zod-stripped result — what a tolerant (non-strict) schema silently
+ * dropped (#544). Empty when either side is not a plain object, or the
+ * schema is strict (a strict schema never reaches this: it throws instead
+ * of stripping).
+ */
+function droppedTopLevelKeys(raw: unknown, parsed: unknown): string[] {
+  if (!isPlainRecord(raw) || !isPlainRecord(parsed)) return [];
+  return Object.keys(raw).filter((k) => !Object.prototype.hasOwnProperty.call(parsed, k));
+}
+
+/**
  * Extract + zod-parse one model emission under a named contract. With a
  * `sink`, a violation's raw output is persisted (honest diagnosability —
  * no retry, no coercion; the failure stays a failure) and the re-thrown
- * error names where it was preserved.
+ * error names where it was preserved. When `schema` tolerates decoration
+ * (strips rather than rejects unknown top-level keys) and the raw emission
+ * carried any, the drop is recorded via `sink` too (#544) — a preserved
+ * ballot is not the same as a silently-edited one.
  */
 export function parseEmission<T extends z.ZodType>(
   raw: string,
@@ -299,8 +345,13 @@ export function parseEmission<T extends z.ZodType>(
   sink?: ViolationSink,
 ): z.output<T> {
   try {
-    const result = schema.safeParse(extractJsonObject(raw, contract));
+    const parsedRaw = extractJsonObject(raw, contract);
+    const result = schema.safeParse(parsedRaw);
     if (!result.success) throw new LoopParseError(contract, z.prettifyError(result.error));
+    if (sink !== undefined) {
+      const dropped = droppedTopLevelKeys(parsedRaw, result.data);
+      if (dropped.length > 0) persistDroppedKeys(sink, contract, dropped, raw);
+    }
     return result.data as z.output<T>;
   } catch (error) {
     if (sink === undefined || !(error instanceof LoopParseError)) throw error;

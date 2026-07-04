@@ -3353,3 +3353,28 @@ The repo carries an FP-rate measurement harness for the blind parsimony verifier
 - [`evals/parsimony-fp/corpus`](../evals/parsimony-fp/corpus)
 - [`evals/parsimony-fp/README.md#honest-limits`](../evals/parsimony-fp/README.md#honest-limits)
 - CI `test`
+
+## CLM-0197
+
+**Status:** verified — **source:** [`CLM-0197.yaml`](../claims/registry/CLM-0197.yaml)
+
+The review gate tolerates decorative unknown keys in reviewer output (stripping, not rejecting — a decorated ballot is preserved, not lost) while still failing loud on missing or malformed required fields, records which keys it stripped so the drop stays visible, and surfaces input truncation as a first-class info-severity Verdict finding rather than prose only (#544).
+
+**Enforced by:**
+
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/seams.test.ts`](../packages/cli/src/loop/seams.test.ts)
+- [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
+- [`packages/cli/src/loop/invoke.test.ts`](../packages/cli/src/loop/invoke.test.ts)
+- [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
+- [`packages/cli/src/tools/gate.test.ts`](../packages/cli/src/tools/gate.test.ts)
+- CI `test`

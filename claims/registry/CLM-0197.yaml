@@ -1,0 +1,28 @@
+id: CLM-0197
+statement: >-
+  The review gate tolerates decorative unknown keys in reviewer output
+  (stripping, not rejecting — a decorated ballot is preserved, not lost)
+  while still failing loud on missing or malformed required fields, records
+  which keys it stripped so the drop stays visible, and surfaces input
+  truncation as a first-class info-severity Verdict finding rather than
+  prose only (#544).
+evidence:
+  - 'test:packages/cli/src/loop/seams.test.ts::parses a report decorated with an extra top-level key — findings/summary survive'
+  - 'test:packages/cli/src/loop/seams.test.ts::tolerates a DIFFERENT decorative key too (`findings_note`, observed live once — #544)'
+  - 'test:packages/cli/src/loop/seams.test.ts::still fails loud when `findings` is missing — tolerance never covers required fields'
+  - 'test:packages/cli/src/loop/seams.test.ts::still fails loud when `summary` is malformed (not a string)'
+  - 'test:packages/cli/src/loop/seams.test.ts::still fails loud on a malformed FINDING severity (per-finding shape stays strict)'
+  - 'test:packages/cli/src/loop/seams.test.ts::still fails loud on a decorated FINDING (no evidence reviewers decorate findings, only the report envelope — #544)'
+  - 'test:packages/cli/src/loop/seams.test.ts::records the stripped key so the drop stays visible — tolerance is not hiding it (#544)'
+  - 'test:packages/cli/src/loop/seams.test.ts::records nothing when the report carries no decoration'
+  - 'test:packages/cli/src/loop/seams.test.ts::surfaces an info finding naming the diff truncation and the omitted char count'
+  - 'test:packages/cli/src/loop/seams.test.ts::surfaces the context truncation independently of the diff'
+  - 'test:packages/cli/src/loop/seams.test.ts::withReviewTruncationFinding appends the finding without flipping the verdict result'
+  - 'test:packages/cli/src/loop/invoke.test.ts::parses successfully AND records which top-level keys were stripped'
+  - 'test:packages/cli/src/loop/invoke.test.ts::a STRICT schema still rejects the same decoration wholesale (unchanged behavior)'
+  - 'test:packages/cli/src/tools/gate.test.ts::does not lose a reviewer ballot to a decorative unknown key (#544 ballot-loss fix)'
+  - 'test:packages/cli/src/tools/gate.test.ts::surfaces truncation as a first-class Verdict finding when the diff is oversized (#544 part 1)'
+  - 'ci:test'
+status: verified
+owner: williamzujkowski
+since: 0.1.6
