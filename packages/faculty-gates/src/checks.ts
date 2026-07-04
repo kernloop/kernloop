@@ -159,7 +159,7 @@ export function defaultQualityChecks(childScope?: readonly string[]): QualityChe
  * script's own list and asserts the two stay identical, so drift between them
  * fails a test rather than silently under/over-triggering (#564).
  */
-const DOCS_RENDER_GATED_PACKAGES: readonly string[] = [
+export const DOCS_RENDER_GATED_PACKAGES: readonly string[] = [
   'contracts',
   'kernel',
   'cli',
@@ -184,7 +184,7 @@ const DOCS_RENDER_GATED_PACKAGES: readonly string[] = [
  * `claims/registry/*.yaml` — adding or removing a file there moves a count
  * without touching any const).
  */
-const STATS_INPUT_FILES: readonly string[] = [
+export const STATS_INPUT_FILES: readonly string[] = [
   'packages/contracts/src/common.ts',
   'packages/cli/src/tools/index.ts',
   'packages/faculty-workforce/src/templates.ts',
@@ -196,7 +196,7 @@ const STATS_INPUT_FILES: readonly string[] = [
 ];
 
 /** Directory prefixes whose file COUNT (not content) is a derived stats input. */
-const STATS_INPUT_DIR_PREFIXES: readonly string[] = [
+export const STATS_INPUT_DIR_PREFIXES: readonly string[] = [
   'packages/docscan/grammars/',
   'claims/registry/',
 ];

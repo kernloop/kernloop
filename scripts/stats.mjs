@@ -37,20 +37,41 @@ function countDir(relDir, pred) {
   return fs.readdirSync(path.join(REPO, relDir)).filter(pred).length;
 }
 
+/**
+ * The source files whose named `export const [...]` tuple stats COUNTS, each
+ * paired with the const name and the stat key it feeds. Declared once so
+ * BOTH {@link deriveStats} (which parses them) and {@link STATS_INPUTS} (which
+ * lists them as drift inputs) read the same source — a new counted const is
+ * added HERE and both follow.
+ */
+const CONST_SOURCES = [
+  { key: 'contracts', file: 'packages/contracts/src/common.ts', name: 'CONTRACT_NAMES' },
+  { key: 'tools', file: 'packages/cli/src/tools/index.ts', name: 'KERNEL_TOOL_NAMES' },
+  {
+    key: 'templates',
+    file: 'packages/faculty-workforce/src/templates.ts',
+    name: 'SHIPPED_TEMPLATE_NAMES',
+  },
+];
+
+/** Directories whose FILE COUNT is a derived stat, each with its match predicate + stat key. */
+const DIR_SOURCES = [
+  { key: 'languages', dir: 'packages/docscan/grammars', pred: (f) => f.endsWith('.wasm') },
+  { key: 'claims', dir: 'claims/registry', pred: (f) => /^CLM-\d+\.yaml$/.test(f) },
+];
+
 /** Derive every canonical count from its authoritative source — parsed from the
- * defining const or counted on disk, never hand-typed. */
+ * defining const or counted on disk, never hand-typed. Key order (contracts,
+ * tools, templates, languages, gatedPackages, claims) is preserved for the
+ * README table + summary line. */
 export function deriveStats() {
-  return {
-    contracts: countConstArray('packages/contracts/src/common.ts', 'CONTRACT_NAMES'),
-    tools: countConstArray('packages/cli/src/tools/index.ts', 'KERNEL_TOOL_NAMES'),
-    templates: countConstArray(
-      'packages/faculty-workforce/src/templates.ts',
-      'SHIPPED_TEMPLATE_NAMES',
-    ),
-    languages: countDir('packages/docscan/grammars', (f) => f.endsWith('.wasm')),
-    gatedPackages: GATED_PACKAGES.length, // scripts/docs-coverage.mjs (a plain .mjs const)
-    claims: countDir('claims/registry', (f) => /^CLM-\d+\.yaml$/.test(f)),
-  };
+  const s = {};
+  for (const c of CONST_SOURCES) s[c.key] = countConstArray(c.file, c.name);
+  const [languages, claims] = DIR_SOURCES.map((d) => countDir(d.dir, d.pred));
+  s.languages = languages;
+  s.gatedPackages = GATED_PACKAGES.length; // scripts/docs-coverage.mjs (a plain .mjs const)
+  s.claims = claims;
+  return s;
 }
 
 /** The "at a glance" table column headers — widths drive value-cell padding. */
@@ -116,6 +137,29 @@ export const WATCHED = [
   { file: 'README.md', re: /exactly the kernel (\w+)\b/i, key: 'tools' },
   { file: 'README.md', re: /frozen at exactly (\w+) types/i, key: 'contracts' },
 ];
+
+/**
+ * Every repo path whose change can move a derived stat: the const-source and
+ * `GATED_PACKAGES`-defining FILES stats parses, the {@link WATCHED} prose files
+ * it cross-checks, and the DIRECTORIES whose file count is itself a stat.
+ * DERIVED from the same {@link CONST_SOURCES} / {@link DIR_SOURCES} /
+ * {@link WATCHED} `deriveStats`/`checkWatched` already read (never a hand-kept
+ * parallel list), and EXPORTED as the single source the #564 child-gate drift
+ * classifier (`driftChecksFor` in `@kernloop/faculty-gates`) mirrors under a
+ * lockstep test — so a new stats input can never silently escape the child
+ * gate's stats-drift check. `files` are exact repo-relative paths; `dirs` are
+ * directory roots (any file within counts).
+ */
+export const STATS_INPUTS = {
+  files: [
+    ...new Set([
+      ...CONST_SOURCES.map((c) => c.file),
+      'scripts/docs-coverage.mjs', // GATED_PACKAGES.length is derived from here
+      ...WATCHED.map((w) => w.file),
+    ]),
+  ],
+  dirs: DIR_SOURCES.map((d) => d.dir),
+};
 
 /** Validate every WATCHED prose count against the derived value; returns errors. */
 export function checkWatched(root, s) {

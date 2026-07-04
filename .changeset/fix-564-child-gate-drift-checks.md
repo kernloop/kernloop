@@ -22,3 +22,9 @@ shipped a stale `docs/CLAIMS.md` past its own green gate, red on CI after merge)
   from `executors.ts`) appends `driftChecksFor` only when `writtenFiles` is
   present (the child gate). The standalone `gate quality` path (no
   `writtenFiles`) is byte-identical to before.
+- The classifier's package/stats-input mirrors are held in LOCKSTEP with
+  their real sources by set-equality tests: `DOCS_RENDER_GATED_PACKAGES` vs
+  `scripts/docs-coverage.mjs`'s `GATED_PACKAGES`, and the stats inputs vs a
+  new `STATS_INPUTS` export on `scripts/stats.mjs` (derived from the same
+  const/dir/watched specs `deriveStats` reads) — so a new gated package or
+  stats input can never silently escape the child gate's drift check.

@@ -8,10 +8,10 @@ statement: >-
   package's source write adds the docs:render check, and a write to a
   `stats:check`-derived const or watched-prose file adds the stats check.
   Each is a whole-repo `--check` subprocess run, but the child gate runs it
-  over a FRESHLY-CLONED, green throwaway sandbox workspace (#236) that
-  carries no pre-existing drift, so a failure there is provably the CHILD's
-  own un-regenerated render — closing the gap that let #562/DF1's claim edit
-  ship a stale `docs/CLAIMS.md` past its own gate. A child that wrote none of
+  over the sandbox-cloned pristine workspace (#236 — a fresh per-check copy
+  that carries no pre-existing drift), so a failure there is provably the
+  CHILD's own un-regenerated render — closing the gap that let #562/DF1's
+  claim edit ship a stale `docs/CLAIMS.md` past its own gate. A child that wrote none of
   these inputs gets none of these checks (zero added cost), and the
   standalone `gate quality` path (no `writtenFiles`) is unaffected — this is
   wired only into the loop's per-child gate via `executeQualityGate`'s
@@ -21,7 +21,8 @@ evidence:
   - 'test:packages/faculty-gates/src/checks.test.ts::does NOT add the claims-render check for an unrelated write'
   - 'test:packages/faculty-gates/src/checks.test.ts::adds the docs-render drift check when a gated package src file was written'
   - 'test:packages/faculty-gates/src/checks.test.ts::does NOT add the docs-render check for a non-gated-package or non-src write'
-  - 'test:packages/faculty-gates/src/checks.test.ts::mirrors scripts/docs-coverage.mjs GATED_PACKAGES exactly (no silent drift between the two lists)'
+  - 'test:packages/faculty-gates/src/checks.test.ts::mirrors scripts/docs-coverage.mjs GATED_PACKAGES exactly — set-EQUAL, both directions (no silent drift)'
+  - 'test:packages/faculty-gates/src/checks.test.ts::mirrors scripts/stats.mjs STATS_INPUTS exactly — the classifier stats set == what stats actually reads'
   - 'test:packages/faculty-gates/src/checks.test.ts::adds the stats drift check when a stats-input const file was written'
   - 'test:packages/faculty-gates/src/checks.test.ts::adds the stats drift check for a written claims-registry file too (its count is a derived stat)'
   - 'test:packages/faculty-gates/src/checks.test.ts::does NOT add the stats check for an unrelated write'

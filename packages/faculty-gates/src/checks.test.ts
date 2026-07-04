@@ -4,6 +4,9 @@ import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_TIMEOUT_MS,
+  DOCS_RENDER_GATED_PACKAGES,
+  STATS_INPUT_DIR_PREFIXES,
+  STATS_INPUT_FILES,
   checksFromDefinitionOfDone,
   defaultQualityChecks,
   diffCoverageCheck,
@@ -14,6 +17,12 @@ import {
 } from './checks.js';
 import { parseEslintOutput, parseTscOutput, parseVitestOutput } from './parsers.js';
 import { GATED_PACKAGES } from '../../../scripts/docs-coverage.mjs';
+import { STATS_INPUTS } from '../../../scripts/stats.mjs';
+
+/** Assert two string lists have identical members, ignoring order and dupes. */
+function sameSet(a: readonly string[], b: readonly string[]): void {
+  expect([...new Set(a)].sort()).toEqual([...new Set(b)].sort());
+}
 
 describe('diffCoverageCheck (#226 item 2)', () => {
   let dir: string;
@@ -154,10 +163,38 @@ describe('driftChecksFor (#564 — closes the #562/DF1 rescue gap)', () => {
     expect(driftChecksFor(['packages/faculty-gates/vitest.config.ts'])).toEqual([]);
   });
 
-  it('mirrors scripts/docs-coverage.mjs GATED_PACKAGES exactly (no silent drift between the two lists)', () => {
+  it('mirrors scripts/docs-coverage.mjs GATED_PACKAGES exactly — set-EQUAL, both directions (no silent drift)', () => {
+    // BIDIRECTIONAL: script ⊆ local proves the false-negative direction (a
+    // gated package the classifier forgot); local ⊆ script proves the local
+    // mirror can't accrue a stale/extra entry. Equality catches both.
+    sameSet(DOCS_RENDER_GATED_PACKAGES, GATED_PACKAGES);
+    // …and behaviorally: every script-gated package's src triggers docs-render-drift.
     for (const pkg of GATED_PACKAGES) {
       const checks = driftChecksFor([`packages/${pkg}/src/index.ts`]);
       expect(checks.some((c) => c.name === 'docs-render-drift')).toBe(true);
+    }
+  });
+
+  it('mirrors scripts/stats.mjs STATS_INPUTS exactly — the classifier stats set == what stats actually reads', () => {
+    // The one classifier the docs lockstep did not cover: STATS_INPUT_FILES /
+    // STATS_INPUT_DIR_PREFIXES is a hand-maintained mirror of what stats.mjs
+    // reads. stats.mjs now EXPORTS its real input set (derived from the same
+    // CONST_SOURCES/DIR_SOURCES/WATCHED it parses), so a new stats input can't
+    // silently skip the child gate's stats-drift check (#564).
+    sameSet(STATS_INPUT_FILES, STATS_INPUTS.files);
+    // dir prefixes carry a trailing '/'; stats.mjs lists bare dir roots.
+    sameSet(
+      STATS_INPUT_DIR_PREFIXES.map((p) => p.replace(/\/$/, '')),
+      STATS_INPUTS.dirs,
+    );
+    // …and behaviorally: every declared stats input triggers stats-drift.
+    for (const file of STATS_INPUTS.files) {
+      expect(driftChecksFor([file]).some((c) => c.name === 'stats-drift')).toBe(true);
+    }
+    for (const dir of STATS_INPUTS.dirs) {
+      expect(driftChecksFor([`${dir}/anything.ext`]).some((c) => c.name === 'stats-drift')).toBe(
+        true,
+      );
     }
   });
 
