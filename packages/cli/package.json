@@ -41,7 +41,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.220.0",
-    "@opentelemetry/sdk-metrics": "^2.8.0",
+    "@opentelemetry/sdk-metrics": "^2.9.0",
     "better-sqlite3": "^12.11.1",
     "yaml": "^2.8.2",
     "zod": "^4.4.3"
