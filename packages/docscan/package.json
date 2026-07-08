@@ -27,7 +27,7 @@
     "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3"
+    "@types/node": "^26.1.1"
   },
   "publishConfig": {
     "access": "public"
