@@ -36,7 +36,7 @@ jobs:
       # Node 22 (npm 10), which does NOT speak the OIDC handshake and fails publish with a
       # MISLEADING 404. Do NOT "align" this to 22. Also: NO registry-url — setup-node would
       # otherwise plant a NODE_AUTH_TOKEN that conflicts with OIDC.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
